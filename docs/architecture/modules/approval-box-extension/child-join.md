@@ -10,21 +10,27 @@ Owner 2026-11-24 18:2x JST: 「BellTeamもお前のプロダクトと全く同�
 
 The child join itself is built by Nayuta inside the embedded Approval Box part (app id `dev.kitepon.approvalbox`, signed `/v1`). This page is the BellTeam side: what the clients draw, the one screen, the port, and who builds what.
 
-## What BellTeam needs from the component (Nayuta states the names)
+## What the component gives (Nayuta, 2026-11-24: client-component.md 0.5 section 9, approval-box-apps #152, 7f85877)
 
-| Need | Why |
+Names are the Swift form's; Kotlin and .NET use the same names in their own case.
+
+| Member | Meaning |
 | --- | --- |
-| a call to open a join offer and a call to cancel it; while it is open the state is `waiting` with the QR payload the parent's 「ほかの端末を追加する」 reads and the expiry | the one screen |
-| after the parent allows it the component stores the child's credential itself (the existing `IPeerStorage`: Keychain, DPAPI, owner-only files) and the state becomes `joining`, then `live`, with no host sign-in and no pass handed to BellTeam | the host never sees a credential |
-| a call that forgets the credential on this device (`release`) | 「つなぎを外す」 |
-| a parent who removes the child in 接続, or an offer that ends, is a state with a note: `needsApproval` with `device_removed`, `offer_expired`, `offer_failed` (the notes the component already has, [client-component.md](https://github.com/kitepon/approval-box-apps/blob/main/docs/client-component.md) 3.2) | the words below |
-| 402 stays `notEntitled`, 401 on a `v1` read stays `signedOut` (now: the credential is gone, show the not-joined screen) | existing rows |
+| `joinState` (observable) | `notJoined`, `waitingForParent(qrLink, expiresAt)`, `joined`, `failed(code)` |
+| `requestJoin()` | `notJoined` or `failed` → `waitingForParent`. The library's makeRequest with no hand-over; it signs in first if the child form has no kept sign-in |
+| `cancelJoin()` | `waitingForParent` → `notJoined` |
+| `leave()` | `joined` → `notJoined`. It removes the child from the account on the server (the library's `keys/leave` deletes this device's keyhole, so the device disappears wherever the parent's apps list devices) and clears the child form's kept sign-in and key locally. The host's own BellTeam login is untouched |
+| after `joined` | the existing `start()`, `state` and `decisions` work as before, on signed requests |
 
-Open for Nayuta: the member names, whether a rejected offer (「心当たりがない」) is `offer_failed`, whether `release` also removes the child from the parent's 接続 list or only forgets it locally, and the version that carries it in the Swift and .NET forms (BellTeam consumes both).
+A parent's refusal, an expiry and any library refusal end the request: `failed(code)` with the library's own code for a refusal or library failure; `notJoined` for an expiry and for `cancelJoin` (the old peer notes `offer_failed` / `offer_expired` belong to the peer admission, not to this). The screen may offer `requestJoin()` again from either. 402 stays `notEntitled`; a `/v1` 401 on a joined child means the credential is gone and reads as `signedOut` of `state` (the not-joined screen). The QR is the library's join link for app id `dev.kitepon.approvalbox`, which his iPhone camera reads or Approval Box → 接続 → 「ほかの端末を追加する」. No 「この端末を親にする」 button exists, since a BellTeam host is never a parent.
+
+Releases (all on login-billing 0.22.4, each with a sha256; Nayuta tells Tronie the result): Swift `client-v0.5.0` (Red Shoes, the first published Swift form), Kotlin `client-kotlin-v0.5.0` and .NET `client-dotnet-v0.5.0` (Indivilia; BellTeam consumes Swift and .NET).
+
+Still open for Nayuta: what a child that the parent removed while it is `joined` reads (expected: `signedOut` at the next signed read, then `notJoined`).
 
 ## The port
 
-`ApprovalSource` ([client-v0.5.md](client-v0.5.md) 5.1) swaps `signIn / signOut` for `join / cancelJoin / leave`; everything else is unchanged. The states are those of the component: `SignedOut` (not joined, or left), `Waiting` (offer open), `Joining`, `Live`, `NeedsApproval(note)`, `NotEntitled`, `Reconnecting`, `UpdateRequired`.
+`ApprovalSource` ([client-v0.5.md](client-v0.5.md) 5.1) swaps `signIn / signOut` for `join / cancelJoin / leave` (= `requestJoin`, `cancelJoin`, `leave`); everything else is unchanged. The screen's states come from `joinState` (`notJoined`, `waitingForParent`, `joined`, `failed`) and, once joined, from the component's `state` (`joining`, `live`, `reconnecting`, `notEntitled`, `updateRequired`).
 
 ## The one screen (the same on every client)
 
@@ -32,35 +38,31 @@ Where: the 決裁箱 window itself. When the client is not joined it is the firs
 
 | State | Shown (Japanese, plain, no ids or codes) | Action |
 | --- | --- | --- |
-| `SignedOut`, not joined | title 「決裁箱につなぎます」; 「この端末を、あなたの決裁箱に子の端末として追加します。サインインは要りません。」 | 「決裁箱につなぐ」 (opens the offer) |
-| `Waiting` | title 「決裁箱の承認を待っています」; the QR (label 「決裁箱につなぐQRコード」); a spinner and 「H:mm まで有効」; 「決裁箱のアプリで、接続 →「ほかの端末を追加する」を開き、このQRコードを読んで、許可してください。」 | 「やめる」 |
-| `Joining` | the last view dimmed or 「つないでいます…」 | none |
-| `Live` | the normal 決裁箱; the block line 「決裁箱につながっています」 | 「つなぎを外す」 (two steps: 外す / やめる) |
-| `NeedsApproval` `device_removed` | 「決裁箱で、この端末のつなぎが外されました。」 | 「もう一度つなぐ」 |
-| `NeedsApproval` `offer_expired` | 「許可の待ち時間が過ぎました。もう一度つないでください。」 | 「もう一度つなぐ」 |
-| `NeedsApproval` `offer_failed` | 「つなげませんでした。もう一度つないでください。」 | 「もう一度つなぐ」 |
-| `NotEntitled` | 「Approval Boxの契約が必要です。契約はApproval Boxのアプリで行います。」 (no price, no purchase button) | 「確かめ直す」 |
-| `Reconnecting` | the last view dimmed, one line 「つなぎ直しています」 | 「今すぐ試す」 |
-| `UpdateRequired` | 「この版では、決裁箱をまだ使えません。アプリを更新してください。」 | 「今すぐ試す」 |
+| `notJoined` (first start, after 「やめる」, after an expiry, after `leave`) | title 「決裁箱につなぎます」; 「この端末を、あなたの決裁箱に子の端末として追加します。」 | 「決裁箱につなぐ」 (`requestJoin`) |
+| `waitingForParent` | title 「決裁箱の承認を待っています」; the QR from `qrLink` (label 「決裁箱につなぐQRコード」); a spinner and 「H:mm まで有効」; 「親となる端末（課金操作をするカメラのあるスマートフォンがお勧め）のカメラでQRコードを読んでください。」 and under it 「決裁箱のアプリでは、接続 →「ほかの端末を追加する」から読めます。」 | 「やめる」 (`cancelJoin`) |
+| `failed(code)` (a parent's refusal or a library refusal) | 「つなげませんでした。もう一度つないでください。」 (the library's code never shown) | 「もう一度つなぐ」 |
+| `joined`, `state` `joining` | the last view dimmed or 「つないでいます…」 | none |
+| `joined`, `state` `live` | the normal 決裁箱; the block line 「決裁箱につながっています」 | 「つなぎを外す」 (two steps: 外す / やめる; `leave`) |
+| `joined`, a `/v1` 401 (the parent removed this device) | 「決裁箱で、この端末のつなぎが外されました。」 then the `notJoined` screen | 「もう一度つなぐ」 |
+| `notEntitled` | 「Approval Boxの契約が必要です。契約はApproval Boxのアプリで行います。」 (no price, no purchase button) | 「確かめ直す」 |
+| `reconnecting` | the last view dimmed, one line 「つなぎ直しています」 | 「今すぐ試す」 |
+| `updateRequired` | 「この版では、決裁箱をまだ使えません。アプリを更新してください。」 | 「今すぐ試す」 |
 
-The child never shows 「ほかの端末を追加する」, a purchase, a plan or a sign-in button. 「つなぎを外す」 never touches BellTeam's own sign-in, and a parent can remove this device in his 接続 list at any time (the next start reads `device_removed`).
+The child never shows 「ほかの端末を追加する」, a purchase, a plan or a sign-in button. 「つなぎを外す」 removes this device from his Approval Box account (it disappears from his 接続 list too) and never touches BellTeam's own sign-in; a parent can also remove this device there at any time.
 
 ```mermaid
 stateDiagram-v2
-  [*] --> SignedOut: first start, no credential on this device
-  SignedOut --> Waiting: 決裁箱につなぐ (offer opened)
-  Waiting --> SignedOut: やめる
-  Waiting --> NeedsApproval: offer_expired | offer_failed
-  Waiting --> Joining: the parent allowed it
-  Joining --> Live: first read
-  Live --> Reconnecting: network, 429, 5xx
-  Reconnecting --> Live: read again
-  Live --> NeedsApproval: device_removed (found at the next start or retry)
-  NeedsApproval --> Waiting: もう一度つなぐ
-  Live --> SignedOut: つなぎを外す (leave)
-  Live --> NotEntitled: 402
-  NotEntitled --> Live: 確かめ直す
-  Live --> UpdateRequired: /v1 closed and this build has no child join
+  [*] --> notJoined: first start, no credential on this device
+  notJoined --> waitingForParent: 決裁箱につなぐ (requestJoin)
+  failed --> waitingForParent: もう一度つなぐ
+  waitingForParent --> notJoined: やめる (cancelJoin) | expiry
+  waitingForParent --> failed: the parent refused | a library refusal
+  waitingForParent --> joined: the parent allowed it
+  joined --> joined: live / reconnecting / joining (state of the component)
+  joined --> notJoined: つなぎを外す (leave) | a /v1 401 (removed by the parent)
+  joined --> notEntitled: 402
+  notEntitled --> joined: 確かめ直す
+  joined --> updateRequired: /v1 closed and this build has no child join
 ```
 
 Every state leaves by the action on the screen, the offer's own expiry (5 minutes) or the next start; none waits for an operator.
@@ -79,13 +81,13 @@ flowchart TD
   SeatLink["seat-link block (AI path, unchanged)"] --- Win
 ```
 
-Data: the child credential lives only in the component's storage. BellTeam holds no pass and no account for the 決裁箱 window; the login-billing library is no longer asked for a 決裁箱 sign-in on this window (it stays for BellTeam's own account and for Approval Box's own apps).
+Data: the child credential lives only in the component's storage (and the server's keyhole, removed by `leave`). BellTeam holds no pass and no account for the 決裁箱 window; the login-billing library is no longer asked for a 決裁箱 sign-in on this window (it stays for BellTeam's own account and for Approval Box's own apps).
 
 ## Who builds what
 
 | Who | Builds |
 | --- | --- |
-| Nayuta (with Red Shoes for Swift, Indivilia for .NET) | the child join in the component and its release (names, `release` semantics, the answers to the open questions above); the parent side 「ほかの端末を追加する」 for a BellTeam child (client id `dev.kitepon.approvalbox`) |
+| Nayuta (with Red Shoes for Swift, Indivilia for .NET) | the child join in the component and its releases (`client-v0.5.0` Swift, `client-kotlin-v0.5.0`, `client-dotnet-v0.5.0`, sha256 each), the parent side 「ほかの端末を追加する」 (app id `dev.kitepon.approvalbox`) |
 | Rapi, Anis, Neon | the port change (`join / cancelJoin / leave`), the one screen from the states above, the retirement of the 決裁箱 sign-in on this window (`ApprovalBoxAccount`, the `lbq1` handoff, `PassProvider` for the component), the QR from the component's payload with the first-screen QR component; one shared wording block in Core (Anis) and Apple (Rapi), the strings of the table; tests: each state of the table and the never-a-parent rule |
 | Mint | confirm the BellTeam 決裁箱 window no longer uses `lbq1`/`lbq2` (nothing is removed from the library; Approval Box's apps keep them) |
 | Delta | this page; the screen-spec and client-v0.5 pointers; the check of each client's screen against the table |
