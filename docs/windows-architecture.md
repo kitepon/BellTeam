@@ -368,7 +368,7 @@ flowchart LR
 
 ## 「AIの許可待ちを決裁箱へ送る」（seat-link。[seat-approval-card.md](architecture/modules/approval-box-extension/seat-approval-card.md)の「The pairing view」、オーナー2026-11-24：トークンは貼らず、BellTeamのQRを決裁箱のアプリで読んで承認）
 
-決裁箱の窓の「工程表との連携」パネル（つなぎを外すがある所）の下に1つの区画を足す。データはbodyの`GET /api/approvals/seat-link`・`POST …/start`・`POST …/stop`だけ（Coreの`SeatLinkApi`。形は`{state, code?, typedSecret?, qrText?, expiresAt?, reason?}`）。言葉と状態はCoreの`SeatLinkText`（契約の表を一字も変えず、Linux・Androidと同じ）。
+決裁箱の窓の「工程表との連携」パネル（つなぎを外すがある所）の下に1つの区画を足す。データはbodyの`GET /api/approvals/seat-link`・`POST …/start`・`POST …/stop`だけ（Coreの`SeatLinkApi`。形は`{state, code?, qrText?, expiresAt?, reason?}`。打ち込むコードは`code`（デルタ#2544：`typedSecret`は無い））。言葉と状態はCoreの`SeatLinkText`（契約の表を一字も変えず、Linux・Androidと同じ）。
 
 ```mermaid
 stateDiagram-v2

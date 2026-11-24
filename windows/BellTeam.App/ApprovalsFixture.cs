@@ -21,7 +21,7 @@ internal sealed class ApprovalsFixture(string scene) : HttpMessageHandler
     internal int LinkReads { get; private set; }
     /// <summary>The seat-link (「AIの許可待ちを決裁箱へ送る」) answer of the stand-in body: GET reads it, start sets <see cref="SeatLinkOnStart"/>, stop sets none.</summary>
     internal JsonObject SeatLink { get; set; } = new() { ["state"] = "none" };
-    internal JsonObject SeatLinkOnStart { get; set; } = new() { ["state"] = "waiting", ["code"] = "ABCD", ["typedSecret"] = "WXYZ-1234-QRST-5678", ["qrText"] = "https://approval-box.example/pair?c=ABCD", ["expiresAt"] = DateTimeOffset.UtcNow.AddMinutes(5).ToString("O") };
+    internal JsonObject SeatLinkOnStart { get; set; } = new() { ["state"] = "waiting", ["code"] = "WXYZ-1234-QRST-5678", ["qrText"] = "https://approval-box.example/pair?c=WXYZ-1234-QRST-5678", ["expiresAt"] = DateTimeOffset.UtcNow.AddMinutes(5).ToString("O") };
     /// <summary>What the page sent to the connection routes (method and path), for the tests.</summary>
     internal List<(string Method, string Path)> Sent { get; } = [];
 
