@@ -44,8 +44,6 @@ export class HarnessAuth {
     this.sessions = new Map()
     this.receipts = new Map()
     this.pending = Promise.resolve()
-    // Reads of the same harness+slot share the one in flight; a change (start/input/cancel) drops them so a later read sees its effect.
-    this.flights = new Map()
   }
 
   list() {
@@ -55,19 +53,12 @@ export class HarnessAuth {
   }
 
   status(harness, options = {}, selected = options) {
-    const key = `${harness}|${selected?.slot ?? ''}`
-    let flight = this.flights.get(key)
-    if (flight) return flight
-    flight = this.queue(async () => {
+    return this.change(async () => {
       this.require(harness)
       this.requireInstalled(harness)
       const slot = harnessAuthSlot(harness, selected?.slot)
       return this.observe(harness, slot)
     })
-    this.flights.set(key, flight)
-    const done = () => { if (this.flights.get(key) === flight) this.flights.delete(key) }
-    flight.then(done, done)
-    return flight
   }
 
   start(harness, options = {}, selected = options) {
@@ -213,7 +204,5 @@ export class HarnessAuth {
     } }
   }
 
-  change(run) { this.flights.clear(); return this.queue(run) }
-
-  queue(run) { const result = this.pending.then(run, run); this.pending = result; return result }
+  change(run) { const result = this.pending.then(run, run); this.pending = result; return result }
 }

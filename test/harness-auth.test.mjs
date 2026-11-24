@@ -182,33 +182,3 @@ test('選べなくなったAntigravityは認証も状態の取得も受け付け
   assert.deepEqual(client.calls, [])
   assert.ok(auth.list().harnesses.every(x => x.reloginSupported === true))
 })
-
-test('同じAIの状態の読み取りは処理中の一件を共有し、変更の後の読み取りは新しく読む（溜まりの止め）', async () => {
-  const client = aiterm({ official: 'waiting' })
-  let release
-  const gate = new Promise(resolve => { release = resolve })
-  const call = client.call.bind(client)
-  client.call = async (name, args) => { if (args?.action === 'status') await gate; return call(name, args) }
-  const auth = new HarnessAuth({ bots, client })
-  const reads = Array.from({ length: 50 }, () => auth.status('codex', {}))
-  const started = auth.start('codex', {})
-  const after = auth.status('codex', {})
-  release()
-  const results = await Promise.all(reads)
-  assert.ok(results.every(value => value === results[0]))
-  await started
-  assert.notEqual(await after, results[0])
-  assert.equal(client.calls.filter(([, args]) => args?.action === 'status').length, 2)
-  assert.equal(auth.flights.size, 0)
-})
-
-test('状態の読み取りが失敗しても共有は残らず、次の読み取りはやり直せる', async () => {
-  const client = aiterm()
-  let fail = true
-  const call = client.call.bind(client)
-  client.call = async (name, args) => { if (args?.action === 'status' && fail) throw new Error('down'); return call(name, args) }
-  const auth = new HarnessAuth({ bots, client })
-  await assert.rejects(Promise.all([auth.status('codex', {}), auth.status('codex', {})]), /down/u)
-  fail = false
-  assert.equal((await auth.status('codex', {})).auth.status, 'authenticated')
-})
