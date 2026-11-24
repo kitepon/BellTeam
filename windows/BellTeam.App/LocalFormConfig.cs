@@ -8,7 +8,7 @@ internal static class LocalFormConfig
 {
     // The Desktop client's secret reaches the build from the host vault (scripts/install-windows.ps1 -GoogleDesktopOAuthRef -> BELLTEAM_GOOGLE_DESKTOP_SECRET -> assembly metadata, BellTeam.App.csproj): GitHub's push protection refuses it in a commit.
     // Google treats a Desktop client's secret as non-confidential; it is sent with the token request only and never logged. A build without it (a source build with no vault) signs in with Google's refusal, "client_secret is missing".
-    private static string? GoogleSecret =>
+    internal static string? GoogleSecret =>
         typeof(LocalFormConfig).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().FirstOrDefault(a => a.Key == "GoogleDesktopSecret")?.Value is { Length: > 0 } secret ? secret : null;
 
     // Audiences: every Google client id of BellTeam (the phone's token may carry any), Apple's own app id and the Services ID of the PC's own Apple sign-in (1.46: it must be among them). Apple's root: null takes the library's built-in Apple Root CA - G3 (1.37).

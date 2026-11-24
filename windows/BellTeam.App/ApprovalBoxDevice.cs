@@ -1,96 +1,76 @@
+using System.Diagnostics;
+using System.IO;
 using System.Net.Http;
-using BellTeam.PeerChannel;
-using Kitepon.LoginBilling.Desktop;
+using BellTeam.Core;
+using Kitepon.ApprovalBox.Client;
 
 namespace BellTeam.App;
 
 /// <summary>
-/// Wires the Approval Box account of this PC to the 決裁箱 page (client-v0.5): the second sign-in (login-billing against /auth/v1, its own pass, no purchase) and the one <see cref="ApprovalSelector"/> that reads /v1 now and the pc/1 core (peer-channel-signin.md)
-/// when GET /v1/auth/config says peer_channel. Always on: the old environment switch BELLTEAM_APPROVAL_BOX_DEVICE is gone, the selector decides.
+/// Wires the 決裁箱 page of this PC to the one <see cref="ApprovalBoxClient"/> of Kitepon.ApprovalBox.Client 0.5.0 (client-component section 9, child-join.md): this PC joins the Owner's Approval Box as a CHILD device,
+/// signed with its own key (the component's Desktop form: Windows CNG key and kept sign-in under <c>approval-box-child</c>, apart from BellTeam's own login-billing stores and from the device history); the package reads /v1 now and the peer channel when
+/// GET /v1/auth/config says peer_channel. The join (<see cref="IChildJoin"/>) and the screens stay here; no pass, no lbq1 handoff, no PassProvider.
 /// </summary>
 public sealed class ApprovalBoxDevice : IAsyncDisposable
 {
-    internal ApprovalBoxAccount Account { get; }
-    /// <summary>The one source the page reads (named Device for the 決裁箱 hub; it is the selector).</summary>
-    internal ApprovalSelector Device { get; }
-    private readonly string directory;
+    internal const string ProductOrigin = "https://approval-box.kitepon.dev";
+    /// <summary>The one source the page reads (named Device for the 決裁箱 hub).</summary>
+    internal ClientApprovalSource Device { get; }
+    internal IChildJoin Join { get; }
+    private readonly ApprovalBoxClient client;
     private ApprovalsHub? hub;
-    private CancellationTokenSource? signIn, approve;
+    private ApprovalOffer? shownOffer; private string? shownNote;
+    private bool wasJoined;
 
     public ApprovalBoxDevice(string directory) : this(directory, null) { }
-    internal ApprovalBoxDevice(string directory, ApprovalBoxAccount? account, HttpMessageHandler? transport = null)
+    /// <param name="origin">Development runs point it at approval-box's local dev server (BELLTEAM_APPROVAL_BOX_URL).</param>
+    internal ApprovalBoxDevice(string directory, string? origin, HttpMessageHandler? transport = null, Func<Uri, Task>? openBrowser = null, string? stateDirectory = null)
     {
-        this.directory = directory; Account = account ?? new ApprovalBoxAccount();
-        Device = new ApprovalSelector(
-            () => new V1ApprovalSource(Account.CreateV1Client(transport), () => Account.SignedIn, Account.DropPass),
-            CreatePeer,
-            ct => Account.ReadPeerChannelAsync(transport, ct));
+        client = new ApprovalBoxClient(new ApprovalBoxClientOptions
+        {
+            BaseUri = new Uri((origin ?? Environment.GetEnvironmentVariable("BELLTEAM_APPROVAL_BOX_URL") ?? ProductOrigin).TrimEnd('/')), Transport = transport,
+            Peer = new DpapiPeerStorage(directory, Environment.MachineName),
+            Join = new ChildJoinOptions
+            {
+                StateDirectory = stateDirectory ?? Path.Combine(directory, "approval-box-child"),
+                // The sign-in runs in this process, so the identifiers are BellTeam's own (the same Google and Apple clients as BellTeam's sign-in); the parent verifies the token against its own audiences.
+                Audiences = [.. LocalFormIds.GoogleClientIds, LocalFormIds.AppleBundleId, LocalFormIds.AppleServicesId],
+                GoogleClientId = LocalFormIds.GoogleDesktopClientId, GoogleClientSecret = LocalFormConfig.GoogleSecret,
+                AppleServicesId = LocalFormIds.AppleServicesId, AppleReturnUrl = LocalFormIds.AppleReturnUrl,
+                OpenBrowser = openBrowser, Log = line => Trace.WriteLine("approval-box-child: " + line),
+            },
+        });
+        Device = new ClientApprovalSource(client); Join = new ClientChildJoin(client);
+        wasJoined = client.JoinState.Status == JoinStatus.Joined;
+        client.Changed += OnClientChanged;
     }
 
-    // Built only when the switch says peer_channel: the keys, the registry head and the history of this device are made now, never before.
-    private IApprovalSource CreatePeer()
+    // The offer (code, QR) the package shows while a verified device admits this one (the peer channel) is the hub's to draw. A join that just completed starts the reads (the package's start() after joined).
+    private void OnClientChanged()
     {
-        var peer = new DeviceApprovals(directory, Account.AccessAsync, Account.AccountAsync, Environment.MachineName);
-        // 4410: the Approval Box account is gone; DeviceApprovals cleared the device keys, the pass of this instance goes too.
-        peer.Runtime.StateChanged += () => { if (peer.State is { Status: RuntimeStatus.SignedOut, Reason: "account_deleted" }) Account.ClearPass(); };
-        return peer;
+        var joined = client.JoinState.Status == JoinStatus.Joined;
+        if (joined && !wasJoined) _ = client.StartAsync();
+        wasJoined = joined;
+        var state = client.State;
+        var offer = state.Offer is { } o ? new ApprovalOffer(o.Code, o.QrPayload, o.ExpiresAt) : null;
+        var note = state.Status == ClientStatus.NeedsApproval ? state.Note switch { "offer_expired" => Approvals.DeviceApprovalExpired, "offer_failed" => Approvals.DeviceApprovalFailed, _ => null } : null;
+        if (offer == shownOffer && note == shownNote) return;
+        shownOffer = offer; shownNote = note; hub?.SetOffer(offer, note);
     }
 
     internal void Attach(ApprovalsHub hub)
     {
-        this.hub = hub; hub.SignInApprovalBox = () => _ = SignInAsync(); hub.SignInByHandoff = () => _ = HandoffAsync(); hub.CancelSignIn = () => signIn?.Cancel();
-        hub.RequestApproval = () => _ = RequestApprovalAsync(); hub.CancelApproval = () => approve?.Cancel();
+        this.hub = hub; hub.SetJoin(Join);
+        hub.RequestApproval = client.RequestApproval; hub.CancelApproval = client.CancelApproval;
         Device.Start();
     }
 
-    private async Task SignInAsync()
-    {
-        if (signIn is not null) return;
-        var mine = signIn = new CancellationTokenSource(); hub?.SetSignIn(true);
-        string? note = null;
-        try { await Account.SignInAsync(AccountStore.Providers[0], mine.Token); Device.Refresh(); }   // the switch is read again after every sign-in
-        catch (OperationCanceledException) { }
-        catch (LoginBillingException error) { note = AccountView.Describe(error); }   // signin_cancelled says nothing (the person's own choice)
-        finally { signIn = null; mine.Dispose(); hub?.SetSignIn(false, note); }
-    }
-
-    // Sign in by handoff: the QR is shown until the phone's Approval Box app approves, the pass comes back, the code expires or the person stops.
-    private async Task HandoffAsync()
-    {
-        if (signIn is not null) return;
-        var mine = signIn = new CancellationTokenSource(); hub?.SetSignIn(true);
-        string? note = null;
-        try
-        {
-            if (await Account.StartHandoffAsync(Environment.MachineName, mine.Token) is not { } start) { Device.Refresh(); return; }   // no QR is needed: the pass is already there
-            hub?.SetHandoff(new ApprovalHandoff(start.QrPayload, start.ShortCode, start.CheckNumber, start.ExpiresAt));
-            await Account.WaitForHandoffAsync(mine.Token); Device.Refresh();
-        }
-        catch (OperationCanceledException) { }
-        catch (LoginBillingException error) { note = AccountView.Describe(error); }
-        finally { signIn = null; mine.Dispose(); hub?.SetHandoff(null); hub?.SetSignIn(false, note); }
-    }
-
-    // NeedsApproval -> Waiting (pc/1 core only): show the code and QR until a verified device admits this one, the 5 minutes pass or the person stops.
-    private async Task RequestApprovalAsync()
-    {
-        if (approve is not null || Device.Peer is not { } peer) return;
-        var mine = approve = new CancellationTokenSource();
-        var admission = peer.NewAdmission();
-        hub?.SetOffer(new ApprovalOffer(admission.TypedCode, admission.QrText, admission.ExpiresAt));
-        string? note = null;
-        try { await peer.AdmitAsync(admission, mine.Token); }
-        catch (OperationCanceledException) { }
-        catch (AdmissionException error) { note = error.Code == "binding_expired" ? Approvals.DeviceApprovalExpired : Approvals.DeviceApprovalFailed; }
-        finally { approve = null; mine.Dispose(); hub?.SetOffer(null, note); }
-    }
-
-    // a485 「アカウントを削除」: this PC's Approval Box sign-in (the library's signOut reaches the server as far as it can) and the pc/1 files (keys, registry head, history, attachments); the files go even when the sign-out fails.
+    // a485 「アカウントを削除」: this PC leaves the Owner's Approval Box (the key goes, whatever the server answers) and the package's device files go (keys, registry head, history, attachments); the files go even when leaving fails.
     internal async Task DeleteLocalDataAsync(CancellationToken ct)
     {
-        signIn?.Cancel(); approve?.Cancel();
-        try { await Account.SignOutAsync(ct); } finally { DeviceApprovals.ClearLocalFiles(directory, strict: true); }
+        Join.CancelJoin(); client.CancelApproval();
+        try { if (Join.Phase == ChildJoinPhase.Joined) await Join.LeaveAsync(); } finally { client.DeleteLocalData(); }
     }
 
-    public ValueTask DisposeAsync() { signIn?.Cancel(); approve?.Cancel(); return Device.DisposeAsync(); }
+    public ValueTask DisposeAsync() { Join.CancelJoin(); return Device.DisposeAsync(); }
 }
