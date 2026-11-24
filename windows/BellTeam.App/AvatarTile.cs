@@ -26,7 +26,7 @@ public sealed class AvatarTile : Border
     {
         var entry = Entry; var workspace = Workspace;
         var key = entry?.AvatarUrl ?? entry?.Bot?.Avatar;
-        if (shown is { } was && (entry is null || was.Target != entry.Target || was.Workspace != workspace)) { image.Source = null; shown = null; }
+        if (shown is { } was && (entry is null || string.IsNullOrEmpty(key) || was.Target != entry.Target || was.Workspace != workspace)) { image.Source = null; shown = null; }
         ToolTip = null;
         System.Windows.Automation.AutomationProperties.SetName(this, (entry?.Name ?? "") + "の写真");
         label.Text = entry?.Target.IsRoom == true ? "" : entry?.Initial ?? ""; roomSymbol.Visibility = entry?.Target.IsRoom == true ? Visibility.Visible : Visibility.Collapsed;
