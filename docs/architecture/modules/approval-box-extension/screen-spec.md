@@ -136,6 +136,8 @@ Every button leads to exactly one next view. Re-reads: on open, 読み直す, on
 
 ## つなぐ (connecting BellTeam to Approval Box, Owner 2026-11-15)
 
+> **Replaced when the child join ships (Owner 2026-11-24, option A):** BellTeam's 決裁箱 window joins the Owner's Approval Box as a child device by a QR his iPhone reads, with no sign-in inside BellTeam: see [child-join.md](child-join.md) for the one screen and its words. Until Nayuta's release and her word that Approval Box is complete, this section stands.
+
 The Owner decided BellTeam is added as an Approval Box client: nothing is pasted or typed. BellTeam is self-hosted (often on a LAN address with no public host), so there is **no redirect back to the user's server** (Trony). 決裁箱につなぐ asks the module for a request; the module obtains a request code from Approval Box and gives the app the hosted consent page address with the code already in it; the app opens it in the browser; the Owner signs in and allows BellTeam once; the module polls Approval Box in the background until the scoped session (90 days) is granted, denied or the request expires. The apps draw nothing of the sign-in. Approval Box's own page says what happened (「許可しました。BellTeamに戻ってください」); BellTeam has no landing page.
 
 ```mermaid
