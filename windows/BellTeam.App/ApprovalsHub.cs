@@ -67,6 +67,14 @@ internal sealed class ApprovalsHub : IDisposable
         if (device is not null) device.Changed += () => Post(() => { Changed?.Invoke(); DeviceChanged?.Invoke(); ReadLinks(); });
         workspace.PropertyChanged += WorkspaceChanged;
         if (workspace.Connected) ReadLinks();
+        if (autostart) _ = AskNotLinkedAgainAsync();
+    }
+
+    // A decision the engine answered 404 for is asked again every 30 s while one exists (contract: 「つなげています」 ends with the first answer, and a 404 never stays).
+    private async Task AskNotLinkedAgainAsync()
+    {
+        try { while (true) { await Task.Delay(TimeSpan.FromSeconds(30), life.Token); if (Links.AnyNotLinked) Post(ReadLinks); } }
+        catch (OperationCanceledException) { }
     }
 
     private void WorkspaceChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)

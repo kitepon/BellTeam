@@ -6,17 +6,20 @@ namespace BellTeam.App;
 
 /// <summary>
 /// The link of a decision to a chart task, read from BellTeam's id-level lookup (GET /api/approvals/by-decision?id=; ids and state only, read from the link record, no Approval Box call; Delta,
-/// peer-channel-feed.md section 5). The device's book is the list; this only adds the badge and the 工程とのつながり panel. 404 = not linked; any other failure draws no badge and asks again later.
+/// peer-channel-feed.md section 5). The device's book is the list; this only adds the badge and the 工程とのつながり panel. 404 = not linked (the line says the engine found no task, and the 404 is asked again every 30 s); any other failure draws no badge and asks again later.
 /// </summary>
 internal sealed class ApprovalLinks
 {
-    private static readonly TimeSpan Fresh = TimeSpan.FromSeconds(60);   // the link engine catches up every 5 minutes; a minute keeps the badge honest without a read per repaint
+    private static readonly TimeSpan Fresh = TimeSpan.FromSeconds(60), NotLinkedFresh = TimeSpan.FromSeconds(30);   // the engine catches up every 5 minutes; a minute keeps the badge honest without a read per repaint, and a 404 is asked again after 30 s
     private readonly Dictionary<string, (ApprovalLink? Link, DateTimeOffset At)> byId = [];
-    private readonly HashSet<string> reading = [];
+    private readonly HashSet<string> reading = [], notLinked = [];   // notLinked: the engine answered 404 for it (a failed read is not an answer)
+    /// <summary>Tests move the clock.</summary>
+    internal Func<DateTimeOffset> Clock { get; set; } = () => DateTimeOffset.UtcNow;
 
     internal ApprovalLink? Of(string? id) => id is not null && byId.TryGetValue(id, out var known) ? known.Link : null;
-    internal ViewDecision Join(ViewDecision decision) => Of(decision.Id) is { } link ? decision with { Link = link } : decision;
-    internal void Forget() { byId.Clear(); reading.Clear(); }
+    internal ViewDecision Join(ViewDecision decision) => Of(decision.Id) is { } link ? decision with { Link = link } : decision.Id is { } id && notLinked.Contains(id) ? decision with { NotLinked = true } : decision;
+    internal bool AnyNotLinked => notLinked.Count > 0;
+    internal void Forget() { byId.Clear(); reading.Clear(); notLinked.Clear(); }
 
     internal static ApprovalLink? Parse(JsonElement body)
     {
@@ -31,15 +34,15 @@ internal sealed class ApprovalLinks
     {
         foreach (var decision in decisions.ToList())
         {
-            if (decision.Id is not { Length: > 0 } id || (byId.TryGetValue(id, out var known) && DateTimeOffset.UtcNow - known.At < Fresh) || !reading.Add(id)) continue;
+            if (decision.Id is not { Length: > 0 } id || (byId.TryGetValue(id, out var known) && Clock() - known.At < (notLinked.Contains(id) ? NotLinkedFresh : Fresh)) || !reading.Add(id)) continue;
             try
             {
                 var link = Parse(await api.GetAsync<JsonElement>($"/api/approvals/by-decision?id={Uri.EscapeDataString(id)}", token));
-                var before = Of(id); byId[id] = (link, DateTimeOffset.UtcNow);
-                if (!Equals(before, link)) changed();
+                var before = Of(id); var was = notLinked.Remove(id); byId[id] = (link, Clock());
+                if (!Equals(before, link) || was) changed();
             }
             catch (OperationCanceledException) { return; }
-            catch (BellApiException error) when (error.Status == HttpStatusCode.NotFound) { var before = Of(id); byId[id] = (null, DateTimeOffset.UtcNow); if (before is not null) changed(); }
+            catch (BellApiException error) when (error.Status == HttpStatusCode.NotFound) { var before = Of(id); var first = notLinked.Add(id); byId[id] = (null, Clock()); if (before is not null || first) changed(); }
             catch (Exception) { }   // unreachable or refused: no badge now, asked again on the next change
             finally { reading.Remove(id); }
         }

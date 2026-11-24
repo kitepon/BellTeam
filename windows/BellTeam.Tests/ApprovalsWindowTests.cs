@@ -110,6 +110,15 @@ public sealed class ApprovalsWindowTests
     });
 
     [Fact]
+    public void ABellTeamDecisionTheEngineAnswered404ForSaysItFoundNoTask_NeverPendingForever() => RunSta(() =>
+    {
+        using var rig = Open(); Until(() => rig.Page.Settled && rig.Server.LinkReads >= 5);
+        Until(() => Texts(rig.Window).Contains("この決裁に合う工程は、工程表に見つかっていません"));
+        Assert.DoesNotContain("工程表につなげています", Texts(rig.Window));          // every BellTeam decision has been answered by the engine now (K-1 linked, the rest 404)
+        Assert.Contains("工程表とはつながっていません", Texts(rig.Window));         // an external decision keeps its own line
+    });
+
+    [Fact]
     public void TheDoneTabHoldsTheAnsweredAndTheWithdrawnWithTheDeliveryNote() => RunSta(() =>
     {
         using var rig = Open(); Until(() => rig.Page.Settled);
