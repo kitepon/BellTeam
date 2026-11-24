@@ -202,7 +202,8 @@ struct DesktopWorkspaceView: View {
                         row(target: .bot(bot.id), name: bot.displayName, subtitle: CurrentWork.label(bot.currentWork),
                             avatar: bot.avatar, color: BellTheme.accent(bot.color), online: bot.online,
                             working: bot.isWorking, fastMode: bot.fastMode,
-                            seatLaunch: bot.seatLaunch?.line, pinned: bot.isPinned)
+                            seatLaunch: bot.seatLaunch?.line, pinned: bot.isPinned,
+                            approvalPending: store.seatApprovalBots.contains(bot.id))
                         .botPinMenu(bot)
                     }
                     if visibleBots.isEmpty && visibleRooms.isEmpty { Text("見つかりませんでした").font(.footnote).padding() }
@@ -260,14 +261,14 @@ struct DesktopWorkspaceView: View {
 
     private func row(target: ChatTarget, name: String, subtitle: String, avatar: String, color: Color,
                      online: Bool, working: Bool = false, fastMode: Bool = false, seatLaunch: String? = nil,
-                     pinned: Bool = false) -> some View {
+                     pinned: Bool = false, approvalPending: Bool = false) -> some View {
         Button {
             store.selectedTab = 0
             store.chatPath = [target]
             compactColumn = .detail
         } label: {
             SidebarRowLabel(name: name, subtitle: subtitle, avatar: avatar, color: color, isRoom: target.isRoom,
-                            online: online, working: working, fastMode: fastMode, seatLaunch: seatLaunch, pinned: pinned,
+                            online: online, working: working, fastMode: fastMode, seatLaunch: seatLaunch, pinned: pinned, approvalPending: approvalPending,
                             selected: selection == target && store.selectedTab == 0, metrics: .current)
             .contentShape(Rectangle())
         }
@@ -451,6 +452,7 @@ struct SidebarRowLabel: View {
     var fastMode = false
     var seatLaunch: String?
     var pinned = false
+    var approvalPending = false
     var selected = false
     var metrics: SidebarRowMetrics = .current
 
@@ -465,6 +467,7 @@ struct SidebarRowLabel: View {
                     Text(name).font(.system(size: metrics.nameFont, weight: .semibold)).lineLimit(1)
                     if fastMode { BotFastModeBadge() }
                     if pinned { PinMark() }
+                    if approvalPending { SeatApprovalBadge() }
                 }
                 // Members show their work summary on up to 2 lines; rooms keep a 1-line preview.
                 Text(subtitle).font(.system(size: metrics.detailFont)).foregroundStyle(BellTheme.muted)
