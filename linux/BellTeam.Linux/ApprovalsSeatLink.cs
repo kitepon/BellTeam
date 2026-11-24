@@ -57,7 +57,7 @@ internal sealed partial class ApprovalsWindow
         {
             var code = new QrView(qr, 200) { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 0) }; Avalonia.Automation.AutomationProperties.SetName(code, "決裁箱につなぐQRコード");
             section.Children.Add(code);
-            if (link.TypedSecret is { Length: > 0 } typed) { var text = Text(typed, 18, Ink, FontWeight.Bold, wrap: true); text.FontFamily = new FontFamily("monospace"); text.HorizontalAlignment = HorizontalAlignment.Center; section.Children.Add(text); }
+            if (link.Code is { Length: > 0 } typed) { var text = Text(typed, 18, Ink, FontWeight.Bold, wrap: true); text.FontFamily = new FontFamily("monospace"); text.HorizontalAlignment = HorizontalAlignment.Center; section.Children.Add(text); }
             if (link.ExpiresAt is { } expiry) { var left = Text(SeatLinkText.Until(expiry), 12, Muted); left.HorizontalAlignment = HorizontalAlignment.Center; section.Children.Add(left); }
         }
         if (SeatLinkText.Action(link) is { } label)
