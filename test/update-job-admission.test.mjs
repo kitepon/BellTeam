@@ -55,7 +55,8 @@ async function fixture(t, { ids = ['web-gateway', 'notifications'], container = 
   const plan = await executor.plan({ scope: 'all' }, container ? { components: [{ id: 'container',
     publication: { catalog: { sha256: 'c'.repeat(64) } }, comparison: { state: 'update_available' }, capability: { supported: true } }] } : null)
   const input = { planId: plan.planId, requestId: randomUUID(), confirmContainerRestart: container, idempotencyKey: 'one-operation' }
-  return { root, executor, jobs, calls, changes, applied, input, containerStarts: () => containerStarts, failReady: (times = Infinity) => { failReady = times }, allowReady: () => { failReady = 0 }, gate: value => { admitGate = value }, fail: value => { failSecond = value }, jobsDown: value => { jobsDown = value } }
+  const reload = () => createModuleUpdateExecutor({ root, adapters, catalog, moduleHost: host, ...(container ? { host: containerHost } : {}) })
+  return { root, executor, reload, jobs, calls, changes, applied, input, containerStarts: () => containerStarts, failReady: (times = Infinity) => { failReady = times }, allowReady: () => { failReady = 0 }, gate: value => { admitGate = value }, fail: value => { failSecond = value }, jobsDown: value => { jobsDown = value } }
 }
 
 test('all durable step receipts precede acceptance; same key/new request UUID reuses jobs and actual ready transitions', async t => {
@@ -94,6 +95,21 @@ test('partial admission returns an error and retry reuses persisted UUIDs/keys w
   await f.executor.close()
 })
 
+
+test('a body restart after a partial admission ends the operation as failed and fails its admitted job; the same key replays that result', async t => {
+  const f = await fixture(t); f.fail(true)
+  await assert.rejects(f.executor.start(f.input), { code: 'UNREADABLE' })
+  assert.equal(f.jobs.size, 1); f.fail(false)
+  const restarted = await f.reload(); t.after(() => restarted.close())
+  const result = await restarted.operation(f.input.requestId)
+  assert.equal(result.admission, 'rejected'); assert.equal(result.phase, 'failed'); assert.equal(result.error.code, 'UPDATE_PARENT_INTERRUPTED')
+  assert.deepEqual(result.jobs.map(job => job.state), ['failed']); assert.equal(result.jobs[0].reason.code, 'UPDATE_PARENT_INTERRUPTED')
+  const calls = f.calls.length
+  const again = await restarted.start(f.input)
+  assert.equal(again.phase, 'failed'); assert.equal(f.calls.length, calls); assert.deepEqual(f.applied, [])
+  const fresh = await restarted.start({ ...f.input, requestId: randomUUID(), idempotencyKey: 'second-try' })
+  assert.equal(fresh.admission, 'accepted'); assert.equal(fresh.jobs.length, 2); await restarted.close()
+})
 
 test('a saved ready report resumes after a reader failure without replaying the completed module exchange', async t => {
   const f = await fixture(t, { ids: ['web-gateway'] }); f.failReady()

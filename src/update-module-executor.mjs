@@ -179,6 +179,15 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
         error: { code: 'UPDATE_PARENT_INTERRUPTED', message: '処理が中断されました。同じ要求の結果を確認してください。' } })
       changed = true
     }
+    // An operation whose admission never completed (the body stopped between host.admitJob and the saved receipt) applied nothing:
+    // work() starts only after admit(). It ends here as failed instead of waiting for a retry nobody sends (z188-update-admission-reconcile);
+    // `interrupted` lets the next read fail its admitted jobs. A retained close intent keeps its own convergence.
+    for (const entry of state.operations.filter(entry => !terminal(entry.operation) && entry.admissionComplete === false && !hasCloseIntent(entry))) {
+      entry.interrupted = true
+      Object.assign(entry.operation, { admission: 'rejected', phase: 'failed', execution: 'failed', verification: 'failed',
+        error: { code: 'UPDATE_PARENT_INTERRUPTED', message: '更新を始める前に本体が止まり、更新は行われていません。もう一度、更新を始めてください。' } })
+      changed = true
+    }
     if (changed) await save()
   } catch (error) { if (error.code !== 'ENOENT') throw failure('UPDATE_LEDGER_INVALID') }
 
@@ -513,7 +522,7 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
         if (existing) {
           requireValue(existing.operation.plan.planId === input.planId
             && (existing.idempotencyKey ?? existing.operation.requestId) === key, 'UPDATE_REQUEST_CONFLICT', 409)
-          if (existing.admissionComplete !== false || hasCloseIntent(existing)) return publicJobs(existing)
+          if (existing.admissionComplete !== false || hasCloseIntent(existing) || terminal(existing.operation)) return publicJobs(existing)
         }
         requireValue(!active && !state.operations.some(hostPending), 'MODULE_EXCHANGE_BUSY', 409)
         const planned = findPlan(input.planId)
