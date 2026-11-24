@@ -14,7 +14,6 @@ public sealed class LocalFormTests
     [InlineData("request_gone", LocalFormOutcome.Ended)]
     [InlineData("ended", LocalFormOutcome.Lapsed)]
     [InlineData("qr_invalid", LocalFormOutcome.Refused)]
-    [InlineData("other_request", LocalFormOutcome.Refused)]
     public void ATriesOwnCodeIsTheTablesSentence(string code, LocalFormOutcome outcome) => Assert.Equal(LocalFormText.Of(outcome), LocalFormText.Failure(code));
 
     [Fact]
@@ -24,6 +23,27 @@ public sealed class LocalFormTests
         Assert.Equal("相手が返事を受け取りませんでした。相手の画面で新しいQRを出してください。", LocalFormText.Failure("device_refused"));
         Assert.All(new[] { "purchase_failed", "purchase_unverified" }, code => Assert.Equal("購入を完了できませんでした。もう一度お試しください。", LocalFormText.Failure(code)));
         Assert.Equal("処理できませんでした（brand_new_code）。", LocalFormText.Failure("brand_new_code", 7));
+    }
+
+    [Theory]
+    [InlineData("request_invalid")]
+    [InlineData("other_request")]
+    public void AnOlderPeerEndsInATextThatTellsThePersonToUpdate(string code) => Assert.Contains("最新版に更新", LocalFormText.Failure(code));
+
+    [Fact]
+    public void AppleSignInFailureShowsOnlyAppleOwnCodeAndASignedOutPhoneIsAskedToSignIn()
+    {
+        Assert.Equal("サインインできませんでした（invalid_client）。", LocalFormText.Failure("signin_failed", null, "invalid_client"));
+        Assert.Equal("サインインできませんでした。もう一度お試しください。", LocalFormText.Failure("signin_failed"));
+        Assert.Equal("サインインしてから、もう一度お試しください。", LocalFormText.Failure("signin_required"));
+    }
+
+    [Fact]
+    public void TheLibraryIsBuiltWithAppleWebAndTheServicesIdAmongTheAudiences()
+    {
+        // the library's constructor throws when the Services ID is not an audience or the return address is not https
+        Assert.NotNull(LinuxAccountStore.Local);
+        Assert.StartsWith("https://", LocalFormIds.AppleReturnUrl);
     }
 
     [Fact]
