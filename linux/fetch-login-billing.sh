@@ -1,9 +1,9 @@
 #!/bin/sh
-# Puts Kitepon.LoginBilling.Desktop 0.20.3 (contract 1.40, the local form with Google's desktop client secret) in linux/packages-local, checked against the sha256 Purika published (t10b, a540). A mismatch removes the file and fails.
+# Puts Kitepon.LoginBilling.Desktop 0.20.4 (contract 1.40, the local form with Google's desktop client secret) in linux/packages-local, checked against the sha256 Purika published (t10b, a540). A mismatch removes the file and fails.
 set -eu
 cd "$(dirname "$0")"
-VERSION=0.20.3
-SHA256=d62de5e3a9233157152796a8083ba11cad5801187588101daccdaa70133bf5d3
+VERSION=0.20.4
+SHA256=46bc3fb8c0b8ccf3827702041fdd7e4eded6a6a41072ef4a64e8cdd16d31254f
 FILE=Kitepon.LoginBilling.Desktop.$VERSION.nupkg
 mkdir -p packages-local
 gh release download "v$VERSION" -R kitepon/login-billing -p "$FILE" -D packages-local --clobber

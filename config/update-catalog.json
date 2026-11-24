@@ -1,12 +1,12 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-24T00:14:43Z",
-  "expiresAt": "2026-12-01T00:14:43Z",
+  "publishedAt": "2026-11-24T01:31:11Z",
+  "expiresAt": "2026-12-01T01:31:11Z",
   "releases": [
     {
       "componentId": "usage",
-      "sourceCommit": "4690f127ac5d8724a0046ad754931ef5a216dd69",
-      "versionId": "3913d3c427be4595949b94dfa790420e3fdfddf4799080c1da23f6fb9c32b4f6",
+      "sourceCommit": "c3851cd10be9bec09cf4e19c6b40c93d7bee1ee2",
+      "versionId": "0cf43bc4e6dc97f937e8f91e1867ea6924f86992f82cdac5f8fc11ff85330e1c",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -14,16 +14,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261124T001313Z/usage-4690f127ac5d8724a0046ad754931ef5a216dd69-linux-amd64.tar.gz",
-          "bytes": 95057,
-          "sha256": "3913d3c427be4595949b94dfa790420e3fdfddf4799080c1da23f6fb9c32b4f6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261124T012246Z/usage-c3851cd10be9bec09cf4e19c6b40c93d7bee1ee2-linux-amd64.tar.gz",
+          "bytes": 92256,
+          "sha256": "0cf43bc4e6dc97f937e8f91e1867ea6924f86992f82cdac5f8fc11ff85330e1c"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261124T001313Z/usage-4690f127ac5d8724a0046ad754931ef5a216dd69-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11003,
-          "sha256": "49d3aa1d83f722e5a53ad4fe114bf1ef7473861134c3067731a36f4412fa0a2b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261124T012246Z/usage-c3851cd10be9bec09cf4e19c6b40c93d7bee1ee2-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11144,
+          "sha256": "272e5fe2101be76a47534ef3c7e3b03b76fa936042891236a1c4f05617205d61"
         },
-        "signerCommit": "4690f127ac5d8724a0046ad754931ef5a216dd69"
+        "signerCommit": "c3851cd10be9bec09cf4e19c6b40c93d7bee1ee2"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -48,13 +48,13 @@
         }
       },
       "changes": [
-        "課金の確認をサーバーでしなくなります。席の出力の記録の持ち方の変更に合わせます。"
+        "使わなくなった課金サーバーの設定を取り除きます。"
       ]
     },
     {
       "componentId": "usage",
-      "sourceCommit": "4690f127ac5d8724a0046ad754931ef5a216dd69",
-      "versionId": "db6140e993b6de44db42bbd76e3c419fa59459e17c237ab874150f6a01b63f29",
+      "sourceCommit": "c3851cd10be9bec09cf4e19c6b40c93d7bee1ee2",
+      "versionId": "2c326a91b4960b001f6acba07ec5a7f664091b949287d90e3d6760ec50806fec",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -62,16 +62,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261124T001313Z/usage-4690f127ac5d8724a0046ad754931ef5a216dd69-linux-arm64.tar.gz",
-          "bytes": 95057,
-          "sha256": "db6140e993b6de44db42bbd76e3c419fa59459e17c237ab874150f6a01b63f29"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261124T012246Z/usage-c3851cd10be9bec09cf4e19c6b40c93d7bee1ee2-linux-arm64.tar.gz",
+          "bytes": 92256,
+          "sha256": "2c326a91b4960b001f6acba07ec5a7f664091b949287d90e3d6760ec50806fec"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261124T001313Z/usage-4690f127ac5d8724a0046ad754931ef5a216dd69-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11046,
-          "sha256": "ac2046e5410df6d2a58026c52c9bd3f7ba52ccf4b874128401df3790bc0ded86"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261124T012246Z/usage-c3851cd10be9bec09cf4e19c6b40c93d7bee1ee2-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11140,
+          "sha256": "9bdf1dfc2e9054afbd5a67b8c36faa6984c92fb05ed0b74c98f71c788663fedb"
         },
-        "signerCommit": "4690f127ac5d8724a0046ad754931ef5a216dd69"
+        "signerCommit": "c3851cd10be9bec09cf4e19c6b40c93d7bee1ee2"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -96,7 +96,7 @@
         }
       },
       "changes": [
-        "課金の確認をサーバーでしなくなります。席の出力の記録の持ち方の変更に合わせます。"
+        "使わなくなった課金サーバーの設定を取り除きます。"
       ]
     },
     {
@@ -427,8 +427,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "4690f127ac5d8724a0046ad754931ef5a216dd69",
-      "versionId": "d5b703ecf14a793a84fca82a36599c951609b03da52ef4cf6903deab6f7e498a",
+      "sourceCommit": "c3851cd10be9bec09cf4e19c6b40c93d7bee1ee2",
+      "versionId": "ab3b317d07a503cd229e9814425c10132b80303c13eee5e5b68ee7761323bfc5",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -436,16 +436,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261124T001330Z/web-gateway-4690f127ac5d8724a0046ad754931ef5a216dd69-linux-amd64.tar.gz",
-          "bytes": 4552988,
-          "sha256": "d5b703ecf14a793a84fca82a36599c951609b03da52ef4cf6903deab6f7e498a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261124T012254Z/web-gateway-c3851cd10be9bec09cf4e19c6b40c93d7bee1ee2-linux-amd64.tar.gz",
+          "bytes": 4550680,
+          "sha256": "ab3b317d07a503cd229e9814425c10132b80303c13eee5e5b68ee7761323bfc5"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261124T001330Z/web-gateway-4690f127ac5d8724a0046ad754931ef5a216dd69-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11099,
-          "sha256": "11781181cd75399f877a242b2682eb2e77a1ea5a86feae0abacb8c1482f9d66d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261124T012254Z/web-gateway-c3851cd10be9bec09cf4e19c6b40c93d7bee1ee2-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11287,
+          "sha256": "4c5da4ce680f106155a5abb63f96552340490a54893f3043d5ec1cc7055063cc"
         },
-        "signerCommit": "4690f127ac5d8724a0046ad754931ef5a216dd69"
+        "signerCommit": "c3851cd10be9bec09cf4e19c6b40c93d7bee1ee2"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -454,13 +454,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "課金の確認をサーバーでしなくなり、端末の遠隔入力に合わせます。メッセージの古い分は、記録のファイルから読みます。"
+        "使わなくなった課金サーバーの設定を取り除きます。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "4690f127ac5d8724a0046ad754931ef5a216dd69",
-      "versionId": "1d73d4333666b5f0c8d127f3c09a39b27a73283fce0d89ca48823911b063200b",
+      "sourceCommit": "c3851cd10be9bec09cf4e19c6b40c93d7bee1ee2",
+      "versionId": "69135c9589ebdff64556c4b213da46e5b1ebcfe7b412d4f3966895d032da31ad",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -468,16 +468,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261124T001330Z/web-gateway-4690f127ac5d8724a0046ad754931ef5a216dd69-linux-arm64.tar.gz",
-          "bytes": 4552988,
-          "sha256": "1d73d4333666b5f0c8d127f3c09a39b27a73283fce0d89ca48823911b063200b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261124T012254Z/web-gateway-c3851cd10be9bec09cf4e19c6b40c93d7bee1ee2-linux-arm64.tar.gz",
+          "bytes": 4550680,
+          "sha256": "69135c9589ebdff64556c4b213da46e5b1ebcfe7b412d4f3966895d032da31ad"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261124T001330Z/web-gateway-4690f127ac5d8724a0046ad754931ef5a216dd69-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11205,
-          "sha256": "64f1085cd4661c026a92d5d2f1b6ae2ec897110f4b75462d8ada844a3e8d6faa"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261124T012254Z/web-gateway-c3851cd10be9bec09cf4e19c6b40c93d7bee1ee2-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11111,
+          "sha256": "1a82bde9bc697ac72c5b29297634c216e90098125caf50349c2354b915527629"
         },
-        "signerCommit": "4690f127ac5d8724a0046ad754931ef5a216dd69"
+        "signerCommit": "c3851cd10be9bec09cf4e19c6b40c93d7bee1ee2"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -486,7 +486,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "課金の確認をサーバーでしなくなり、端末の遠隔入力に合わせます。メッセージの古い分は、記録のファイルから読みます。"
+        "使わなくなった課金サーバーの設定を取り除きます。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "26c20940b8ced07529285c4724c23d89a1ec4762",
-      "versionId": "sha256:642fd482de8b4dcb754dd9e346c2dfb248ea08d310fb7b6410da686dd523160d",
+      "sourceCommit": "72215e294ea1e1e300010c17330e69e94f174838",
+      "versionId": "sha256:11047196d43ae1de31091bd26913bd5da08643db8ab812d067add6a7608784aa",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:642fd482de8b4dcb754dd9e346c2dfb248ea08d310fb7b6410da686dd523160d"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:11047196d43ae1de31091bd26913bd5da08643db8ab812d067add6a7608784aa"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "本体のメモリの上限を 8 GiB に広げ、席の出力の記録は新しい分だけをメモリに置いて、メモリ不足で止まらないようにします。課金の確認をサーバーでしなくなります。端末の遠隔入力と経路を更新します。開発者用のサーバーで、古い利用部品と組み合わせても起動できるようにします。"
+        "更新の途中で本体が止まっても、更新が「更新中」のまま固まらず、失敗として終わるようにします。入れ替えに失敗したとき、止まった本体の状態とログを残します。使わなくなった旧い課金サーバーのコードを取り除きます。",
+        "席の出力の記録のファイルが入れ替わっても、動いたまま読み直せるようにします。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "26c20940b8ced07529285c4724c23d89a1ec4762",
-      "versionId": "sha256:642fd482de8b4dcb754dd9e346c2dfb248ea08d310fb7b6410da686dd523160d",
+      "sourceCommit": "72215e294ea1e1e300010c17330e69e94f174838",
+      "versionId": "sha256:11047196d43ae1de31091bd26913bd5da08643db8ab812d067add6a7608784aa",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:642fd482de8b4dcb754dd9e346c2dfb248ea08d310fb7b6410da686dd523160d"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:11047196d43ae1de31091bd26913bd5da08643db8ab812d067add6a7608784aa"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +747,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "本体のメモリの上限を 8 GiB に広げ、席の出力の記録は新しい分だけをメモリに置いて、メモリ不足で止まらないようにします。課金の確認をサーバーでしなくなります。端末の遠隔入力と経路を更新します。開発者用のサーバーで、古い利用部品と組み合わせても起動できるようにします。"
+        "更新の途中で本体が止まっても、更新が「更新中」のまま固まらず、失敗として終わるようにします。入れ替えに失敗したとき、止まった本体の状態とログを残します。使わなくなった旧い課金サーバーのコードを取り除きます。",
+        "席の出力の記録のファイルが入れ替わっても、動いたまま読み直せるようにします。"
       ]
     },
     {

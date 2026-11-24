@@ -44,6 +44,21 @@ public sealed class ApprovalsDeviceListTests
     private static Button? Find(ApprovalsWindow window, string name) { window.UpdateLayout(); return window.GetVisualDescendants().OfType<Button>().FirstOrDefault(button => Avalonia.Automation.AutomationProperties.GetName(button) == name); }
     private static void Click(ApprovalsWindow window, string label) => Find(window, label)!.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
 
+
+    [Fact]
+    public Task AReplayBurstOfSourceChangesRepaintsOnceInAWhileNotPerEvent() => Ui.Run(async () =>
+    {
+        var (window, hub, device, _) = await OpenAsync(d => d.Add("D-1", "一件"));
+        try
+        {
+            var repaints = 0; hub.DeviceChanged += () => repaints++;
+            await Task.Run(() => { for (var i = 0; i < 500; i++) device.Raise(); });
+            for (var wait = 0; wait < 50; wait++) { await Task.Delay(20); Avalonia.Threading.Dispatcher.UIThread.RunJobs(); }
+            Assert.InRange(repaints, 1, 20);   // 500 events, one running and at most one queued
+        }
+        finally { window.Close(); hub.Dispose(); }
+    });
+
     [Fact]
     public Task TheListIsTheDevicesBookAndTheCountsAreItsToo() => Ui.Run(async () =>
     {

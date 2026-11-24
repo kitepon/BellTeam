@@ -61,16 +61,29 @@ internal sealed class ApprovalsHub : IDisposable
     /// <summary>The summary or the device's state changed (the entry row repaints).</summary>
     internal event Action? Changed;
 
-    internal ApprovalsHub(Workspace workspace, bool autostart = true, IApprovalSource? device = null)
+    internal ApprovalsHub(Workspace workspace, bool autostart = true, IApprovalSource? device = null, TimeSpan? quiet = null)
     {
-        this.workspace = workspace; this.autostart = autostart; Device = device;
-        if (device is not null) device.Changed += () => Post(() => { Changed?.Invoke(); DeviceChanged?.Invoke(); ReadLinks(); });
+        this.workspace = workspace; this.autostart = autostart; Device = device; Quiet = quiet ?? TimeSpan.FromMilliseconds(500);
+        if (device is not null) device.Changed += Notify;
         workspace.PropertyChanged += WorkspaceChanged;
         if (workspace.Connected) ReadLinks();
         if (autostart) _ = AskNotLinkedAgainAsync();
     }
 
     // A decision the engine answered 404 for is asked again every 30 s while one exists (contract: 「つなげています」 ends with the first answer, and a 404 never stays).
+    // The source raises Changed for every event, and a launch without Last-Event-ID replays the account's whole history (hundreds of events): the screen is told at most every 500 ms,
+    // the first change at once and the rest as one later notification that reads the latest state (abx-v1-replay-desktop; the iPhone did one full reload per event and stuttered).
+    private readonly TimeSpan Quiet;   // tests that raise changes one after another pass zero
+    private readonly object notifyGate = new(); private DateTime lastNotified; private bool notifyQueued;
+    private void Notify()
+    {
+        TimeSpan wait;
+        lock (notifyGate) { if (notifyQueued) return; notifyQueued = true; wait = lastNotified + Quiet - DateTime.UtcNow; }
+        if (wait <= TimeSpan.Zero) Post(Tell);
+        else _ = Task.Delay(wait, life.Token).ContinueWith(_ => Post(Tell), TaskScheduler.Default);
+    }
+    private void Tell() { lock (notifyGate) { notifyQueued = false; lastNotified = DateTime.UtcNow; } Changed?.Invoke(); DeviceChanged?.Invoke(); ReadLinks(); }
+
     private async Task AskNotLinkedAgainAsync()
     {
         try { while (true) { await Task.Delay(TimeSpan.FromSeconds(30), life.Token); if (Links.AnyNotLinked) Post(ReadLinks); } }
@@ -89,7 +102,7 @@ internal sealed class ApprovalsHub : IDisposable
     {
         if (!autostart || !workspace.Connected || Device is null) return;
         if (origin != workspace.Server) { origin = workspace.Server; Links.Forget(); }
-        _ = Links.ReadAsync(workspace.Management.Api, DeviceViews, () => Post(() => { Changed?.Invoke(); DeviceChanged?.Invoke(); }), life.Token);
+        _ = Links.ReadAsync(workspace.Management.Api, DeviceViews, Notify, life.Token);
     }
     private static void Post(Action action) { var dispatcher = Application.Current?.Dispatcher; if (dispatcher is null || dispatcher.CheckAccess()) action(); else dispatcher.BeginInvoke(action); }
 

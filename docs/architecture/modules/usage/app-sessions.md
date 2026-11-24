@@ -11,7 +11,7 @@
 | Body public server (`http-server.mjs`, `application-features.mjs` `authorize`) | projection row `homeLogin` (set of `sha256(token)`, `bound`, `enforced`, per-session entitlement state), durable marker `state/login-enforced` | **Legacy**: today's path. **Enforced**: the vendored stateless `guard` on `Authorization: Bearer`, no network, no storage. Routes `/api/home/*` to the usage child. Drives the sweep timer, prints the setup code, hosts the console socket |
 | Usage child (sole writer) | the library home part and its one document `shared/login-home.json` (0600, atomic): owner (account key or `console`), enforced, registered addresses, nonce secret, sessions (token hash, ticket, entitlements, last use) | `home.handle` (the wire), `home.sweep` (ticket checks every 10 min for a session in use, 14-day idle end), `home.setupCode`, `home.console`; publishes the `homeLogin` row after every change |
 | Console (`bellteam-console`, run by the host user with `docker exec`) | nothing | `setup-code`, `issue` (a one-time code), `list`, `revoke <id>`, `reset-owner`, `addresses` (list / add / remove). A unix socket hosted by the body; each command is one `home.console` call. Never HTTP. The only operator-free way in; every server has it |
-| Operator Worker | accounts, passes, tickets | `prove/take` and `ticket/check`, called by the home part only, anonymously, never following a redirect (Bready) |
+| Operator (named by `BELLTEAM_HOME_OPERATOR`; BellTeam runs none since 2026-11-24, the home part stays off without it) | accounts, passes, tickets | `prove/take` and `ticket/check`, called by the home part only, anonymously, never following a redirect |
 | Internal listener (seats) | unchanged | unchanged (Bots are not app sessions) |
 
 ## 2. Login (data flow)
@@ -21,7 +21,7 @@ sequenceDiagram
   participant App
   participant B as Body (public server)
   participant U as Usage child (home part)
-  participant W as Operator Worker
+  participant W as Operator (BELLTEAM_HOME_OPERATOR)
   participant H as Host user (console)
   Note over B,U: unbound: the body asks home.setupCode and prints it to its own stderr (docker logs); again when the last one is older than 9 min
   H->>App: reads the setup code from the server console (first binding only)

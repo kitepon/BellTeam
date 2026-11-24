@@ -76,15 +76,36 @@ final class ApprovalBoxServer {
         return data
     }
 
-    /// Each `data:` line of the stream is one change; `onChange` reads the lists again. Returns or throws when the stream ends (the caller reconnects).
-    func watch(onChange: () async throws -> Void) async throws {
+    /// Each `data:` line of the stream is one change; `onChange` reads the lists again, one read at a time and at most one more queued: a connect without Last-Event-ID replays
+    /// every stored event of the account (hundreds), and a read per replayed line kept the main thread busy (measured 7.6 s of 10 s). Returns or throws when the stream ends (the caller reconnects).
+    func watch(onChange: @escaping () async throws -> Void) async throws {
         var request = URLRequest(url: origin.appending(path: "v1/events"))
         guard let authorization = await client.passHeader(for: request.url!) else { throw Failure(status: 401, code: "not_signed_in") }
         request.setValue(authorization, forHTTPHeaderField: "Authorization")
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
         let (bytes, response) = try await Self.events.bytes(for: request)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { throw Failure(status: (response as? HTTPURLResponse)?.statusCode ?? 0, code: "events") }
-        for try await line in bytes.lines where line.hasPrefix("data:") { try await onChange() }
+        var failure: Error?
+        var reader: Task<Void, Never>?
+        var consumer: Task<Void, Error>?
+        let lines = Task { @MainActor in
+            var reading = false, again = false
+            for try await line in bytes.lines where line.hasPrefix("data:") {
+                if reading { again = true; continue }
+                reading = true
+                reader = Task { @MainActor in
+                    repeat {
+                        again = false
+                        do { try await onChange() } catch { failure = error; consumer?.cancel(); break }
+                    } while again && !Task.isCancelled
+                    reading = false
+                }
+            }
+        }
+        consumer = lines
+        defer { lines.cancel(); reader?.cancel() }
+        do { try await withTaskCancellationHandler { try await lines.value } onCancel: { lines.cancel() } } catch { throw failure ?? error }
+        if let failure { throw failure }
     }
 
     // MARK: Write (one try; a failed send is not repeated by itself)
@@ -161,13 +182,14 @@ final class ApprovalBoxServer {
         let created_at: Date, updated_at: Date
         let version: Int
         let request_attachments: [Attachment]?
+        let delivery: String?, resume_phrase: String?
 
         var record: PeerDecisionRecord? {
             PeerDecisionRecord(id: id, title: title, context: context ?? "", options: options.map { .init(id: $0.id, label: $0.label) }, recommendation: recommendation, urgency: urgency, deadline: deadline,
                                client: source.client ?? "", sessionLabel: source.session_label ?? "", via: source.via ?? "", status: status,
                                answer: answer.map { .init(optionId: $0.option_id, text: $0.text, answeredAt: $0.answered_at) }, cancelReason: cancel_reason, createdAt: created_at, updatedAt: updated_at, version: version,
                                attachments: (request_attachments ?? []).map { .init(id: $0.id, name: $0.name, contentType: $0.content_type, size: $0.size, sha256: $0.sha256) },
-                               requester: source.requester, requesterBotId: source.requester_bot_id)
+                               requester: source.requester, requesterBotId: source.requester_bot_id, delivery: delivery, resumePhrase: resume_phrase)
         }
     }
 }

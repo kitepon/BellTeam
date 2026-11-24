@@ -36,4 +36,4 @@ CloudflareのGraphQLの`cpuTimeP50`等はマイクロ秒で返る。公開レポ
 
 無料のDurable ObjectsはSQLiteを伴い、CPU上限は標準で30秒。ここでは試験用のクラスを配置する。試験後にオーナーが製品への採用を承認し、購読確認サービスは別のWorkerへ配置した。入口のWorkerのCPU指標と、Durable Object内の検証処理は区別して記録する。
 
-`test/subscription-native-verifier.test.mjs`で、Apple公式の公開試験データの一致と、改変・用途欠落・CA属性欠落・期限外等の拒否を公式検証器と比較する。`native-invalid-certificates.json`は正しく署名された公開試験用の欠陥証明書であり、実サービスへは使わない。購読確認サービスはまだ公式検証器を使っており、この試験だけでは実サービスへ採用しない。
+（2026-11-24に取り除いた）`test/subscription-native-verifier.test.mjs`で、Apple公式の公開試験データの一致と、改変・用途欠落・CA属性欠落・期限外等の拒否を公式検証器と比較する。`native-invalid-certificates.json`は正しく署名された公開試験用の欠陥証明書であり、実サービスへは使わない。購読確認サービスはまだ公式検証器を使っており、この試験だけでは実サービスへ採用しない。
