@@ -40,6 +40,16 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
           if (!['ready', 'failed'].includes(job.state)) await jobClient(binding).updateJob({ jobId: binding.jobId,
             state: 'failed', reason: { code: 'UPDATE_PARENT_INTERRUPTED', message: '親が停止し、機能の切替を完了できませんでした。' } })
         }
+        // admitJob may have reached the host before the body saved the receipt (z188 06:07 case, orphan-queued-host-job): that job is queued and no
+        // operation lists it. Fail it too; a missing job is fine, any other read error leaves `interrupted` set for the next read.
+        for (const binding of entry.jobBindings.filter(binding => !binding.admitted && jobClient(binding)?.job)) {
+          const job = await jobClient(binding).job(binding.jobId).catch(error => {
+            if (error?.status === 404 || error?.code === 'HOST_UPDATE_NOT_FOUND') return null
+            throw error
+          })
+          if (job?.state === 'queued') await jobClient(binding).updateJob({ jobId: binding.jobId,
+            state: 'failed', reason: { code: 'UPDATE_PARENT_INTERRUPTED', message: '親が停止し、機能の切替を完了できませんでした。' } })
+        }
         entry.interrupted = false; await save()
       }
     }
