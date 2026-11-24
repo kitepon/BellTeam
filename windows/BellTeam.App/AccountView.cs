@@ -49,8 +49,7 @@ internal sealed class AccountView : StackPanel, IDisposable
         "signin_cancelled" => null,
         "return_not_received" => SignInText.ReturnNotReceived,
         "unreachable_same_wifi" => LocalFormText.Of(LocalFormOutcome.PrivateNetwork),
-        "signin_failed" when error.Detail is not null => LocalFormText.Failure("signin_failed " + error.Detail),   // 1.46: Apple's own error code, at that moment only
-        _ => LocalFormText.Failure(error.Code, error.Status),
+        _ => LocalFormText.Failure(error.Code, error.Status, error.Detail),   // signin_failed carries Apple's own error code (1.46), at that moment only
     };
 
     // Read what this PC holds; with no accepted period, offer the button.
