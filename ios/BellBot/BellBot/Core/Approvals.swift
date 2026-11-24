@@ -136,6 +136,8 @@ struct ApprovalDecision: Decodable, Equatable, Identifiable {
     let origin: ApprovalOrigin
     let requester: ApprovalRequester?
     let link: ApprovalLink?
+    /// The link lookup answered 404 (nothing to link yet): the card says so instead of 「つなげています」. Nil/false = not looked up yet.
+    var linkMissing: Bool?
 
     var isPending: Bool { status == "pending" }
     var isHeld: Bool { status == "held" }
@@ -149,8 +151,10 @@ struct ApprovalDecision: Decodable, Equatable, Identifiable {
     }
     /// 「工程表「…」が、この回答を待っています」 and the other notes of a card (screen-spec 一覧).
     var linkNote: String {
-        if origin.isExternal && link == nil { return "工程表とはつながっていません" }
-        guard let link else { return "工程表につなげています" }
+        guard let link else {
+            if origin.isExternal { return "工程表とはつながっていません" }
+            return linkMissing == true ? "この決裁に合う工程は、工程表に見つかっていません" : "工程表につなげています"
+        }
         if link.task.state == "done" || link.state == "closed" { return "工程はすでに済みです。この決裁は、まだ答えられます。" }
         return "工程表「\(link.task.title)」が、この回答を待っています"
     }
@@ -172,14 +176,16 @@ enum ApprovalText {
     static let held = "保留中です。戻すまで工程は待ちます"
     static let heldExternal = "保留中です"
 
+    /// From the decision as it is now (screen-spec 'Answer outcomes'): grey while the server has not reported a delivery, the paste request only for a reported `unknown`.
     static func answerBanner(_ d: ApprovalDecision) -> (text: String, tone: SettingsTone) {
         let who = d.addressee
         switch d.delivery {
         case "delivered", "fetched": return ("答えました。\(who)に届きました。", .green)
         case "waiting": return ("答えました。\(who)が会話に戻ると受け取ります。", .violet)
-        default:
+        case "unknown":
             let next = d.link == nil ? "" : "工程は済みになったので、次の担当にはこちらから知らせます。"
             return ("答えは保存しました。ただ、\(who)に届いたかを確かめられませんでした。\(next)念のため、再開の文を\(who)の会話に貼ってください。", .orange)
+        default: return ("答えました。\(who)への届きを確かめています。", .gray)
         }
     }
 
@@ -208,7 +214,7 @@ enum ApprovalText {
 
 extension ApprovalDecision {
     /// A decision as this device holds it (peer-channel): content only from the device. With a link (the id-level lookup found the engine's row) it is BellTeam's own decision; without one it counts as external.
-    init(record r: PeerDecisionRecord, link: ApprovalLink? = nil, roster: [ApprovalRosterMember] = []) {
+    init(record r: PeerDecisionRecord, link: ApprovalLink? = nil, linkMissing: Bool? = nil, roster: [ApprovalRosterMember] = []) {
         let (origin, requester) = ApprovalOrigin.classify(r, roster: roster)
         let iso = ISO8601DateFormatter()
         iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -218,14 +224,14 @@ extension ApprovalDecision {
         self.init(id: r.id, title: r.title, context: r.context,
                   options: r.options.map { ApprovalOption(id: $0.id, label: $0.label, recommended: $0.id == r.recommendation) },
                   urgency: r.urgency, deadline: r.deadline.map(iso.string(from:)), status: r.status, answer: answer,
-                  delivery: r.status == "answered" ? "delivered" : nil, resumePhrase: "", version: r.version,
+                  delivery: r.delivery, resumePhrase: r.resumePhrase ?? "", version: r.version,
                   createdAt: iso.string(from: r.createdAt), updatedAt: iso.string(from: r.updatedAt), cancelReason: r.cancelReason,
                   amended: ApprovalAmended(is: false, fields: [], note: nil, at: nil), history: [],
                   requestAttachments: r.attachments.map {
                       ApprovalAttachment(id: $0.id, name: $0.name, contentType: $0.contentType, size: $0.size,
                                          sha256: $0.sha256 ?? (Codec.fromBase64url($0.id) ?? Data()).map { String(format: "%02x", $0) }.joined())
                   },
-                  origin: origin, requester: requester, link: link)
+                  origin: origin, requester: requester, link: link, linkMissing: linkMissing)
     }
 
     static func toolName(_ client: String) -> String {
@@ -321,7 +327,7 @@ final class ApprovalsModel: ObservableObject {
             if let known, known.link == nil, Date().timeIntervalSince(known.at) < Self.linkRetry { continue }
             switch await resolver.lookup(r.id, api: api) {
             case .linked(let l): if known?.link != l { changed = true }; links[r.id] = (l, Date())
-            case .notLinked: if known?.link != nil { changed = true }; links[r.id] = (nil, Date())
+            case .notLinked: if known == nil || known?.link != nil { changed = true }; links[r.id] = (nil, Date())
             case .unknown: break
             }
             if Task.isCancelled { return }
@@ -344,7 +350,10 @@ final class ApprovalsModel: ObservableObject {
     }
 
     private func rebuild() {
-        let all = records.map { ApprovalDecision(record: $0, link: links[$0.id]?.link, roster: roster) }
+        let all = records.map { r in
+            let known = links[r.id]
+            return ApprovalDecision(record: r, link: known?.link, linkMissing: known.map { $0.link == nil }, roster: roster)
+        }
         let tokyo = LatticeTime.tokyo
         let today = tokyo.startOfDay(for: Date())
         let isToday = { (text: String?) in LatticeTime.date(text).map { tokyo.startOfDay(for: $0) == today } ?? false }
@@ -387,7 +396,7 @@ final class ApprovalsModel: ObservableObject {
     /// An answer: `optionId` for a button, `text` for 指示を書いて返す. The connector's ack decides what the person sees; the draft stays on anything but accepted.
     /// Not resent on its own: a failed send leaves the choice for the person to press again.
     func answer(_ d: ApprovalDecision, optionId: String?, text: String?) async {
-        await send(d) { try await self.link.answer(d.id, optionId: optionId, text: text) } accepted: { ApprovalText.answerBanner(d) }
+        await send(d) { try await self.link.answer(d.id, optionId: optionId, text: text) } accepted: { nil }  // the sentence is drawn from the live decision (answered(_:)), not saved from this pre-answer one
     }
 
     func hold(_ d: ApprovalDecision, hold: Bool) async {

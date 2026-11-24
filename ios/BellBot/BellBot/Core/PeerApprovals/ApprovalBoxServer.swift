@@ -161,13 +161,14 @@ final class ApprovalBoxServer {
         let created_at: Date, updated_at: Date
         let version: Int
         let request_attachments: [Attachment]?
+        let delivery: String?, resume_phrase: String?
 
         var record: PeerDecisionRecord? {
             PeerDecisionRecord(id: id, title: title, context: context ?? "", options: options.map { .init(id: $0.id, label: $0.label) }, recommendation: recommendation, urgency: urgency, deadline: deadline,
                                client: source.client ?? "", sessionLabel: source.session_label ?? "", via: source.via ?? "", status: status,
                                answer: answer.map { .init(optionId: $0.option_id, text: $0.text, answeredAt: $0.answered_at) }, cancelReason: cancel_reason, createdAt: created_at, updatedAt: updated_at, version: version,
                                attachments: (request_attachments ?? []).map { .init(id: $0.id, name: $0.name, contentType: $0.content_type, size: $0.size, sha256: $0.sha256) },
-                               requester: source.requester, requesterBotId: source.requester_bot_id)
+                               requester: source.requester, requesterBotId: source.requester_bot_id, delivery: delivery, resumePhrase: resume_phrase)
         }
     }
 }

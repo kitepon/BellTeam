@@ -60,10 +60,42 @@ final class ApprovalBoxLinkTests: XCTestCase {
         XCTAssertEqual(d.requestAttachments.first?.sha256, SHA256Digest.hex(blob), "the body is checked against the id, which is its SHA-256")
     }
 
-    func testAnsweredRecordCountsAsDeliveredAndTheBannerSaysSo() {
-        let d = ApprovalDecision(record: record("d2", status: "answered", answer: .init(optionId: "a", text: nil, answeredAt: Date())))
-        XCTAssertEqual(d.delivery, "delivered")
-        XCTAssertTrue(ApprovalText.answerBanner(d).text.hasPrefix("答えました。"))
+    /// The banner follows the server's own `delivery` of the decision as it is now: never invented, never the pre-answer one.
+    func testBannerFollowsTheServersDeliveryAndNeverInventsOne() throws {
+        var r = record("d2", status: "answered", answer: .init(optionId: "a", text: nil, answeredAt: Date()))
+        XCTAssertNil(ApprovalDecision(record: r).delivery, "no value from the server: nothing claimed")
+        let checking = ApprovalText.answerBanner(ApprovalDecision(record: r))
+        XCTAssertEqual(checking.tone, .gray, "no delivery reported yet: grey, never amber, no paste request")
+        XCTAssertFalse(checking.text.contains("再開の文"))
+        r.delivery = "pending"
+        XCTAssertEqual(ApprovalText.answerBanner(ApprovalDecision(record: r)).tone, .gray)
+        r.delivery = "delivered"
+        XCTAssertTrue(ApprovalText.answerBanner(ApprovalDecision(record: r)).text.hasPrefix("答えました。"))
+        XCTAssertEqual(ApprovalText.answerBanner(ApprovalDecision(record: r)).tone, .green)
+        r.delivery = "waiting"
+        XCTAssertEqual(ApprovalText.answerBanner(ApprovalDecision(record: r)).tone, .violet)
+        r.delivery = "unknown"; r.resumePhrase = "続きをお願いします"
+        let unknown = ApprovalDecision(record: r)
+        XCTAssertEqual(unknown.resumePhrase, "続きをお願いします", "the copy button copies the server's phrase")
+        XCTAssertEqual(ApprovalText.answerBanner(unknown).tone, .orange)
+    }
+
+    func testServerWireCarriesDeliveryAndResumePhrase() throws {
+        let json = #"{"id":"K-1","title":"t","urgency":"normal","status":"answered","options":[],"source":{},"created_at":"2026-11-24T00:00:00Z","updated_at":"2026-11-24T00:00:01Z","version":2,"delivery":"unknown","resume_phrase":"再開"}"#
+        let r = try XCTUnwrap(ApprovalBoxServer.decoder.decode(ApprovalBoxServer.WireDecision.self, from: Data(json.utf8)).record)
+        XCTAssertEqual([r.delivery, r.resumePhrase], ["unknown", "再開"])
+    }
+
+    func testLinkNoteSeparatesNotLookedUpFromNotLinked() {
+        let r = record("d3")
+        let wire = PeerDecisionRecord(id: "d4", title: "t", context: "", options: [], recommendation: nil, urgency: "normal", deadline: nil, client: "claude-code", sessionLabel: "s", via: "connector", status: "pending",
+                                      answer: nil, cancelReason: nil, createdAt: Date(), updatedAt: Date(), version: 1, requester: "デルタ", requesterBotId: "bot-1")
+        let roster = [ApprovalRosterMember(id: "bot-1", name: "デルタ")]
+        let notAsked = ApprovalDecision(record: wire, roster: roster)
+        XCTAssertTrue(notAsked.origin.isBellTeam)
+        XCTAssertEqual(notAsked.linkNote, "工程表につなげています")
+        XCTAssertEqual(ApprovalDecision(record: wire, linkMissing: true, roster: roster).linkNote, "この決裁に合う工程は、工程表に見つかっていません", "a 404 resolves the box")
+        XCTAssertEqual(ApprovalDecision(record: r, linkMissing: true).linkNote, "工程表とはつながっていません")
     }
 
     func testModelSplitsOpenFromDoneAndCountsTheSummary() {
