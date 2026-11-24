@@ -4,7 +4,7 @@ Owner 2026-11-24 18:2x JST: 「BellTeamもお前のプロダクトと全く同�
 
 - BellTeam's client apps join the Owner's Approval Box entry as **child devices** through their 決裁箱 window, like his iPad and Mac. They are never a parent: no starting a join for other devices, no adding others, no purchase.
 - **BellTeam shows the QR; his iPhone reads it** in the Approval Box app (接続 → 「ほかの端末を追加する」) and allows it.
-- This **replaces the current 決裁箱 sign-in** (Apple/Google sign-in inside BellTeam and the `lbq1` handoff, [client-v0.5.md](client-v0.5.md) section 7 rows "Not signed in", "Signing in", "401").
+- This **replaces the current 決裁箱 sign-in and its `lbq1` handoff** ([client-v0.5.md](client-v0.5.md) section 7 rows "Not signed in", "Signing in", "401"). It does not remove the sign-in itself: the Owner's rule is that every device signs in by itself with Apple or Google, children included. The child's offer carries its own identity token and the parent refuses another account (`other_account`), so the child signs in once on this device with the same account as his iPhone, exactly like his iPad and Mac. That sign-in is the component's and the library's, shown as the first-screen approval view shows it; this page writes no sign-in rule of its own.
 - Stopped-seat cards stay on the AI path that is live (Z197): [seat-approval-card.md](seat-approval-card.md) and its pairing view are unchanged.
 - Shipping waits for Nayuta's word that Approval Box is complete (the held rows stay held: `abx-client-package-*`, `abx-client-consume`, `a490h2`).
 
@@ -17,7 +17,7 @@ Names are the Swift form's; Kotlin and .NET use the same names in their own case
 | Member | Meaning |
 | --- | --- |
 | `joinState` (observable) | `notJoined`, `waitingForParent(qrLink, expiresAt)`, `joined`, `failed(code)` |
-| `requestJoin()` | `notJoined` or `failed` → `waitingForParent`. The library's makeRequest with no hand-over; it signs in first if the child form has no kept sign-in |
+| `requestJoin()` | `notJoined` or `failed` → `waitingForParent`. The library's makeRequest with no hand-over; it signs in first (Apple or Google, on this device, the same account as the parent) if the child form has no kept sign-in |
 | `cancelJoin()` | `waitingForParent` → `notJoined` |
 | `leave()` | `joined` → `notJoined`. It removes the child from the account on the server (the library's `keys/leave` deletes this device's keyhole, so the device disappears wherever the parent's apps list devices) and clears the child form's kept sign-in and key locally. The host's own BellTeam login is untouched |
 | after `joined` | the existing `start()`, `state` and `decisions` work as before, on signed requests |
@@ -26,7 +26,7 @@ A parent's refusal, an expiry and any library refusal end the request: `failed(c
 
 Releases (all on login-billing 0.22.4, each with a sha256; Nayuta tells Tronie the result): Swift `client-v0.5.0` (Red Shoes, the first published Swift form), Kotlin `client-kotlin-v0.5.0` and .NET `client-dotnet-v0.5.0` (Indivilia; BellTeam consumes Swift and .NET).
 
-Still open for Nayuta: what a child that the parent removed while it is `joined` reads (expected: `signedOut` at the next signed read, then `notJoined`).
+Still open for Nayuta: what a child that the parent removed while it is `joined` reads (expected: `signedOut` at the next signed read, then `notJoined`); whether `requestJoin` takes the provider the person chose, and whether the browser step is observable (the first screen needs to tell "signing in" from "not joined"). Open for Mint: the Approval Box wording of the QR text, and a sentence for `other_account` (until then it reads as the generic 「つなげませんでした…」).
 
 ## The port
 
@@ -38,8 +38,9 @@ Where: the 決裁箱 window itself. When the client is not joined it is the firs
 
 | State | Shown (Japanese, plain, no ids or codes) | Action |
 | --- | --- | --- |
-| `notJoined` (first start, after 「やめる」, after an expiry, after `leave`) | title 「決裁箱につなぎます」; 「この端末を、あなたの決裁箱に子の端末として追加します。」 | 「決裁箱につなぐ」 (`requestJoin`) |
-| `waitingForParent` | title 「決裁箱の承認を待っています」; the QR from `qrLink` (label 「決裁箱につなぐQRコード」); a spinner and 「H:mm まで有効」; 「親となる端末（課金操作をするカメラのあるスマートフォンがお勧め）のカメラでQRコードを読んでください。」 and under it 「決裁箱のアプリでは、接続 →「ほかの端末を追加する」から読めます。」 | 「やめる」 (`cancelJoin`) |
+| `notJoined` (first start, after 「やめる」, after an expiry, after `leave`) | title 「決裁箱につなぎます」; 「この端末を、あなたの決裁箱に子の端末として追加します。」; then the sign-in exactly as the first-screen approval view draws it (the same words and buttons: `LocalFormText.FirstSignIn`, `SignInText.Apple`, `SignInText.Google`; Core in Anis's block, Apple in Rapi's `LocalAccount`) | the Apple or Google button (`requestJoin`) |
+| `notJoined` while the browser sign-in runs (the host has called `requestJoin`) | the first screen's line (`SignInText.Waiting`) | 「やめる」 (`cancelJoin`) |
+| `waitingForParent` | title 「決裁箱の承認を待っています」; the QR from `qrLink` (label 「決裁箱につなぐQRコード」); a spinner and 「H:mm まで有効」; the Owner's QR text beside the QR, the same text the first screen uses (`LocalFormText.Qr` / `LocalAccount.qrGuidance`: 「親となる端末（…）のカメラでQRコードを読んでください。」), in the wording Mint's guideline gives for Approval Box (Mint states the final string; until then the first screen's string, which still says 課金操作) | 「やめる」 (`cancelJoin`) |
 | `failed(code)` (a parent's refusal or a library refusal) | 「つなげませんでした。もう一度つないでください。」 (the library's code never shown) | 「もう一度つなぐ」 |
 | `joined`, `state` `joining` | the last view dimmed or 「つないでいます…」 | none |
 | `joined`, `state` `live` | the normal 決裁箱; the block line 「決裁箱につながっています」 | 「つなぎを外す」 (two steps: 外す / やめる; `leave`) |
@@ -48,7 +49,7 @@ Where: the 決裁箱 window itself. When the client is not joined it is the firs
 | `reconnecting` | the last view dimmed, one line 「つなぎ直しています」 | 「今すぐ試す」 |
 | `updateRequired` | 「この版では、決裁箱をまだ使えません。アプリを更新してください。」 | 「今すぐ試す」 |
 
-The child never shows 「ほかの端末を追加する」, a purchase, a plan or a sign-in button. 「つなぎを外す」 removes this device from his Approval Box account (it disappears from his 接続 list too) and never touches BellTeam's own sign-in; a parent can also remove this device there at any time.
+The child never shows 「ほかの端末を追加する」, a purchase or a plan. 「つなぎを外す」 removes this device from his Approval Box account (it disappears from his 接続 list too) and never touches BellTeam's own sign-in; a parent can also remove this device there at any time.
 
 ```mermaid
 stateDiagram-v2
@@ -81,7 +82,7 @@ flowchart TD
   SeatLink["seat-link block (AI path, unchanged)"] --- Win
 ```
 
-Data: the child credential lives only in the component's storage (and the server's keyhole, removed by `leave`). BellTeam holds no pass and no account for the 決裁箱 window; the login-billing library is no longer asked for a 決裁箱 sign-in on this window (it stays for BellTeam's own account and for Approval Box's own apps).
+Data: the child credential lives only in the component's storage (and the server's keyhole, removed by `leave`). BellTeam holds no pass and no account for the 決裁箱 window (the child's own sign-in belongs to the library and the component); the login-billing library is no longer asked for a 決裁箱 sign-in on this window (it stays for BellTeam's own account and for Approval Box's own apps).
 
 ## Who builds what
 
