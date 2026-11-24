@@ -303,4 +303,16 @@ test('a532b2s2f: every Aiterm tool the remote route and seat readers call passes
     const source = await readFile(new URL(`../src/${file}.mjs`, import.meta.url), 'utf8')
     for (const [, name] of source.matchAll(/(?:client|this\.client)\.call\('([a-z_]+)'/gu)) assert.ok(EXECUTION_NATIVE_METHODS.has(name), `${file}: ${name}`)
   }
+  // screenApproval picks its tool from a table, so the scan above cannot see it.
+  for (const name of ['claude_approval', 'agent_approval']) assert.ok(EXECUTION_NATIVE_METHODS.has(name), name)
+})
+
+test('seat-approvals: the engine native allowlist lets the screen approval tools through (Centi\'s lab: inspect answered none because claude_approval / agent_approval were refused)', async t => {
+  const digest = `sha256:${'a'.repeat(64)}`
+  const f = await fixture(t, name => name === 'agent_approval'
+    ? { structuredContent: { status: 'approval_required', prompt_digest: digest, choices: [{ decision: 'approve_once', label: 'Yes' }, { decision: 'deny', label: 'No' }], prompt: 'Run: ls', kind: 'command' } } : undefined)
+  const result = await f.engine.dispatch(request('transport.screenApproval', bot, { action: 'inspect' }))
+  assert.equal(result.status, 'approval_required')
+  assert.equal(result.promptDigest, digest)
+  assert.ok(f.calls.includes('agent_approval'))
 })

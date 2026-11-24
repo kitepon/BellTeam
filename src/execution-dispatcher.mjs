@@ -56,7 +56,7 @@ const portNames = ['native', 'membersAdmission', 'conversationAdmission', 'modul
   'access', 'storage', 'seat', 'observer', 'diagnostics', 'continuation', 'terminals', 'ingress', 'harnessCli', 'seatStream']
 
 export const EXECUTION_NATIVE_METHODS = new Set(['pty_list', 'pty_read', 'pty_observe', 'pty_send', 'pty_close', 'pty_key',
-  'agent_launch', 'agent_configure', 'agent_stop', 'agent_goal', 'stream_read', 'stream_send', 'image_read', 'ensure_forward'])
+  'agent_launch', 'agent_configure', 'agent_stop', 'agent_goal', 'stream_read', 'stream_send', 'image_read', 'ensure_forward', 'claude_approval', 'agent_approval'])
 
 // This module and every relative engine import belong to the same fixed bundle.
 export function createExecutionDispatcher({ generation, ports, handoff = null, backgroundSummary = null, requestRestartSummary = null }) {

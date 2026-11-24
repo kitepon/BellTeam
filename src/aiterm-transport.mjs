@@ -405,7 +405,8 @@ export class AitermTransport {
     if (action === 'inspect') {
       let result
       // No dialog on screen comes back as a tool refusal; the view then shows only the key bar.
-      try { result = (await this.client.call(tool, { action: 'inspect', session_id }))?.structuredContent } catch { return { status: 'none' } }
+      // An engine that may not call the tool is not "no dialog": EXECUTION_REQUEST_INVALID reaches the HTTP layer (503 SCREEN_INPUT_UNAVAILABLE).
+      try { result = (await this.client.call(tool, { action: 'inspect', session_id }))?.structuredContent } catch (error) { if (error?.code === 'EXECUTION_REQUEST_INVALID') throw error; return { status: 'none' } }
       if (result?.status !== 'approval_required' || !digest(result.prompt_digest) || !Array.isArray(result.choices)) return { status: 'none' }
       // seat-approvals.md: Codex's agent_approval also names what it asks (prompt, kind); the Owner's entry shows them.
       return { status: 'approval_required', promptDigest: result.prompt_digest,
@@ -416,7 +417,7 @@ export class AitermTransport {
     }
     let result
     try { result = (await this.client.call(tool, { action: 'respond', session_id, approval_choice: decision, observed_prompt_digest: promptDigest }))?.structuredContent }
-    catch { throw screenFailure('SCREEN_APPROVAL_CHANGED', 409) }
+    catch (error) { throw error?.code === 'EXECUTION_REQUEST_INVALID' ? error : screenFailure('SCREEN_APPROVAL_CHANGED', 409) }
     if (result?.status !== 'submitted') throw screenFailure('SCREEN_INPUT_FAILED', 502)
     return { status: 'submitted', decision }
   }
