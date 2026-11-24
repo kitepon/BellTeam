@@ -39,7 +39,7 @@ public static class LocalFormText
     public static string Paid(DateTimeOffset until) => Status(until);
     public const string PaidOk = "購読を確認しました。";
     public const string Title = "購読しているスマホで確認する";
-    public const string Lead = "この端末にQRを出し、購読しているスマホのBellTeamで読み取ります。2台は同じWi-Fiにつないでください。";
+    public const string Lead = "この端末にQRを出します。2台は同じWi-Fiにつないでください。";
     public const string Google = "QRを出す（Google）";
     public const string Apple = "QRを出す（Apple）";
     public const string QrLabel = "確認用のQRコード";
