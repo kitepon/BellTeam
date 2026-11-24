@@ -87,6 +87,16 @@ public sealed class LocalFormTests
         Assert.Contains(LocalFormText.Failure("other_account"), Texts(view)); Assert.Empty(Descendants<QrView>(view)); Click(view, LocalFormText.Google); Assert.Equal(["apple", "google", "google"], started);
     });
 
+    // The fox sitting: a Public network drops the phone's reply, so the wait says what to change; the security-software line is always there. IsPublic must agree with Windows' own profile.
+    [Fact]
+    public void TheQrWaitSaysWhatToChangeWhenTheNetworkIsPublic() => RunSta(() =>
+    {
+        var view = new LocalRequestView(_ => { }, () => { }); view.ShowRequest("QR-TEXT", DateTimeOffset.Now.AddMinutes(10));
+        var texts = Texts(view);
+        Assert.Contains(LocalFormText.Blocked, texts); Assert.Contains(LocalFormText.Firewall, texts);
+        Assert.Equal(NetworkNotes.IsPublic(), texts.Contains(LocalFormText.PublicNetwork));
+    });
+
     private static string[] Texts(DependencyObject root) => Descendants<TextBlock>(root).Select(text => text.Text).ToArray();
     private static void Click(DependencyObject root, string name) => Descendants<Button>(root).Single(button => System.Windows.Automation.AutomationProperties.GetName(button) == name).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     private static IEnumerable<T> Descendants<T>(DependencyObject root) where T : DependencyObject { if (root is T found) yield return found; foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>()) foreach (var item in Descendants<T>(child)) yield return item; }
