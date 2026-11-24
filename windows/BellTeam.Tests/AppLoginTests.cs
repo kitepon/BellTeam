@@ -95,7 +95,7 @@ public sealed class AppLoginTests
         Assert.Equal("DELETE /api/home/sessions/S1", server.Calls.Last());
     }
 
-    private static Kitepon.LoginBilling.Desktop.DesktopLocal Local() => new(LocalFormConfig.Build(), new Kitepon.LoginBilling.Desktop.MemoryPassStore());
+    private static Kitepon.LoginBilling.Desktop.DesktopLocal Local() => AccountStore.Create(new Kitepon.LoginBilling.Desktop.MemoryPassStore());   // the same wiring as the app's (the Apple-return line included)
 
     // Mint 2026-11-23: makeRequest("google") signs in by itself (it opens Google's page, then listens). Rapi's table: the card offers 「QRを出す（Apple）」 and 「QRを出す（Google）」 and nothing opens before one is pressed.
     // Contract 1.46: Apple and Google both sign in on this PC in the browser first, then the QR. Nothing opens before a button is pressed.
@@ -131,6 +131,7 @@ public sealed class AppLoginTests
     public void AnAppleErrorReturnedToTheLoopbackShowsItsCodeAndACancelShowsNothing(string error, bool shown) => RunSta(() =>
     {
         var opened = new List<Uri>(); var before = AccountStore.OpenBrowser; AccountStore.OpenBrowser = uri => { opened.Add(uri); return Task.CompletedTask; };
+        var logBefore = AccountStore.AppleReturnLogPath; var logFile = Path.Combine(Path.GetTempPath(), "bt-apple-return-" + Guid.NewGuid().ToString("N"), "apple-return.log"); AccountStore.AppleReturnLogPath = logFile;
         try
         {
             var gate = new AccountGateView(Local(), () => { });
@@ -140,18 +141,28 @@ public sealed class AppLoginTests
             var reply = http.PostAsync($"http://127.0.0.1:{port}/{path}", new FormUrlEncodedContent(new Dictionary<string, string> { ["state"] = state, ["error"] = error })).GetAwaiter().GetResult();
             Until(() => Descendants<Button>(gate).Any(b => System.Windows.Automation.AutomationProperties.GetName(b) == LocalFormText.Apple) && !Texts(gate).Contains(SignInText.Waiting));
             Assert.Equal(shown, Texts(gate).Contains(LocalFormText.Failure("signin_failed " + error)));   // 「処理できませんでした（signin_failed access_denied）」: Apple's code, never a token
+            // the library's one line per Apple return is on this device in the app's data folder: the fields that came back and Apple's code, never the state or a token
+            var line = Assert.Single(File.ReadAllLines(logFile)); Assert.Contains("state", line); Assert.Contains("error", line); Assert.DoesNotContain(path, line);
+            if (shown) Assert.Contains(error, line);
             gate.Dispose();
         }
-        finally { AccountStore.OpenBrowser = before; }
+        finally { AccountStore.OpenBrowser = before; AccountStore.AppleReturnLogPath = logBefore; }
     });
 
-    // Contract 1.46 (Tronie 2026-11-24): the library's Apple-return line goes to the app's own trace on this device, nowhere else.
+    // Contract 1.46 (Mint, Tronie 2026-11-24): a line a return is appended to the app's log file on this device; a write that fails never throws into the sign-in.
     [Fact]
-    public void TheAppleReturnLineGoesToTheAppsTraceOnly()
+    public void TheAppleReturnLineIsAppendedToTheAppsLogFileAndAFailedWriteDoesNotThrow()
     {
-        var written = new StringWriter(); var listener = new System.Diagnostics.TextWriterTraceListener(written); System.Diagnostics.Trace.Listeners.Add(listener);
-        try { AccountStore.WriteAppleReturnLine("2026-11-24T10:00:00Z apple return fields=state,error error=access_denied"); listener.Flush(); Assert.Contains("apple return fields=state,error error=access_denied", written.ToString()); }
-        finally { System.Diagnostics.Trace.Listeners.Remove(listener); }
+        var before = AccountStore.AppleReturnLogPath; var file = Path.Combine(Path.GetTempPath(), "bt-apple-return-" + Guid.NewGuid().ToString("N"), "apple-return.log");
+        try
+        {
+            AccountStore.AppleReturnLogPath = file;
+            AccountStore.WriteAppleReturnLine("2026-11-24T10:00:00Z apple return fields=state,error error=access_denied"); AccountStore.WriteAppleReturnLine("2026-11-24T10:01:00Z apple return fields=state,id_token");
+            Assert.Equal(["2026-11-24T10:00:00Z apple return fields=state,error error=access_denied", "2026-11-24T10:01:00Z apple return fields=state,id_token"], File.ReadAllLines(file));
+            AccountStore.AppleReturnLogPath = Path.Combine(file, "under-a-file", "apple-return.log");   // a folder cannot be made below a file
+            AccountStore.WriteAppleReturnLine("never written");
+        }
+        finally { AccountStore.AppleReturnLogPath = before; }
     }
 
     // Owner ruling 2026-11-24: a different login is a different person with its own contract; no purchase is ever linked across accounts, so no line says one exists under another account.
