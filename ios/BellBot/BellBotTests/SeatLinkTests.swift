@@ -3,10 +3,10 @@ import XCTest
 
 final class SeatLinkTests: XCTestCase {
     func testWaitingAnswerDecodesAndShowsTheExpiryInJST() throws {
-        let json = #"{"state":"waiting","code":"ABCD","typedSecret":"WXYZ-1234","qrText":"https://x.example/pair?c=ABCD","expiresAt":"2026-11-24T08:32:00.000Z"}"#
+        let json = #"{"state":"waiting","code":"WXYZ-1234","qrText":"https://x.example/pair?c=ABCD","expiresAt":"2026-11-24T08:32:00.000Z"}"#
         let link = try JSONDecoder().decode(SeatLink.self, from: Data(json.utf8))
         XCTAssertTrue(link.waiting)
-        XCTAssertEqual(link.typedSecret, "WXYZ-1234")
+        XCTAssertEqual(link.code, "WXYZ-1234")
         XCTAssertEqual(SeatLinkWords.until(try XCTUnwrap(link.expiresAt)), "17:32まで（JST）")
     }
 

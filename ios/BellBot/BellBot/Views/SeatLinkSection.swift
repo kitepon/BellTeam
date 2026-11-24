@@ -66,7 +66,7 @@ struct SeatLinkSection: View {
                     Image(uiImage: picture).interpolation(.none).resizable().scaledToFit().frame(width: 180, height: 180)
                         .accessibilityLabel("決裁箱のアプリで読むQRコード")
                 }
-                if let typed = link.typedSecret, !typed.isEmpty {
+                if let typed = link.code, !typed.isEmpty {
                     Text(verbatim: typed).font(.system(size: 16, design: .monospaced)).textSelection(.enabled)
                         .accessibilityIdentifier("seat-link-typed")
                 }

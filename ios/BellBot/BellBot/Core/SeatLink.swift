@@ -5,7 +5,6 @@ struct SeatLink: Decodable, Equatable {
     /// none | waiting | linked | removed | failed, plus the client's own: unavailable (the route could not say) and absent (the body has no such route, 404: nothing is drawn).
     var state: String
     var code: String?
-    var typedSecret: String?
     var qrText: String?
     var expiresAt: Date?
     /// failed: rejected | expired | other.
@@ -15,17 +14,16 @@ struct SeatLink: Decodable, Equatable {
     static let unavailable = SeatLink(state: "unavailable")
     var waiting: Bool { state == "waiting" && !(qrText ?? "").isEmpty }
 
-    init(state: String, code: String? = nil, typedSecret: String? = nil, qrText: String? = nil, expiresAt: Date? = nil, reason: String? = nil) {
-        self.state = state; self.code = code; self.typedSecret = typedSecret; self.qrText = qrText; self.expiresAt = expiresAt; self.reason = reason
+    init(state: String, code: String? = nil, qrText: String? = nil, expiresAt: Date? = nil, reason: String? = nil) {
+        self.state = state; self.code = code; self.qrText = qrText; self.expiresAt = expiresAt; self.reason = reason
     }
 
-    private enum Keys: String, CodingKey { case state, code, typedSecret, qrText, expiresAt, reason }
+    private enum Keys: String, CodingKey { case state, code, qrText, expiresAt, reason }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: Keys.self)
         state = try c.decode(String.self, forKey: .state)
         code = try c.decodeIfPresent(String.self, forKey: .code)
-        typedSecret = try c.decodeIfPresent(String.self, forKey: .typedSecret)
         qrText = try c.decodeIfPresent(String.self, forKey: .qrText)
         reason = try c.decodeIfPresent(String.self, forKey: .reason)
         expiresAt = try c.decodeIfPresent(String.self, forKey: .expiresAt).flatMap(Self.date)
