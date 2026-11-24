@@ -50,7 +50,7 @@ flowchart TD
 
 ## 失敗の言葉（`LocalAccount.words`）
 
-同じWi-Fiにつないでください（`unreachable_same_wifi`）／設定でローカルネットワークを許可して新しいQR（`local_network_denied`）／別のアカウントです（`other_account`）／QRの待ち時間（10分）が過ぎました（`request_expired`・`request_gone`）／相手が返事を受け取りませんでした（`device_refused`）／購読の期間が終わっています（`ended`）／QRが正しくないか相手のBellTeamが古い（`request_invalid`・`other_request`。0.21.1では版の違う2台はここで終わるので、両方を最新版にするよう言う）／相手との接続が途中で切れました（`connection_closed`）／サインインしてからもう一度（`signin_required`、承認でサインインの後も出た時だけ）／サインインできませんでした（`signin_failed`）。コードの文字列はそのまま見せない。
+同じWi-Fiにつないでください（`unreachable_same_wifi`）／設定でローカルネットワークを許可して新しいQR（`local_network_denied`）／別のアカウントです（`other_account`）／QRの待ち時間（10分）が過ぎました（`request_expired`・`request_gone`）／相手が返事を受け取りませんでした（`device_refused`）／購読の期間が終わっています（`ended`）／QRが正しくないか相手のBellTeamが古い（`request_invalid`・`other_request`。0.21.1では版の違う2台はここで終わるので、両方を最新版にするよう言う）／相手との接続が途中で切れました（`connection_closed`）／サインインしてからもう一度お試しください（`signin_required`、承認でサインインをやり直した後にもう一度出た時だけ。やめた時（`signin_cancelled`）は何も出さない：本人の選択）／サインインできませんでした（`signin_failed`）。コードの文字列はそのまま見せない。
 
 ## 権限と設定
 
