@@ -20,13 +20,13 @@ public sealed class ApprovalsWindowTests
         public void Dispose() { Page.Stop(); Window.Close(); Hub.Dispose(); Workspace.Dispose(); }
     }
     // scene: the module's (connected, main = not connected, waiting, gone, unreadable); device: the stand-in session (null = this PC has none).
-    private static Rig Open(string scene = "connected", ApprovalsFixture.Demo? device = null, bool noDevice = false)
+    private static Rig Open(string scene = "connected", ApprovalsFixture.Demo? device = null, bool noDevice = false, ApprovalsFixture.Join? join = null)
     {
         var server = new ApprovalsFixture(scene);
         var workspace = new Workspace(origin => new BellApi(origin, server));
         Await(workspace.ConnectAsync("http://localhost", listen: false));
         var session = noDevice ? null : device ?? new ApprovalsFixture.Demo().Fill();
-        var hub = new ApprovalsHub(workspace, device: session, quiet: TimeSpan.Zero); var window = new ApprovalsWindow(hub) { Rendering = true };
+        var hub = new ApprovalsHub(workspace, device: session, quiet: TimeSpan.Zero); if (join is not null) hub.SetJoin(join); var window = new ApprovalsWindow(hub) { Rendering = true };
         window.Sync();
         return new Rig(workspace, hub, window, server, session);
     }
@@ -38,6 +38,86 @@ public sealed class ApprovalsWindowTests
     private static bool IsShown(DependencyObject at) { for (; at is not null and not Window; at = LogicalTreeHelper.GetParent(at)) if (at is UIElement { Visibility: not Visibility.Visible }) return false; return true; }
     private static Button Find(ApprovalsWindow window, string key) => LogicalTree.Find<Button>(window.Content).First(button => System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "ab:" + key);
     private static void Press(Button button) => button.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent, button));
+
+    private static Button FindId(ApprovalsWindow window, string id) => LogicalTree.Find<Button>(window.Content).First(button => System.Windows.Automation.AutomationProperties.GetAutomationId(button) == id);
+
+    // The child join (child-join.md): the window is the join screen until the child is joined; every state of the table, and the host never shows a parent's controls.
+    [Fact]
+    public void ANotJoinedWindowDrawsTheJoinScreenWithTheFirstScreensSignInAndNoList() => RunSta(() =>
+    {
+        var join = new ApprovalsFixture.Join(); using var rig = Open(join: join); Until(() => rig.Page.Settled);
+        var texts = Texts(rig.Window);
+        Assert.Contains(ChildJoinText.Title, texts); Assert.Contains(ChildJoinText.Lead, texts); Assert.Contains(LocalFormText.FirstSignIn, texts);
+        Assert.DoesNotContain("決裁箱拡張の月額を、決裁箱と同じ請求にしてよいですか？", texts);   // no list, no columns
+        Assert.DoesNotContain(texts, text => text.Contains("ほかの端末を追加", StringComparison.Ordinal) || text.Contains("購入", StringComparison.Ordinal));   // a child is never a parent and never buys
+        Press(FindId(rig.Window, "child-join-apple")); join.SigningIn = false; join.Raise();   // the browser step replaces the buttons; back to the buttons
+        Press(FindId(rig.Window, "child-join-google"));
+        Assert.Equal(["apple", "google"], join.Joins);
+    });
+
+    [Fact]
+    public void WhileTheBrowserSignsInTheWindowSaysSoAndOffersToStop() => RunSta(() =>
+    {
+        var join = new ApprovalsFixture.Join { SigningIn = true }; using var rig = Open(join: join); Until(() => rig.Page.Settled);
+        Assert.Contains(SignInText.Waiting, Texts(rig.Window)); Assert.DoesNotContain(LogicalTree.Find<Button>(rig.Window.Content), button => System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "child-join-apple");
+        Press(FindId(rig.Window, "child-join-cancel")); Assert.Equal(1, join.Cancels);
+        Until(() => Texts(rig.Window).Contains(LocalFormText.FirstSignIn));   // cancelJoin: back to the not-joined screen
+    });
+
+    [Fact]
+    public void WaitingForTheParentShowsTheQrItsValidityTheGuidanceAndStop() => RunSta(() =>
+    {
+        var until = DateTimeOffset.UtcNow.AddMinutes(5);
+        var join = new ApprovalsFixture.Join { Phase = ChildJoinPhase.Waiting, QrLink = "https://login-billing.kitepon.dev/join/dev.kitepon.approvalbox#lbq4:abc", ExpiresAt = until };
+        using var rig = Open(join: join); Until(() => rig.Page.Settled);
+        var texts = Texts(rig.Window);
+        Assert.Contains(ChildJoinText.WaitingTitle, texts); Assert.Single(LogicalTree.Find<QrView>(rig.Window.Content));
+        Assert.Contains(LocalFormText.ValidUntil(until), texts); Assert.Contains(LocalFormText.Qr, texts);
+        Assert.DoesNotContain(LocalFormText.FirstSignIn, texts);
+        Press(FindId(rig.Window, "child-join-cancel")); Assert.Equal(1, join.Cancels);
+    });
+
+    [Theory]
+    [InlineData("parent_refused", ChildJoinText.Failed)]
+    [InlineData("other_account", ChildJoinText.OtherAccount)]
+    public void AFailedJoinSaysItsOwnSentenceNeverTheCodeAndOffersToConnectAgain(string code, string sentence) => RunSta(() =>
+    {
+        var join = new ApprovalsFixture.Join { Phase = ChildJoinPhase.Failed, FailedCode = code }; using var rig = Open(join: join); Until(() => rig.Page.Settled);
+        var texts = Texts(rig.Window); Assert.Contains(sentence, texts); Assert.DoesNotContain(texts, text => text.Contains(code, StringComparison.Ordinal));
+        Press(FindId(rig.Window, "child-join-again")); Assert.Equal([null], join.Joins);   // again, with the provider of the last try
+    });
+
+    [Fact]
+    public void ADeviceTheParentRemovedSaysSoAndOffersToConnectAgain() => RunSta(() =>
+    {
+        var join = new ApprovalsFixture.Join { Removed = true }; using var rig = Open(join: join); Until(() => rig.Page.Settled);
+        Assert.Contains(ChildJoinText.Removed, Texts(rig.Window)); Press(FindId(rig.Window, "child-join-again")); Assert.Equal([null], join.Joins);
+    });
+
+    [Fact]
+    public void AJoinedWindowIsTheNormalListAndTheBlockSaysJoinedAndLeavesInTwoSteps() => RunSta(() =>
+    {
+        var join = new ApprovalsFixture.Join { Phase = ChildJoinPhase.Joined }; using var rig = Open("main", join: join); Until(() => rig.Page.Settled);
+        Assert.Contains("決裁箱拡張の月額を、決裁箱と同じ請求にしてよいですか？", Texts(rig.Window)); Assert.DoesNotContain(ChildJoinText.Title, Texts(rig.Window));
+        Press(Find(rig.Window, "link")); Until(() => Texts(rig.Window).Contains(ChildJoinText.Joined));
+        Press(Find(rig.Window, "child-leave")); Assert.Equal(0, join.Leaves);                                  // the first press only asks
+        Press(Find(rig.Window, "child-leave-no")); Assert.Equal(0, join.Leaves); Assert.Contains(ChildJoinText.Joined, Texts(rig.Window));
+        Press(Find(rig.Window, "child-leave")); Press(Find(rig.Window, "child-leave-yes"));
+        Until(() => join.Leaves == 1 && Texts(rig.Window).Contains(ChildJoinText.Title));                       // leave: the join screen comes back
+    });
+
+    [Fact]
+    public void AJoinedWindowSaysJoiningReconnectingNotEntitledAndUpdateRequiredInTheTablesWords() => RunSta(() =>
+    {
+        var join = new ApprovalsFixture.Join { Phase = ChildJoinPhase.Joined }; var device = new ApprovalsFixture.Demo().Fill();
+        using var rig = Open(device: device, join: join); Until(() => rig.Page.Settled);
+        device.State = new(RuntimeStatus.Connecting); device.Raise(); Until(() => Texts(rig.Window).Contains(ChildJoinText.Joining));
+        device.State = new(RuntimeStatus.Retrying); device.Raise(); Until(() => Texts(rig.Window).Contains(ChildJoinText.Reconnecting));
+        Press(Find(rig.Window, "legacy:" + ChildJoinText.Retry)); Assert.Equal(1, device.Refreshed);
+        device.State = new(RuntimeStatus.NotEntitled); device.Raise(); Until(() => Texts(rig.Window).Contains(ChildJoinText.NotEntitled));
+        Assert.Contains(LogicalTree.Find<Button>(rig.Window.Content), button => System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "ab:legacy:" + ChildJoinText.Recheck);
+        device.State = new(RuntimeStatus.Live); join.UpdateRequired = true; join.Raise(); Until(() => Texts(rig.Window).Contains(ChildJoinText.UpdateRequired));
+    });
 
     [Fact]
     public void TheListIsTheDevicesBookAndNeverShowsAnId() => RunSta(() =>

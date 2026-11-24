@@ -44,6 +44,9 @@ internal sealed class ApprovalsHub : IDisposable
     internal Action? RequestApproval { get; set; }
     internal Action? CancelApproval { get; set; }
     internal void SetOffer(ApprovalOffer? offer, string? note = null) { Offer = offer; OfferNote = note; Post(() => Changed?.Invoke()); }
+    /// <summary>The child join of this window (child-join.md): while set, the window draws the join screen until it is joined; null = the sign-in above still stands (until the component's adapter replaces it).</summary>
+    internal IChildJoin? Join { get; private set; }
+    internal void SetJoin(IChildJoin? join) { Join = join; if (join is not null) join.Changed += () => Post(() => { Changed?.Invoke(); DeviceChanged?.Invoke(); }); Post(() => DeviceChanged?.Invoke()); }
     internal void SetSignIn(bool signingIn, string? note = null) { SigningIn = signingIn; SignInNote = note; Post(() => Changed?.Invoke()); }
     /// <summary>The device's decisions as the screen draws them, each joined with its chart link when that is known.</summary>
     internal IReadOnlyList<ViewDecision> DeviceViews => Device is null ? [] : [.. Approvals.OpenOrder(Device.Decisions.Where(item => item.Status is "pending" or "held")).Concat(Device.Decisions.Where(item => item.Status is not ("pending" or "held"))).Select(decision => ApprovalOriginRule.Apply(decision, Roster())).Select(Links.Join)];

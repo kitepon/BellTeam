@@ -2,7 +2,7 @@ namespace BellTeam.Core;
 
 /// <summary>
 /// The words of the 決裁箱 window's child join (child-join.md, Delta 2026-11-24: the table's strings, BellTeam's own; the library owns no guidance text). One block for every client.
-/// The sign-in lines before the QR are the first screen's (<see cref="LocalFormText.FirstSignIn"/>) and the QR text beside it is <see cref="LocalFormText.Qr"/>, word for word; the validity line is <see cref="LocalFormText.ValidUntil"/>.
+/// The sign-in lines before the QR are the first screen's (<see cref="LocalFormText.FirstSignIn"/>) and the QR text beside it is <see cref="LocalFormText.Qr"/> (the sentence stays; BellTeam's display is BellTeam's); the validity line is <see cref="LocalFormText.ValidUntil"/>.
 /// </summary>
 public static class ChildJoinText
 {
