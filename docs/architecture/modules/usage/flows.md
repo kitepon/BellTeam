@@ -103,7 +103,7 @@ flowchart TD
 | CLIを選ぶ | `select` → `bots.create/update` → `callAuth(start)` | 旧authSession取消→harness保存→案内Bot準備→認証開始→session保存。途中失敗を一括rollbackしない |
 | 案内を始める | `start` → `callAuth(status/cancel)` → `startConversation` | 認証済みを確認。会話受付後にstartedを保存。`prepareStartup`は未完案内Botの指示だけを追記 |
 | 案内終了 | `complete` → `Subscriptions.completeSetup` → `save` | 内部MCP `complete_setup`はcallerのbotIdを渡し案内Bot一致を検証。publicは既存guideを使用 |
-| 認証一覧と状態 | `HarnessAuth.list/status/observe` ← harness-auth GET | membersは台帳から数える。`sessions/receipts`はメモリ。認証情報本体は公式CLIが持つ |
+| 認証一覧と状態 | `HarnessAuth.list/status/observe` ← harness-auth GET | membersは台帳から数える。`sessions/receipts`はメモリ。認証情報本体は公式CLIが持つ。同じ`harness+slot`の`status`は、処理中の一件を共有する（`flights`）。何台が押しても、待ちの`status`は1件。`start/input/cancel`が入ったら共有は切り、その後の`status`は新しく読む（2026-11-24、Tronie報告の溜まり） |
 | 認証開始・取消 | `start/end/cancel` → `call` | relogin対応、session有無、旧資格情報を失う警告を保持。end成功後にMapから削除 |
 | 入力 | 両サービス`input` → `authResponse` → `call/callAuth(respond)` | 最新公開UIとbinding/session/prompt digestが一致する入力だけを送る。typed失敗のnot_issued/unknownを区別 |
 | native応答 | `call/callAuth` → `authReceipt` → typed失敗/schema/status判定 | Aiterm結果を検証してからauth/receiptsへ保存。schema/statusの同順判定はauth-uiが所有し、各serviceは状態を保存する |
