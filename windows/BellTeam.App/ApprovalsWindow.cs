@@ -485,6 +485,12 @@ internal sealed class ApprovalsPage : Grid
         var section = new StackPanel { Margin = new Thickness(0, 30, 0, 0), HorizontalAlignment = HorizontalAlignment.Center, MaxWidth = 480 };
         section.Children.Add(new Border { Height = 1, Background = Brush(Muted, 0x33), Margin = new Thickness(0, 0, 0, 20) });
         var head = Text(SeatLinkText.Title, 16, Ink, FontWeights.Bold); head.TextAlignment = TextAlignment.Center; section.Children.Add(head);
+        if (SeatLinkText.Badge(seat) is { } badge)
+        {
+            var tint = badge.Tone switch { "ok" => Color.FromRgb(0x2E, 0xB3, 0x9E), "err" => Color.FromRgb(0xFF, 0x3B, 0x30), _ => Muted };   // the same chip as 「ライブ」: a dot and a word
+            var chip = Pill(Row(new System.Windows.Shapes.Ellipse { Width = 8, Height = 8, Fill = Brush(tint) }, Spaced(Text(badge.Text, 12, tint, FontWeights.SemiBold), 6)), tint, 0x1F);
+            chip.HorizontalAlignment = HorizontalAlignment.Center; chip.Margin = new Thickness(0, 10, 0, 0); System.Windows.Automation.AutomationProperties.SetAutomationId(chip, "seat-link-badge"); section.Children.Add(chip);
+        }
         var line = Text(SeatLinkText.Line(seat), 14, SeatLinkText.IsFailure(seat) ? Red : Ink, FontWeights.SemiBold, TextWrapping.Wrap); line.TextAlignment = TextAlignment.Center; line.Margin = new Thickness(0, 8, 0, 0);
         System.Windows.Automation.AutomationProperties.SetAutomationId(line, "seat-link-text"); section.Children.Add(line);
         if (seat.Waiting)

@@ -383,7 +383,7 @@ stateDiagram-v2
   removed --> waiting: 「もう一度つなぐ」
 ```
 
-- 見え方：[waiting](windows-seat-link-waiting.png)（QR・打ち込むコード・「決裁箱のアプリで、接続 → 「AIをつなぐ」 → 「QRコードを読む」を開き、…」・期限・やめる）と[linked](windows-seat-link-linked.png)。linkedとnoneは中立で、赤はfailed（と読めない時）だけ。linkedにボタンは無い。
+- 見え方：[waiting](windows-seat-link-waiting.png)（QR・打ち込むコード・「決裁箱のアプリで、接続 → 「AIをつなぐ」 → 「QRコードを読む」を開き、…」・期限・やめる）、[linked](windows-seat-link-linked.png)、[removed](windows-seat-link-removed.png)、[failed](windows-seat-link-failed.png)。文の上に、窓の「ライブ」と同じ形の状態の札（点＋言葉。トロニー2026-11-24）：linked＝緑「つながっています」、removed＝灰「つなぎが外れています」、failed（と読めない時）＝赤「つなげませんでした」（Coreの`SeatLinkText.Badge`）。noneとwaitingに札は無い。linkedにボタンは無い。
 - 読めない時：503・403・失敗は「いまはつなげません。少し待って、もう一度押してください。」と「もう一度つなぐ」。**routeの無い古いbody（404）は区画を出さない**（routeが入る前のビルドで、オーナーに紛らわしい行を見せないため）。
 - 答え（start・stop）は1回ずつで、送っている間はスピナー。パネルは縦に長くなるのでスクロールする。
 

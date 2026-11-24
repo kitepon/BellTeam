@@ -183,6 +183,8 @@ public sealed class ApprovalsWindowTests
         Assert.Contains(LogicalTree.Find<Button>(rig.Window.Content), button => button.Content as string == SeatLinkText.Cancel);   // 「やめる」 while it waits
         rig.Server.SeatLink = new System.Text.Json.Nodes.JsonObject { ["state"] = "linked" };                              // the Owner read the QR and approved: the 2 s watch reads it
         Until(() => Texts(rig.Window).Contains(SeatLinkText.Linked)); Assert.Empty(LogicalTree.Find<QrView>(rig.Window.Content));
+        Assert.Contains("つながっています", Texts(rig.Window));                                                                 // the green chip above the sentence, like 「ライブ」
+        Assert.Contains(LogicalTree.Find<Border>(rig.Window.Content), border => System.Windows.Automation.AutomationProperties.GetAutomationId(border) == "seat-link-badge");
         Assert.DoesNotContain(LogicalTree.Find<Button>(rig.Window.Content), button => System.Windows.Automation.AutomationProperties.GetAutomationId(button).StartsWith("ab:seat-link", StringComparison.Ordinal));   // linked: no button
     });
 
@@ -196,6 +198,7 @@ public sealed class ApprovalsWindowTests
         using var rig = Open("main"); Until(() => rig.Page.Settled);
         rig.Server.SeatLink = new System.Text.Json.Nodes.JsonObject { ["state"] = state, ["reason"] = reason };
         Press(Find(rig.Window, "link")); Until(() => Texts(rig.Window).Contains(line));
+        Assert.Contains(state == "removed" ? "つなぎが外れています" : "つなげませんでした", Texts(rig.Window));   // gray for removed, red for failed
         Press(Find(rig.Window, "seat-link:go"));   // もう一度つなぐ starts again
         Until(() => Texts(rig.Window).Contains(SeatLinkText.Steps));
     });

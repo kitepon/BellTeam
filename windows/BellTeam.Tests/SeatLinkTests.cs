@@ -29,6 +29,8 @@ public sealed class SeatLinkTests
         Assert.Equal(["つなぐ", "やめる", null, "もう一度つなぐ", "もう一度つなぐ", "もう一度つなぐ"], new[] { "none", "waiting", "linked", "removed", "failed", "unavailable" }.Select(state => SeatLinkText.Action(new() { State = state })));
         Assert.Equal([false, false, false, false, true, true], new[] { "none", "waiting", "linked", "removed", "failed", "unavailable" }.Select(state => SeatLinkText.IsFailure(new() { State = state })));   // red only for failed
         Assert.Equal("17:32まで（JST）", SeatLinkText.Until(DateTimeOffset.Parse("2026-11-24T08:32:00Z")));
+        // the state badge above the sentence: green linked, gray removed, red failed (and unavailable), none for none and waiting
+        Assert.Equal([null, null, ("つながっています", "ok"), ("つなぎが外れています", "muted"), ("つなげませんでした", "err"), ("つなげませんでした", "err")], new[] { "none", "waiting", "linked", "removed", "failed", "unavailable" }.Select(state => SeatLinkText.Badge(new() { State = state })));
     }
 
     [Fact]
