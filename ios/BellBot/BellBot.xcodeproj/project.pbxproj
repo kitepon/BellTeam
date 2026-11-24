@@ -107,7 +107,9 @@
 		6DFD51FD8407166077C47F9D /* MemberActivityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4537AD2FAFC47BE3355B1516 /* MemberActivityTests.swift */; };
 		6E29E4258E2BDB0CC1ACD2DA /* LatticeTreeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DD1E02ACDCE28987E14A1A4 /* LatticeTreeView.swift */; };
 		6E804F7E04F5C90254FDD1BE /* SeatApprovalsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E08851CA0AF6311BF484DCB8 /* SeatApprovalsTests.swift */; };
+		6ECC3E20C2394BE29F8701D9 /* SeatLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CB631558D1649215B8C7207 /* SeatLink.swift */; };
 		70CFECCFA618703BBAEC511F /* LocalAccountTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 868EE061AD1C0E470DE17561 /* LocalAccountTests.swift */; };
+		7166ADA6252240D0847BD1DD /* SeatLinkSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86360A7C41C295954176F849 /* SeatLinkSection.swift */; };
 		745A60508673144880E50F3F /* ReplyReferenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01F504807D7429B6838350DB /* ReplyReferenceTests.swift */; };
 		7478597DA434249676C22797 /* AuthTypedUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52CFCF164610C6974008B7B2 /* AuthTypedUITests.swift */; };
 		771A7ABA1E4AF838428A675F /* MemberDeletionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9154D4ED3669583CD9042D73 /* MemberDeletionUITests.swift */; };
@@ -228,6 +230,7 @@
 		FBB5374AF788223F144EA209 /* BackgroundAgentSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30D8B7EA92DE81A89E5F7552 /* BackgroundAgentSettingsTests.swift */; };
 		FCDE197B84EDF95C61684414 /* SSHHostKeyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD0578B483DDFB2C9E74B797 /* SSHHostKeyTests.swift */; };
 		FD4922427001F91C9F1E7BCD /* ApprovalLinks.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA48855D888D20BD5226966F /* ApprovalLinks.swift */; };
+		FF8AB0227D7616C33E8E15BF /* SeatLinkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51CFF0859AB3099EAABCA863 /* SeatLinkTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -351,6 +354,7 @@
 		4E89EE9A9585139D146052FD /* BillingStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BillingStoreTests.swift; sourceTree = "<group>"; };
 		4EC0870BB12FFC119FCBB8E6 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		4EFD37AE7C405B4689B50CAE /* ForwardSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForwardSheet.swift; sourceTree = "<group>"; };
+		51CFF0859AB3099EAABCA863 /* SeatLinkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeatLinkTests.swift; sourceTree = "<group>"; };
 		5240F7B27DBDA4893A69C997 /* BellBotUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = BellBotUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		52CFCF164610C6974008B7B2 /* AuthTypedUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthTypedUITests.swift; sourceTree = "<group>"; };
 		549845AE12463CD143CDEEB8 /* ServerOrigin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerOrigin.swift; sourceTree = "<group>"; };
@@ -371,6 +375,7 @@
 		67DDD3A5EEA55B3EB2537B92 /* SettingsHome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsHome.swift; sourceTree = "<group>"; };
 		6A2F000635CD2024008345A3 /* ServerInstallationGuide.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerInstallationGuide.swift; sourceTree = "<group>"; };
 		6BF2159F5902850520F32BCE /* SecretTransportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretTransportTests.swift; sourceTree = "<group>"; };
+		6CB631558D1649215B8C7207 /* SeatLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeatLink.swift; sourceTree = "<group>"; };
 		6CCAEDB62892A74233BDFCB0 /* BellAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellAPI.swift; sourceTree = "<group>"; };
 		70E6B86A44AFB7053F2260B5 /* BotScreenKeyBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotScreenKeyBar.swift; sourceTree = "<group>"; };
 		71785B41220656576156BBC5 /* HarnessAuthenticationUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessAuthenticationUITests.swift; sourceTree = "<group>"; };
@@ -393,6 +398,7 @@
 		847040873E4AA72CFA437663 /* StoreKitTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKitTest.framework; path = System/Library/Frameworks/StoreKitTest.framework; sourceTree = SDKROOT; };
 		85C81E947834BDF63F27C14D /* BellDiagnosticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellDiagnosticsTests.swift; sourceTree = "<group>"; };
 		85DB5E741758089D810A8E49 /* MessageText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageText.swift; sourceTree = "<group>"; };
+		86360A7C41C295954176F849 /* SeatLinkSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeatLinkSection.swift; sourceTree = "<group>"; };
 		868EE061AD1C0E470DE17561 /* LocalAccountTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalAccountTests.swift; sourceTree = "<group>"; };
 		8700D379567AAFADB669AB4B /* WorkGraphModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkGraphModel.swift; sourceTree = "<group>"; };
 		884428616564BE00EFB0370F /* BellBotApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellBotApp.swift; sourceTree = "<group>"; };
@@ -594,6 +600,7 @@
 				F6E74214060867B1A516455F /* RunningExclusionsTests.swift */,
 				A16B891C02B4DF8B097EF304 /* ScreenKeyBarTests.swift */,
 				E08851CA0AF6311BF484DCB8 /* SeatApprovalsTests.swift */,
+				51CFF0859AB3099EAABCA863 /* SeatLinkTests.swift */,
 				6BF2159F5902850520F32BCE /* SecretTransportTests.swift */,
 				C03043D84E81301281D2DAF1 /* SelectableTextLayoutTests.swift */,
 				A3281E543C1A6DA34F67CC1A /* ServerLoginTests.swift */,
@@ -663,6 +670,7 @@
 				E5FB291F103F8489EC171FD0 /* PreviewFixtures.swift */,
 				98C9F91EAD929BE2C4EBB70F /* RunningExclusions.swift */,
 				56707FD3194296636352CA03 /* SeatApprovals.swift */,
+				6CB631558D1649215B8C7207 /* SeatLink.swift */,
 				54F3C994CE6911399B2DDC8E /* ServerLogin.swift */,
 				E054635E82AFF40C54FA96A0 /* SettingsStatus.swift */,
 				6105A5B0589F52BE5CD1EC05 /* SSHHostKey.swift */,
@@ -763,6 +771,7 @@
 				44A1C06CB19FF2B63144F176 /* RunningExclusionsPage.swift */,
 				AA28AC7BFD35A51CF55B3E60 /* SchedulesView.swift */,
 				FA367D54D9014A613EE32150 /* SeatApprovalCard.swift */,
+				86360A7C41C295954176F849 /* SeatLinkSection.swift */,
 				A705FBAB6CC825EC30D4D015 /* SecretRequestView.swift */,
 				80B1EA5240E89312F64F9402 /* SelectableText.swift */,
 				6A2F000635CD2024008345A3 /* ServerInstallationGuide.swift */,
@@ -1259,6 +1268,8 @@
 				29BBEC95063DB1095C1879E5 /* SchedulesView.swift in Sources */,
 				22F9CF0DEE06825F201F1EAF /* SeatApprovalCard.swift in Sources */,
 				BFE1F6E88171899973826082 /* SeatApprovals.swift in Sources */,
+				6ECC3E20C2394BE29F8701D9 /* SeatLink.swift in Sources */,
+				7166ADA6252240D0847BD1DD /* SeatLinkSection.swift in Sources */,
 				A13B98D604ACC4745C9C02AD /* SecretRequestView.swift in Sources */,
 				21C4821CBBDC41B35155B78F /* SelectableText.swift in Sources */,
 				1E6DD3E2ACCFBF357038583A /* ServerInstallationGuide.swift in Sources */,
@@ -1343,6 +1354,7 @@
 				B37D9581E8D6AD0ABBFBA814 /* SSHHostKeyVector.swift in Sources */,
 				D95AC4FE64F4F64A16F11000 /* ScreenKeyBarTests.swift in Sources */,
 				6E804F7E04F5C90254FDD1BE /* SeatApprovalsTests.swift in Sources */,
+				FF8AB0227D7616C33E8E15BF /* SeatLinkTests.swift in Sources */,
 				C7EDF928F89B111580BAEB5B /* SecretTransportTests.swift in Sources */,
 				025B957E795ADEEBC3666BC7 /* SelectableTextLayoutTests.swift in Sources */,
 				03E1BF0F00EBA70FAF1BE74B /* ServerLoginTests.swift in Sources */,

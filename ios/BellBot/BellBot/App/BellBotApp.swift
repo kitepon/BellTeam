@@ -218,6 +218,8 @@ private struct RootView: View {
                 } else if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-billing") {
                     // 切替の版の画面確認（a485）: 設定の「利用と課金」の2枚のカードだけ。本番の運営のURLで起動して見る。
                     ScrollView { VStack(spacing: 16) { StoreAccountCard(); SubscriptionCard() }.padding() }
+                } else if let state = ["waiting", "linked", "removed", "failed", "none"].first(where: { ProcessInfo.processInfo.arguments.contains("-bellbot-preview-seat-link-\($0)") }) {
+                    ScrollView { SeatLinkSection.Content(model: SeatLinkModel(preview: SeatLink(state: state, code: "ABCD", typedSecret: "WXYZ-1234-QRST-5678", qrText: "https://approval-box.example/pair?c=ABCD", expiresAt: Date().addingTimeInterval(300), reason: "other"))).padding() }
                 } else if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-chat") {
                     NavigationStack { ConversationView(target: .bot("bot-one")) }
                 } else if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-markdown") {
@@ -235,6 +237,11 @@ private struct RootView: View {
         .modifier(LocalLinkHost(account: store.localAccount))
         // The first screen needs the device's own store read before any server: start it here, not after the server answers.
         .task {
+            #if DEBUG
+            // The other previews show screens past the gate: no store check for them (the first-screen one sets its own request below).
+            let arguments = ProcessInfo.processInfo.arguments
+            if arguments.contains(where: { $0.hasPrefix("-bellbot-preview") }) && !arguments.contains("-bellbot-preview-first-screen-qr") { return }
+            #endif
             await store.localAccount.start()
             #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-first-screen-qr") { store.localAccount.setPreviewRequest("lbq4:preview") }
