@@ -1,30 +1,30 @@
 using Avalonia.Controls;
 using Avalonia.VisualTree;
 using BellTeam.Core;
-using BellTeam.PeerChannel;
+using Kitepon.ApprovalBox.Client;
 
 namespace BellTeam.Linux;
 
 // child-join.md, "The one screen": each state of the table with its words and action, and the never-a-parent rule. The component is stood in by JoinFixtureSource.
 public sealed class ApprovalsChildJoinTests
 {
-    private sealed class Device : IDeviceDecisions
+    private sealed class Device : IApprovalSource
     {
-        public DecisionBook Book { get; } = new();
-        public RuntimeState State { get; set; } = new(RuntimeStatus.Live);
+        public IReadOnlyList<ViewDecision> Decisions => [];
+        public ClientState State { get; set; } = new(ClientStatus.Live);
         public event Action? Changed;
-        public Task<SendOutcome> AnswerAsync(string decisionId, string? optionId, string? text) => Task.FromResult(new SendOutcome("ok"));
-        public Task<SendOutcome> HoldAsync(string decisionId, bool held) => Task.FromResult(new SendOutcome("ok"));
+        public Task<AnswerResult> AnswerAsync(string decisionId, string? optionId, string? text, long version) => Task.FromResult<AnswerResult>(new AnswerResult.Accepted(null));
+        public Task<AnswerResult> HoldAsync(string decisionId, bool held) => Task.FromResult<AnswerResult>(new AnswerResult.Accepted(null));
         public void Refresh() => Changed?.Invoke();
         public Task<byte[]?> AttachmentAsync(string decisionId, string attachmentId) => Task.FromResult<byte[]?>(null);
     }
 
-    private static async Task<(ApprovalsWindow Window, JoinFixtureSource Source, Device Device)> OpenAsync(ChildJoinState join, RuntimeState? state = null)
+    private static async Task<(ApprovalsWindow Window, JoinFixtureSource Source, Device Device)> OpenAsync(ChildJoinState join, ClientState? state = null)
     {
         var workspace = new LinuxWorkspace(origin => new BellApi(origin, new ApprovalsFixture("connected")));
         await workspace.ConnectAsync("http://localhost", listen: false);
         var device = new Device(); if (state is { } s) device.State = s;
-        var source = new JoinFixtureSource(new PeerSource(device), join);
+        var source = new JoinFixtureSource(device, join);
         var window = new ApprovalsWindow(new ApprovalsHub(workspace, source), workspace, (_, _) => { }, _ => { });
         window.Show(); for (var wait = 0; wait < 100 && !window.Settled; wait++) await Task.Delay(20);
         return (window, source, device);
@@ -115,7 +115,7 @@ public sealed class ApprovalsChildJoinTests
     [Fact]
     public Task JoinedKeepsTheExistingNotesForReconnectingNotEntitledAndUpdate() => Ui.Run(async () =>
     {
-        foreach (var (state, words) in new (RuntimeState, string)[] { (new(RuntimeStatus.Retrying, "x"), Approvals.DeviceReconnecting), (new(RuntimeStatus.NotEntitled), Approvals.DeviceNotEntitled), (new(RuntimeStatus.Stopped, "update_needed"), Approvals.DeviceUpdateNeeded) })
+        foreach (var (state, words) in new (ClientState, string)[] { (new(ClientStatus.Reconnecting, "x"), Approvals.DeviceReconnecting), (new(ClientStatus.NotEntitled), Approvals.DeviceNotEntitled), (new(ClientStatus.UpdateRequired), Approvals.DeviceUpdateNeeded) })
         {
             var (window, _, _) = await OpenAsync(new(JoinPhase.Joined), state);
             try { Assert.True(Has(window, words)); NeverAParent(window); } finally { window.Close(); }
@@ -127,7 +127,7 @@ public sealed class ApprovalsChildJoinTests
     {
         var workspace = new LinuxWorkspace(origin => new BellApi(origin, new ApprovalsFixture("connected")));
         await workspace.ConnectAsync("http://localhost", listen: false);
-        var window = new ApprovalsWindow(new ApprovalsHub(workspace, (IDeviceDecisions?)new Device()), workspace, (_, _) => { }, _ => { });
+        var window = new ApprovalsWindow(new ApprovalsHub(workspace, new Device()), workspace, (_, _) => { }, _ => { });
         window.Show(); for (var wait = 0; wait < 100 && !window.Settled; wait++) await Task.Delay(20);
         try { Assert.False(Has(window, ChildJoinText.Title)); } finally { window.Close(); }
     });

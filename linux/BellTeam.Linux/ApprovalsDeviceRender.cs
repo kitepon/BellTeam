@@ -69,7 +69,7 @@ internal static class ApprovalsDeviceRender
             });
         }
         using var hub = new ApprovalsHub(model, source); hub.ReadLinks();
-        hub.SignInApprovalBox = () => { }; hub.RequestApproval = () => { };
+        hub.RequestApproval = () => { };
         var window = new ApprovalsWindow(hub, model, (_, _) => { }, _ => { });
         LatticeLook.Motion = false;
         window.Show();

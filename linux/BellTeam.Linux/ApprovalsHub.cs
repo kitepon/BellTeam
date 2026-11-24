@@ -16,20 +16,11 @@ internal sealed class ApprovalsHub : IDisposable
     /// <summary>The Approval Box client of this machine (null: this build has none, the screen says so).</summary>
     internal IApprovalSource? Source { get; }
     internal ApprovalLinks Links { get; } = new();
-    /// <summary>Starts the Approval Box web sign-in of the second library instance (set when that instance exists; the 「Approval Boxにサインイン」 button shows only then).</summary>
-    internal Action? SignInApprovalBox { get; set; }
-    /// <summary>The Approval Box web sign-in is open in the browser (SigningIn); 「やめる」 calls CancelSignIn. The note is why the last try ended, if it did not end by the person's own choice.</summary>
-    internal bool SigningIn { get; private set; }
-    internal string? SignInNote { get; private set; }
-    internal Action? CancelSignIn { get; set; }
     /// <summary>NeedsApproval -> Waiting and back (5.3): the code and QR of the Waiting state are the component's (State.Offer); these two are its requestApproval / cancelApproval.</summary>
     internal Action? RequestApproval { get; set; }
     internal Action? CancelApproval { get; set; }
-    internal void SetSignIn(bool signingIn, string? note = null) { SigningIn = signingIn; SignInNote = note; Run(() => Changed?.Invoke()); }
     /// <summary>The device's book, connection or links changed: the open window repaints.</summary>
     internal event Action? DeviceChanged;
-    /// <summary>「Approval Boxからサインアウト」: the account's sign-out (BellTeam's own sign-in is not touched). Set when the account exists.</summary>
-    internal Action? SignOutApprovalBox { get; set; }
     /// <summary>The device's decisions as the screen draws them, each joined with its chart link when that is known.</summary>
     internal IReadOnlyList<ViewDecision> DeviceViews => Source is null ? [] : [.. Source.Decisions.Select(Links.Join)];
     /// <summary>The counts of the entry row and the toolbar: what the device holds (null without a device).</summary>

@@ -20,6 +20,7 @@ public sealed class ApprovalsDeviceListTests
         public Task<AnswerResult> HoldAsync(string decisionId, bool held) { Calls.Add($"hold:{decisionId}:{held}"); return Task.FromResult<AnswerResult>(new AnswerResult.Accepted(null)); }
         public void Refresh() { }
         public Task<byte[]?> AttachmentAsync(string decisionId, string attachmentId) => Task.FromResult<byte[]?>(null);
+        public void Raise() => Changed?.Invoke();
         public void Close(string id) { var i = items.FindIndex(d => d.Id == id); items[i] = items[i] with { Status = "answered" }; Changed?.Invoke(); }
         public void Add(string id, string title, string? botId = "bot-molly") => items.Add(new ViewDecision
         {

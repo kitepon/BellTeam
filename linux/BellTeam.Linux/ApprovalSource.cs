@@ -44,4 +44,17 @@ internal sealed class ClientApprovalSource(ApprovalBoxClient client, Func<IReadO
     public Task<AnswerResult> HoldAsync(string decisionId, bool held) => held ? client.HoldAsync(decisionId) : client.UnholdAsync(decisionId);
     public void Refresh() => client.RetryNow();
     public Task<byte[]?> AttachmentAsync(string decisionId, string attachmentId) => client.AttachmentAsync(decisionId, attachmentId);
+
+    // The child join: the component's joinState drawn as the port's ChildJoinState (child-join.md); the screen's actions are the component's requestJoin / cancelJoin / leave.
+    public ChildJoinState? Join => client.JoinState switch
+    {
+        { Status: JoinStatus.SigningIn } => new(JoinPhase.SigningIn),
+        { Status: JoinStatus.WaitingForParent } wait => new(JoinPhase.Waiting, wait.QrLink, wait.ExpiresAt),
+        { Status: JoinStatus.Joined } => new(JoinPhase.Joined),
+        { Status: JoinStatus.Failed } failed => new(JoinPhase.Failed, Code: failed.Reason),
+        var other => new(JoinPhase.NotJoined, Removed: other.Reason == "removed"),
+    };
+    public void RequestJoin(string provider) => client.RequestJoin(provider);
+    public void CancelJoin() => client.CancelJoin();
+    public Task LeaveAsync() => client.LeaveAsync();
 }

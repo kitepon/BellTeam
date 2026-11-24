@@ -60,11 +60,7 @@ internal sealed partial class ApprovalsWindow
                 if (ended is not null) Line(ended);
                 Line(state.Note == "device_removed" ? Approvals.DeviceRemoved : Approvals.DeviceNeedsApproval, hub.RequestApproval is null ? null : ended is null ? Approvals.DeviceAskApproval : "もう一度", () => hub.RequestApproval?.Invoke());
                 break;
-            case ClientStatus.SignedOut when hub.SigningIn: Line(Approvals.DeviceSigningIn, "やめる", () => hub.CancelSignIn?.Invoke()); break;
-            case ClientStatus.SignedOut:
-                if (hub.SignInNote is { } why) Line(why);
-                Line(state.Reason switch { "pass_ended" => Approvals.DevicePassEnded, "account_deleted" => Approvals.DeviceAccountDeleted, _ => Approvals.DeviceSignedOut }, hub.SignInApprovalBox is null ? null : "Approval Boxにサインイン", () => hub.SignInApprovalBox?.Invoke());
-                break;
+            case ClientStatus.SignedOut: break;   // not joined (or the credential is gone): the join screen (child-join.md) takes the window, there is no sign-in here any more
             case ClientStatus.NotEntitled: Line(Approvals.DeviceNotEntitled, "確かめ直す", device.Refresh); break;
             case ClientStatus.UpdateRequired: Line(Approvals.DeviceUpdateNeeded, "今すぐ試す", device.Refresh); break;   // /v1 is closed, or peer_channel is on and this build has no engine for it
         }

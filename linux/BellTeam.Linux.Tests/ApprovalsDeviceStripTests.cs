@@ -52,21 +52,12 @@ public sealed class ApprovalsDeviceStripTests
     });
 
     [Fact]
-    public Task LiveShowsNoNoteAndSigningInOffersToStop() => Ui.Run(async () =>
+    public Task LiveShowsNoNote() => Ui.Run(async () =>
     {
         var (window, hub, _) = await OpenAsync(new ClientState(ClientStatus.Live));
         try
         {
             Assert.Null(window.DeviceStrip());
-            var (w2, hub2, device2) = await OpenAsync(new ClientState(ClientStatus.SignedOut));
-            try
-            {
-                var cancelled = 0; hub2.CancelSignIn = () => cancelled++; hub2.SetSignIn(true);
-                var strip = window2Strip(w2);
-                Assert.True(HasText(strip, "ブラウザでサインインしています"));
-                Click(w2, "やめる"); Assert.Equal(1, cancelled);
-            }
-            finally { w2.Close(); }
         }
         finally { window.Close(); }
     });
