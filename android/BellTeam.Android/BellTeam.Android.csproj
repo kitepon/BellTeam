@@ -34,7 +34,7 @@
     <PackageReference Include="Avalonia.Headless" Version="12.1.6" />
     <PackageReference Include="Xamarin.Firebase.Messaging" Version="125.1.3" />
     <!-- a540 (contract 1.36, the local form): Google sign-in, the request QR, this phone's own Play purchase and the answer to another device's QR through the library's android part. 0.21.1 (contract 1.48, with Apple's web sign-in) is accepted (Mint; its scanner reads the local-form QR lbq4:). -->
-    <PackageReference Include="Kitepon.LoginBilling.Android" Version="0.22.2" />
+    <PackageReference Include="Kitepon.LoginBilling.Android" Version="0.22.4" />
     <!-- Approving another device: Google's code scanner reads the QR (Play services, no camera permission of ours). -->
     <PackageReference Include="Xamarin.GooglePlayServices.Code.Scanner" Version="116.1.0.17" />
     <!-- The binding gives the QR text only (LocalRequest.Qr); this pure managed encoder (MIT) draws it. -->

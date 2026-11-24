@@ -75,7 +75,8 @@ public sealed class ApprovePanel : StackPanel
             if (error.Message?.Contains("cancel", StringComparison.OrdinalIgnoreCase) != true) { failure = StoreAccountText.ApproveScanFailed; Render(); }
             return;
         }
-        if (raw is { Length: > 0 }) await ApproveAsync(raw.Trim());
+        // login-billing 1.53 (11.12): every scanned text goes to IsLibraryQR first; the app never matches the library's QR forms itself.
+        if (raw?.Trim() is { Length: > 0 } text) { if (LbLocalForm.IsLibraryQR(text)) await ApproveAsync(text); else { failure = StoreAccountText.ApproveScanFailed; Render(); } }
     }
 
     private sealed class ScanListener(TaskCompletionSource<string?> done) : Java.Lang.Object, global::Android.Gms.Tasks.IOnSuccessListener, global::Android.Gms.Tasks.IOnFailureListener, global::Android.Gms.Tasks.IOnCanceledListener
