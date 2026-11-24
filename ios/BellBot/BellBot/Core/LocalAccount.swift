@@ -6,7 +6,7 @@ import SwiftUI
 import UIKit
 
 /// 課金の確認（a540、契約1.36 10章「ローカルの形」）。ライブラリのLocalFormをそのまま使う。サーバーも運営も入らない。
-/// 払っているこの端末は自分のStoreで確かめて開き、払っていない端末はQRを出して、払っているスマホの返事を同じWi-Fiの中で直接受ける。
+/// 払っているこの端末は自分のStoreで確かめて開き、払っていない端末はQRを出して、払っているスマホの返事を同じLANの中で直接受ける。
 @MainActor
 final class LocalAccount: ObservableObject {
     struct Paid: Equatable { let productId: String; let until: Date?; let store: String }
@@ -208,7 +208,7 @@ final class LocalAccount: ObservableObject {
     static func words(_ error: Error) -> String {
         let code = (error as? LoginBillingError)?.code ?? "unknown"
         switch code {
-        case "unreachable_same_wifi": return "スマホとこの端末を、同じWi-Fiにつないでください。"
+        case "unreachable_same_wifi": return "スマホからこの端末に届きませんでした。2台を同じネットワーク（同じLAN）につないでから、もう一度お試しください。"
         case "local_network_denied": return "設定でこのアプリのローカルネットワークを許可してから、新しいQRでお試しください。"
         case "qr_invalid": return "QRが正しくありません。相手の画面で新しいQRを出してください。"
         // 0.21.1: two devices on different versions end here, so the text sends the person to update both devices (Mint; the sentence is Neon's shared Core text, Tronie 2026-11-24).

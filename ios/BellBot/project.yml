@@ -72,7 +72,7 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLSchemes:
               - com.googleusercontent.apps.316260984663-ld7o5f8j3smgqu2h1va43lt4au031s3i
-        NSLocalNetworkUsageDescription: LAN上のBellTeamへ接続するため、また同じWi-Fiの別の端末と購読を確かめ合うために、ローカルネットワークを使います。
+        NSLocalNetworkUsageDescription: LAN上のBellTeamへ接続するため、また同じネットワーク（同じLAN）の別の端末と購読を確かめ合うために、ローカルネットワークを使います。
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
           NSExceptionDomains:
