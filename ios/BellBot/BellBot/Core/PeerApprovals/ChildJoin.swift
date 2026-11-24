@@ -48,6 +48,8 @@ enum ChildJoinWords {
 /// The one screen: shown first by the window while this client is not joined. The same title, QR, validity, guidance and 「やめる」 as the first-screen approval view.
 struct ChildJoinView<Source: ChildJoinSource>: View {
     @ObservedObject var source: Source
+    /// 「もう一度つなぐ」 starts the same provider again: failed leaves by requestJoin(provider), not cancelJoin (child-join.md).
+    @State private var lastProvider = "apple"
 
     var body: some View {
         ScrollView {
@@ -67,9 +69,9 @@ struct ChildJoinView<Source: ChildJoinSource>: View {
     private func signInButtons() -> some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(LocalAccount.signInGuidance).font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
-            Button { Task { await source.requestJoin(provider: "apple") } } label: { Text("Appleでサインイン").frame(maxWidth: .infinity) }
+            Button { lastProvider = "apple"; Task { await source.requestJoin(provider: "apple") } } label: { Text("Appleでサインイン").frame(maxWidth: .infinity) }
                 .buttonStyle(.borderedProminent).tint(.black).controlSize(.large).accessibilityIdentifier("child-join-apple")
-            Button { Task { await source.requestJoin(provider: "google") } } label: { Text("Googleでサインイン").frame(maxWidth: .infinity) }
+            Button { lastProvider = "google"; Task { await source.requestJoin(provider: "google") } } label: { Text("Googleでサインイン").frame(maxWidth: .infinity) }
                 .buttonStyle(.bordered).controlSize(.large).accessibilityIdentifier("child-join-google")
         }
         .frame(maxWidth: .infinity, alignment: .leading).padding(20).bellCard()
@@ -103,7 +105,7 @@ struct ChildJoinView<Source: ChildJoinSource>: View {
 
     @ViewBuilder private func failed(_ code: String) -> some View {
         Text(ChildJoinWords.failure(code: code)).font(.subheadline).foregroundStyle(LatticePalette.ink).accessibilityIdentifier("child-join-failed")
-        Button(ChildJoinWords.again) { Task { await source.cancelJoin() } }.buttonStyle(.borderedProminent).accessibilityIdentifier("child-join-again")
+        Button(ChildJoinWords.again) { Task { await source.requestJoin(provider: lastProvider) } }.buttonStyle(.borderedProminent).accessibilityIdentifier("child-join-again")
     }
 }
 
