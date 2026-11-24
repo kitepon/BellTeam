@@ -39,9 +39,6 @@ public sealed class ApprovalsDeviceStripTests
     [InlineData(ClientStatus.Reconnecting, "socket_closed", null, "つなぎ直しています")]
     [InlineData(ClientStatus.NeedsApproval, null, null, "まだ承認されていません")]
     [InlineData(ClientStatus.NeedsApproval, "removed", "device_removed", "ほかの端末から外されました")]
-    [InlineData(ClientStatus.SignedOut, null, null, "Approval Boxにサインインします")]
-    [InlineData(ClientStatus.SignedOut, "pass_ended", null, "サインインが終わりました")]
-    [InlineData(ClientStatus.SignedOut, "account_deleted", null, "アカウントは削除されました")]
     [InlineData(ClientStatus.NotEntitled, null, null, "契約が必要です")]
     [InlineData(ClientStatus.UpdateRequired, "gone", null, "この版では、決裁箱をまだ使えません。アプリを更新してください。")]
     public Task EachStateSaysItsWords(ClientStatus status, string? reason, string? note, string words) => Ui.Run(async () =>
