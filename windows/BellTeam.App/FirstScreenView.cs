@@ -58,7 +58,7 @@ internal sealed class FirstScreenView : StackPanel
         var cancel = Button(LocalFormText.Cancel, Fill, Ink, account.CancelBrowser, "first-screen-cancel"); cancel.HorizontalAlignment = HorizontalAlignment.Center; Children.Add(cancel);
     }
 
-    private static Button Button(string label, Brush background, Brush foreground, Action click, string id, bool bordered = false)
+    internal static Button Button(string label, Brush background, Brush foreground, Action click, string id, bool bordered = false)
     {
         var button = Capsule(label, background, foreground, 14, 15, new Thickness(18, 13, 18, 13));
         button.FontWeight = FontWeights.SemiBold; button.HorizontalAlignment = HorizontalAlignment.Stretch; button.Margin = new Thickness(0, 14, 0, 0);
