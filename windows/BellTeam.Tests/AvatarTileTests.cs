@@ -25,6 +25,8 @@ public sealed class AvatarTileTests
             tile.Entry = Entry(true, png);   // the same member and image, a new entry object
             Assert.NotNull(image.Source);   // never blank while it is read again
             Await(tile.LoadTask); Assert.NotNull(image.Source);
+            tile.Entry = Entry(false, "");   // the member's picture was removed
+            Await(tile.LoadTask); Assert.Null(image.Source);
             tile.Entry = new ConversationEntry(new ChatTarget("bot-y", false), "イ", "", DateTimeOffset.Now, null, null);
             Assert.Null(image.Source);   // another member does not show this member's picture
         });
