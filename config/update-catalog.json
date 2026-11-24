@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-24T07:16:05Z",
-  "expiresAt": "2026-12-01T07:16:05Z",
+  "publishedAt": "2026-11-24T07:34:51Z",
+  "expiresAt": "2026-12-01T07:34:51Z",
   "releases": [
     {
       "componentId": "usage",
@@ -491,8 +491,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "ee70019785d314afa09395eaf53702f75cbe0e7f",
-      "versionId": "bdb57ce1be915f1fc103ae0376e8f23088d025f0720691194a9c41d2f2b7da07",
+      "sourceCommit": "88cdad090d7218c04643d9f612d3f15529ab3e51",
+      "versionId": "311144d9a3cdeb7db7098ba7e5cc6351f0e3aeba3175115bda38b7546bb2a2e1",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261124T064719Z/execution-ee70019785d314afa09395eaf53702f75cbe0e7f-linux-amd64.tar.gz",
-          "bytes": 3877128,
-          "sha256": "bdb57ce1be915f1fc103ae0376e8f23088d025f0720691194a9c41d2f2b7da07"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261124T073429Z/execution-88cdad090d7218c04643d9f612d3f15529ab3e51-linux-amd64.tar.gz",
+          "bytes": 3877227,
+          "sha256": "311144d9a3cdeb7db7098ba7e5cc6351f0e3aeba3175115bda38b7546bb2a2e1"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261124T064719Z/execution-ee70019785d314afa09395eaf53702f75cbe0e7f-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10942,
-          "sha256": "c5aa1d2e69cc505a3f25dbe1d268d1fc6d03daef0b62aa31095e1977fbb78ea2"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261124T073429Z/execution-88cdad090d7218c04643d9f612d3f15529ab3e51-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11130,
+          "sha256": "2d87ea01166ba80bf2218234bfb9fcf468ebe8f424831968b5ff12b468c29d12"
         },
-        "signerCommit": "ee70019785d314afa09395eaf53702f75cbe0e7f"
+        "signerCommit": "88cdad090d7218c04643d9f612d3f15529ab3e51"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +519,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "遠隔の席の起動と、会話の記録の引き渡しを直します。席の承認の待ちを、本体へ知らせます。"
+        "遠隔の席の起動と、会話の記録の引き渡しを直します。席の承認の待ちを、本体へ知らせます。承認の確認が通るようにします。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "ee70019785d314afa09395eaf53702f75cbe0e7f",
-      "versionId": "c9bee1e8fc50df834c78ee31f1b489a9058ae195bf30f392534b2cf0e5049634",
+      "sourceCommit": "88cdad090d7218c04643d9f612d3f15529ab3e51",
+      "versionId": "2d2ef07033b749171653ac004fcbdf1fefd7eaeb99e1e6b9dc6133ab00434755",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +533,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261124T064719Z/execution-ee70019785d314afa09395eaf53702f75cbe0e7f-linux-arm64.tar.gz",
-          "bytes": 3877128,
-          "sha256": "c9bee1e8fc50df834c78ee31f1b489a9058ae195bf30f392534b2cf0e5049634"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261124T073429Z/execution-88cdad090d7218c04643d9f612d3f15529ab3e51-linux-arm64.tar.gz",
+          "bytes": 3877227,
+          "sha256": "2d2ef07033b749171653ac004fcbdf1fefd7eaeb99e1e6b9dc6133ab00434755"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261124T064719Z/execution-ee70019785d314afa09395eaf53702f75cbe0e7f-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10801,
-          "sha256": "800957948ea5de006894dda99d90e436adcd45a0cd86e7b76219074ba8374eb4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261124T073429Z/execution-88cdad090d7218c04643d9f612d3f15529ab3e51-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11181,
+          "sha256": "1bab0916c86ff85395bedf342d79da63132d79c7f4a0e8d52e21ae96d66976a2"
         },
-        "signerCommit": "ee70019785d314afa09395eaf53702f75cbe0e7f"
+        "signerCommit": "88cdad090d7218c04643d9f612d3f15529ab3e51"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,7 +552,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "遠隔の席の起動と、会話の記録の引き渡しを直します。席の承認の待ちを、本体へ知らせます。"
+        "遠隔の席の起動と、会話の記録の引き渡しを直します。席の承認の待ちを、本体へ知らせます。承認の確認が通るようにします。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "46f70197d901eb71b49778ffecaa2e0072f2b75d",
-      "versionId": "sha256:f66047e8ed6e4af5131be6fd2f8023de4e12b774f5140c4626d6111d7e8f8656",
+      "sourceCommit": "88cdad090d7218c04643d9f612d3f15529ab3e51",
+      "versionId": "sha256:6bd46678b390772e24de286c6fd31b36d774cbe2b208492123645cd2c6952b58",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:f66047e8ed6e4af5131be6fd2f8023de4e12b774f5140c4626d6111d7e8f8656"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6bd46678b390772e24de286c6fd31b36d774cbe2b208492123645cd2c6952b58"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -729,15 +729,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "46f70197d901eb71b49778ffecaa2e0072f2b75d",
-      "versionId": "sha256:f66047e8ed6e4af5131be6fd2f8023de4e12b774f5140c4626d6111d7e8f8656",
+      "sourceCommit": "88cdad090d7218c04643d9f612d3f15529ab3e51",
+      "versionId": "sha256:6bd46678b390772e24de286c6fd31b36d774cbe2b208492123645cd2c6952b58",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:f66047e8ed6e4af5131be6fd2f8023de4e12b774f5140c4626d6111d7e8f8656"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6bd46678b390772e24de286c6fd31b36d774cbe2b208492123645cd2c6952b58"
       },
       "compatibility": {
         "nodeMajor": null,
