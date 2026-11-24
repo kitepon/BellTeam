@@ -69,6 +69,10 @@ Host planのexpectedには実mount/specをtarget順で正規化したstorageBind
 
 `execute_installer` confirms the new body (real container ID, image ID, source commit, `healthy`, storage binding) with `inspect_current()` after the installer exits 0. The first Z150 lab swap was rolled back because the host stalled about 100 s and the single inspection hit a 30 s docker timeout. The inspection now runs up to 3 times, 10 s apart (`VERIFY_ATTEMPTS`, `VERIFY_RETRY_SECONDS`), for a `Failure` or `SubprocessError` only; every failed attempt is appended to `verify.log` (0600) in the operation directory, next to `installer.log` and `recover.log`. The same retry checks the restored old body after a rollback. A body that really does not confirm (wrong image/source, unhealthy) or an inspection that fails on all 3 attempts still takes the existing rollback; nothing new is refused, and the retry ends by itself after 3 attempts. The rollback does not yet restore the container-updater image (install.sh `--recover` skips the updater step); that mixed state is tracked separately.
 
+### Failed new body is kept before the rollback (2026-11-24)
+
+When the installer exits nonzero or the new body is not confirmed, `execute_installer` writes `failed-body.log` (0600, operation directory) before it starts `--recover`: the container's `State` (status, exit code, OOMKilled, restart count, started/finished) and the last 80 log lines (stdout and stderr merged, at most 16 KiB). The recovery recreates the container named `bellteam`, so its log is gone afterwards (the Z188 body's exit 13 was unreadable for hours). It is best effort: any failure of the capture is dropped and the rollback never waits on it. The file is read by the operator or Molly only; no API field carries it. Exit: none needed, one write per failed attempt, overwritten by the next.
+
 ### New bind at worker admission (2026-11-11)
 
 `verify_model_mounts(normal, mounts, specs, new_binds=False)` is the one storage check. Callers:
