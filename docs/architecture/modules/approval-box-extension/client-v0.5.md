@@ -90,7 +90,7 @@ What is stored where: decision content lives only in Approval Box (until its own
 
 ### 5.1 The port (one per client)
 
-`ApprovalSource` is the only thing the screen talks to. It has these members and no others: `state` (below), `decisions` (open list + recent answered/cancelled), `decision(id)`, `answer(id, optionId|text, version)`, `hold(id)`, `unhold(id)`, `attachment(decisionId, attachmentId)`, `events` (change notifications, resumable), `signIn / signOut`, `retryNow`. The screen never names `/v1` or `/pc/v1`. The states are the signin.md machine; the `v1` adapter uses this subset, the `peer` adapter all of it:
+`ApprovalSource` is the only thing the screen talks to. It has these members and no others: `state` (below), `decisions` (open list + recent answered/cancelled), `decision(id)`, `answer(id, optionId|text, version)`, `hold(id)`, `unhold(id)`, `attachment(decisionId, attachmentId)`, `events` (change notifications, resumable), `signIn / signOut` (replaced by `join / cancelJoin / leave` when the child join ships, [child-join.md](child-join.md)), `retryNow`. The screen never names `/v1` or `/pc/v1`. The states are the signin.md machine; the `v1` adapter uses this subset, the `peer` adapter all of it:
 
 | State | `v1` adapter | `peer` adapter |
 | --- | --- | --- |
@@ -141,6 +141,8 @@ Rendering rules that come with the adapter (unchanged from screen-spec.md): atta
 `ViewDecision` is `Decision` (Approval Box, pinned) plus `origin`, `requester` and `link`. The client computes `origin` itself, by the four rules of `contract/approvals-contract.md` ("How `origin.kind` is decided"), against the BellTeam member list it already holds; cases are fixed in [contract/fixtures/origin-cases.json](contract/fixtures/origin-cases.json) and every client's test reads that file. Visibility never depends on `origin.kind` (Owner 2026-11-15: nothing is hidden). The summary counts (pending, urgent, held, answered today, by origin) are computed from the lists the client already holds. `link` comes from `by-decision` per decision (30 s retry on 404, as the Apple resolver does).
 
 ## 7. Screen states (what each client draws; all Japanese, plain, no ids, codes or paths)
+
+> **Superseded when the child join ships (Owner 2026-11-24, option A):** the rows 「Not signed in」, 「Signing in」 and the 401 row are replaced by [child-join.md](child-join.md) (BellTeam's 決裁箱 window joins as a child device; no sign-in inside BellTeam). Until Nayuta's release and her word that Approval Box is complete, the rows below stand.
 
 Same screens as screen-spec.md; the state line and the one action:
 
