@@ -50,7 +50,7 @@ internal sealed partial class ApprovalsWindow
             else if (join.Phase == JoinPhase.Failed && lastProvider is { } again) column.Children.Add(Wide(Action(ChildJoinText.ConnectAgain, null, true), () => Request(again)));
             else
             {
-                column.Children.Add(Text(LocalFormText.FirstSignIn, 13, Muted, wrap: true));
+                column.Children.Add(Text(LocalFormText.FirstSignInChildOnly, 13, Muted, wrap: true));
                 // Apple's rule: its button is black and the first, and the only black one.
                 var apple = Wide(Action(SignInText.Apple, null, true), () => Request("apple")); apple.Background = Brushes.Black; apple.Foreground = Brushes.White;
                 column.Children.Add(apple); column.Children.Add(Wide(Action(SignInText.Google, null), () => Request("google")));

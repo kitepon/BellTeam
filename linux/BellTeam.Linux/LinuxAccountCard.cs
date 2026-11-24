@@ -83,7 +83,7 @@ public sealed class LinuxAccountCard : StackPanel
         Children.Add(icon); Children.Add(name); Children.Add(purpose);
         var inner = new StackPanel();
         if (notice is not null) inner.Children.Add(Text(notice, 14, Ink, FontWeight.SemiBold, new Thickness(0, 0, 0, 8)));
-        inner.Children.Add(Text(LocalFormText.FirstSignIn, 14, Secondary));
+        inner.Children.Add(Text(LocalFormText.FirstSignInChildOnly, 14, Secondary));
         // Apple's rule: its button is black and the first, and the only black one; Google's is white with a hairline, as on Windows.
         foreach (var (label, provider, look) in new[] { (SignInText.Apple, "apple", Look.Apple), (SignInText.Google, "google", Look.Google) })
         { var way = Button(label, () => RequestAsync(provider), look); way.HorizontalAlignment = HorizontalAlignment.Stretch; way.HorizontalContentAlignment = HorizontalAlignment.Center; inner.Children.Add(way); }
@@ -123,7 +123,7 @@ public sealed class LinuxAccountCard : StackPanel
         {
             Children.Add(Text(LocalFormText.Title, 16, Ink, FontWeight.Bold, new Thickness(0, 14, 0, 0)));
             Children.Add(Text(LocalFormText.Lead, 13, Muted, null, new Thickness(0, 6, 0, 0)));
-            Children.Add(Text(LocalFormText.FirstSignIn, 13, Ink, null, new Thickness(0, 6, 0, 0)));
+            Children.Add(Text(LocalFormText.FirstSignInChildOnly, 13, Ink, null, new Thickness(0, 6, 0, 0)));
             Children.Add(Button(LocalFormText.Google, () => RequestAsync("google"), Look.Primary));
             Children.Add(Button(LocalFormText.Apple, () => RequestAsync("apple"), Look.Primary));
         }

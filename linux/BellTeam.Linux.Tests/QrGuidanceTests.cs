@@ -24,7 +24,7 @@ public sealed class QrGuidanceTests
         var texts = first.Children.OfType<TextBlock>().Select(text => text.Text).ToList();
         Assert.Equal([BellTeam.Core.LocalFormText.AppName, BellTeam.Core.LocalFormText.Purpose], texts);
         var inner = (StackPanel)((Border)first.Children.Last()).Child!;
-        Assert.Equal(BellTeam.Core.LocalFormText.FirstSignIn, ((TextBlock)inner.Children[0]).Text);
+        Assert.Equal(BellTeam.Core.LocalFormText.FirstSignInChildOnly, ((TextBlock)inner.Children[0]).Text);
         Assert.Equal([BellTeam.Core.SignInText.Apple, BellTeam.Core.SignInText.Google], inner.Children.OfType<Button>().Select(button => (string)button.Content!).ToList());
 
         var screen = (StackPanel)new LinuxAccountCard(CancellationToken.None, firstScreen: true, "https://login-billing.kitepon.dev/join/dev.kitepon.bellbot#lbq4:test").Children.Single();
@@ -38,7 +38,7 @@ public sealed class QrGuidanceTests
     {
         var card = new LinuxAccountCard(CancellationToken.None);
         var texts = card.Children.OfType<TextBlock>().Select(text => text.Text).ToList();
-        var at = texts.IndexOf(BellTeam.Core.LocalFormText.FirstSignIn);
+        var at = texts.IndexOf(BellTeam.Core.LocalFormText.FirstSignInChildOnly);
         Assert.True(at >= 0);
         Assert.True(card.Children.ToList().FindIndex(child => child is Button) > card.Children.ToList().FindIndex(child => child is TextBlock text && text.Text == texts[at]));
         return Task.CompletedTask;

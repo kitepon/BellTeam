@@ -47,7 +47,7 @@ public sealed class ApprovalsChildJoinTests
         var (window, source, _) = await OpenAsync(new(JoinPhase.NotJoined));
         try
         {
-            Assert.True(Has(window, ChildJoinText.Title)); Assert.True(Has(window, ChildJoinText.Lead)); Assert.True(Has(window, LocalFormText.FirstSignIn));
+            Assert.True(Has(window, ChildJoinText.Title)); Assert.True(Has(window, ChildJoinText.Lead)); Assert.True(Has(window, LocalFormText.FirstSignInChildOnly));
             Click(Find(window, SignInText.Apple)!); Click(Find(window, SignInText.Google)!);
             Assert.Equal(["join:apple", "join:google"], source.Calls);
             NeverAParent(window);

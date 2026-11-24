@@ -56,6 +56,8 @@ public static class LocalFormText
     // The first screen (the Owner 2026-11-24: the parent-approval process on the first screen, 決裁箱 0.2.2 as the model): the app's name, one line of purpose, then the sign-in; after sign-in on a device not yet approved, this title over the QR with its validity.
     public const string AppName = "BellTeam", Purpose = "AIのチームに、スマホやPCから指示できます。", WaitingTitle = "使っている端末の承認を待っています";
     public static string ValidUntil(DateTimeOffset expiry) => expiry.ToLocalTime().ToString("H:mm") + " まで有効";
+    // TEMP (Anis's child-only-first-screen-text PR owns it; take his on merge): same name and text. For devices that cannot become a parent (Windows, Linux).
+    public const string FirstSignInChildOnly = "本アプリケーションを使用するには、iPhone、iPad、Mac、Android等の購読済みの端末で、サインイン後に表示されるQRコードを読み取る必要があります。";
     public const string FirstSignIn = "すでにほかの端末で使っている方は、同じアカウントでサインインしてから、次に出るQRコードを使用中の端末のカメラで読んでください。";
     public const string Qr = "親となる端末（課金操作をするカメラのあるスマートフォンがお勧め）のカメラでQRコードを読んでください。";
     public const string OutdatedPeer = "QRが正しくないか、相手の端末のBellTeamが古い可能性があります。2台とも最新版に更新してから、相手の画面で新しいQRを出してください。";
