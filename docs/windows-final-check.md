@@ -378,3 +378,10 @@ AI CLIの導入画面（a451、#1942）をMacの実装に合わせた0.6.2（#19
 - ライブ確認（本番のテスト用アカウントは存在しない: ナユタ・ミント）: approval-box の dev server（`DEV_PC_OFFER=off`、127.0.0.1:8788、本番の `peer_channel:false` と同じ）に本物の `ApprovalBoxDevice` を向け、`/dev/websignin` でサインイン → Connecting → Live。接続トークンで出した決裁が一覧とSSEで届き、答えて `answered`（選択肢 ok）。0.8.0 のコードでは答えだけが 400 で失敗し、0.8.1 で通った。試験は `ApprovalBoxV1DevServerE2eTests`（環境変数 `PC_E2E_ABX_V1_URL` がある時だけ動く）。
 - スモーク（`--smoke-test` 本番）: 成功。ok=true、SSE接続あり。
 - 確認できていない: 本番のApproval Boxでの実サインインと実決裁（AIが持てるアカウントが無い。オーナー自身のアカウントでの確認はトロニーの一括セッション a540-device-checks）。
+
+## Windows 0.8.5 の導入（lb0220/lb0211：login-billing 0.22.4 と最初の画面、2026-11-24 18:39 JST、アニス）
+
+- 導入元: main `e7978096`（#2550）。`scripts/install-windows.ps1 -NoLaunch -SkipShareTarget -GoogleDesktopOAuthRef op://…`。導入したexeの版は `0.8.5+e79780960936499ca5b560779a80e058ea6dfe33`、sha256 `A4E258D9ADB030F8882E448089AC45BF98C3A4E4580EEBE219A69F1AA19C3518`（導入前に同じmainから出した自分のpublishと同じ値）。ライブラリは Desktop 0.22.4（契約1.53）。
+- 導入時にBellTeamは動いていなかった（閉じたものは無い）。導入後、オーナーのセッション1（インタラクティブ）で起動した（pid 70940）。
+- スモーク（`--smoke-test` 本番）: 成功。ok=true、authenticated、bots=144、rooms=9、SSE接続あり。
+- 確認できていない（実機とオーナーの操作が要る）: 設定 → 利用と課金 → サインアウトで出る最初の画面（アイコン・名前・サインイン）と、サインイン後のQR承認の流れ、決裁箱の子参加（部品の完成待ち。abx-child-join）。

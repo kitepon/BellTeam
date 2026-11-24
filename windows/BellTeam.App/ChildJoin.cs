@@ -33,7 +33,7 @@ internal interface IChildJoin
 
 /// <summary>
 /// The one screen of a window that is not joined (child-join.md): the first-screen approval view's shape. NotJoined: title, lead, the first screen's sign-in (Apple, Google); signing in: its waiting line and やめる;
-/// Waiting: title, the QR, 「H:mm まで有効」, the guideline's QR text word for word, やめる; Failed / removed: the sentence and もう一度つなぐ. Never a parent's 「ほかの端末を追加する」, a purchase or a plan.
+/// Waiting: title, the QR, 「H:mm まで有効」, the QR text (LocalFormText.Qr), やめる; Failed / removed: the sentence and もう一度つなぐ. Never a parent's 「ほかの端末を追加する」, a purchase or a plan.
 /// </summary>
 internal sealed class ChildJoinView : StackPanel
 {
