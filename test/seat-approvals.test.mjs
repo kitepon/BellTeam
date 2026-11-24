@@ -147,3 +147,17 @@ test('the API is Owner only and maps the closed and invalid answers', async t =>
   assert.equal((await call(false, 'POST', `/api/seat-approvals/${id}/answer`, { decision: 'deny' })).json.status, 'answered')
   assert.equal((await call(false, 'POST', `/api/seat-approvals/${id}/answer`, { decision: 'deny' })).status, 409)
 })
+
+test('a slow Aiterm never piles ticks up: five tick() calls join one run, and an answer is not queued behind a backlog', async t => {
+  let release, inspects = 0
+  const gate = new Promise(resolve => { release = resolve })
+  const bot = { id: 'bot-aaaa1111', name: 'テスト', harness: 'claude' }
+  const slow = createSeatApprovals({ path: '/dev/null', bots: new Map([[bot.id, bot]]),
+    transport: { currentWork: () => ({ state: 'working' }), screenApproval: async () => { inspects++; await gate; return { status: 'none' } } } })
+  const ticks = Array.from({ length: 5 }, () => slow.tick())
+  release()
+  await Promise.all(ticks)
+  assert.equal(inspects, 1)
+  await slow.tick() // the next tick after the run is a new run
+  assert.equal(inspects, 2)
+})

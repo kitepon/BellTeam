@@ -39,7 +39,7 @@ const view = (record, name) => ({ id: record.id, botId: record.botId, botName: n
 // daemon: the hosted daemon ({status()}); push.seatApproval(item); tick every intervalMs once start()ed.
 export function createSeatApprovals({ path, bots, transport, machineStream = null, decisions = null, daemon = null, push = null, now = Date.now, intervalMs = 10_000 }) {
   const events = new EventEmitter()
-  let records = null, queue = Promise.resolve(), timer = null
+  let records = null, queue = Promise.resolve(), timer = null, ticking = null
   const serial = work => { const next = queue.then(work); queue = next.catch(() => {}); return next }
   const nameOf = botId => bots.get(botId)?.name ?? botId
 
@@ -149,7 +149,8 @@ export function createSeatApprovals({ path, bots, transport, machineStream = nul
   return {
     watch(listener) { events.on('change', listener); return () => events.off('change', listener) },
     async list() { await load(); return records.filter(record => record.status === 'open').sort((a, b) => a.firstSeen - b.firstSeen).map(record => view(record, nameOf(record.botId))) },
-    tick: () => serial(tick),
+    // A tick joins the one that is queued or running: a slow Aiterm never piles ticks up in front of the Owner's answer.
+    tick: () => (ticking ??= serial(tick).finally(() => { ticking = null })),
     answer: (id, decision) => serial(async () => {
       await load()
       if (!CHOICES.some(choice => choice.decision === decision)) throw failure('SEAT_APPROVAL_INVALID', 400)
