@@ -168,6 +168,52 @@ public sealed class ApprovalsWindowTests
         Press(Find(rig.Window, "connect:back")); Assert.Contains("決裁箱拡張の月額を、決裁箱と同じ請求にしてよいですか？", Texts(rig.Window));
     });
 
+    // 「AIの許可待ちを決裁箱へ送る」 (seat-approval-card.md, the pairing view): in the same panel, under 工程表との連携, from the body's three seat-link routes only.
+    [Fact]
+    public void TheSeatLinkViewStartsOnceShowsTheQrTheTypedCodeTheStepsAndTheExpiry_ThenSaysLinked() => RunSta(() =>
+    {
+        using var rig = Open("main"); Until(() => rig.Page.Settled);
+        Press(Find(rig.Window, "link")); Until(() => Texts(rig.Window).Contains(SeatLinkText.None));
+        Assert.Contains(SeatLinkText.Title, Texts(rig.Window)); Assert.Empty(LogicalTree.Find<QrView>(rig.Window.Content));
+        Press(Find(rig.Window, "seat-link:go"));
+        Until(() => Texts(rig.Window).Contains(SeatLinkText.Steps));
+        Assert.Single(LogicalTree.Find<QrView>(rig.Window.Content)); Assert.Contains("WXYZ-1234-QRST-5678", Texts(rig.Window));
+        Assert.Contains(Texts(rig.Window), text => text.EndsWith("まで（JST）", StringComparison.Ordinal));
+        Assert.Contains(rig.Server.Sent, call => call.Method == "POST" && call.Path == "/api/approvals/seat-link/start");
+        Assert.Contains(LogicalTree.Find<Button>(rig.Window.Content), button => button.Content as string == SeatLinkText.Cancel);   // 「やめる」 while it waits
+        rig.Server.SeatLink = new System.Text.Json.Nodes.JsonObject { ["state"] = "linked" };                              // the Owner read the QR and approved: the 2 s watch reads it
+        Until(() => Texts(rig.Window).Contains(SeatLinkText.Linked)); Assert.Empty(LogicalTree.Find<QrView>(rig.Window.Content));
+        Assert.Contains("つながっています", Texts(rig.Window));                                                                 // the green chip above the sentence, like 「ライブ」
+        Assert.Contains(LogicalTree.Find<Border>(rig.Window.Content), border => System.Windows.Automation.AutomationProperties.GetAutomationId(border) == "seat-link-badge");
+        Assert.DoesNotContain(LogicalTree.Find<Button>(rig.Window.Content), button => System.Windows.Automation.AutomationProperties.GetAutomationId(button).StartsWith("ab:seat-link", StringComparison.Ordinal));   // linked: no button
+    });
+
+    [Theory]
+    [InlineData("removed", null, "決裁箱でつなぎが外されています。もう一度つないでください。")]
+    [InlineData("failed", "rejected", "決裁箱のアプリで「心当たりがない」が押されました。")]
+    [InlineData("failed", "expired", "許可の待ち時間が過ぎました。もう一度つないでください。")]
+    [InlineData("failed", "other", "いまはつなげません。少し待って、もう一度押してください。")]
+    public void TheSeatLinkViewSaysEachEndWithItsWordsAndOffersToConnectAgain(string state, string? reason, string line) => RunSta(() =>
+    {
+        using var rig = Open("main"); Until(() => rig.Page.Settled);
+        rig.Server.SeatLink = new System.Text.Json.Nodes.JsonObject { ["state"] = state, ["reason"] = reason };
+        Press(Find(rig.Window, "link")); Until(() => Texts(rig.Window).Contains(line));
+        Assert.Contains(state == "removed" ? "つなぎが外れています" : "つなげませんでした", Texts(rig.Window));   // gray for removed, red for failed
+        Press(Find(rig.Window, "seat-link:go"));   // もう一度つなぐ starts again
+        Until(() => Texts(rig.Window).Contains(SeatLinkText.Steps));
+    });
+
+    [Fact]
+    public void ABodyWithoutTheSeatLinkRoutesDrawsNoSeatLinkViewAndKeepsTheRestOfThePanel_AndOneThatCannotSaySaysSo() => RunSta(() =>
+    {
+        using (var rig = Open("gone")) { Until(() => rig.Page.Settled);               // every /api/approvals route is 404: an older body
+            _ = rig.Page.OpenLinkAsync(); Until(() => Texts(rig.Window).Contains("連携の状態を読めませんでした。少し待って、読み直してください。"));
+            Assert.DoesNotContain(SeatLinkText.Title, Texts(rig.Window)); Assert.Contains(Texts(rig.Window), text => text == "工程表との連携"); }
+        using (var rig = Open("unreadable")) { Until(() => rig.Page.Settled);          // 503: the body cannot say now
+            _ = rig.Page.OpenLinkAsync(); Until(() => Texts(rig.Window).Contains(SeatLinkText.Unavailable));
+            Assert.Contains(SeatLinkText.Title, Texts(rig.Window)); Assert.Contains(LogicalTree.Find<Button>(rig.Window.Content), button => button.Content as string == SeatLinkText.Again); }
+    });
+
     [Fact]
     public void TheConnectionPanelConnectsOnceOpensTheConsentPageAndWaits() => RunSta(() =>
     {

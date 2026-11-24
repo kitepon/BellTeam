@@ -13,7 +13,9 @@ export const createLatticeDecisions = options =>
 // per purpose). Each caller passes its own credential scope and request_secret card {botId, toolId}.
 // daemon: the body's hosted connector ({status(), route()}, approval-box-daemon.mjs). Paired (mode 'pc') -> the decision routes go through it;
 // otherwise, and for an id it does not know (404 not_found), the token path below, unchanged (a490f, design peer-channel-v0.2 section 5).
-export function createApprovalDecisions({ credentials, secretRequests, fetchImpl = fetch, scope, secret, code, daemon = null, now = Date.now }) {
+// tokenSource: async () => token | null (seat-approval-card.md: the token of the body's own QR pairing, read at call time and never stored here); null means unavailable.
+// onUnauthorized(token): called when /connector/v1 answers 401 for that token (the Owner removed the connection).
+export function createApprovalDecisions({ credentials, secretRequests, fetchImpl = fetch, scope, secret, code, daemon = null, now = Date.now, tokenSource = null, onUnauthorized = null }) {
   // UNAVAILABLE (no token, timeout, network, 5xx) ends the caller's filing for this tick; REFUSED (4xx) skips one request (README L18, Molly review).
   const unavailable = () => Object.assign(new Error(`${code}_UNAVAILABLE`), { code: `${code}_UNAVAILABLE`, status: 503 })
   const refused = () => Object.assign(new Error(`${code}_REFUSED`), { code: `${code}_REFUSED`, status: 409 })
@@ -32,17 +34,20 @@ export function createApprovalDecisions({ credentials, secretRequests, fetchImpl
     if (!bound?.available) throw unavailable()
     return bound.handle
   }
+  async function send(token, method, path, body) {
+    if (typeof token !== 'string' || !token || /[\r\n]/u.test(token)) throw unavailable()
+    // 5 s: the caller's chain is shared (Lattice: the child's root chain with every seat's lattice call, Molly review; running exclusions: the 60 s poll).
+    const response = await fetchImpl(ORIGIN + path, { method, redirect: 'error', signal: AbortSignal.timeout(5000),
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) })
+      .catch(() => { throw unavailable() })
+    if (response.status === 401 && onUnauthorized) await Promise.resolve(onUnauthorized(token)).catch(() => {})
+    const json = await response.json().catch(() => ({}))
+    return { ok: response.ok, status: response.status, json }
+  }
   async function call(method, path, body) {
+    if (tokenSource) return send(await Promise.resolve(tokenSource()).catch(() => null), method, path, body)
     const id = await handle()
-    return credentials.withResolved(id, { ...scope, memberId: null }, async token => {
-      if (typeof token !== 'string' || !token || /[\r\n]/u.test(token)) throw unavailable()
-      // 5 s: the caller's chain is shared (Lattice: the child's root chain with every seat's lattice call, Molly review; running exclusions: the 60 s poll).
-      const response = await fetchImpl(ORIGIN + path, { method, redirect: 'error', signal: AbortSignal.timeout(5000),
-        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) })
-        .catch(() => { throw unavailable() })
-      const json = await response.json().catch(() => ({}))
-      return { ok: response.ok, status: response.status, json }
-    })
+    return credentials.withResolved(id, { ...scope, memberId: null }, token => send(token, method, path, body))
   }
   // The daemon is paired only when it says so; any failure of the question means 'not paired' (the token path is today's behaviour).
   // shortcut: the answer is reused 3 s, so a poll tick asks once; upgrade if pairing must take effect inside one tick.
