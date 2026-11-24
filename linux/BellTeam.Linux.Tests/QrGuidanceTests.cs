@@ -16,6 +16,23 @@ public sealed class QrGuidanceTests
         return Task.CompletedTask;
     });
 
+    // The first run (the Owner 2026-11-24, Approval Box's first screen is the model): the name, the one line, the sign-in sentence, then the two buttons; the QR screen runs title, QR, validity, sentence, やめる.
+    [Fact]
+    public Task TheFirstScreenShowsTheProcess() => Ui.Run(() =>
+    {
+        var first = new LinuxAccountCard(CancellationToken.None, firstScreen: true);
+        var texts = first.Children.OfType<TextBlock>().Select(text => text.Text).ToList();
+        Assert.Equal([BellTeam.Core.LocalFormText.AppName, BellTeam.Core.LocalFormText.Purpose], texts);
+        var inner = (StackPanel)((Border)first.Children.Last()).Child!;
+        Assert.Equal(BellTeam.Core.LocalFormText.FirstSignIn, ((TextBlock)inner.Children[0]).Text);
+        Assert.Equal([BellTeam.Core.SignInText.Apple, BellTeam.Core.SignInText.Google], inner.Children.OfType<Button>().Select(button => (string)button.Content!).ToList());
+
+        var screen = (StackPanel)new LinuxAccountCard(CancellationToken.None, firstScreen: true, "https://login-billing.kitepon.dev/join/dev.kitepon.bellbot#lbq4:test").Children.Single();
+        var parts = screen.Children.Select(child => child switch { TextBlock text => text.Text, QrView => "qr", Button => "button", _ => "row" }).ToList();
+        Assert.Equal([BellTeam.Core.LocalFormText.WaitingTitle, "qr", "row", BellTeam.Core.LocalFormText.Qr, "button"], parts);
+        return Task.CompletedTask;
+    });
+
     [Fact]
     public Task TheSignInSentenceIsBeforeTheButtons() => Ui.Run(() =>
     {

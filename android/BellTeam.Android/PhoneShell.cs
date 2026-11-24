@@ -183,6 +183,10 @@ public sealed class PhoneShell : UserControl, IMessageHost
     // straight on; when the form is not configured (LocalFormIds) or Play cannot be asked, the app goes on too: an unknown state is not a reason to stop.
     private async Task BeginAfterAccountAsync()
     {
+#if DEBUG
+        // Render seam (a debug build only): adb shell am start ... --es bellteam.gate first|qr shows the first screen or the waiting screen with no Play and no request.
+        if (MainActivity.Current.Intent?.GetStringExtra("bellteam.gate") is { } scene) { startupHost.Child = new AccountGate(() => Begin(), CancellationToken.None, scene == "qr" ? "https://login-billing.kitepon.dev/join/dev.kitepon.bellbot#lbq4:render-only-sample-not-a-real-request" : ""); startupHost.IsVisible = true; return; }
+#endif
         if (AccountStore.Local is not { } local) { Begin(); return; }
         try
         {

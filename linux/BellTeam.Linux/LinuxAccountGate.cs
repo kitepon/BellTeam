@@ -12,12 +12,12 @@ internal sealed class LinuxAccountGate : StartupBackdrop, IDisposable
     private readonly CancellationTokenSource life = new();
     public LinuxAccountCard Card { get; }
 
-    public LinuxAccountGate(Action onContinue)
+    public LinuxAccountGate(Action onContinue, string? previewQr = null)
     {
-        Card = new LinuxAccountCard(life.Token);
+        Card = new LinuxAccountCard(life.Token, firstScreen: true, previewQr);
         var next = MacUi.Prominent(StoreAccountText.GateNext, onContinue); next.HorizontalAlignment = HorizontalAlignment.Center; next.Margin = new Thickness(0, 18, 0, 0); next.IsVisible = Card.Entitled;
         Card.EntitledChanged += () => next.IsVisible = Card.Entitled;
-        var column = new StackPanel { Children = { SettingsUi.Card(Card), next } };
+        var column = new StackPanel { Children = { Card, next } };
         Children.Add(Scroll(column, 520, new Thickness(30, 40)));
     }
 

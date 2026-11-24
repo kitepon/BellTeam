@@ -25,16 +25,18 @@ public sealed class AccountCard : StackPanel
     private string? failure, notice;   // notice: the plain line under the status (PaidOk, or PeriodEnded when the kept period ran out); failure is the red one
     private DateTimeOffset expiry;     // when the QR stops being taken
     private bool busy, confirmingDelete;
+    private readonly bool firstScreen;   // the gate of the first run (Approval Box's first screen is the model); the card in the settings keeps its own layout
+    private readonly string? preview;    // debug render only: "" = the first screen, a QR = the waiting screen, both without asking Play or opening a request
 
     // The account gate (first run) waits for this: true while this phone's purchase or an accepted period holds.
     public bool Entitled => owned || paid is not null;
     public event Action? EntitledChanged;
 
-    public AccountCard(CancellationToken token)
+    public AccountCard(CancellationToken token, bool firstScreen = false, string? preview = null)
     {
-        this.token = token; Spacing = 0;
+        this.token = token; this.firstScreen = firstScreen; this.preview = preview; Spacing = 0;
         Render();
-        _ = ReloadAsync();
+        if (preview is null) _ = ReloadAsync();
         AccountStore.Foreground += OnForeground; token.Register(() => AccountStore.Foreground -= OnForeground);
     }
 
@@ -84,6 +86,58 @@ public sealed class AccountCard : StackPanel
     private void Render()
     {
         Children.Clear();
+        if (firstScreen && !Entitled && Local is not null) { RenderFirstScreen(); return; }
+        RenderBody();
+        if (firstScreen) { var items = Children.ToList(); Children.Clear(); var inner = new StackPanel(); inner.Children.AddRange(items); Children.Add(SettingsUi.Card(inner)); }
+    }
+
+    // The first screen while this phone is not yet approved: before sign-in the name, the one line and the Owner's sentence with the two ways in (and the purchase, which only a phone can make); once a request is open the screen that waits for the parent device.
+    private void RenderFirstScreen()
+    {
+        if ((request?.Qr ?? (preview is { Length: > 0 } ? preview : null)) is { } qr) { Children.Add(QrScreen(qr)); return; }
+        var name = Text(LocalFormText.AppName, 34, Ink, FontWeight.Bold, new Thickness(0, 24, 0, 0)); name.HorizontalAlignment = HorizontalAlignment.Center;
+        var purpose = Text(LocalFormText.Purpose, 16, Muted, null, new Thickness(0, 8, 0, 24)); purpose.HorizontalAlignment = HorizontalAlignment.Center; purpose.TextAlignment = TextAlignment.Center;
+        Children.Add(name); Children.Add(purpose);
+        var inner = new StackPanel();
+        if (notice is not null) inner.Children.Add(Text(notice, 14, Ink, FontWeight.SemiBold, new Thickness(0, 0, 0, 8)));
+        inner.Children.Add(Text(LocalFormText.FirstSignIn, 14, Secondary));
+        foreach (var (label, provider) in new[] { (SignInText.Apple, "apple"), (SignInText.Google, "google") })
+        { var way = Button(label, () => RequestAsync(provider), Look.Primary); way.HorizontalAlignment = HorizontalAlignment.Stretch; way.HorizontalContentAlignment = HorizontalAlignment.Center; inner.Children.Add(way); }
+        if (busy && attempt is { } signing) { inner.Children.Add(Text(SignInText.Waiting, 13, Muted, null, new Thickness(0, 12, 0, 0))); var stop = Capsule(LocalFormText.Cancel, Fill, Ink, 12, 14, new Thickness(16, 10)); stop.HorizontalAlignment = HorizontalAlignment.Left; stop.Margin = new Thickness(0, 12, 0, 0); stop.Click += (_, _) => signing.Cancel(); inner.Children.Add(stop); }
+        if (failure is not null) inner.Children.Add(Banner(failure));
+        Children.Add(SettingsUi.Card(inner));
+        if (PurchaseButton() is { } buy) Children.Add(buy);
+    }
+
+    // Only a phone can buy: the Play product, when it can be read (the same button as the settings card).
+    private Button? PurchaseButton()
+    {
+        if (product is not { } offered) return null;
+        var price = offered.Offers.FirstOrDefault()?.Phases.LastOrDefault(phase => phase.PriceMicros > 0);   // a free-trial phase comes first
+        var buy = Button(price is not null ? StoreAccountText.Buy(price.FormattedPrice, price.BillingPeriod) : StoreAccountText.Buy(offered.OneTimePrice?.FormattedPrice ?? offered.Title),
+            () => RunAsync(async local => await local.PurchaseAsync(MainActivity.Current, offered.ProductId, offered.Offers.FirstOrDefault()?.OfferToken)), Look.Secondary);
+        buy.HorizontalAlignment = HorizontalAlignment.Stretch; buy.HorizontalContentAlignment = HorizontalAlignment.Center; return buy;
+    }
+
+    // The waiting screen: the title, the QR, how long it holds, the Owner's sentence, the way out (Approval Box 0.2.2's qr-screen; BellTeam has no 「この端末を親にする」).
+    private Control QrScreen(string qr)
+    {
+        var column = new StackPanel { Spacing = 6, Margin = new Thickness(0, 24, 0, 0) };
+        column.Children.Add(Text(LocalFormText.WaitingTitle, 20, Ink, FontWeight.Bold));
+        var code = new QrView(qr, 260) { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 6) }; Avalonia.Automation.AutomationProperties.SetName(code, LocalFormText.QrLabel);
+        column.Children.Add(code);
+        var waiting = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 4, 0, 0) };
+        waiting.Children.Add(Glyph(SettingsIcons.Waiting, 16, Muted)); var wt = Text(LocalFormText.ValidUntil(request is null ? DateTimeOffset.Now.AddMinutes(BellTeam.Core.LocalForm.ListenMinutes) : expiry), 13, Muted); wt.VerticalAlignment = VerticalAlignment.Center; waiting.Children.Add(wt);
+        column.Children.Add(waiting);
+        column.Children.Add(Text(LocalFormText.Qr, 14, Ink, null, new Thickness(0, 6, 0, 0)));
+        if (PurchaseButton() is { } buy) column.Children.Add(buy);
+        var stop = Capsule(LocalFormText.Cancel, Fill, Ink, 12, 14, new Thickness(16, 10)); stop.HorizontalAlignment = HorizontalAlignment.Left; stop.Margin = new Thickness(0, 12, 0, 0); stop.Click += (_, _) => attempt?.Cancel();
+        column.Children.Add(stop);
+        return column;
+    }
+
+    private void RenderBody()
+    {
         // Rapi's table (docs/apple-qr-approval-wording): the card title and the status line are the table's; the badge stays as on the Windows card (not in the table).
         var status = StoreAccount.Status(Entitled);
         var head = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
