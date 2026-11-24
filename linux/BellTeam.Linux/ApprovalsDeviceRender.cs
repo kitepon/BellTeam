@@ -11,7 +11,7 @@ namespace BellTeam.Linux;
 // (the states of peer-channel-signin.md section 2 are set by the scene; nothing is sent anywhere). Used for Delta's one-per-state review.
 internal static class ApprovalsDeviceRender
 {
-    public static readonly string[] Scenes = ["device-signedout", "device-passended", "device-needsapproval", "device-waiting", "device-expired", "device-notentitled", "device-reconnecting", "device-live", "device-answered", "device-link", "device-unavailable", "device-deleted", "device-removed"];
+    public static readonly string[] Scenes = ["device-signedout", "device-passended", "device-needsapproval", "device-waiting", "device-expired", "device-notentitled", "device-reconnecting", "device-live", "device-answered", "device-link", "device-unavailable", "device-deleted", "device-removed", "child-notjoined", "child-signing", "child-waiting", "child-failed", "child-removed", "child-live"];
 
     private sealed class Device : IDeviceDecisions
     {
@@ -53,7 +53,19 @@ internal static class ApprovalsDeviceRender
             "device-reconnecting" => new(RuntimeStatus.Retrying, "HttpRequestException: Connection refused"),
             _ => new(RuntimeStatus.Live),
         };
-        using var hub = new ApprovalsHub(model, scene == "device-unavailable" ? null : device); hub.ReadLinks();
+        // The child-join scenes (child-join.md): the same device session behind a stand-in for the component's joinState.
+        IApprovalSource? source = scene == "device-unavailable" ? null : new PeerSource(device);
+        if (scene.StartsWith("child-", StringComparison.Ordinal))
+        {
+            if (scene == "child-live") { device.Add("D-1", "端末で受け取った請求の確認", "コネクタから、この端末へ直接届きました。"); device.Add("D-2", "夜間のバックアップを予定どおり走らせてよいですか？", "サーバーを通らずに届いた決裁です。"); }
+            source = new JoinFixtureSource(source!, scene switch
+            {
+                "child-signing" => new(JoinPhase.SigningIn), "child-failed" => new(JoinPhase.Failed), "child-removed" => new(JoinPhase.NotJoined, Removed: true), "child-live" => new(JoinPhase.Joined),
+                "child-waiting" => new(JoinPhase.Waiting, "https://login-billing.kitepon.dev/join/dev.kitepon.approvalbox#lbq4:render-only-sample-not-a-real-request", DateTimeOffset.Now.AddMinutes(5)),
+                _ => new(JoinPhase.NotJoined),
+            });
+        }
+        using var hub = new ApprovalsHub(model, source); hub.ReadLinks();
         hub.SignInApprovalBox = () => { }; hub.RequestApproval = () => { };
         if (scene == "device-waiting") hub.SetOffer(new ApprovalOffer("4CH9-MGVR-13NC-MC6C", "PC1VERIFY:a1b2c3d4e5:fp0123456789abcdef0123456789abcdef0123456789a:secret0123456789abcdef", DateTimeOffset.UtcNow.AddMinutes(4).AddSeconds(30)));
         if (scene == "device-expired") hub.SetOffer(null, Approvals.DeviceApprovalExpired);
@@ -63,7 +75,7 @@ internal static class ApprovalsDeviceRender
         for (var wait = 0; wait < 400 && !window.Settled; wait++) await Task.Delay(20);
         await Task.Delay(150);   // the id-level link reads arrive
         if (scene == "device-answered") { await window.PreviewAsync("pending", "D-1", 0); await ClickAsync(window, "答える"); await Task.Delay(300); }
-        else if (scene == "device-link") { await window.OpenLinkForRenderAsync(); }
+        else if (scene is "device-link" or "child-live") { await window.OpenLinkForRenderAsync(); }
         else if (scene == "device-live") await window.PreviewAsync("pending", "D-2", null);
         Dispatcher.UIThread.RunJobs(); window.UpdateLayout();
         Launcher.WritePng(window, output);
