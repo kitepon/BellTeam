@@ -70,6 +70,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     private readonly StackPanel failedConversation = new() { VerticalAlignment = VerticalAlignment.Top, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(30, 60, 30, 0), IsVisible = false };
     private readonly Button latest = new() { Classes = { "plain" }, Content = "最新へ ↓", HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 12), Background = BellTheme.ProminentFill, Foreground = Brushes.White, IsVisible = false };
     private readonly SeatLaunchBar seatLaunchBar = new();
+    private readonly SeatApprovalBar seatApprovalBar = new();
     private readonly Button exportButton;
     private readonly Border stopNoticeBox = new() { CornerRadius = new CornerRadius(16), Padding = new Thickness(14), Margin = new Thickness(0, 0, 0, 8), Background = BellTheme.QueueFill, IsVisible = false };
     private readonly TextBlock stopNoticeText = new() { FontSize = 14, TextWrapping = TextWrapping.Wrap };
@@ -266,7 +267,9 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     {
         conversationArea.Background = BellTheme.ConversationBackground; conversationArea.RowDefinitions = new RowDefinitions("52,*,Auto");
         // Mac shows no avatar+name row here: the window title says BellTeam and the toolbar band only carries the corner button.
-        seatLaunchBar.Margin = new Thickness(0, 52, 0, 0); seatLaunchBar.VerticalAlignment = VerticalAlignment.Top; Grid.SetRowSpan(seatLaunchBar, 2);
+        // The seat's launch notice and its tool approvals share the strip under the toolbar band; it is added last so the approval buttons are above the messages.
+        seatApprovalBar.Attach(model);
+        var topNotices = new StackPanel { Margin = new Thickness(0, 52, 0, 0), VerticalAlignment = VerticalAlignment.Top, Children = { seatLaunchBar, seatApprovalBar } }; Grid.SetRowSpan(topNotices, 2);
 
         var messages = new ItemsControl { ItemsSource = model.Messages, ItemTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<MessageItem>((item, _) => new MessageCard(item, model)) };
         // Mac queueStrip: one line per running or queued delivery; in a room each member's line has its own stop button.
@@ -324,7 +327,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
         var pill = new Border { Background = BellTheme.Canvas, BorderBrush = BellTheme.Line, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(24), Padding = new Thickness(8, 5), Child = input };
         var band = new Border { Background = BellTheme.BandFill, Child = new StackPanel { Margin = new Thickness(15, 11, 15, 8), Children = { stopNoticeBox, sendError, attachmentScroll, replyTarget, quoteBar, goalPill, pill } } };
         Grid.SetRow(band, 2);
-        conversationArea.Children.Add(seatLaunchBar); conversationArea.Children.Add(messageScroll); conversationArea.Children.Add(welcome); conversationArea.Children.Add(loadingSpinner); conversationArea.Children.Add(emptyConversation); conversationArea.Children.Add(failedConversation); conversationArea.Children.Add(latest); conversationArea.Children.Add(band);
+        conversationArea.Children.Add(messageScroll); conversationArea.Children.Add(welcome); conversationArea.Children.Add(loadingSpinner); conversationArea.Children.Add(emptyConversation); conversationArea.Children.Add(failedConversation); conversationArea.Children.Add(latest); conversationArea.Children.Add(band); conversationArea.Children.Add(topNotices);
     }
 
     // ---- model wiring ----

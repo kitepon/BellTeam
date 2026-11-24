@@ -24,6 +24,7 @@ public sealed class ConversationRow : Button
     private readonly ContextMenu menu = new();
     private readonly TextBlock summary = new() { Foreground = BellTheme.Muted, FontSize = 11, LineHeight = 15, Margin = new Thickness(0, 3, 0, 0), TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly TextBlock seatLaunch = new() { Foreground = BellTheme.Red, FontSize = 11, LineHeight = 15, MaxLines = 2, Margin = new Thickness(0, 3, 0, 0), TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis };
+    private readonly TextBlock seatApproval = new() { Foreground = new SolidColorBrush(Color.FromRgb(184, 106, 0)), FontSize = 11, FontWeight = FontWeight.SemiBold, LineHeight = 15, Margin = new Thickness(0, 3, 0, 0) };
     private CancellationTokenSource? pulse;
     public ConversationEntry Entry { get; private set; }
 
@@ -34,7 +35,7 @@ public sealed class ConversationRow : Button
         var texts = new StackPanel { Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
         var title = new TextBlock { TextTrimming = TextTrimming.CharacterEllipsis, };
         title.Inlines!.Add(name); title.Inlines.Add(badge); title.Inlines.Add(pinMark);
-        texts.Children.Add(title); texts.Children.Add(summary); texts.Children.Add(seatLaunch);
+        texts.Children.Add(title); texts.Children.Add(summary); texts.Children.Add(seatLaunch); texts.Children.Add(seatApproval);
         var tile = new Grid { Width = 57.6, Height = 57.6, VerticalAlignment = VerticalAlignment.Center, Children = { avatar, presence } };
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("57.6,*"), Children = { tile, texts } };
         Grid.SetColumn(texts, 1); Content = grid;
@@ -58,6 +59,7 @@ public sealed class ConversationRow : Button
         pin.Header = entry.Pinned ? "ピン留めを外す" : "ピン留め"; ContextMenu = entry.IsMember ? menu : null;
         summary.Text = entry.PreviewText; summary.MaxLines = entry.IsMember ? 2 : 1;
         seatLaunch.Text = entry.SeatLaunchLine; seatLaunch.IsVisible = entry.SeatLaunchLine is not null;
+        seatApproval.Text = entry.SeatApprovalBadge ?? ""; seatApproval.IsVisible = entry.SeatApprovalBadge is not null;
         presence.IsVisible = entry.IsMember;
         presence.Fill = entry.PresenceTone switch { PresenceTone.Working => BellTheme.Red, PresenceTone.Online => BellTheme.Mint, _ => BellTheme.Line };
         AutomationProperties.SetName(presence, entry.PresenceLabel);

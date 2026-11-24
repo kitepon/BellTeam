@@ -26,6 +26,9 @@ flowchart LR
   lib -->|Appleの戻り1行（時刻・届いた項目・Appleのエラーコード。トークン・code・subjectは入れない）| devlog[このアプリ自身のログファイル ~/.local/share/BellTeam/apple-return.log（0600）。どこへも送らない]
   lib <-->|同じWi-Fi・直接・暗号化| phone[購読しているスマホ<br/>QRを読み、返事を直接送る]
   ui --> notify[freedesktop通知<br/>org.freedesktop.Notifications]
+  ui --> seat[座席の許可待ちの入口（seat-approval-clients。契約 execution/seat-approvals.md）<br/>SeatApprovalBar：会話の列の上（起動できない理由の下）と、一覧の行の「承認待ち」<br/>linux/BellTeam.Linux、Androidへ共通リンク]
+  seat --> ws
+  ws -->|"GET /api/seat-approvals・POST …/:id/answer・SSE seat_approvals（アニスのCore SeatApprovals）"| integration
   ui --> single[1利用者1窓<br/>$XDG_RUNTIME_DIR のUnixソケット]
   release[公開版 linux-app<br/>GitHub Releases・publish-linux-app.yml] -->|tar.gz・SHA256SUMS| install[install-linux.sh]
   install --> files[~/.local/lib/BellTeam・~/.local/bin/bellteam<br/>.desktop・アイコン]
@@ -35,6 +38,7 @@ flowchart LR
 - `BellTeam.Core`の所有者はアニス。LinuxはそのままProject参照で使い、Coreを変える時は小さなPRでアニスをレビューに入れる。条件はWindowsの挙動を変えないこと、[Windowsアーキテクチャ](windows-architecture.md)のCoreの節を同じ差分で更新すること、実行したBellTeam.Testsの範囲をPRに書くこと（2026-11-12 アニス合意）。
 - `Workspace`（会話一覧・会話・送信・SSE・再接続・下書き）はWindowsの`BellTeam.App`からCoreへ移し、画像の型とUIスレッドへの戻りだけを各アプリが渡す。Windowsは`Workspace : Core.Workspace<BitmapSource>`で呼び出し側を変えない。
 - 機械席（Claude machine mode）の質問と承認（a471）：履歴の`machine_event`のうち、`view`が`question`か`approval`の行は会話ログの白いカード（`MachineRequestCard`）として描く。質問は1問1答なら選択肢を押した時点で答え、複数問・複数選択は選んでから「送る」。「その他」は自由文。承認は「許可」「拒否」。答えは`POST /api/seat-requests/:request_id/answer`だけで返し、画面読み取りもキー送信もしない。`status`が`pending`以外のカードは選択肢を出さず結果の行にする。何も隠さない（`hide`は無く、`fold`以外の`display`は`show`）。`fold`の行は開閉できる1行（`MachineEntry`。既定は閉じ、押すと全文、`truncated`なら「全文を読み込む」で`GET /api/bots/:id/machine-events/:seq`の保存行）で、隣り合う同じ`fold_group`だけを1行にまとめ（Coreの`Timeline.VisibleMachine`。どの行も時間の位置から動かさず、`tool_result`を`tool_use`の下へ引き上げない）、行の名前は`fold_count`の合計n（無ければ1）で決める（`Timeline.FoldLabel`。n>1は「tools ×2」「hook ×3」、n=1は`fold_count`が1の行のメッセージ＝道具名、n=0は「group ×行数」）。開くとその行を時間順に並べ、各行はそれぞれ閉じた1行で、開くと全文（`tool_use`は`tool.summary`）。本体が`tool_use`を畳むと`tools`の行になり、畳まれる前の本体の`show`の`tool_use`は道具名と要約の1行のまま。開閉はアプリの状態で保存しない。`words`の行は、本体が`bubble: true`を付けた行（終わったターンの最後の発言）だけを通常の受信メッセージの吹き出し（保存済みメッセージと同じMarkdown描画）で描き、それ以外の`words`は吹き出しの無い1本の文章で描く（どれが最後かはアプリが決めず、`bubble`だけを読む。印は同じidの行へ後から付き、描き直す。a471-tune-answer。契約は[machine-stream.md](architecture/modules/conversation/machine-stream.md)「Turn answer bubble」）。会話は最初の1ページ（30件）を読んだあと、畳まれた行が多くて行が画面（表示領域）を埋めない間は、古いページを自動で読み続け、埋まるか古い分が無くなるまで続ける（窓を広げた時も同じ。a471-thinking-linux。スクロールと「以前のメッセージを読む」は今まで通り）。見た目と動きはWindowsと同じ。データ側（`TimelineMessage.MachineEvent`・`AnswerSeatRequestAsync`）は[Windowsアーキテクチャ](windows-architecture.md)のCoreの節（アニス）が正本。
+- 席のツール承認（seat-approval-clients。契約は[seat-approvals.md](architecture/modules/execution/seat-approvals.md)、オーナー2026-11-24）：ツールの承認で止まった席（Claude Code・Codex）の承認を、BellTeamの中で答えられる。読み・答え・言葉はアニスのCore（`SeatApprovals.cs`の`SeatApproval`・`SeatApprovalText`、`Workspace.SeatApprovals`・`SeatApprovalsChanged`・`AnswerSeatApprovalAsync`、`ConversationEntry.SeatApprovalBadge`。Windowsと共通）が持ち、Linuxは描くだけ。メンバー一覧のそのBotの行に「承認待ち」（琥珀）、そのBotの会話の上（起動できない理由の下。`SeatApprovalBar`。Androidへ共通リンク）に項目を、古い順に全部出す：見出し「承認を待っています」・ツール名とAI（例「Bash · Codex」）・コマンドの原文（等幅・選択可。TUIのClaude席はtoolもcommandもnullなので「Botの画面を見てください」）・理由・サーバーの`choices`の2つのラベル（「1回だけ許可する」「許可しない」）。押すと`POST /api/seat-approvals/:id/answer {decision}`を1回だけ（自動再送なし）。送っている間は2つとも押せない。結果のあとは必ず読み直し、409（別の場所で答えられた）は「別の場所で答えられたか、もう承認待ちではありません。」、それ以外の失敗は「いまは送れませんでした。もう一度押してください。」。決裁箱のカード（`card: "filed"`）があってもアプリの項目は残る。Botの画面（`ScreenView`）の許可の帯（`GET …/screen/approval`）は今まで通りで、どちらで答えても最初の答えが勝つ。見え方：[Linux](linux-seat-approvals.png)・[TUIのClaude席](linux-seat-approvals-tui.png)・[Android](android-seat-approvals.png)・[Androidの一覧](android-seat-approvals-list.png)（`--render-conversation`と、本番につながない仮のサーバー）。試験は`SeatApprovalBarTests`。
 - 本体の状態は共通入口のHTTP APIとSSEだけで使う。本体の内部状態を直接読み書きしない。
 
 ## データの流れ
@@ -67,6 +71,11 @@ flowchart TD
   ws -->|"reply_to・reply_quote（送信本文。契約 conversation reply.md）"| api
   server -->|"履歴の reply_to（引用の元）"| ws
   server -->|"履歴の machine_event（機械席の質問・承認・畳む行。契約 conversation machine-stream.md）"| ws
+  server -->|"GET /api/seat-approvals（開いている求め。古い順。tool・command・reasonとchoices。card none/filed）"| ws
+  server -->|"SSE seat_approvals（botIds）。再取得の合図だけ。push owner_question は押すとそのBotを開く"| ws
+  ws -->|"一覧の行の「承認待ち」・会話の列のSeatApprovalBar（見出し「承認を待っています」・tool・コマンドの原文・理由・サーバーの2つのlabel）"| view
+  view -->|"1回だけ許可する／許可しない（approve_once・deny）"| ws
+  ws -->|"POST /api/seat-approvals/:id/answer {decision}。200で閉じる・409 SEAT_APPROVAL_CLOSED=別の場所で答えられた→読み直し・400/404/502は平易な文。自動再送はしない"| api
   view -->|"カードで選ぶ・許可／拒否"| ws
   ws -->|"POST /api/seat-requests/:id/answer（answers{indexes,other} または decision）"| api
   api -->|"/api/approvals/by-decision・connection・connect（工程との結びつきと工程表との連携だけ。一覧・答え・保留・添付・events・summaryは新しい版は呼ばない。本体が消すのはa490h2）"| server

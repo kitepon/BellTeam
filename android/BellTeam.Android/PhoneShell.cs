@@ -54,6 +54,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
     private readonly NewestColumn messageColumn = new();
     private bool unreadNew; // a row arrived while the reader was away from the newest
     // The same button as the Linux window (a471-latest-button-android): 最新へ when away from the newest, 新着メッセージ when a row arrived below; a tap returns to the newest and follows again.
+    private readonly SeatApprovalBar seatApprovalBar = new();
     private readonly Button latest = new() { Classes = { "plain" }, Content = "最新へ ↓", HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 12), Background = BellTheme.ProminentFill, Foreground = Brushes.White, IsVisible = false };
     private StackPanel? messageStack;
     private readonly TextBox composer = new() { Classes = { "bare" }, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 24, MaxHeight = 124, FontSize = 16, PlaceholderText = "メッセージ" };
@@ -121,7 +122,9 @@ public sealed class PhoneShell : UserControl, IMessageHost
         quoteBar.Child = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Children = { new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { quoteName, quoteText } }, cancelQuote } };
         var band = new Border { Background = BellTheme.BandFill, Child = new StackPanel { Margin = new Thickness(12, 8), Children = { sendError, attachmentScroll, quoteBar, pill } } };
         Grid.SetRow(band, 2);
-        conversationPage.Children.Add(header); conversationPage.Children.Add(messageScroll); conversationPage.Children.Add(latest); conversationPage.Children.Add(band);
+        // seat-approval-clients: the Bot's tool approvals over the top of its messages (the same SeatApprovalBar as Linux).
+        seatApprovalBar.Attach(model); Grid.SetRow(seatApprovalBar, 1); seatApprovalBar.VerticalAlignment = VerticalAlignment.Top;
+        conversationPage.Children.Add(header); conversationPage.Children.Add(messageScroll); conversationPage.Children.Add(latest); conversationPage.Children.Add(band); conversationPage.Children.Add(seatApprovalBar);
 
         var settingsBack = new Button { Classes = { "plain" }, Content = Icons.Draw(Icons.ChevronRight, 22, BellTheme.Ink), Background = Brushes.Transparent, RenderTransform = new ScaleTransform(-1, 1), Width = 52, Height = 52 };
         settingsBack.Click += (_, _) => ShowList();
