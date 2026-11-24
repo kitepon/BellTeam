@@ -19,6 +19,8 @@ final class SeatApprovalsTests: XCTestCase {
         XCTAssertEqual(list[0].command, "rm -rf build")
         XCTAssertNil(list[1].command)
         XCTAssertEqual(list[0].choices.map(\.label), ["1回だけ許可する", "許可しない"])
+        XCTAssertEqual(list[0].source, "Bash · Claude Code")
+        XCTAssertEqual(list[1].source, "Claude Code", "no tool: just the harness")
     }
 
     func testTheWordsAreTheSharedOnes() {
@@ -27,6 +29,7 @@ final class SeatApprovalsTests: XCTestCase {
         XCTAssertEqual(SeatApprovalsModel.Words.seeScreen, "Botの画面を見てください")
         XCTAssertEqual(SeatApprovalsModel.Words.closed, "別の場所で答えられたか、もう承認待ちではありません。")
         XCTAssertEqual(SeatApprovalsModel.Words.failed, "いまは送れませんでした。もう一度押してください。")
+        XCTAssertEqual(SeatApprovalsModel.Words.sending, "答えを送っています…")
     }
 
     func testTheSeatApprovalsTopicIsAKnownEventTopic() {
