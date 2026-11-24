@@ -76,7 +76,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
         // The Approval Box client of this phone (client-v0.5.md): /v1 now, the device session when the server says peer_channel; the server decides, no switch file.
         approvalBox = AndroidApprovalBoxDevice.Create(() => [.. model.Bots.Select(bot => (bot.Id, bot.DisplayName))]);
         approvals = new ApprovalsHub(model, approvalBox?.Source); approvalBox?.Attach(approvals); approvals.Changed += UpdateApprovalsEntry;
-        PushRegistration.Workspace = () => model; AccountDeletion.Run = DeleteAccountAsync; PushRouter.Changed += () => Dispatcher.UIThread.Post(RoutePush);
+        PushRegistration.Workspace = () => model; AccountDeletion.Run = DeleteAccountAsync; PushRouter.Changed += () => Dispatcher.UIThread.Post(RoutePush); JoinLink.Changed += () => Dispatcher.UIThread.Post(RouteJoin);
         Window.Pusher = PushPage; Window.Popper = PopPage;
         MarkdownView.LinkFailed = message => model.ReportActionError(message);
         // Links in messages and guides open in the system browser (there is no shell to execute an address on Android).
@@ -183,6 +183,10 @@ public sealed class PhoneShell : UserControl, IMessageHost
     // straight on; when the form is not configured (LocalFormIds) or Play cannot be asked, the app goes on too: an unknown state is not a reason to stop.
     private async Task BeginAfterAccountAsync()
     {
+#if DEBUG
+        // Render seam (a debug build only): adb shell am start ... --es bellteam.gate first|qr shows the first screen or the waiting screen with no Play and no request.
+        if (MainActivity.Current.Intent?.GetStringExtra("bellteam.gate") is { } scene) { startupHost.Child = new AccountGate(() => Begin(), CancellationToken.None, scene == "qr" ? "https://login-billing.kitepon.dev/join/dev.kitepon.bellbot#lbq4:render-only-sample-not-a-real-request" : ""); startupHost.IsVisible = true; return; }
+#endif
         if (AccountStore.Local is not { } local) { Begin(); return; }
         try
         {
@@ -380,6 +384,12 @@ public sealed class PhoneShell : UserControl, IMessageHost
         if (entry is null) { model.ReportActionError("通知の会話が見つかりません。メンバーとルームの一覧を更新してください。"); return; }
         CloseAllPages(); CloseSheet(); ShowConversation(); await model.SelectAsync(entry);
     }
+    // The QR's link opened this app (1.49): show the settings page, whose account card answers it. Before the connection, the Connected change below calls this again.
+    private void RouteJoin()
+    {
+        if (!model.Connected || !JoinLink.HasPending) return;
+        CloseAllPages(); CloseSheet(); ShowSettings();
+    }
     private void ShowSettings()
     {
         if (!model.Connected) { ShowStartup(StartupPhase.Setup); return; }
@@ -444,7 +454,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
     {
         switch (name)
         {
-            case nameof(LinuxWorkspace.Connected): UpdateApprovalsEntry(); if (model.Connected) { approvals.ReadLinks(); PushRouter.CurrentServer = model.Server; _ = PushRegistration.RegisterAsync(model); RoutePush(); } break;
+            case nameof(LinuxWorkspace.Connected): UpdateApprovalsEntry(); if (model.Connected) { RouteJoin(); approvals.ReadLinks(); PushRouter.CurrentServer = model.Server; _ = PushRegistration.RegisterAsync(model); RoutePush(); } break;
             case nameof(LinuxWorkspace.Selected): unreadNew = false; title.Text = model.Selected?.Name ?? ""; edit.IsVisible = model.Selected is { IsMember: true }; UpdateViewing(); break;
             case nameof(LinuxWorkspace.Quote): UpdateQuoteBar(); break;
             case nameof(LinuxWorkspace.Attachments) or nameof(LinuxWorkspace.CanAttach): UpdateAttachments(); break;

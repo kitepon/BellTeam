@@ -11,9 +11,9 @@ namespace BellTeam.Android;
 // First run of an official app (app-sessions.md 7e, Tronie's ruling): sign in, buy or be handed a contract, and only then connect a server. This screen is the account card with one way on.
 public sealed class AccountGate : ScrollViewer
 {
-    public AccountGate(Action onContinue, CancellationToken token)
+    public AccountGate(Action onContinue, CancellationToken token, string? preview = null)
     {
-        var card = new AccountCard(token);
+        var card = new AccountCard(token, firstScreen: true, preview);
         var next = Capsule(StoreAccountText.GateNext, BellTheme.ProminentFill, Brushes.White, 12, 15, new Thickness(18, 12));
         next.HorizontalAlignment = HorizontalAlignment.Stretch; next.HorizontalContentAlignment = HorizontalAlignment.Center; next.Margin = new Thickness(0, 18, 0, 0); next.IsVisible = card.Entitled;
         next.Click += (_, _) => onContinue();

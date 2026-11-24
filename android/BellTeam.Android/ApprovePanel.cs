@@ -14,7 +14,7 @@ using static BellTeam.Linux.SettingsUi;
 namespace BellTeam.Android;
 
 // a540 (login-billing contract 1.36 section 10): the phone that holds the purchase lets another device in. It reads the QR that device shows, checks that the device wants this phone's own account, asks the person once, and sends this phone's
-// own Play purchase straight to that device over the same Wi-Fi. No server takes part; the library keeps the proof and the token, this code sees neither.
+// own Play purchase straight to that device over the same network (LAN). No server takes part; the library keeps the proof and the token, this code sees neither.
 public sealed class ApprovePanel : StackPanel
 {
     private readonly CancellationToken token;
@@ -26,7 +26,12 @@ public sealed class ApprovePanel : StackPanel
     {
         this.token = token; Spacing = 0;
         Render();
+        // The phone's own camera opened this app with the QR's link (1.49): answer it as if the scanner had read it.
+        JoinLink.Changed += TakeLink;
+        TakeLink();
     }
+    protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e) { JoinLink.Changed -= TakeLink; base.OnDetachedFromVisualTree(e); }
+    private void TakeLink() => Dispatcher.UIThread.Post(() => { if (!busy && JoinLink.Take() is { } link) _ = ApproveAsync(link); });
 
     private void Render()
     {
@@ -70,7 +75,8 @@ public sealed class ApprovePanel : StackPanel
             if (error.Message?.Contains("cancel", StringComparison.OrdinalIgnoreCase) != true) { failure = StoreAccountText.ApproveScanFailed; Render(); }
             return;
         }
-        if (raw is { Length: > 0 }) await ApproveAsync(raw.Trim());
+        // login-billing 1.53 (11.12): every scanned text goes to IsLibraryQR first; the app never matches the library's QR forms itself.
+        if (raw?.Trim() is { Length: > 0 } text) { if (LbLocalForm.IsLibraryQR(text)) await ApproveAsync(text); else { failure = StoreAccountText.ApproveScanFailed; Render(); } }
     }
 
     private sealed class ScanListener(TaskCompletionSource<string?> done) : Java.Lang.Object, global::Android.Gms.Tasks.IOnSuccessListener, global::Android.Gms.Tasks.IOnFailureListener, global::Android.Gms.Tasks.IOnCanceledListener

@@ -11,7 +11,7 @@ namespace BellTeam.Linux;
 // (the states of peer-channel-signin.md section 2 are set by the scene; nothing is sent anywhere). Used for Delta's one-per-state review.
 internal static class ApprovalsDeviceRender
 {
-    public static readonly string[] Scenes = ["device-signedout", "device-passended", "device-needsapproval", "device-waiting", "device-expired", "device-notentitled", "device-reconnecting", "device-live", "device-answered", "device-link", "device-unavailable", "device-deleted", "device-removed", "child-notjoined", "child-signing", "child-waiting", "child-failed", "child-removed", "child-live"];
+    public static readonly string[] Scenes = ["device-signedout", "device-passended", "device-needsapproval", "device-waiting", "device-expired", "device-notentitled", "device-reconnecting", "device-live", "device-answered", "device-link", "device-seat-waiting", "device-seat-linked", "device-unavailable", "device-deleted", "device-removed", "child-notjoined", "child-signing", "child-waiting", "child-failed", "child-removed", "child-live"];
 
     private sealed class Device : IDeviceDecisions
     {
@@ -37,12 +37,12 @@ internal static class ApprovalsDeviceRender
     public static async Task RunAsync(string scene, string output)
     {
         if (!Scenes.Contains(scene)) throw new ArgumentException("未対応の端末の場面です。" + Launcher.Usage);
-        using var model = new LinuxWorkspace(origin => new BellApi(origin, new ApprovalsFixture(scene == "device-link" ? "connected" : "main")));
+        using var model = new LinuxWorkspace(origin => new BellApi(origin, new ApprovalsFixture(scene is "device-link" or "device-seat-waiting" or "device-seat-linked" ? "connected" : "main", scene switch { "device-seat-waiting" => "waiting", "device-seat-linked" => "linked", _ => "none" })));
         await model.ConnectAsync("http://localhost", listen: false);
         if (model.ConnectionError is { } failure) throw new BellApiException(failure);
         var device = new Device();
         // A device that holds decisions keeps its list while the connection is down; the others show the note over the server's list.
-        if (scene is "device-live" or "device-answered" or "device-link" or "device-reconnecting" or "device-notentitled" or "device-removed")
+        if (scene is "device-live" or "device-answered" or "device-link" or "device-seat-waiting" or "device-seat-linked" or "device-reconnecting" or "device-notentitled" or "device-removed")
         { device.Add("D-1", "端末で受け取った請求の確認", "コネクタから、この端末へ直接届きました。"); device.Add("D-2", "夜間のバックアップを予定どおり走らせてよいですか？", "サーバーを通らずに届いた決裁です。"); }
         device.State = scene switch
         {
@@ -75,7 +75,7 @@ internal static class ApprovalsDeviceRender
         for (var wait = 0; wait < 400 && !window.Settled; wait++) await Task.Delay(20);
         await Task.Delay(150);   // the id-level link reads arrive
         if (scene == "device-answered") { await window.PreviewAsync("pending", "D-1", 0); await ClickAsync(window, "答える"); await Task.Delay(300); }
-        else if (scene is "device-link" or "child-live") { await window.OpenLinkForRenderAsync(); }
+        else if (scene is "device-link" or "device-seat-waiting" or "device-seat-linked" or "child-live") { await window.OpenLinkForRenderAsync(); await Task.Delay(300); }
         else if (scene == "device-live") await window.PreviewAsync("pending", "D-2", null);
         Dispatcher.UIThread.RunJobs(); window.UpdateLayout();
         Launcher.WritePng(window, output);

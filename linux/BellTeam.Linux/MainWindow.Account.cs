@@ -16,6 +16,9 @@ public sealed partial class MainWindow
         startupHost.Child = new LinuxAccountGate(() => _ = Begin(savedServer)); startupHost.IsVisible = true;
     }
 
+    // Render seam: the first screen (qr null) and the screen that waits for the parent device (qr given), with no live request.
+    public void ShowAccountForRender(string? qr) { startupHost.Child = new LinuxAccountGate(() => { }, qr); startupHost.IsVisible = true; }
+
     // 「アカウントを削除」 (a540; Rapi's final table, Poli approved; docs/architecture/modules/apple/account-deletion.md): BellTeam holds nothing on any server, so the deletion is a local sign-out plus Approval Box's sign-out.
     // Order: both sign-outs first (each is tried; one that passed stays passed); if either fails nothing else is touched and the failure alone is shown; only when both passed the connection goes (tokens, window state, saved address)
     // and the first screen comes back under one result alert. It never stops the other devices.

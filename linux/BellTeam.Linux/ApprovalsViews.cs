@@ -94,6 +94,7 @@ internal sealed partial class ApprovalsWindow
         }
         stack.Children.Add(buttons);
         if (JoinedBlock() is { } joined) stack.Children.Add(joined);   // this device's join state, then (when it is on main) 「AIの許可待ちを決裁箱へ送る」
+        if (SeatLinkSection() is { } seat) stack.Children.Add(seat);
         var card = Glass(stack, 22, new Thickness(26, 24)); card.MaxWidth = 520; card.HorizontalAlignment = HorizontalAlignment.Center; card.VerticalAlignment = VerticalAlignment.Center;
         return card;
     }

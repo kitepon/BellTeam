@@ -8,7 +8,7 @@ using static BellTeam.Linux.SettingsUi;
 
 namespace BellTeam.Linux;
 
-// a540 (login-billing contract 1.36 section 10, the local form): the account of this PC. It never buys. A PC shows the QR of one request; the phone that holds the purchase reads it and answers over the same Wi-Fi;
+// a540 (login-billing contract 1.36 section 10, the local form): the account of this PC. It never buys. A PC shows the QR of one request; the phone that holds the purchase reads it and answers over the same network (LAN);
 // this PC checks the answer itself and keeps the end of the period. Google signs in on this PC for each try; Apple is the iPhone's own sign-in. No server, no e-mail, no name exists anywhere.
 public sealed class LinuxAccountCard : StackPanel
 {
@@ -20,14 +20,16 @@ public sealed class LinuxAccountCard : StackPanel
     private string? failure, notice;   // notice: the plain line under the status (PaidOk, or PeriodEnded when the kept period ran out); failure is the red one
     private DateTimeOffset expiry;     // when the QR stops being taken
     private bool busy, confirmingDelete;
+    private readonly bool firstScreen;   // the gate of the first run (Approval Box's first screen is the model); the card in the settings keeps its own layout
+    private readonly string? preview;    // render scenes only: a QR to show without a live request
 
     // The account gate (first run) waits for this: true while an accepted period holds.
     public bool Entitled => paid is not null;
     public event Action? EntitledChanged;
 
-    public LinuxAccountCard(CancellationToken token)
+    public LinuxAccountCard(CancellationToken token, bool firstScreen = false, string? preview = null)
     {
-        this.token = token; Spacing = 0;
+        this.token = token; this.firstScreen = firstScreen; this.preview = preview; Spacing = 0;
         Reload(); Render();
         LinuxAccountStore.Foreground += OnForeground; token.Register(() => LinuxAccountStore.Foreground -= OnForeground);
     }
@@ -65,6 +67,47 @@ public sealed class LinuxAccountCard : StackPanel
     private void Render()
     {
         Children.Clear();
+        if (firstScreen && !Entitled && Local is not null) { RenderFirstScreen(); return; }
+        RenderBody();
+        if (firstScreen) { var items = Children.ToList(); Children.Clear(); var inner = new StackPanel(); inner.Children.AddRange(items); Children.Add(SettingsUi.Card(inner)); }
+    }
+
+    // The first screen while this device is not yet approved: before sign-in the name, the one line and the Owner's sentence with the two ways in; once a request is open the screen that waits for the parent device.
+    private void RenderFirstScreen()
+    {
+        if ((request?.Qr ?? preview) is { } qr) { Children.Add(QrScreen(qr)); return; }
+        // The app's own portrait above the name, 88 px with rounded corners (Windows' first screen has the same tile).
+        var icon = Round.Clip(new Image { Source = EmbeddedAsset.Portrait(176), Stretch = Stretch.UniformToFill, Width = 88, Height = 88 }, 22); icon.HorizontalAlignment = HorizontalAlignment.Center; icon.Margin = new Thickness(0, 16, 0, 0);
+        var name = Text(LocalFormText.AppName, 34, Ink, FontWeight.Bold, new Thickness(0, 14, 0, 0)); name.HorizontalAlignment = HorizontalAlignment.Center;
+        var purpose = Text(LocalFormText.Purpose, 16, Muted, null, new Thickness(0, 8, 0, 24)); purpose.HorizontalAlignment = HorizontalAlignment.Center; purpose.TextAlignment = TextAlignment.Center;
+        Children.Add(icon); Children.Add(name); Children.Add(purpose);
+        var inner = new StackPanel();
+        if (notice is not null) inner.Children.Add(Text(notice, 14, Ink, FontWeight.SemiBold, new Thickness(0, 0, 0, 8)));
+        inner.Children.Add(Text(LocalFormText.FirstSignInChildOnly, 14, Secondary));
+        // Apple's rule: its button is black and the first, and the only black one; Google's is white with a hairline, as on Windows.
+        foreach (var (label, provider, look) in new[] { (SignInText.Apple, "apple", Look.Apple), (SignInText.Google, "google", Look.Google) })
+        { var way = Button(label, () => RequestAsync(provider), look); way.HorizontalAlignment = HorizontalAlignment.Stretch; way.HorizontalContentAlignment = HorizontalAlignment.Center; inner.Children.Add(way); }
+        if (busy && request is null && attempt is { } signing) { inner.Children.Add(Waiting(SignInText.Waiting)); var stop = Capsule(LocalFormText.Cancel, Fill, Ink, 12, 14, new Thickness(16, 10)); stop.HorizontalAlignment = HorizontalAlignment.Left; stop.Margin = new Thickness(0, 12, 0, 0); stop.Click += (_, _) => signing.Cancel(); inner.Children.Add(stop); }
+        if (failure is not null) inner.Children.Add(Banner(failure));
+        Children.Add(SettingsUi.Card(inner));
+    }
+
+    // The waiting screen: the title, the QR, how long it holds, the Owner's sentence, the way out (Approval Box 0.2.2's qr-screen; BellTeam has no 「この端末を親にする」).
+    internal Control QrScreen(string qr)
+    {
+        var column = new StackPanel { Spacing = 6, Margin = new Thickness(0, 24, 0, 0) };
+        column.Children.Add(Text(LocalFormText.WaitingTitle, 20, Ink, FontWeight.Bold));
+        var code = new QrView(qr, 280) { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 6) }; Avalonia.Automation.AutomationProperties.SetName(code, LocalFormText.QrLabel);
+        column.Children.Add(code);
+        column.Children.Add(Waiting(LocalFormText.ValidUntil(request is null ? DateTimeOffset.Now.AddMinutes(LocalForm.ListenMinutes) : expiry)));
+        column.Children.Add(Text(LocalFormText.Qr, 14, Ink, null, new Thickness(0, 6, 0, 0)));
+        var stop = Capsule(LocalFormText.Cancel, Fill, Ink, 12, 14, new Thickness(16, 10)); stop.HorizontalAlignment = HorizontalAlignment.Left; stop.Margin = new Thickness(0, 12, 0, 0); stop.Click += (_, _) => attempt?.Cancel();
+        column.Children.Add(stop);
+        return column;
+    }
+
+    private void RenderBody()
+    {
         // Rapi's table (docs/apple-qr-approval-wording): the card title and the status line are the table's; the badge stays as on the Windows card (not in the table).
         var status = StoreAccount.Status(Entitled);
         var head = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
@@ -80,6 +123,7 @@ public sealed class LinuxAccountCard : StackPanel
         {
             Children.Add(Text(LocalFormText.Title, 16, Ink, FontWeight.Bold, new Thickness(0, 14, 0, 0)));
             Children.Add(Text(LocalFormText.Lead, 13, Muted, null, new Thickness(0, 6, 0, 0)));
+            Children.Add(Text(LocalFormText.FirstSignInChildOnly, 13, Ink, null, new Thickness(0, 6, 0, 0)));
             Children.Add(Button(LocalFormText.Google, () => RequestAsync("google"), Look.Primary));
             Children.Add(Button(LocalFormText.Apple, () => RequestAsync("apple"), Look.Primary));
         }
@@ -91,13 +135,15 @@ public sealed class LinuxAccountCard : StackPanel
     }
 
     // The QR of one request: the phone that holds the purchase reads it; this PC waits (10 minutes) and has one way out.
-    private Control QrBlock(string qr)
+    internal Control QrBlock(string qr)
     {
         var block = new StackPanel { Margin = new Thickness(0, 14, 0, 0), Spacing = 6 };
         block.Children.Add(Text(LocalFormText.Title, 16, Ink, FontWeight.Bold));
         block.Children.Add(Text(LocalFormText.Lead, 13, Muted));
-        var code = new QrView(qr, 220) { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 6) }; Avalonia.Automation.AutomationProperties.SetName(code, LocalFormText.QrLabel);
+        var code = new QrView(qr, 280) { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 6) }; Avalonia.Automation.AutomationProperties.SetName(code, LocalFormText.QrLabel);
         block.Children.Add(code);
+        // 1.49 (11.12): the library's own sentence, word for word, directly under the QR on every client.
+        var guidance = Text(LocalFormText.Qr, 14, Ink); guidance.TextAlignment = TextAlignment.Center; block.Children.Add(guidance);
         block.Children.Add(Waiting(LocalFormText.WaitingUntil(expiry)));
         var stop = Capsule(LocalFormText.Cancel, Fill, Ink, 12, 14, new Thickness(16, 10));
         stop.HorizontalAlignment = HorizontalAlignment.Left; stop.Margin = new Thickness(0, 12, 0, 0); stop.Click += (_, _) => attempt?.Cancel();
@@ -138,7 +184,7 @@ public sealed class LinuxAccountCard : StackPanel
 
     public static string DoneText => AccountDeletionText.ResultBody(Cancel);
 
-    private enum Look { Primary, Secondary, Danger, DangerFilled }
+    private enum Look { Primary, Secondary, Danger, DangerFilled, Apple, Google }
 
     private Button Button(string label, Func<Task> click, Look look)
     {
@@ -147,10 +193,13 @@ public sealed class LinuxAccountCard : StackPanel
             Look.Primary => ((IBrush)BellTheme.ProminentFill, (IBrush)Brushes.White),
             Look.DangerFilled => (Red, Brushes.White),
             Look.Danger => (Fill, Red),
+            Look.Apple => (Brushes.Black, Brushes.White),
+            Look.Google => (Brushes.White, Ink),
             _ => (Fill, Ink),
         };
         var button = Capsule(label, background, foreground, 12, 14, new Thickness(16, 10));
         button.FontWeight = look == Look.Secondary ? FontWeight.Normal : FontWeight.SemiBold; button.HorizontalAlignment = HorizontalAlignment.Left; button.Margin = new Thickness(0, 12, 0, 0); button.IsEnabled = !busy;
+        if (look == Look.Google) { button.BorderBrush = Hairline; button.BorderThickness = new Thickness(1); }
         button.Click += async (_, _) => await click();
         return button;
     }
