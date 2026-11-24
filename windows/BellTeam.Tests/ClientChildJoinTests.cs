@@ -3,7 +3,7 @@ using BellTeam.App;
 
 namespace BellTeam.Tests;
 
-// The adapter over the real Kitepon.ApprovalBox.Client 0.5.0 join (child-join.md; no server, no browser: the opener is ours).
+// The adapter over the real Kitepon.ApprovalBox.Client 0.5.2 join (child-join.md; no server, no browser: the opener is ours).
 public class ClientChildJoinTests
 {
     [Fact]
