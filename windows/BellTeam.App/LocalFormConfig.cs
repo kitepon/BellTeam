@@ -12,10 +12,10 @@ internal static class LocalFormConfig
         typeof(LocalFormConfig).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().FirstOrDefault(a => a.Key == "GoogleDesktopSecret")?.Value is { Length: > 0 } secret ? secret : null;
 
     // Audiences: every Google client id of BellTeam (the phone's token may carry any), Apple's own app id and the Services ID of the PC's own Apple sign-in (1.46: it must be among them). Apple's root: null takes the library's built-in Apple Root CA - G3 (1.37).
-    // No keyholes (1.47) and no freeAccounts (1.43): BellTeam does not use them.
+    // No keyholes (1.47) and no freeAccounts (1.43): BellTeam does not use them. Sandbox: a TestFlight purchase on the paying phone is taken (Owner ruling 2026-11-24).
     public static LocalConfig Build() => new(
         [.. LocalFormIds.GoogleClientIds, LocalFormIds.AppleBundleId, LocalFormIds.AppleServicesId], LocalFormIds.GoogleDesktopClientId,
-        new AppleRules([LocalFormIds.AppleBundleId], [LocalFormIds.ProductId], false, null!),
+        new AppleRules([LocalFormIds.AppleBundleId], [LocalFormIds.ProductId], LocalFormIds.AppleAcceptsSandbox, null!),
         new PlayRules(LocalFormIds.PlayPackage, [LocalFormIds.ProductId], LocalFormIds.PlayPublicKey), 31, GoogleSecret,
         AppleServicesId: LocalFormIds.AppleServicesId, AppleReturnUrl: LocalFormIds.AppleReturnUrl, AppId: AppId);
     // 1.49: the app id of the QR's join link (https://login-billing.kitepon.dev/join/dev.kitepon.bellbot#lbq4:...), so the phone's own camera opens BellTeam (Apple applinks, Android App Link).

@@ -122,6 +122,9 @@ public sealed class LocalFormTests
 
     // Contract 1.49 (Mint, Tronie 2026-11-24): the QR is the library's join link of BellTeam's app id, and the library's guidance stands word for word beside it.
     [Fact]
+    public void ATestPurchaseOnThePayingPhoneIsTaken() => Assert.True(LocalFormConfig.Build().Apple!.Sandbox);
+
+    [Fact]
     public void TheAppIdIsBellTeamsAndTheGuidanceStandsBesideTheQr() => RunSta(() =>
     {
         Assert.Equal("dev.kitepon.bellbot", LocalFormConfig.Build().AppId);
