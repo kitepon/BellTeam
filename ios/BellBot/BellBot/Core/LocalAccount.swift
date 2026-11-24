@@ -201,13 +201,13 @@ final class LocalAccount: ObservableObject {
         case "unreachable_same_wifi": return "スマホとこの端末を、同じWi-Fiにつないでください。"
         case "local_network_denied": return "設定でこのアプリのローカルネットワークを許可してから、新しいQRでお試しください。"
         case "qr_invalid": return "QRが正しくありません。相手の画面で新しいQRを出してください。"
-        // 0.21.1: two devices on different versions end here, so the text sends the person to update both (Mint, 2026-11-24).
-        case "request_invalid", "other_request": return "QRが正しくないか、相手の端末のBellTeamが古い可能性があります。両方の端末のBellTeamを最新版に更新してから、新しいQRを出してください。"
+        // 0.21.1: two devices on different versions end here, so the text sends the person to update both devices (Mint; the sentence is Neon's shared Core text, Tronie 2026-11-24).
+        case "request_invalid", "other_request": return "QRが正しくないか、相手の端末のBellTeamが古い可能性があります。2台とも最新版に更新してから、相手の画面で新しいQRを出してください。"
         case "other_account": return "別のアカウントです。相手の端末と同じアカウントでサインインしてください。"
         case "request_expired", "request_gone": return "QRの待ち時間（10分）が過ぎました。新しいQRを出してください。"
         case "device_refused": return "相手が返事を受け取りませんでした。相手の画面で新しいQRを出してください。"
         case "connection_closed": return "相手との接続が途中で切れました。新しいQRでもう一度お試しください。"
-        case "signin_required": return "Appleでサインインしてから、もう一度QRを読み取ってください。"
+        case "signin_required": return "サインインしてから、もう一度お試しください。"
         case "signin_failed": return "サインインできませんでした。もう一度お試しください。"
         case "ended": return "購読の期間が終わっています。新しいQRを出してください。"
         case "not_paid", "revoked", "proof_invalid", "not_this_app", "product_unknown", "sandbox_refused": return "購入を確かめられませんでした（\(code)）。"
