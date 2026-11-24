@@ -21,8 +21,9 @@ internal sealed class FirstScreenView : StackPanel
         Children.Clear();
         if (account.Request is { } request) { Approval(request.Qr, request.ExpiresAt); return; }
         var hero = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 20, 0, 22) };
-        var portrait = new Border { Width = 88, Height = 88, CornerRadius = new CornerRadius(22), Background = Violet, HorizontalAlignment = HorizontalAlignment.Center, Child = new TextBlock { Text = "\uE8F2", FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"), FontSize = 40, Foreground = System.Windows.Media.Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } };
-        hero.Children.Add(portrait);
+        // The BellTeam app icon, the same image as Apple's, with rounded corners.
+        var icon = new Image { Source = EmbeddedAsset.Icon(176), Width = 88, Height = 88, Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Center, SnapsToDevicePixels = true };
+        RoundClip.Apply(icon, 20); System.Windows.Automation.AutomationProperties.SetAutomationId(icon, "first-screen-icon"); hero.Children.Add(icon);
         var name = Text(LocalFormText.AppName, 34, Ink, FontWeights.Bold, new Thickness(0, 14, 0, 0)); name.HorizontalAlignment = HorizontalAlignment.Center; hero.Children.Add(name);
         var purpose = Text(LocalFormText.Purpose, 16, Muted, null, new Thickness(0, 6, 0, 0)); purpose.HorizontalAlignment = HorizontalAlignment.Center; purpose.TextAlignment = TextAlignment.Center; hero.Children.Add(purpose);
         Children.Add(hero);
@@ -57,7 +58,7 @@ internal sealed class FirstScreenView : StackPanel
         var cancel = Button(LocalFormText.Cancel, Fill, Ink, account.CancelBrowser, "first-screen-cancel"); cancel.HorizontalAlignment = HorizontalAlignment.Center; Children.Add(cancel);
     }
 
-    private static Button Button(string label, Brush background, Brush foreground, Action click, string id, bool bordered = false)
+    internal static Button Button(string label, Brush background, Brush foreground, Action click, string id, bool bordered = false)
     {
         var button = Capsule(label, background, foreground, 14, 15, new Thickness(18, 13, 18, 13));
         button.FontWeight = FontWeights.SemiBold; button.HorizontalAlignment = HorizontalAlignment.Stretch; button.Margin = new Thickness(0, 14, 0, 0);

@@ -69,6 +69,9 @@ internal sealed class ApprovalsPage : Grid
     private string? linkState;   // the 工程表との連携 connection (GET /api/approvals/connection): connected / not_connected, null = not read yet or not readable
     private bool linkOpen;       // the 工程表との連携 panel replaces the columns
     private IApprovalSource? Device => hub.Device;
+    private IChildJoin? Join => hub.Join;
+    private bool NotJoined => Join is { Phase: not ChildJoinPhase.Joined };   // child-join.md: the window shows the join screen until the child is joined
+    private string? leaveStep;                                                 // 「つなぎを外す」: null, "confirm" (外す / やめる), "busy"
     private IReadOnlyList<ViewDecision> DeviceViews => hub.DeviceViews;
     private bool DeviceLive => Device?.State.Status == RuntimeStatus.Live;
     private bool DeviceUsable => Device is { } d && (d.State.Status == RuntimeStatus.Live || d.Decisions.Count > 0);
@@ -320,13 +323,13 @@ internal sealed class ApprovalsPage : Grid
         var state = Device?.State.Status;
         pill.Visibility = Running && state == RuntimeStatus.Retrying ? Visibility.Visible : Visibility.Collapsed; pillText.Text = Approvals.Reconnect;
         var root = new Grid(); root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); root.RowDefinitions.Add(new RowDefinition());
-        root.Children.Add(Toolbar(Device is not null));
+        root.Children.Add(Toolbar(Device is not null && !NotJoined));
         var notes = new StackPanel();
         if (bannerText is not null && bannerId == SelectedId && SelectedId is not null) notes.Children.Add(Banner(bannerText));
-        if (DeviceStrip() is { } strip) notes.Children.Add(strip);
+        if (!NotJoined && DeviceStrip() is { } strip) notes.Children.Add(strip);
         if (notes.Children.Count > 0) { SetRow(notes, 1); root.Children.Add(notes); }
         // The list is the device's book; the device's own states (sign-in, approval, reconnect) are the note above it (DeviceStrip). No device on this PC: the plain state, no failure and no retry.
-        FrameworkElement main = linkOpen ? LinkPanel() : Device is null ? NotUsable() : Columns(state == RuntimeStatus.Retrying && !DeviceLive);
+        FrameworkElement main = NotJoined ? Scroll(new ChildJoinView(Join!), new Thickness(0)) : linkOpen ? LinkPanel() : Device is null ? NotUsable() : Columns(state == RuntimeStatus.Retrying && !DeviceLive);
         SetRow(main, 2); root.Children.Add(main);
         body.Children.Clear(); body.Children.Add(root);
         if (keep is not null) Dispatcher.BeginInvoke(() => Focus(root, keep), System.Windows.Threading.DispatcherPriority.Input);
@@ -427,7 +430,19 @@ internal sealed class ApprovalsPage : Grid
             var border = new Border { Child = Row(new QrView(handoff.Qr, 150), info), CornerRadius = new CornerRadius(14), Padding = new Thickness(16), Margin = new Thickness(18, 0, 18, 8), Background = Brush(Muted, 0x14), BorderBrush = Brush(Muted, 0x44), BorderThickness = new Thickness(1) };
             System.Windows.Automation.AutomationProperties.SetAutomationId(border, "approvals-device-handoff"); panel.Children.Add(border);
         }
-        if (Device is { } device)
+        // Joined (child-join.md): the component's own states; a credential that is gone moves the join itself to NotJoined, so the sign-in lines below are not drawn.
+        if (Join is not null)
+        {
+            if (Join.UpdateRequired) Line(ChildJoinText.UpdateRequired, ChildJoinText.Retry, () => Device?.Refresh());
+            else if (Device is { } joined)
+                switch (joined.State.Status)
+                {
+                    case RuntimeStatus.Connecting: Line(ChildJoinText.Joining); break;
+                    case RuntimeStatus.Retrying: Line(ChildJoinText.Reconnecting, ChildJoinText.Retry, joined.Refresh); break;
+                    case RuntimeStatus.NotEntitled: Line(ChildJoinText.NotEntitled, ChildJoinText.Recheck, joined.Refresh); break;
+                }
+        }
+        else if (Device is { } device)
             switch (device.State.Status)
             {
                 case RuntimeStatus.Connecting: Line(Approvals.DeviceJoining); break;
@@ -475,9 +490,32 @@ internal sealed class ApprovalsPage : Grid
         }
         if (phase != "opening" && drop is not { Step: "busy" }) acts.Children.Add(Act("戻る", () => { linkOpen = false; drop = null; connect = new("idle"); Paint(); }, key: "connect:back"));
         stack.Children.Add(acts);
+        if (Join is { Phase: ChildJoinPhase.Joined } joined) stack.Children.Add(JoinBlock(joined));
         if (seatLink is { } seat) stack.Children.Add(SeatLinkSection(seat));
         if (connect.Note.Length > 0) { var note = Text(connect.Note, 13, Red, FontWeights.SemiBold, TextWrapping.Wrap); note.Margin = new Thickness(0, 12, 0, 0); note.TextAlignment = TextAlignment.Center; System.Windows.Automation.AutomationProperties.SetAutomationId(note, "approvals-connect-note"); stack.Children.Add(note); }
         return Scroll(stack, new Thickness(0));   // the seat-link view (QR, code, steps, expiry) makes the panel tall: it scrolls
+    }
+
+    // This device's join state (child-join.md): 「決裁箱につながっています」 and the two-step 「つなぎを外す」 (外す / やめる). Leaving removes this device from the account and never touches BellTeam's own sign-in.
+    private FrameworkElement JoinBlock(IChildJoin join)
+    {
+        var block = new StackPanel { Margin = new Thickness(0, 30, 0, 0), HorizontalAlignment = HorizontalAlignment.Center, MaxWidth = 480 };
+        block.Children.Add(new Border { Height = 1, Background = Brush(Muted, 0x33), Margin = new Thickness(0, 0, 0, 20) });
+        var line = Text(ChildJoinText.Joined, 16, Ink, FontWeights.Bold); line.TextAlignment = TextAlignment.Center; System.Windows.Automation.AutomationProperties.SetAutomationId(line, "child-join-joined"); block.Children.Add(line);
+        var acts = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 14, 0, 0) };
+        if (leaveStep == "busy") { var spin = Spinner(16); spin.HorizontalAlignment = HorizontalAlignment.Center; acts.Children.Add(spin); }
+        else if (leaveStep == "confirm")
+        {
+            var yes = Action(ChildJoinText.LeaveYes, "", true); yes.Click += (_, _) => _ = LeaveAsync(join); acts.Children.Add(Key(yes, "child-leave-yes"));
+            var no = Action(ChildJoinText.LeaveNo, ""); no.Margin = new Thickness(8, 0, 0, 0); no.Click += (_, _) => { leaveStep = null; Paint(); }; acts.Children.Add(Key(no, "child-leave-no"));
+        }
+        else { var leave = Action(ChildJoinText.Leave, ""); System.Windows.Automation.AutomationProperties.SetName(leave, "決裁箱への" + ChildJoinText.Leave); leave.Click += (_, _) => { leaveStep = "confirm"; Paint("child-leave-no"); }; acts.Children.Add(Key(leave, "child-leave")); }
+        block.Children.Add(acts); return block;
+    }
+    private async Task LeaveAsync(IChildJoin join)
+    {
+        leaveStep = "busy"; Paint();
+        try { await join.LeaveAsync(); } finally { leaveStep = null; if (Running) Paint(); }
     }
 
     private FrameworkElement SeatLinkSection(SeatLink seat)

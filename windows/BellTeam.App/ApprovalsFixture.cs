@@ -62,6 +62,25 @@ internal sealed class ApprovalsFixture(string scene) : HttpMessageHandler
         HttpResponseMessage Connect() { connection = "waiting"; return Json(new JsonObject { ["authorizationUrl"] = "https://approval.example/consent?code=abc", ["expiresAt"] = DateTimeOffset.UtcNow.AddMinutes(10).ToString("O") }); }
     }
 
+    /// <summary>The stand-in child join (the component's joinState and calls): a test or a render scene sets the state and calls Raise; the calls are recorded, nothing is stored.</summary>
+    internal sealed class Join : IChildJoin
+    {
+        public ChildJoinPhase Phase { get; set; } = ChildJoinPhase.NotJoined;
+        public bool SigningIn { get; set; }
+        public string? QrLink { get; set; }
+        public DateTimeOffset? ExpiresAt { get; set; }
+        public string? FailedCode { get; set; }
+        public bool Removed { get; set; }
+        public bool UpdateRequired { get; set; }
+        public event Action? Changed;
+        public List<string?> Joins { get; } = [];
+        public int Cancels, Leaves;
+        public void Raise() => Changed?.Invoke();
+        public Task JoinAsync(string? provider) { Joins.Add(provider); SigningIn = provider is not null && Phase != ChildJoinPhase.Failed; Raise(); return Task.CompletedTask; }
+        public void CancelJoin() { Cancels++; SigningIn = false; Phase = ChildJoinPhase.NotJoined; Raise(); }
+        public Task LeaveAsync() { Leaves++; Phase = ChildJoinPhase.NotJoined; Removed = false; Raise(); return Task.CompletedTask; }
+    }
+
     /// <summary>The stand-in device session: a book the scene fills (K-1 to K-5 open, K-6 answered, K-7 withdrawn) and an answer sink that closes the decision in the book like the connector's result frame.</summary>
     internal sealed class Demo : IApprovalSource
     {

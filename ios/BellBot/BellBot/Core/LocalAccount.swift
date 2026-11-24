@@ -29,6 +29,8 @@ final class LocalAccount: ObservableObject {
     private var updates: Task<Void, Never>?
     private static let log = Logger(subsystem: "app.bellteam.bellbot", category: "billing")
     let productId: String
+    /// 「サインアウト」で立てる。立っている間は、この端末のStoreの購入を読まない（購入そのものは消えない）。購読する・購入を復元・スマホの返事で下ろす。
+    static let signedOutKey = "bellbot.localSignedOut"
 
     /// このアプリのGoogleクライアントID（Info.plistの`BellTeamGoogleClientID`）。無ければGoogleは出さない。
     static var googleClientId: String? {
@@ -90,7 +92,7 @@ final class LocalAccount: ObservableObject {
     func start() async {
         let now = Date()
         var found: Paid?
-        let own = await form.ownPurchases()
+        let own = UserDefaults.standard.bool(forKey: Self.signedOutKey) ? [] : await form.ownPurchases()
         for purchase in own {
             do {
                 let proof = try verifyAppleTransaction(purchase.jws, rules: rules.apple, now: now)
@@ -112,7 +114,7 @@ final class LocalAccount: ObservableObject {
     func purchase() async {
         await run {
             switch try await self.form.purchaseLocal(self.productId) {
-            case .purchased: self.message = "購読が有効になりました。"
+            case .purchased: UserDefaults.standard.removeObject(forKey: Self.signedOutKey); self.message = "購読が有効になりました。"
             case .cancelled: break
             case .pending: self.message = "Appleで購入の承認を待っています。"
             }
@@ -123,6 +125,7 @@ final class LocalAccount: ObservableObject {
     func restore() async {
         await run {
             try await StoreKit.AppStore.sync()
+            UserDefaults.standard.removeObject(forKey: Self.signedOutKey)
             await self.start()
             self.message = self.hasLiveContract ? "購読を確認しました。" : "このApple Accountに有効な購読はありません。"
         }
@@ -140,6 +143,7 @@ final class LocalAccount: ObservableObject {
             request = Request(qr: made.qr, expiresAt: made.expiresAt)
             busy = false
             let reply = try await made.awaitPaid()
+            if reply != nil { UserDefaults.standard.removeObject(forKey: Self.signedOutKey) }
             message = reply == nil ? "その端末には購読がありません。購読している端末で読み取ってください。" : "購読を確認しました。"
         } catch { errorText = Self.words(error) }
         open = nil
@@ -151,9 +155,9 @@ final class LocalAccount: ObservableObject {
     func cancelRequest() { open?.close() }
 
     /// 払っている端末: 相手のQRを読んで、確認のあと、このStoreの購入の証明を返す。
-    /// 端末のカメラがQRのリンク（https://login-billing.kitepon.dev/join/dev.kitepon.bellbot#…）でこのアプリを開いた時。リンクはそのままライブラリのanswerへ渡す（0.22.0の契約1.49 11.12）。
+    /// 端末のカメラがQRのリンク（https://login-billing.kitepon.dev/join/dev.kitepon.bellbot#…）でこのアプリを開いた時。開かれた文字列はまずライブラリのisLibraryQRに渡し、trueの時だけそのままanswerへ渡す。アプリ側でQRやリンクの形を見分けない（契約1.53 11.12）。
     func open(link url: URL) async {
-        guard url.host == "login-billing.kitepon.dev", url.path.hasPrefix("/join/") else { return }
+        guard isLibraryQR(url.absoluteString) else { return }
         await approve(url.absoluteString)
     }
 
@@ -180,6 +184,15 @@ final class LocalAccount: ObservableObject {
         approval = nil
         decision?.resume(returning: allow)
         decision = nil
+    }
+
+    /// 「サインアウト」: この端末のサインイン（受け取った返事）を終えて、最初の画面へ戻る。Storeの購入は消さない。QRの待ちがあれば閉じる。
+    func signOut() async {
+        cancelRequest()
+        await run {
+            try await self.form.signOutLocal()
+            UserDefaults.standard.set(true, forKey: Self.signedOutKey)
+        }
     }
 
     /// 「アカウントを削除」の1段目: この端末のサインインと、受け取った返事を消す。Storeの購入は消えない。失敗は握りつぶさず投げる。

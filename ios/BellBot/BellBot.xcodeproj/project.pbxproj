@@ -73,6 +73,7 @@
 		3958583313FE3D055F09FC22 /* ApprovalBoxLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B50F1ABC10F99B3ECE4BD42 /* ApprovalBoxLink.swift */; };
 		3A8887F32417ECBC087F9390 /* ServerOrigin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 549845AE12463CD143CDEEB8 /* ServerOrigin.swift */; };
 		3AE91015609ECFC45B7F24D4 /* BotPresenceDot.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1AE6C1D856D10729E4D5448 /* BotPresenceDot.swift */; };
+		3C0366BDDAA41943B3798CA9 /* ChildJoin.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6596D0BA14492F0ED774086 /* ChildJoin.swift */; };
 		3C8DBF8CA7C28A4E05E37065 /* PeerDeviceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4012D6AA3D96484D24BE2678 /* PeerDeviceStore.swift */; };
 		3CA85150E6BD8BE8189F7AB0 /* CommunicationNotification.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0FF407A73C66DA6E4E20B8 /* CommunicationNotification.swift */; };
 		3D10E2E685D5F7AECA308B28 /* MachineEventTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21273DCBB039D2A2650ACE23 /* MachineEventTests.swift */; };
@@ -146,6 +147,7 @@
 		999E7A3BE9E56D258E64224E /* MemberDeletionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F14724DCBA3365032470B8BF /* MemberDeletionTests.swift */; };
 		9C4A3C81496F5B940BAA6811 /* ForwardSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EFD37AE7C405B4689B50CAE /* ForwardSheet.swift */; };
 		9D45B473BFB06E7C27BF452D /* BearerRedirectGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 887647AEA4453FDB025FBE81 /* BearerRedirectGuard.swift */; };
+		9F9EAFA0C3D978C3755C8035 /* ChildJoinTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C693C958B8FFBBA40CEFC2EE /* ChildJoinTests.swift */; };
 		A0A459458B879425F7033290 /* AvatarImageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3AB6A1FD4893701341E2055 /* AvatarImageTests.swift */; };
 		A13B98D604ACC4745C9C02AD /* SecretRequestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A705FBAB6CC825EC30D4D015 /* SecretRequestView.swift */; };
 		A1D52684ED7706BBBF0599FD /* LatticeChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C73BE39705A7CEA2EA39465 /* LatticeChartView.swift */; };
@@ -451,6 +453,8 @@
 		C4AF8080EA273CDB10D9D3F3 /* BotStopUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotStopUITests.swift; sourceTree = "<group>"; };
 		C575D107F7787F699274D3E1 /* UserRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserRules.swift; sourceTree = "<group>"; };
 		C6541CB30BEDC47A2F0317DA /* ServerSetupUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerSetupUITests.swift; sourceTree = "<group>"; };
+		C6596D0BA14492F0ED774086 /* ChildJoin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChildJoin.swift; sourceTree = "<group>"; };
+		C693C958B8FFBBA40CEFC2EE /* ChildJoinTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChildJoinTests.swift; sourceTree = "<group>"; };
 		C891FA7AF2CB7B9EA62A7815 /* ConversationList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationList.swift; sourceTree = "<group>"; };
 		C89DE09C565167FBCD28C4A5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		C9E67A016DC4094A638EB362 /* BackgroundMessageSend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundMessageSend.swift; sourceTree = "<group>"; };
@@ -575,6 +579,7 @@
 				254EE50E23553FA4436C995B /* BotSaveTests.swift */,
 				19964D1F37185563CBBACBFB /* BotStopTests.swift */,
 				1059C273C08DFFD40999AB9A /* BotTerminalTextViewTests.swift */,
+				C693C958B8FFBBA40CEFC2EE /* ChildJoinTests.swift */,
 				E84D909378D259B30ED5A9AE /* CommunicationNotificationTests.swift */,
 				FCA2FFA3D879C25501EC4AC0 /* ConversationAppearanceTests.swift */,
 				2F48C4A7EAAA1CFDBE5B1F39 /* ConversationDraftTests.swift */,
@@ -726,6 +731,7 @@
 				1B50F1ABC10F99B3ECE4BD42 /* ApprovalBoxLink.swift */,
 				02BC51ABE52183BBEC18A8D5 /* ApprovalBoxServer.swift */,
 				CA48855D888D20BD5226966F /* ApprovalLinks.swift */,
+				C6596D0BA14492F0ED774086 /* ChildJoin.swift */,
 				A605C887D02BB877D614167B /* PeerDecisionRecord.swift */,
 				97195E70D40EFA1826B27A39 /* PeerDevice.swift */,
 				4012D6AA3D96484D24BE2678 /* PeerDeviceStore.swift */,
@@ -1219,6 +1225,7 @@
 				E2F4CBC5D736E3B577BC6BB3 /* CLIInstall.swift in Sources */,
 				8DC6DEEA87BD6E4A7C4EA981 /* CLIInstallSection.swift in Sources */,
 				AABB494096042BBD89393792 /* CharacterSheets.swift in Sources */,
+				3C0366BDDAA41943B3798CA9 /* ChildJoin.swift in Sources */,
 				3CA85150E6BD8BE8189F7AB0 /* CommunicationNotification.swift in Sources */,
 				A45B8D3EAE0E36A000548D59 /* ConversationDetailView.swift in Sources */,
 				D9E1CCD5CB66B80DC67DF166 /* ConversationDocument.swift in Sources */,
@@ -1327,6 +1334,7 @@
 				4EA35592F0FF935859D2718E /* BotSaveTests.swift in Sources */,
 				A9A3678F294FEF42E8AD810C /* BotStopTests.swift in Sources */,
 				C44EFE3CB2B841A23DC06E6D /* BotTerminalTextViewTests.swift in Sources */,
+				9F9EAFA0C3D978C3755C8035 /* ChildJoinTests.swift in Sources */,
 				7EDA8878BC6C2253AD736426 /* CommunicationNotificationTests.swift in Sources */,
 				DEFD24E9AA5B34A031FA59A3 /* ConversationAppearanceTests.swift in Sources */,
 				EDDE752CCF33981F828EE435 /* ConversationDraftTests.swift in Sources */,
@@ -1843,7 +1851,7 @@
 			repositoryURL = "https://github.com/kitepon/login-billing.git";
 			requirement = {
 				kind = exactVersion;
-				version = 0.22.2;
+				version = 0.22.4;
 			};
 		};
 		506414939EE51762B89F847C /* XCRemoteSwiftPackageReference "peer-channel" */ = {

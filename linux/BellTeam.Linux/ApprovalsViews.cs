@@ -50,9 +50,9 @@ internal sealed partial class ApprovalsWindow
     private void Render()
     {
         // A phone's detail view gives the whole page to the detail: no tabs and counters above it.
-        toolbarHost.Content = Device is null || Compact && Selected is not null && !linkOpen ? null : Toolbar();
+        toolbarHost.Content = Device is null || JoinScreenOpen || Compact && Selected is not null && !linkOpen ? null : Toolbar();
         // The list is the device's book; the device's own states (sign-in, approval, reconnect) are the note above it (DeviceStrip). No device on this machine: the plain state, no failure and no retry.
-        body.Content = Strip(linkOpen ? LinkPanel() : Device is null ? NotUsable() : Columns());
+        body.Content = JoinScreenOpen ? JoinScreen(Join!) : Strip(linkOpen ? LinkPanel() : Device is null ? NotUsable() : Columns());
     }
     private Control NotUsable() => Gate(Globe, NotAvailable, [("閉じる", false, Close)]);
 
@@ -93,6 +93,7 @@ internal sealed partial class ApprovalsWindow
                 Add("戻る", false, () => { linkOpen = false; Render(); }); break;
         }
         stack.Children.Add(buttons);
+        if (JoinedBlock() is { } joined) stack.Children.Add(joined);   // this device's join state, then (when it is on main) 「AIの許可待ちを決裁箱へ送る」
         if (SeatLinkSection() is { } seat) stack.Children.Add(seat);
         var card = Glass(stack, 22, new Thickness(26, 24)); card.MaxWidth = 520; card.HorizontalAlignment = HorizontalAlignment.Center; card.VerticalAlignment = VerticalAlignment.Center;
         return card;

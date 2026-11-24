@@ -12,6 +12,8 @@
     <Resource Include="../../ios/BellBot/BellBot/Assets.xcassets/AppIcon.appiconset/bellbot-icon.png" Link="Assets/BellTeam.png" />
     <!-- The Mac app bundles the same three files for its server setup screen. -->
     <EmbeddedResource Include="../../ios/BellBot/BellBot/Assets.xcassets/BellPortrait.imageset/bell-portrait.png" LogicalName="BellPortrait.png" />
+    <!-- The BellTeam app icon (the same image as Apple) on the first screen. -->
+    <EmbeddedResource Include="../../ios/BellBot/BellBot/Assets.xcassets/AppIcon.appiconset/bellbot-icon.png" LogicalName="BellTeamIcon.png" />
     <EmbeddedResource Include="../../docs/server-installation.md" LogicalName="server-installation.md" />
     <EmbeddedResource Include="../../services/subscriptions/product.json" LogicalName="product.json" />
     <InternalsVisibleTo Include="BellTeam.Tests" />
@@ -24,7 +26,7 @@
     <ProjectReference Include="../BellTeam.Core/BellTeam.Core.csproj" />
     <ProjectReference Include="../BellTeam.PeerChannel/BellTeam.PeerChannel.csproj" />
     <PackageReference Include="Markdig" Version="1.4.0" />
-    <PackageReference Include="Kitepon.LoginBilling.Desktop" Version="0.22.2" />
+    <PackageReference Include="Kitepon.LoginBilling.Desktop" Version="0.22.4" />
     <PackageReference Include="QRCoder" Version="1.8.1" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
   </ItemGroup>

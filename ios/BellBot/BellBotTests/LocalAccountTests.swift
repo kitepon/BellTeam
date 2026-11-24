@@ -27,13 +27,17 @@ final class LocalAccountTests: XCTestCase {
         XCTAssertTrue(account.hasLiveContract)
     }
 
-    func testOnlyTheLibrarysJoinLinkOpensTheAnswer() async {
+    func testOnlyWhatIsLibraryQRReachesTheAnswer() async {
         let account = LocalAccount(productId: "p")
         await account.open(link: URL(string: "https://example.com/join/dev.kitepon.bellbot#x")!)
         await account.open(link: URL(string: "https://login-billing.kitepon.dev/other")!)
-        XCTAssertNil(account.message); XCTAssertNil(account.errorText)
         await account.open(link: URL(string: "https://login-billing.kitepon.dev/join/dev.kitepon.bellbot#bad")!)
-        XCTAssertNotNil(account.errorText)
+        XCTAssertNil(account.message); XCTAssertNil(account.errorText)
+    }
+
+    // The sign-out itself needs the Keychain, which the unsigned test host does not have; the screen's word is the contract's (same as Windows, Linux, Android).
+    func testTheSignOutWordIsTheOtherClientsWord() {
+        XCTAssertEqual(AccountDeletionWords.signOut, "サインアウト")
     }
 
     func testTheGuidanceIsBellTeamsOwnWordForWord() {
