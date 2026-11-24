@@ -10,6 +10,8 @@ final class LocalAccountTests: XCTestCase {
         XCTAssertTrue(LocalAccount.words(LoginBillingError(code: "local_network_denied")).contains("ローカルネットワークを許可"))
         XCTAssertTrue(LocalAccount.words(LoginBillingError(code: "other_account")).contains("同じアカウント"))
         XCTAssertTrue(LocalAccount.words(LoginBillingError(code: "request_expired")).contains("新しいQR"))
+        XCTAssertTrue(LocalAccount.words(LoginBillingError(code: "signin_required")).contains("サインイン"))
+        XCTAssertTrue(LocalAccount.words(LoginBillingError(code: "signin_failed")).contains("サインインできませんでした"))
         XCTAssertEqual(LocalAccount.words(LoginBillingError(code: "zzz")), "処理できませんでした（zzz）。")
     }
 

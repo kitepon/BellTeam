@@ -25,7 +25,7 @@ packages:
     revision: 9f7204661671717ef90c701a23c8cba9ed54c613
   LoginBilling:
     url: https://github.com/kitepon/login-billing.git
-    exactVersion: 0.20.3
+    exactVersion: 0.21.1
   PeerChannel:
     url: https://github.com/kitepon/peer-channel.git
     revision: 0886f976a1e4e3417392dc820b1718c34a51a5c3

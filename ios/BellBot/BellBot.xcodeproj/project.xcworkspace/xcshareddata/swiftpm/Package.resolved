@@ -22,8 +22,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/kitepon/login-billing.git",
       "state" : {
-        "revision" : "72006c7c75140734887230f8e094f1b2485c8743",
-        "version" : "0.20.4"
+        "revision" : "2cf4037711ee93214888362ab8112feb92f82fdc",
+        "version" : "0.21.1"
       }
     },
     {
