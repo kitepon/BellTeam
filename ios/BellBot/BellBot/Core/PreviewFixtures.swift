@@ -80,6 +80,12 @@ extension AppStore {
         if arguments.contains("-bellbot-preview-settings") { try! prepareSettingsPreview() }
         // 相関図を直接開く（iPhone/iPadはタブ、Macは窓をDesktopWorkspaceViewが開く）。
         if arguments.contains("-bellbot-preview-work-graph") { selectedTab = 4 }
+        // `-bellbot-preview-seat-approval [tui]`: a seat waiting on a tool approval (the list badge and the card on ユキ's screen); `tui` = no command text.
+        if let index = arguments.firstIndex(of: "-bellbot-preview-seat-approval") {
+            let tui = arguments.indices.contains(index + 1) && arguments[index + 1] == "tui"
+            seatApprovals.setPreview(tui: tui)
+            if arguments.contains("-bellbot-preview-open-chat") { chatPath = [.bot("bot-one")] }
+        }
         if arguments.contains("-bellbot-preview-connection-error") {
             connectionError = "更新へ接続できません。再接続しています。"
         }

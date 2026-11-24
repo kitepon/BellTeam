@@ -166,7 +166,7 @@ struct HomeView: View {
                 LazyVStack(spacing: 10) {
                     ForEach(bots) { bot in
                         NavigationLink(value: ChatTarget.bot(bot.id)) {
-                            BotRow(bot: bot, working: bot.isWorking)
+                            BotRow(bot: bot, working: bot.isWorking, approvalPending: store.seatApprovalBots.contains(bot.id))
                         }
                         .buttonStyle(.plain)
                         .botPinMenu(bot)
@@ -258,6 +258,7 @@ private struct BotPinMenu: ViewModifier {
 struct BotRow: View {
     let bot: Bot
     let working: Bool
+    var approvalPending = false
 
     static let avatarSize: CGFloat = 57
     static let horizontalPadding: CGFloat = 11
@@ -280,6 +281,7 @@ struct BotRow: View {
                         .lineLimit(1)
                     if bot.fastMode { BotFastModeBadge() }
                     if bot.isPinned { PinMark() }
+                    if approvalPending { SeatApprovalBadge() }
                     Spacer(minLength: 4)
                     Text(BellDate.short(bot.recent?.at))
                         .font(.system(size: 12))

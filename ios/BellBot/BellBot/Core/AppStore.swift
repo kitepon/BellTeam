@@ -144,6 +144,9 @@ final class AppStore: ObservableObject {
     @Published var latticeOpenCard: String?
     /// 決裁箱 (the Approval Box extension): one read path for the entry's count and the screen.
     let approvals = ApprovalsModel()
+    /// 席の許可待ち (docs/architecture/modules/apple/seat-approvals.md). Rows read `seatApprovalBots`; the card reads the model.
+    let seatApprovals = SeatApprovalsModel()
+    @Published private(set) var seatApprovalBots: Set<String> = []
     /// iPhone: the 決裁箱 screen is pushed from 会話's list. iPad/Mac containers watch `approvalsRequest`.
     @Published var approvalsScreenOpen = false
     @Published private(set) var approvalsRequest = 0
@@ -166,7 +169,7 @@ final class AppStore: ObservableObject {
     private var eventRefreshTask: Task<Void, Never>?
     private var eventRefreshResources: Set<EventResource> = []
     /// 一覧以外の読み直し。イベントの受信を止めないよう、受信とは別の1本にまとめる。
-    enum SideRefresh: Hashable { case updates, settings, setup, aiControl }
+    enum SideRefresh: Hashable { case updates, settings, setup, aiControl, seatApprovals }
     private var sideRefreshTask: Task<Void, Never>?
     private var sideRefreshPending: Set<SideRefresh> = []
     private var foregroundTask: Task<Void, Never>?
@@ -213,6 +216,7 @@ final class AppStore: ObservableObject {
         self.webDataStore = webDataStore
         billing = suppliedBilling ?? BillingStore(api: api, account: localAccount)
         updates = UpdateStore(api: api)
+        seatApprovals.$items.map { Set($0.map(\.botId)) }.removeDuplicates().assign(to: &$seatApprovalBots)
         billing.onSetupRequired = { [weak self] in
             guard let self else { return }
             try await self.refreshSetup()
@@ -256,6 +260,7 @@ final class AppStore: ObservableObject {
             pendingBotDeletionIDs.removeAll()
             resetAIControl()
             updates.reset()
+            seatApprovals.reset()
         }
         // トークンはその接続先のものだけ。別の接続先へは持ち越さない。
         if serverURL != url { api.sessionToken = nil; sessionID = nil; loginProbe = nil; serverLogin = nil; homeProbe = nil }
@@ -863,7 +868,7 @@ final class AppStore: ObservableObject {
                             if self.usesServerSessions { await self.serverSessions.refresh() }
                             self.eventRevision += 1
                             self.requestRefreshFromEvent()
-                            self.requestSideRefresh([.updates])
+                            self.requestSideRefresh([.updates, .seatApprovals])
                         case "login.requested", "session.created", "session.ended": await self.serverSessions.refresh()
                         case "updates": self.requestSideRefresh([.updates])
                         case "settings": self.requestSideRefresh([.settings])
@@ -931,7 +936,7 @@ final class AppStore: ObservableObject {
         if topics.contains(.schedules) {
             scheduleChanges.send(Set(botIDs.map(ChatTarget.bot) + roomIDs.map(ChatTarget.room)))
         }
-        let side: [(BellEventTopic, SideRefresh)] = [(.settings, .settings), (.setup, .setup), (.aiControl, .aiControl), (.updates, .updates)]
+        let side: [(BellEventTopic, SideRefresh)] = [(.settings, .settings), (.setup, .setup), (.aiControl, .aiControl), (.updates, .updates), (.seatApprovals, .seatApprovals)]
         requestSideRefresh(Set(side.filter { topics.contains($0.0) }.map(\.1)))
         var resources: Set<EventResource> = []
         if !topics.isDisjoint(with: [.timeline, .requests, .questions]) {
@@ -970,6 +975,11 @@ final class AppStore: ObservableObject {
                 sideRefreshPending.removeAll()
                 if kinds.contains(.updates) { await updates.refresh() }
                 if kinds.contains(.aiControl) { await refreshAIControl() }
+                if kinds.contains(.seatApprovals) {
+                    do { try await seatApprovals.refresh(api: api) }
+                    catch let error where BellAPIError.isAuthenticationError(error) { requireLogin(for: error); return }
+                    catch { api.diagnostics.report(error, path: "/api/seat-approvals", method: "GET", observation: .read(error, retainedData: true)) }
+                }
                 for (kind, path) in [(SideRefresh.settings, "/api/settings"), (.setup, "/api/setup")] where kinds.contains(kind) {
                     do { if kind == .settings { try await refreshSettings() } else { try await refreshSetup() } }
                     catch let error where BellAPIError.isAuthenticationError(error) { requireLogin(for: error); return }
@@ -1066,6 +1076,7 @@ final class AppStore: ObservableObject {
         terminals = TerminalDirectory()
         resetAIControl()
         updates.reset()
+        seatApprovals.reset()
         updatePresented = false
         notificationSecret = nil
         pendingNotification = nil
