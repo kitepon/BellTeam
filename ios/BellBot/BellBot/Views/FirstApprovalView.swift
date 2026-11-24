@@ -56,7 +56,8 @@ struct FirstApprovalView: View {
         /// Before sign-in: the app, what it is for, the Owner's first-sign-in text, the sign-in buttons (Core wording, shared with every client). One tap signs in and shows the QR, so the sign-in sheet comes once.
         @ViewBuilder private var signIn: some View {
             VStack(spacing: 8) {
-                SettingsIconTile(symbol: "bubble.left.and.bubble.right", tint: BellTheme.violet, side: 88)
+                Image("BellAppIcon").resizable().scaledToFit().frame(width: 88, height: 88)
+                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous)).accessibilityHidden(true)
                 Text("BellTeam").font(.system(size: 34, weight: .bold, design: .rounded)).foregroundStyle(BellTheme.ink)
                     .accessibilityIdentifier("first-screen-title")
                 Text(FirstScreenWords.purpose).font(.subheadline).foregroundStyle(BellTheme.muted)
