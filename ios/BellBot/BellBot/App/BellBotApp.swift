@@ -236,6 +236,7 @@ private struct RootView: View {
                 ConnectionFailureView(detail: message)
             }
         }
+        .modifier(LocalLinkHost(account: store.localAccount))
         .sheet(isPresented: $store.updatePresented) { UpdateView(updates: store.updates).bellEditorSheet() }
         .alert(AccountDeletionWords.doneTitle, isPresented: $store.accountDeleted) {
             Button("閉じる", role: .cancel) { }
@@ -247,6 +248,22 @@ private struct RootView: View {
             }
         }
         #endif
+    }
+}
+
+/// The phone camera opens the app from the billing QR's link (https://login-billing.kitepon.dev/join/…): the link goes to the library's answer, and its confirmation sheet lives here, on any screen.
+private struct LocalLinkHost: ViewModifier {
+    @ObservedObject var account: LocalAccount
+
+    func body(content: Content) -> some View {
+        content
+            .onOpenURL { url in Task { await account.open(link: url) } }
+            .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+                if let url = activity.webpageURL { Task { await account.open(link: url) } }
+            }
+            .sheet(item: Binding(get: { account.approval }, set: { if $0 == nil { account.answer(false) } })) { _ in
+                LocalApprovalSheet { account.answer($0) }
+            }
     }
 }
 

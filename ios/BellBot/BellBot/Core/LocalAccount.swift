@@ -51,6 +51,10 @@ final class LocalAccount: ObservableObject {
         return scene?.keyWindow ?? scene?.windows.first ?? ASPresentationAnchor()
     }
 
+    /// BellTeam's own guidance (Owner, contract 1.50 11.12; the same words on every client): before the Apple / Google buttons, and beside the QR.
+    static let signInGuidance = "すでにほかの端末で使っている方は、同じアカウントでサインインしてから、次に出るQRコードを使用中の端末のカメラで読んでください。"
+    static let qrGuidance = "親となる端末（課金操作をするカメラのあるスマートフォンがお勧め）のカメラでQRコードを読んでください。"
+
     var offersGoogle: Bool { rules.googleClientId != nil }
     var hasLiveContract: Bool { paid != nil }
 
@@ -61,7 +65,7 @@ final class LocalAccount: ObservableObject {
         // The Play licensing public key (public, from Sielo/a540-play-license-key): an Android phone's reply is accepted here. Package name = this app's id on Play.
         let play = PlayRules(packageName: "dev.kitepon.bellbot", products: [productId], publicKey: "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAri9WbSLPgiw3xak9MEg8udMt8egmWdY7T3gM15nxWWPLmdWp08NXaXmDgRcHobfYn003GlaGxCzeZZktrJjjQHM28gteK4p2qnSkuVVkF9N/JIgyubCw7MQtu+jrsg24leLUfGJfOTHB5BO1sxr8g+x3HeKCfAlISaj/XpN0p6e05/lIf/vcQoDV3e72Dd5WXcDdoM9M7YCXhPSUFZ5ydxZSCOc/N/0uAvhXey/kEFjBu8rpth+n/a3gFzNDayXMcUri2yKazEww9EfDGbKoUrXQNGJOV91vpH5SKOV4IfgnHsoglxWkFTerfVUgVqrTUhV2Nh8kMPyEw2RUj/ZWQwIDAQAB")
         rules = LocalRules(apple: AppleRules(bundleIds: [bundleId], products: [productId], sandbox: true), play: play,
-                           audiences: [bundleId] + Self.googleAudiences, googleClientId: google)
+                           audiences: [bundleId] + Self.googleAudiences, googleClientId: google, appId: "dev.kitepon.bellbot")
         form = LocalForm(rules: rules, anchor: Self.anchor, store: KeychainPassStore(service: "dev.kitepon.loginbilling.local", accessGroup: Self.passGroup))
         // A renewal or restore the Store delivers after launch (the device's copy can be behind on the first launch after an update) opens the app without 購入を復元.
         updates = Task { [weak self] in
@@ -144,7 +148,13 @@ final class LocalAccount: ObservableObject {
     func cancelRequest() { open?.close() }
 
     /// 払っている端末: 相手のQRを読んで、確認のあと、このStoreの購入の証明を返す。
-    /// 0.21.1のanswerはサインインのシートを開かない。サインインしていない端末はsignin_requiredで返るので、Appleでサインインしてから同じQRでもう一度だけ答える。
+    /// 端末のカメラがQRのリンク（https://login-billing.kitepon.dev/join/dev.kitepon.bellbot#…）でこのアプリを開いた時。リンクはそのままライブラリのanswerへ渡す（0.22.0の契約1.49 11.12）。
+    func open(link url: URL) async {
+        guard url.host == "login-billing.kitepon.dev", url.path.hasPrefix("/join/") else { return }
+        await approve(url.absoluteString)
+    }
+
+    /// 0.22.0のanswerもサインインのシートを開かない。サインインしていない端末はsignin_requiredで返るので、Appleでサインインしてから同じQRでもう一度だけ答える。
     func approve(_ qr: String) async {
         await run {
             do { try await self.reply(qr) }

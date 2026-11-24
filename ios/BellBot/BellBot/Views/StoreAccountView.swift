@@ -74,9 +74,6 @@ struct StoreAccountCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(20).bellCard()
             .task { await account.start() }
-            .sheet(item: Binding(get: { account.approval }, set: { if $0 == nil { account.answer(false) } })) { _ in
-                ApprovalSheet { account.answer($0) }
-            }
             .sheet(isPresented: $scanning) {
                 #if os(iOS) && !targetEnvironment(macCatalyst)
                 NavigationStack {
@@ -108,9 +105,11 @@ struct StoreAccountCard: View {
                     Image(uiImage: image).interpolation(.none).resizable().scaledToFit().frame(width: 200, height: 200)
                         .accessibilityLabel("確認用のQRコード")
                 }
+                Text(LocalAccount.qrGuidance).font(BellTheme.secondaryFont).accessibilityIdentifier("store-qr-guidance")
                 ProgressView("スマホの返事を待っています（\(request.expiresAt.formatted(date: .omitted, time: .shortened))まで）")
                 Button("やめる") { account.cancelRequest() }.buttonStyle(.bordered).accessibilityIdentifier("store-request-cancel")
             } else {
+                Text(LocalAccount.signInGuidance).font(BellTheme.secondaryFont).accessibilityIdentifier("store-signin-guidance")
                 HStack {
                     Button("QRを出す（Apple）") { Task { await account.showRequest("apple") } }
                         .buttonStyle(.bordered).disabled(account.busy).accessibilityIdentifier("store-request-apple")
@@ -137,8 +136,10 @@ struct StoreAccountCard: View {
         }
     }
 
-    /// 返事の前の確認。自分で始めたものだけ承認してもらう。
-    private struct ApprovalSheet: View {
+}
+
+/// 返事の前の確認。自分で始めたものだけ承認してもらう。QRの読み取りでもカメラからのリンクでも出るので、画面でなく根（RootView）が持つ。
+struct LocalApprovalSheet: View {
         let onAnswer: (Bool) -> Void
 
         var body: some View {
@@ -155,5 +156,4 @@ struct StoreAccountCard: View {
             .presentationDetents([.medium])
             .interactiveDismissDisabled()
         }
-    }
 }
