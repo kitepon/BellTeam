@@ -385,3 +385,11 @@ AI CLIの導入画面（a451、#1942）をMacの実装に合わせた0.6.2（#19
 - 導入時にBellTeamは動いていなかった（閉じたものは無い）。導入後、オーナーのセッション1（インタラクティブ）で起動した（pid 70940）。
 - スモーク（`--smoke-test` 本番）: 成功。ok=true、authenticated、bots=144、rooms=9、SSE接続あり。
 - 確認できていない（実機とオーナーの操作が要る）: 設定 → 利用と課金 → サインアウトで出る最初の画面（アイコン・名前・サインイン）と、サインイン後のQR承認の流れ、決裁箱の子参加（部品の完成待ち。abx-child-join）。
+
+## Windows 0.9.1 の導入（abx-child-join：Approval Box部品 0.5.2 と login-billing 0.23.1、2026-11-24 23:0x JST、アニス）
+
+- 導入元: main `f257b840`（#2583）。`scripts/install-windows.ps1 -NoLaunch -SkipShareTarget -GoogleDesktopOAuthRef op://…`。導入したexeの版は `0.9.1+f257b840176be1b0912e3fb29b755507a9e710eb`。導入したDLLは Kitepon.ApprovalBox.Client 0.5.2（`a4dea1af`）、Kitepon.LoginBilling.Desktop 0.23.1（`5384d105`）。`BellTeam.dll`にGoogle Desktopクライアントの秘密が35文字（値は表示していない）。試験導入のみで、公開はしていない。
+- スモーク（`--smoke-test` 本番）: 成功。ok=true、bots=144、rooms=9、SSE接続あり。
+- 子の参加をアプリ自身で1回通した（ハーネスなし）: 決裁箱の窓 →「Googleでサインイン」→ 共有のGoogleテストアカウント → 「決裁箱の承認を待っています」（鍵あり）→ 親（インディビリアのt12a）が22:59:25にリンクを開き22:59:27に許可 → 窓が通常の決裁箱（「ライブ」）に変わった。以前の0.5.0＋0.22.4は `add_missing` で終わっていた。0.23.1がWindowsの昇格していないユーザーでCNGの鍵を作れるようにした。
+- ファイアウォール: インストーラーは受信規則を作らない（`scripts/install-windows.ps1`にその処理は無い）。foxには手で足した規則も無い（BellTeamの受信規則・プログラム条件は0件。ネットワークはPrivate）。この状態で親の返事は届いた。なぜ届いたかはまだ分かっていない（待ち受けの規則が見つからない）。
+- 確認できていない: Public/別セグメントでの参加、実機のスマホでのQR往復（Google）。
