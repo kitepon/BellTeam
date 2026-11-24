@@ -15,7 +15,8 @@ try {
   const request = JSON.parse(Buffer.concat(chunks).toString())
   // A terminal launch (one launch path) runs the CLI on the terminal: cwd is that folder and only named private env crosses.
   // cwd is the terminal's native absolute form (POSIX /... or Windows X:\...); terminals checks it against the real OS.
-  const terminal = request.launch && Object.hasOwn(request.launch, 'terminal')
+  // A launch on the `remote` route (a532b2s2) is a terminal launch too: its cwd is the other machine's folder and its private env crosses by name.
+  const terminal = request.launch && (Object.hasOwn(request.launch, 'terminal') || Object.hasOwn(request.launch, 'remote'))
   let names = request.privateEnvNames
   const privateEnv = request.privateEnv ?? {}
   const name = key => typeof key === 'string' && /^[A-Za-z_][A-Za-z0-9_]{0,127}$/.test(key)
