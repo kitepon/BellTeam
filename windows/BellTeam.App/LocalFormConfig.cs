@@ -17,5 +17,7 @@ internal static class LocalFormConfig
         [.. LocalFormIds.GoogleClientIds, LocalFormIds.AppleBundleId, LocalFormIds.AppleServicesId], LocalFormIds.GoogleDesktopClientId,
         new AppleRules([LocalFormIds.AppleBundleId], [LocalFormIds.ProductId], false, null!),
         new PlayRules(LocalFormIds.PlayPackage, [LocalFormIds.ProductId], LocalFormIds.PlayPublicKey), 31, GoogleSecret,
-        AppleServicesId: LocalFormIds.AppleServicesId, AppleReturnUrl: LocalFormIds.AppleReturnUrl);
+        AppleServicesId: LocalFormIds.AppleServicesId, AppleReturnUrl: LocalFormIds.AppleReturnUrl, AppId: AppId);
+    // 1.49: the app id of the QR's join link (https://login-billing.kitepon.dev/join/dev.kitepon.bellbot#lbq4:...), so the phone's own camera opens BellTeam (Apple applinks, Android App Link).
+    internal const string AppId = "dev.kitepon.bellbot";
 }
