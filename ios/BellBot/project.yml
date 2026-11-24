@@ -27,9 +27,9 @@ packages:
     url: https://github.com/kitepon/login-billing.git
     exactVersion: 0.22.4
   ApprovalBoxClient:
-    # The tarball of client-v0.5.0 (sha256 d115b3cf37dfccc6fdb51fb5231bdecfce9d2f7b3bc9c29908b430ec01d6bd8a) is this revision; SwiftPM cannot read the client-v<semver> tag.
+    # The tarball of client-v0.5.1 (sha256 05307e310b53c9ec07599b9ed174f964bca7dd7daa5e209db258c98d0a85f5e8) is this revision (0.5.1: the child accepts Approval Box's own parent audiences); SwiftPM cannot read the client-v<semver> tag.
     url: https://github.com/kitepon/approval-box-apps.git
-    revision: 649f36e24a9c006f966dce1f0492a7d50fddc3fb
+    revision: a81b700fab5a06a929ef2b7979ee3b8dd70e3586
 targets:
   BellTeam:
     type: application

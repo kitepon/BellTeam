@@ -1855,7 +1855,7 @@
 			repositoryURL = "https://github.com/kitepon/approval-box-apps.git";
 			requirement = {
 				kind = revision;
-				revision = 649f36e24a9c006f966dce1f0492a7d50fddc3fb;
+				revision = a81b700fab5a06a929ef2b7979ee3b8dd70e3586;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
