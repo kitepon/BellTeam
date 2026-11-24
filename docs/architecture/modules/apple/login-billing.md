@@ -4,7 +4,7 @@
 
 ## 形
 
-出てくるのは2台だけ。**払っている端末は自分のStoreで確かめて開く**。払っていない端末は**QR**（要求のid・自分のローカルアドレスとポート・1回限りの鍵）を出し、**購読しているiPhone**がそれを読んで、同じアカウントか・自分のStoreの購入があるかをその場で確かめ、鍵で封をした返事を**同じWi-Fiの中で直接**送る。受けた端末が返事を自分で確かめる（Appleの署名つき取引、またはPlayの署名と、サインインの証）。期間が終わったら、新しいQR（自動更新はしない）。運営のサーバー・BellTeam本体による中継・AppleのWebページ・ホームのローカルモードは無い。
+出てくるのは2台だけ。**払っている端末は自分のStoreで確かめて開く**。払っていない端末は**QR**（要求のid・自分のローカルアドレスとポート・1回限りの鍵）を出し、**購読しているiPhone**がそれを読んで、同じアカウントか・自分のStoreの購入があるかをその場で確かめ、鍵で封をした返事を**同じLANの中で直接**送る。受けた端末が返事を自分で確かめる（Appleの署名つき取引、またはPlayの署名と、サインインの証）。期間が終わったら、新しいQR（自動更新はしない）。運営のサーバー・BellTeam本体による中継・AppleのWebページ・ホームのローカルモードは無い。
 
 ## 責務（機能図）
 
@@ -27,7 +27,7 @@ flowchart TD
   Acc -->|有効| Paid
   Acc -->|無い・終了| Wall["壁（SubscriptionRequiredView）: 購読する / QRを出す"]
   Wall --> Buy["購読する: purchaseLocal（この端末のStore）"] --> Own
-  Wall --> Req["QRを出す: makeRequest(apple|google)<br/>Appleサインイン（シート）→ 同じWi-FiでQR"]
+  Wall --> Req["QRを出す: makeRequest(apple|google)<br/>Appleサインイン（シート）→ 同じLANでQR"]
   Req -->|"購読しているiPhoneが直接返す"| Acc2["awaitPaid → accept（署名・同一アカウントを自分で確かめる）→ 保存"]
   Acc2 --> Own
   Paid --> Ap["承認する側: QRを読む → answer(qr, confirm) → 自分のStoreの購入の証明を封印して返す"]
@@ -50,12 +50,12 @@ flowchart TD
 
 ## 失敗の言葉（`LocalAccount.words`）
 
-同じWi-Fiにつないでください（`unreachable_same_wifi`）／設定でローカルネットワークを許可して新しいQR（`local_network_denied`）／別のアカウントです（`other_account`）／QRの待ち時間（10分）が過ぎました（`request_expired`・`request_gone`）／相手が返事を受け取りませんでした（`device_refused`）／購読の期間が終わっています（`ended`）／QRが正しくないか相手のBellTeamが古い（`request_invalid`・`other_request`。0.21.1では版の違う2台はここで終わるので、両方を最新版にするよう言う）／相手との接続が途中で切れました（`connection_closed`）／サインインしてからもう一度お試しください（`signin_required`、承認でサインインをやり直した後にもう一度出た時だけ。やめた時（`signin_cancelled`）は何も出さない：本人の選択）／サインインできませんでした（`signin_failed`）。コードの文字列はそのまま見せない。
+スマホからこの端末に届きませんでした。2台を同じネットワーク（同じLAN）につないでから、もう一度お試しください（`unreachable_same_wifi`。コード名はそのまま）／設定でローカルネットワークを許可して新しいQR（`local_network_denied`）／別のアカウントです（`other_account`）／QRの待ち時間（10分）が過ぎました（`request_expired`・`request_gone`）／相手が返事を受け取りませんでした（`device_refused`）／購読の期間が終わっています（`ended`）／QRが正しくないか相手のBellTeamが古い（`request_invalid`・`other_request`。0.21.1では版の違う2台はここで終わるので、両方を最新版にするよう言う）／相手との接続が途中で切れました（`connection_closed`）／サインインしてからもう一度お試しください（`signin_required`、承認でサインインをやり直した後にもう一度出た時だけ。やめた時（`signin_cancelled`）は何も出さない：本人の選択）／サインインできませんでした（`signin_failed`）。コードの文字列はそのまま見せない。
 
 ## 権限と設定
 
 - `LocalRules.audiences`：バンドルIDと、BellTeamのGoogleクライアントID7つ全部（Web・iOS・Android・Desktop。`LocalAccount.googleAudiences`、Windowsの`LocalFormIds.GoogleClientIds`と同じ並び）。Playの購入の公開鍵（Sielo `a540-play-license-key`）はパッケージ名`dev.kitepon.bellbot`で`PlayRules`に入る。
-- Info.plist：`NSLocalNetworkUsageDescription`（LANのBellTeam＋同じWi-Fiの端末との購読の確認）、`BellTeamGoogleClientID`と、そのクライアントの逆順のURLスキーム（`CFBundleURLTypes`）。Mac Catalystのサンドボックスは`com.apple.security.network.server`を足した（QRの受け手がLANで待つため）。`com.apple.developer.applesignin`は今までどおり。
+- Info.plist：`NSLocalNetworkUsageDescription`（LANのBellTeam＋同じLANの端末との購読の確認）、`BellTeamGoogleClientID`と、そのクライアントの逆順のURLスキーム（`CFBundleURLTypes`）。Mac Catalystのサンドボックスは`com.apple.security.network.server`を足した（QRの受け手がLANで待つため）。`com.apple.developer.applesignin`は今までどおり。
 - 一つの設定：`LocalRules.apple.sandbox = true`。TestFlight・App Reviewの購入はSandboxで、出荷版でも通すため（shortcut：本番だけのビルドができたら外す）。
 
 ## 外したもの（運営が無くなったため。Mintの裁定、Tronie経由 2026-11-23）
