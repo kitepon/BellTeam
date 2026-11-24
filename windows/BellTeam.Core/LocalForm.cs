@@ -15,6 +15,8 @@ public static class LocalForm
 // Open: Google's Desktop client also wants its client secret at the token exchange (library contract 1.37, Purika t10e). GitHub's push protection refuses the secret in a commit, so it is not here yet; Tronie rules how it reaches the build.
 public static class LocalFormIds
 {
+    // Test purchases (TestFlight / App Review) are Apple Sandbox transactions; every BellTeam client takes them (Owner 2026-11-24, after fox refused iPhone 199 with sandbox_refused). Play license-test purchases carry no such flag in the library: Play's own signature check takes them.
+    public const bool AppleAcceptsSandbox = true;
     public const string AppleBundleId = "dev.kitepon.bellbot", ProductId = "dev.kitepon.bellbot.monthly", PlayPackage = "dev.kitepon.bellbot";
     // Apple's web sign-in of a device that is not Apple's (library contract 1.46): BellTeam's Services ID and the library's return page registered on it (Tronie/Mint 2026-11-24).
     public const string AppleServicesId = "dev.kitepon.bellbot.signin", AppleReturnUrl = "https://login-billing.kitepon.dev/apple-return";
