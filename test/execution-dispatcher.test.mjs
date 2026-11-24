@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createExecutionDispatcher, EXECUTION_METHODS } from '../src/execution-dispatcher.mjs'
+import { createExecutionDispatcher, EXECUTION_METHODS, EXECUTION_NATIVE_METHODS } from '../src/execution-dispatcher.mjs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -295,4 +295,12 @@ test('a handover from a predecessor without sessionChanges keeps a working sessi
   await state.released
   assert.deepEqual(await f.engine.disconnect(), { closed: true })
   await next.control('quiesce', { timeoutMs: 200 }); await next.disconnect()
+})
+
+test('a532b2s2f: every Aiterm tool the remote route and seat readers call passes the engine native allowlist', async () => {
+  const { readFile } = await import('node:fs/promises')
+  for (const file of ['remote-route', 'remote-seats', 'machine-stream-reader', 'aiterm-transport']) {
+    const source = await readFile(new URL(`../src/${file}.mjs`, import.meta.url), 'utf8')
+    for (const [, name] of source.matchAll(/(?:client|this\.client)\.call\('([a-z_]+)'/gu)) assert.ok(EXECUTION_NATIVE_METHODS.has(name), `${file}: ${name}`)
+  }
 })
