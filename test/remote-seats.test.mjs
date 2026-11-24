@@ -120,6 +120,17 @@ test('C7: a completed remote turn hands the completed prefix to Throughline; onl
   assert.deepEqual(reads[1], ['--session', seat.sessionName, '--cursor-session', 'c1', '--offset', '0', '--max-bytes', '1048576'])
   assert.deepEqual(seat.cursor, { claudeSessionId: 'c1', offset: 12 })
   assert.deepEqual(await seats.waitProcess(local)({ args: ['--session', 'bot-local'] }), { outcome: 'done' })
+  // a532b2s2f: a remote seat's wait is ssh with ONE command string; the session comes from the receipt, not from the arguments.
+  const before = reads.length
+  const sshWait = { executable: 'ssh', args: ['-T', 'kite@192.168.1.12', "/bin/sh -c 'exec \"$p\" --session " + seat.sessionName + " --timeout 600'"] }
+  assert.deepEqual(await seats.waitProcess(local)(sshWait, null, { session: seat.sessionName }), { outcome: 'done' })
+  while (seat.forwarding) await new Promise(resolve => setImmediate(resolve))
+  await new Promise(resolve => setImmediate(resolve))
+  assert.ok(reads.length > before, 'the ssh-shaped wait hands the transcript over')
+  const afterWith = reads.length
+  await seats.waitProcess(local)(sshWait)
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(reads.length, afterWith, 'without the session the ssh wait names no seat')
   seats.seatCommand = async () => { throw new Error('missing') }
   assert.equal(await seats.handoffContext(bot.id), '')
 })

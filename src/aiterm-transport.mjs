@@ -2248,7 +2248,8 @@ export class AitermTransport {
   // signalは、追うのをやめた時に待ちのprocessを止める（watchTurn）。
   async waitUntilDone(receipt, signal = null) {
     while (!signal?.aborted) {
-      const result = await this.waitProcess(receipt.wait_process, signal)
+      // The session goes along: a remote seat's wait is `ssh ... '<aiterm-wait command>'` (one string, or base64 on Windows), so --session is not an argument of it.
+      const result = await this.waitProcess(receipt.wait_process, signal, { session: receipt.session_id })
       const recoveryFailure = recoverableTurnFailure(receipt, result)
       if (result.outcome === 'done') { this.workState.completedTurn(result); return result }
       if (result.outcome === 'timeout' || result.outcome === 'running') continue
