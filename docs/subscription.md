@@ -20,7 +20,7 @@ AppleアプリはStoreKitで本人の購入・復元・取引の更新を受け�
 
 オーナーの開発・運用環境では、対象サーバーの`BELLTEAM_SUBSCRIPTION_ACCESS_MODE=developer`でAppleアプリの購読を免除し、「開発者として利用中」と表示する。Appleへの購読照会・購入提示は行わず、`entitled`を有効と偽らない。一般配布版はこの免除を受け付けない。通常の`subscription`でもWebとサーバーは無料で、`canUseAI`は常にtrueを返す。`entitled`はAppleの購入情報を検証した結果だけを表す。
 
-検証は無料のDurable Objectsで行う。内部にSQLiteを伴う構成と、無料枠超過時に処理が失敗する動作はオーナーが承認した。ストレージAPIとアラームは使わない。有料プランへは変更していない。配置設定と公開手順は [購読確認サービス](../services/subscriptions/README.md) を参照。
+運営のWorker（Durable Objects）は2026-11-24に本体のリポジトリから取り除いた。ログイン・課金確認に自前のサーバーを使わない決定による（契約1.42）。取り付け済みの1.0.x アプリが読む旧い検証Workerだけが残り、止める時に消す（行`a540-old-verify-stop`）。
 
 ## Stripe（Appleアプリ以外の購入元）
 
