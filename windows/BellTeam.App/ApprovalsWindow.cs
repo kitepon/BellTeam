@@ -496,9 +496,9 @@ internal sealed class ApprovalsPage : Grid
         if (seat.Waiting)
         {
             var qr = new QrView(seat.QrText!, 200, "決裁箱のアプリで読むQRコード") { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 14, 0, 8) }; section.Children.Add(qr);
-            if (!string.IsNullOrEmpty(seat.TypedSecret))
+            if (!string.IsNullOrEmpty(seat.Code))
             {
-                var typed = new TextBox { Text = seat.TypedSecret, IsReadOnly = true, FontFamily = new FontFamily("Consolas"), FontSize = 16, TextAlignment = TextAlignment.Center, BorderThickness = new Thickness(0), Background = Brushes.Transparent, HorizontalAlignment = HorizontalAlignment.Center };
+                var typed = new TextBox { Text = seat.Code, IsReadOnly = true, FontFamily = new FontFamily("Consolas"), FontSize = 16, TextAlignment = TextAlignment.Center, BorderThickness = new Thickness(0), Background = Brushes.Transparent, HorizontalAlignment = HorizontalAlignment.Center };
                 System.Windows.Automation.AutomationProperties.SetAutomationId(typed, "seat-link-typed"); section.Children.Add(typed);
             }
             if (seat.ExpiresAt is { } until) { var expiry = Text(SeatLinkText.Until(until), 12.5, Muted); expiry.TextAlignment = TextAlignment.Center; expiry.Margin = new Thickness(0, 4, 0, 0); section.Children.Add(expiry); }

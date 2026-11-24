@@ -37,10 +37,10 @@ public sealed class SeatLinkTests
     public async Task TheThreeCallsReadTheBodysShape_ARouteThatCannotSayIsUnavailable_AndABodyWithoutTheRoutesIsAbsent()
     {
         var body = new Body(request => request.RequestUri!.AbsolutePath.EndsWith("/stop", StringComparison.Ordinal) ? Json("{\"state\":\"none\"}")
-            : Json("{\"state\":\"waiting\",\"code\":\"ABCD\",\"typedSecret\":\"WXYZ-1234\",\"qrText\":\"https://x.example/pair?c=ABCD\",\"expiresAt\":\"2026-11-24T08:32:00.000Z\"}"));
+            : Json("{\"state\":\"waiting\",\"code\":\"WXYZ-1234\",\"qrText\":\"https://x.example/pair?c=WXYZ-1234\",\"expiresAt\":\"2026-11-24T08:32:00.000Z\"}"));
         var api = new BellApi(new Uri("http://localhost"), body);
         var waiting = await api.StartSeatLinkAsync();
-        Assert.Equal(("waiting", "ABCD", "WXYZ-1234", "https://x.example/pair?c=ABCD", true), (waiting.State, waiting.Code, waiting.TypedSecret, waiting.QrText, waiting.Waiting)); Assert.Equal(DateTimeOffset.Parse("2026-11-24T08:32:00Z"), waiting.ExpiresAt);
+        Assert.Equal(("waiting", "WXYZ-1234", "https://x.example/pair?c=WXYZ-1234", true), (waiting.State, waiting.Code, waiting.QrText, waiting.Waiting));   // the typed code is code (Delta #2544) Assert.Equal(DateTimeOffset.Parse("2026-11-24T08:32:00Z"), waiting.ExpiresAt);
         Assert.Equal("waiting", (await api.SeatLinkAsync()).State); Assert.Equal("none", (await api.StopSeatLinkAsync()).State);
         Assert.Equal([("POST", "/api/approvals/seat-link/start"), ("GET", "/api/approvals/seat-link"), ("POST", "/api/approvals/seat-link/stop")], body.Calls);
         foreach (var status in new[] { HttpStatusCode.ServiceUnavailable, HttpStatusCode.Forbidden, HttpStatusCode.BadGateway })

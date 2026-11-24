@@ -8,9 +8,8 @@ public sealed record SeatLink
 {
     /// <summary>none | waiting | linked | removed | failed | unavailable (the client's: the route could not be read) | absent (the client's: the body has no such route, 404; the view is not drawn).</summary>
     public string State { get; init; } = "unavailable";
+    /// <summary>The typed code shown beside the QR (Delta #2544: the route has no typedSecret; the released pair --json --v1 waiting line carries none).</summary>
     public string? Code { get; init; }
-    /// <summary>The typed code shown beside the QR (the pairing's typed secret).</summary>
-    public string? TypedSecret { get; init; }
     /// <summary>The text the QR draws.</summary>
     public string? QrText { get; init; }
     public DateTimeOffset? ExpiresAt { get; init; }
