@@ -27,6 +27,20 @@ final class LocalAccountTests: XCTestCase {
         XCTAssertTrue(account.hasLiveContract)
     }
 
+    func testOnlyTheLibrarysJoinLinkOpensTheAnswer() async {
+        let account = LocalAccount(productId: "p")
+        await account.open(link: URL(string: "https://example.com/join/dev.kitepon.bellbot#x")!)
+        await account.open(link: URL(string: "https://login-billing.kitepon.dev/other")!)
+        XCTAssertNil(account.message); XCTAssertNil(account.errorText)
+        await account.open(link: URL(string: "https://login-billing.kitepon.dev/join/dev.kitepon.bellbot#bad")!)
+        XCTAssertNotNil(account.errorText)
+    }
+
+    func testTheGuidanceIsBellTeamsOwnWordForWord() {
+        XCTAssertEqual(LocalAccount.signInGuidance, "すでにほかの端末で使っている方は、同じアカウントでサインインしてから、次に出るQRコードを使用中の端末のカメラで読んでください。")
+        XCTAssertEqual(LocalAccount.qrGuidance, "親となる端末（課金操作をするカメラのあるスマートフォンがお勧め）のカメラでQRコードを読んでください。")
+    }
+
     func testEveryBellTeamGoogleClientIsAnAcceptedAudience() {
         XCTAssertEqual(Set(LocalAccount.googleAudiences).count, 7)
         XCTAssertTrue(LocalAccount.googleAudiences.contains(LocalAccount.googleClientId ?? ""))
