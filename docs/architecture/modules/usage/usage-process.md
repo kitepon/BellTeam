@@ -250,6 +250,8 @@ flowchart LR
   Factory --> Subscription[Subscriptions 内部許可 / 未指定は既profile]
 ```
 
+a540（#2431）以後のusageは購読を確かめず、この値を読まない。ただしa540より前のusage releaseは、`accessMode: developer` を受けてこの値が無いと自分のpublic profile（false）に従い、起動を断る（`SUBSCRIPTION_DEVELOPER_ACCESS_UNAVAILABLE`）。本体はusageの行より先に入れ替わるので、親は `accessMode: developer` の時、自身のprofileの値を渡し続ける（2026-11-24 Z188：渡さない本体が本番で起動1秒後に終了し、入れ替えが2回戻された）。a540より前のusage releaseへ戻せるサーバーが無くなったら、親から外す。
+
 旧archiveは未知bootstrap keyを拒否する。親の入力生成・旧版への交換/戻しの互換条件は親assembly担当が保持し、旧public archiveへdeveloper認可を渡せば動くとは扱わない。新許可の保持には対応済親とusageが必要で、旧版の公開購読制限を解除しない。
 
 ## Fresh member identity at ordinary startup (2026-11-06)

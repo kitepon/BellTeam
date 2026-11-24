@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { join } from 'node:path'
+import { developerAccessAllowed } from './distribution-profile.mjs'
 import { MembersAdmission } from './members-admission.mjs'
 import { createUsageProcess } from './usage-process.mjs'
 import { createUsageAuthority } from './usage/authority.mjs'
@@ -168,7 +169,11 @@ export function createUsageAssembly({ root, exchangeMutex, environment = {}, sea
       environment: Object.fromEntries(['TYPESAFE_API_KEY', 'BELLTEAM_CALL_BRIDGE_MCP_URL', 'BELLTEAM_CF_TEAM_DOMAIN', 'BELLTEAM_CF_AUD', 'BELLTEAM_BUGHUB_KEY', 'BELLTEAM_HOME_OPERATOR']
         .filter(key => typeof environment[key] === 'string').map(key => [key, environment[key]])),
       seatRuntime: Boolean(seatRuntime),
-      subscription: { environment: environment.BELLTEAM_SUBSCRIPTION_ENVIRONMENT ?? 'Production', accessMode },
+      // A usage release older than a540 (#2431) refuses developer mode unless the parent passes its profile's permission; the body is
+      // swapped before the usage row, so it keeps sending it (z188-swap-common-root). a540 usage reads nothing from it.
+      // shortcut: kept for older usage releases, remove when no server can run or roll back to a usage release older than #2431.
+      subscription: { environment: environment.BELLTEAM_SUBSCRIPTION_ENVIRONMENT ?? 'Production', accessMode,
+        ...(accessMode === 'developer' ? { developerAccessAllowed } : {}) },
     },
     onEffect: (method, params, context) => {
       const inherited = parents.get(context.usageLease)
