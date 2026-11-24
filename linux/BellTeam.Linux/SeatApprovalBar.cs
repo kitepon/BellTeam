@@ -47,7 +47,7 @@ public sealed class SeatApprovalBar : StackPanel
     private Control Card(SeatApproval approval)
     {
         var stack = new StackPanel();
-        var mark = Icons.Draw(InspectorIcons.Hand, 16, Amber, filled: true, thickness: 0); mark.Margin = new Thickness(0, 0, 8, 0);
+        var mark = Icons.Draw(Icons.Lock, 16, Amber, thickness: 2); mark.Margin = new Thickness(0, 0, 8, 0);
         var heading = new TextBlock { Text = SeatApprovalText.Heading, FontSize = 15, FontWeight = FontWeight.SemiBold, Foreground = Amber, VerticalAlignment = VerticalAlignment.Center };
         stack.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10), Children = { mark, heading } });
         if (SeatApprovalText.Source(approval) is { Length: > 0 } source) { var line = SecretCard.CardText(source, bold: true, size: 13, muted: true); line.Margin = new Thickness(0); stack.Children.Add(line); }
