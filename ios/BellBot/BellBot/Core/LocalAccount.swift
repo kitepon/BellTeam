@@ -151,9 +151,9 @@ final class LocalAccount: ObservableObject {
     func cancelRequest() { open?.close() }
 
     /// 払っている端末: 相手のQRを読んで、確認のあと、このStoreの購入の証明を返す。
-    /// 端末のカメラがQRのリンク（https://login-billing.kitepon.dev/join/dev.kitepon.bellbot#…）でこのアプリを開いた時。リンクはそのままライブラリのanswerへ渡す（0.22.0の契約1.49 11.12）。
+    /// 端末のカメラがQRのリンク（https://login-billing.kitepon.dev/join/dev.kitepon.bellbot#…）でこのアプリを開いた時。開かれた文字列はまずライブラリのisLibraryQRに渡し、trueの時だけそのままanswerへ渡す。アプリ側でQRやリンクの形を見分けない（契約1.53 11.12）。
     func open(link url: URL) async {
-        guard url.host == "login-billing.kitepon.dev", url.path.hasPrefix("/join/") else { return }
+        guard isLibraryQR(url.absoluteString) else { return }
         await approve(url.absoluteString)
     }
 
