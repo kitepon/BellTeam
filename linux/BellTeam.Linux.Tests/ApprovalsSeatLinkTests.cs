@@ -11,7 +11,7 @@ public sealed class ApprovalsSeatLinkTests
     {
         var workspace = new LinuxWorkspace(origin => new BellApi(origin, new ApprovalsFixture(scene, seat)));
         await workspace.ConnectAsync("http://localhost", listen: false);
-        var window = new ApprovalsWindow(new ApprovalsHub(workspace, (IDeviceDecisions?)null), workspace, (_, _) => { }, _ => { });
+        var window = new ApprovalsWindow(new ApprovalsHub(workspace, (IApprovalSource?)null), workspace, (_, _) => { }, _ => { });
         window.Show(); await window.OpenLinkForRenderAsync(); await Task.Delay(100); Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         return window;
     }

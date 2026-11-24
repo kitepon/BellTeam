@@ -205,7 +205,6 @@ public sealed class PhoneShell : UserControl, IMessageHost
         var failed = new DeletionFailures();
         if (await PushRegistration.UnregisterAsync(model) is { } pushFailure) { failed.Add("通知の登録", pushFailure); ShowDeletionResult(AccountDeletionText.FailedTitle, failed.Text); return; }
         if (approvalBox is { } device) try { await device.DeleteLocalAsync(); } catch (Exception error) { failed.Add("決裁箱のサインイン", error, (error as Kitepon.LoginBilling.LoginBillingException)?.Status ?? 0); }
-        else if (ApprovalBoxAccount.Billing is { } box) try { await box.SignOutAsync(); } catch (Exception error) { failed.Add("決裁箱のサインイン", error, (error as Kitepon.LoginBilling.LoginBillingException)?.Status ?? 0); }
         try { AccountStore.Local?.SignOutLocal(); } catch (Exception error) { failed.Add("BellTeamの購読の確認", error); }
         if (failed.Any) { ShowDeletionResult(AccountDeletionText.FailedTitle, failed.Text); return; }
         CloseAllPages();

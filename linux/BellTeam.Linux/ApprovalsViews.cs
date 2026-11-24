@@ -107,15 +107,13 @@ internal sealed partial class ApprovalsWindow
         AutomationProperties.SetName(title, counts.Pending > 0 ? $"決裁箱、回答待ち{counts.Pending}件" : "決裁箱");
         wrap.Children.Add(title);
         var state = Device?.State.Status;
-        if (state == BellTeam.PeerChannel.RuntimeStatus.Retrying) wrap.Children.Add(Spaced(Pill(Row(Spinner(13), Spaced(Text(Approvals.Reconnect, 12.5, Ink), 8)), Muted, 0x18, new Thickness(12, 6, 14, 6)), 12));
-        else if (state == BellTeam.PeerChannel.RuntimeStatus.Live) wrap.Children.Add(Spaced(Pill(Row(new Ellipse { Width = 7, Height = 7, Fill = Brush(Done) }, Spaced(Text("ライブ", 12.5, Done, FontWeight.SemiBold), 6)), Done, 0x1F, new Thickness(11, 6, 13, 6)), 12));
+        if (state == Kitepon.ApprovalBox.Client.ClientStatus.Reconnecting) wrap.Children.Add(Spaced(Pill(Row(Spinner(13), Spaced(Text(Approvals.Reconnect, 12.5, Ink), 8)), Muted, 0x18, new Thickness(12, 6, 14, 6)), 12));
+        else if (state == Kitepon.ApprovalBox.Client.ClientStatus.Live) wrap.Children.Add(Spaced(Pill(Row(new Ellipse { Width = 7, Height = 7, Fill = Brush(Done) }, Spaced(Text("ライブ", 12.5, Done, FontWeight.SemiBold), 6)), Done, 0x1F, new Thickness(11, 6, 13, 6)), 12));
         wrap.Children.Add(Spaced(Segmented(counts), 16));
         wrap.Children.Add(Spaced(Row(new LatticeRing(counts.Answered, counts.Filed, 40), Spaced(new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { Text("今日の回答", 11, Muted), Text($"{counts.Answered} / {counts.Filed}", 14, Ink, FontWeight.SemiBold) } }, 8),
             Counter("待ち", counts.Pending, Violet, 22), Counter("急ぎ", counts.Urgent, Amber, 8), Counter("保留", counts.Held, Muted, 8)), 22));
         var again = Action("読み直す", null); again.Margin = new Thickness(16, 0, 0, 0); again.Click += (_, _) => { Device?.Refresh(); hub.ReadLinks(); }; wrap.Children.Add(again);
         var linkButton = Action("工程表との連携", null); linkButton.Margin = new Thickness(8, 0, 0, 0); linkButton.Click += (_, _) => _ = OpenLinkAsync(); wrap.Children.Add(linkButton);
-        if (hub.SignOutApprovalBox is { } signOut && Device?.State.Status is not BellTeam.PeerChannel.RuntimeStatus.SignedOut)   // never BellTeam's own sign-in (client-v0.5.md section 7)
-        { var out1 = Action("Approval Boxからサインアウト", null); out1.Margin = new Thickness(8, 0, 0, 0); out1.Click += (_, _) => signOut(); wrap.Children.Add(out1); }
         return wrap;
     }
     private Border Counter(string label, int count, Color color, double left)
@@ -148,7 +146,7 @@ internal sealed partial class ApprovalsWindow
         var list = ListColumn(); var detail = DetailColumn(Selected); var chain = ChainColumn(Selected);
         Grid.SetColumn(detail, 1); Grid.SetColumn(chain, 2);
         grid.Children.Add(list); grid.Children.Add(detail); grid.Children.Add(chain);
-        grid.Opacity = Device?.State.Status == BellTeam.PeerChannel.RuntimeStatus.Retrying ? .6 : 1;
+        grid.Opacity = Device?.State.Status == Kitepon.ApprovalBox.Client.ClientStatus.Reconnecting ? .6 : 1;
         return grid;
     }
 

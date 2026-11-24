@@ -1,54 +1,85 @@
 using BellTeam.Core;
 using BellTeam.Linux;
-using BellTeam.PeerChannel;
+using Kitepon.ApprovalBox.Client;
 using Kitepon.LoginBilling;
 
 namespace BellTeam.Android;
 
-// a520a: the Approval Box device of this phone. The device part is the Linux one on the shared C# pc/1 core (LinuxApprovalBoxDevice with platform "android"); this file is only Android's account:
-// the SECOND, foreign login-library instance (ApprovalBoxAccount: its own storage, web sign-in only, no purchase or receipt) as IApprovalBoxAccount.
-internal sealed class AndroidApprovalBoxAccount(LoginBilling billing, Uri origin) : IApprovalBoxAccount
+// The Approval Box client of this phone (child-join.md; Owner 2026-11-24): the client is the Linux host part (LinuxApprovalBoxDevice, peer storage platform "android") over Kitepon.ApprovalBox.Client; this file is only Android's
+// login-billing form for the child join (IChildJoinForm over Kitepon.LoginBilling.Android: the component's Desktop form does not run here). It is Approval Box's own form (client-component.md 9.1): its own storage name,
+// so its own key and kept sign-in, apart from BellTeam's own LocalForm (AccountStore). BellTeam brings only its sign-in identifiers, the same as for its own sign-in: the parent's audiences already list them (9.4).
+internal sealed class AndroidChildJoinForm : IChildJoinForm
 {
-    public Uri Origin => origin;
-    // The pass is handed out for the Approval Box origin only (the library's own rule); not signed in is the SignedOut state, never papered over.
-    public Task<ServerAccess> AccessAsync(CancellationToken ct)
+    internal const string AppId = "dev.kitepon.approvalbox", Storage = "approvalbox_child";
+    private const string Product = "dev.kitepon.approvalbox.monthly";
+    // The Play Console key of Approval Box (public; the same value as the component's own Desktop form), because a reply whose store proof fails exposes no add.
+    private const string PlayPublicKey = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwVFt3haadXyc5cfrV5UvMebvmYSGMW5KnO/DX1O2C2NQ0P3692H8r3giN5QC1YhcGYLzQuoQct46tUT0vqLA27y+7QC/jwMGiqj3GheYJI6rPOrwc6TFSQamYZgJzt3rlVhlvHcTjG+xQuQEwJTSG7YoGIbDwgpwd8TBOoozbDBB2bbjpITK73WmtnZM9258IH06+e/Ic+ppPBuaWJAEc8O5SRCFnMD7R5/ZKQBsYp2Z7XxOVba4LNTjhCNp633hxjhmrUxo9V+WOf2C76088ram4+71shntHWohuHYNOlmkdRtOIJoPaJlMPBx/DNwXtOKlcaIk5DsrS4x+lpDluQIDAQAB";
+    private readonly Kitepon.LoginBilling.LocalForm local; private readonly Keyholes keys;
+
+    internal AndroidChildJoinForm(global::Android.Content.Context context, Uri origin)
     {
-        // 0.20.2: the Authorization value, only for a URL of the base origin; it goes to /pc/v1 and nowhere else, and is never logged. The binding has no NoteResponse: a renewal on this path is not kept (the library's own calls keep theirs).
-        var header = billing.PassHeader(origin.GetLeftPart(UriPartial.Authority)) ?? throw new SignedOutException();
-        return Task.FromResult(new ServerAccess(origin, new Dictionary<string, string> { ["authorization"] = header }));
+        keys = new Keyholes(context, new Uri(origin, "/v1/").ToString().TrimEnd('/'), AppId, Storage);
+        local = new Kitepon.LoginBilling.LocalForm(context, AccountStore.ServerClientId,
+            new LocalConfig([.. LocalFormIds.GoogleClientIds, LocalFormIds.AppleBundleId, LocalFormIds.AppleServicesId], Apple: new LocalAppleRules([AppId], [Product]), Play: new LocalPlayRules(AppId, [Product], PlayPublicKey),
+                AppleWeb: new LocalAppleWeb(LocalFormIds.AppleServicesId, LocalFormIds.AppleReturnUrl), AppId: AppId),
+            Storage, log: null, new LocalKeyholes("child"));
     }
 
-    // K of the Approval Box account, for a first registry only; it never leaves this process except in that registry on Approval Box's own server.
-    public async Task<string> AccountAsync(CancellationToken ct) => (await billing.CheckAsync()).K;
-#if DEBUG
-    // Lab only (a debug build whose switch file names approval-box's local dev server): the dev server's fake id token in place of the web sign-in (Chrome older than the Auth Tab has no way to return).
-    public async Task SignInAsync(CancellationToken ct)
+    /// <summary>A product duty of the library: call in the activity's OnCreate, before it starts.</summary>
+    internal void RegisterLocalNetwork(global::Android.App.Activity activity) => local.RegisterLocalNetwork(activity);
+
+    public bool HasKey => keys.PublicKey() is not null;
+    public string? Header(string method, Uri url, byte[] body) => keys.Header(method, url.ToString(), body);
+    public void UseServerTime(long nowMs) => keys.UseServerTime(nowMs);
+
+    public async Task<IChildJoinRequest> MakeRequestAsync(string provider, CancellationToken ct)
     {
-        if (ApprovalBoxAccount.LabUrl is not { } lab) { await billing.SignInWebAsync(MainActivity.Current, "google", false).WaitAsync(ct); return; }
-        using var http = new HttpClient();
-        await billing.SignInForTestingAsync("apple", async nonce =>
-        {
-            using var reply = await http.PostAsync(new Uri(lab).GetLeftPart(UriPartial.Authority) + "/dev/id-token", new StringContent(System.Text.Json.JsonSerializer.Serialize(new { provider = "apple", nonce, sub = "dev-person" }), System.Text.Encoding.UTF8, "application/json"), ct);
-            return System.Text.Json.JsonDocument.Parse(await reply.Content.ReadAsStringAsync(ct)).RootElement.GetProperty("id_token").GetString()!;
-        }, "dev-android", false, false).WaitAsync(ct);
+        try { return new Request(await local.MakeRequestAsync(MainActivity.Current, provider).WaitAsync(ct), keys); }   // signs in itself, also with nothing kept
+        catch (LoginBillingException error) { throw new ChildJoinException(error.Code, error); }
     }
-#else
-    public Task SignInAsync(CancellationToken ct) => billing.SignInWebAsync(MainActivity.Current, "google", false).WaitAsync(ct);
-#endif
-    public Task SignOutAsync(CancellationToken ct) => billing.SignOutAsync().WaitAsync(ct);
-    // The account was deleted (4410): the pass goes too. A record the library cannot remove stays; the next sign-out or sign-in replaces it.
-    public void ClearPass() => _ = Task.Run(async () => { try { await billing.SignOutAsync(); } catch (LoginBillingException) { } });
-    public bool TryDescribe(Exception error, out string? note) { note = error is LoginBillingException e && e.Code != "signin_cancelled" ? StoreAccountText.Failure(e.Code, e.Status) : null; return error is LoginBillingException; }
+
+    public async Task LeaveAsync(CancellationToken ct)
+    {
+        try { await keys.LeaveAsync().WaitAsync(ct); }   // the key is deleted whatever the answer
+        catch (LoginBillingException error) { throw new ChildJoinException(error.Code, error); }
+        finally { local.SignOutLocal(); }
+    }
+
+    public void Forget() { keys.DeleteKey(); local.SignOutLocal(); }
+
+    private sealed class Request(LocalRequest request, Keyholes keys) : IChildJoinRequest
+    {
+        public string Qr => request.Qr;
+        public DateTimeOffset ExpiresAt => request.ExpiresAt;
+        public async Task AcceptAsync(CancellationToken ct)
+        {
+            try
+            {
+                try { await request.AwaitPaidAsync().WaitAsync(ct); }
+                catch (LoginBillingException error) when (error.Code == "not_paid") { }   // the add of a parent that bought nothing still comes with the reply
+                await keys.SendAddAsync(request.Add ?? throw new ChildJoinException("add_missing")).WaitAsync(ct);
+            }
+            catch (LoginBillingException error) { throw new ChildJoinException(error.Code, error); }
+        }
+        public void Dispose() => request.Dispose();
+    }
 }
 
 internal static class AndroidApprovalBoxDevice
 {
     private static string FilesDir => global::Android.App.Application.Context.FilesDir!.AbsolutePath;
+    private static AndroidChildJoinForm? form;
+    // Approval Box's origin: product.json's address (a debug build's lab file may point at approval-box's local dev server). No address = no client (the screen says so).
+    private static Uri? Origin => ApprovalBoxAccount.AuthUrl is { } url ? new Uri(new Uri(url).GetLeftPart(UriPartial.Authority)) : null;
+    private static AndroidChildJoinForm? Form => form ??= Origin is { } origin ? new AndroidChildJoinForm(global::Android.App.Application.Context, origin) : null;
 
-    // Always on (client-v0.5.md 5.3): the server's peer_channel picks /v1 or the device session. No product.json address = no client (the screen says so). The engine is in every ABI of the APK.
+    internal static void RegisterLocalNetwork(global::Android.App.Activity activity) => Form?.RegisterLocalNetwork(activity);
+
+    // Always on (client-v0.5.md 5.3): the server's peer_channel picks /v1 or the device session. The engine is in every ABI of the APK.
     internal static LinuxApprovalBoxDevice? Create(Func<IReadOnlyList<(string Id, string Name)>> roster)
     {
-        if (ApprovalBoxAccount.Billing is not { } billing || ApprovalBoxAccount.AuthUrl is not { } url) return null;
-        return new LinuxApprovalBoxDevice(Path.Combine(FilesDir, "approval-box"), new AndroidApprovalBoxAccount(billing, new Uri(new Uri(url).GetLeftPart(UriPartial.Authority))), roster, true, "android");
+        if (Form is not { } child || Origin is not { } origin) return null;
+        return new LinuxApprovalBoxDevice(new ChildJoinOptions { StateDirectory = Path.Combine(FilesDir, "approval-box-child"), Form = child },
+            new OwnerOnlyPeerStorage(Path.Combine(FilesDir, "approval-box"), Environment.MachineName, "android"), roster, origin);
     }
 }
