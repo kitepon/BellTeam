@@ -532,6 +532,8 @@ final class AppStore: ObservableObject {
         if openGuide, let guide = setup?.guideBotId { selectedTab = 0; chatPath = [.bot(guide)] }
         startEvents()
         await billing.connect()
+        // The first scene activation came before the app was ready and read nothing; read the device's own purchase now (cold launch, e.g. after an update).
+        await billing.refreshAccess()
         await openPendingNotification()
         await openPendingUpdateNotification()
         if notificationsEnabled {

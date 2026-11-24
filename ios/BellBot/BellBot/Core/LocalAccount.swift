@@ -1,5 +1,6 @@
 import AuthenticationServices
 import LoginBilling
+import os
 import StoreKit
 import SwiftUI
 import UIKit
@@ -25,6 +26,8 @@ final class LocalAccount: ObservableObject {
     private var open: LocalRequest?
     private let form: LocalForm
     private let rules: LocalRules
+    private var updates: Task<Void, Never>?
+    private static let log = Logger(subsystem: "app.bellteam.bellbot", category: "billing")
     let productId: String
 
     /// このアプリのGoogleクライアントID（Info.plistの`BellTeamGoogleClientID`）。無ければGoogleは出さない。
@@ -60,6 +63,15 @@ final class LocalAccount: ObservableObject {
         rules = LocalRules(apple: AppleRules(bundleIds: [bundleId], products: [productId], sandbox: true), play: play,
                            audiences: [bundleId] + Self.googleAudiences, googleClientId: google)
         form = LocalForm(rules: rules, anchor: Self.anchor, store: KeychainPassStore(service: "dev.kitepon.loginbilling.local", accessGroup: Self.passGroup))
+        // A renewal or restore the Store delivers after launch (the device's copy can be behind on the first launch after an update) opens the app without 購入を復元.
+        updates = Task { [weak self] in
+            for await result in Transaction.updates {
+                if case .verified(let transaction) = result {
+                    Self.log.notice("store update id=\(transaction.id, privacy: .public) product=\(transaction.productID, privacy: .public) expires=\(String(describing: transaction.expirationDate), privacy: .public)")
+                }
+                await self?.start()
+            }
+        }
     }
 
     #if DEBUG
@@ -71,13 +83,21 @@ final class LocalAccount: ObservableObject {
     func start() async {
         let now = Date()
         var found: Paid?
-        for purchase in await form.ownPurchases() {
-            guard let proof = try? verifyAppleTransaction(purchase.jws, rules: rules.apple, now: now), proof.productId == productId else { continue }
-            found = Paid(productId: proof.productId, until: proof.until, store: "apple")
+        let own = await form.ownPurchases()
+        for purchase in own {
+            do {
+                let proof = try verifyAppleTransaction(purchase.jws, rules: rules.apple, now: now)
+                Self.log.notice("own purchase product=\(proof.productId, privacy: .public) until=\(String(describing: proof.until), privacy: .public)")
+                guard proof.productId == productId else { continue }
+                found = Paid(productId: proof.productId, until: proof.until, store: "apple")
+            } catch {
+                Self.log.notice("own purchase product=\(purchase.productId, privacy: .public) refused code=\((error as? LoginBillingError)?.code ?? "unknown", privacy: .public)")
+            }
         }
         if found == nil, let accepted = await form.paidUntil(), accepted.productId == productId {
             found = Paid(productId: accepted.productId, until: accepted.until, store: accepted.store)
         }
+        Self.log.notice("start own=\(own.count, privacy: .public) paid=\(found != nil, privacy: .public)")
         paid = found
         checked = true
     }

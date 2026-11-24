@@ -20,7 +20,8 @@
 
 ```mermaid
 flowchart TD
-  Open["起動・前面復帰: LocalAccount.start"] --> Own["この端末のStore: ownPurchases → verifyAppleTransaction<br/>（商品・bundle・期限・Sandbox許可）"]
+  Updates["Transaction.updates（Storeが後から届ける更新・復元）"] --> Open
+  Open["起動（ready到達時）・前面復帰: LocalAccount.start"] --> Own["この端末のStore: ownPurchases → verifyAppleTransaction<br/>（商品・bundle・期限・Sandbox許可）"]
   Own -->|有効| Paid["paid（期限つき）→ アプリを開く・共有拡張へ期限を書く"]
   Own -->|無い| Acc["受け取った返事: paidUntil（再確認）"]
   Acc -->|有効| Paid
