@@ -276,6 +276,9 @@ private struct LocalLinkHost: ViewModifier {
             .sheet(item: Binding(get: { account.approval }, set: { if $0 == nil { account.answer(false) } })) { _ in
                 LocalApprovalSheet { account.answer($0) }
             }
+            .alert(item: $account.outcome) { result in
+                Alert(title: Text(result.isError ? "承認できませんでした" : "別の端末を承認しました"), message: Text(result.code.map { "\(result.text)（\($0)）" } ?? result.text), dismissButton: .default(Text("閉じる")))
+            }
     }
 }
 

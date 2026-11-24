@@ -22,6 +22,11 @@ final class LocalAccount: ObservableObject {
     @Published private(set) var request: Request?
     /// 返事を送る前の確認。答えるまでライブラリは待つ。
     @Published private(set) var approval: ApprovalPrompt?
+    /// 承認の結果の文（返事を送った・失敗の理由）。カメラのリンクで開いた時も見えるよう、根が出す。
+    struct Outcome: Identifiable, Equatable { let id = UUID(); let text: String; let isError: Bool; var code: String? = nil }
+    @Published var outcome: Outcome?
+    /// The library's code of the last failure, shown beside the plain sentence so the next report names it.
+    private var errorCode: String?
     private var decision: CheckedContinuation<Bool, Never>?
     private var open: LocalRequest?
     private let form: LocalForm
@@ -165,23 +170,38 @@ final class LocalAccount: ObservableObject {
     }
 
     /// 0.22.0のanswerもサインインのシートを開かない。サインインしていない端末はsignin_requiredで返るので、Appleでサインインしてから同じQRでもう一度だけ答える。
+    /// 1回のQR読み取りで承認の問いは1回だけ（答えはサインイン後の2回目のanswerへ持ち越す）。終わりは必ず結果の文（返事を送った・理由つきの失敗）で、画面を問わず根で見せる。
     func approve(_ qr: String) async {
+        outcome = nil
         await run {
-            do { try await self.reply(qr) }
-            catch let error as LoginBillingError where error.code == "signin_required" {
-                try await self.form.signInLocal("apple")
-                try await self.reply(qr)
+            switch try await Self.answerWithSignIn(ask: { [weak self] in await self?.ask() ?? false },
+                                                   answer: { confirm in try await self.form.answer(qr: qr, confirm: confirm) },
+                                                   signIn: { try await self.form.signInLocal("apple") }) {
+            case .sent: self.message = "確認の返事を送りました。"
+            case .noPurchase: self.message = "この端末には購読がありません。先に購読してください。"
+            case .declined: break
             }
+        }
+        if let text = errorText ?? message { outcome = Outcome(text: text, isError: errorText != nil, code: errorText == nil ? nil : errorCode) }
+    }
+
+    /// The answer to one question, kept for the second answer after the sign-in (the library asks again on every answer).
+    static func answerWithSignIn(ask: @escaping @Sendable () async -> Bool,
+                                 answer: (@escaping @Sendable () async -> Bool) async throws -> LocalAnswer,
+                                 signIn: () async throws -> Void) async throws -> LocalAnswer {
+        let kept = Kept()
+        let confirm: @Sendable () async -> Bool = {
+            if let value = kept.value { return value }
+            let value = await ask(); kept.value = value; return value
+        }
+        do { return try await answer(confirm) }
+        catch let error as LoginBillingError where error.code == "signin_required" {
+            try await signIn()
+            return try await answer(confirm)
         }
     }
 
-    private func reply(_ qr: String) async throws {
-        switch try await form.answer(qr: qr, confirm: { [weak self] in await self?.ask() ?? false }) {
-        case .sent: message = "確認の返事を送りました。"
-        case .noPurchase: message = "この端末には購読がありません。先に購読してください。"
-        case .declined: break
-        }
-    }
+    private final class Kept: @unchecked Sendable { var value: Bool? }
 
     func answer(_ allow: Bool) {
         approval = nil
@@ -217,9 +237,10 @@ final class LocalAccount: ObservableObject {
         busy = true
         message = nil
         errorText = nil
+        errorCode = nil
         do { try await work() }
         catch let error as LoginBillingError where error.code == "signin_cancelled" {}
-        catch { errorText = Self.words(error) }
+        catch { errorText = Self.words(error); errorCode = (error as? LoginBillingError)?.code }
         busy = false
         await start()
     }
