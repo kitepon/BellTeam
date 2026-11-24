@@ -20,7 +20,7 @@ if (command === 'daemon') {
   const path = join(home, 'state', 'pc', 'daemon.sock'); rmSync(path, { force: true })
   net.createServer(socket => { let t = ''; socket.setEncoding('utf8'); socket.on('data', c => { t += c; if (!t.includes('\\n')) return
     const { method, path: route } = JSON.parse(t.split('\\n')[0])
-    socket.end(JSON.stringify(route === '/status' ? { ok: true, result: { schema: 'x', mode: 'not_paired', paired: false, reason: 'not_paired', version: '0.2.0-pc.2', pid: process.pid } }
+    socket.end(JSON.stringify(route === '/status' ? { ok: true, result: { schema: 'x', mode: 'not_paired', paired: false, reason: 'not_paired', version: '0.2.0-pc.4', pid: process.pid } }
       : route === '/decisions' ? { ok: true, result: { items: [] } } : route === '/confirm' ? { ok: false, status: 409, code: 'confirm_required', message: 'x', body: { check_token: 'ct', decisions: [] } } : { ok: false, status: 404, code: 'not_found', message: 'x' }) + '\\n') }) }).listen(path)
   process.stderr.write('daemon up secret-looking-text-should-be-masked-' + 'x'.repeat(50) + '\\n')
   setInterval(() => {}, 1000)
@@ -57,7 +57,7 @@ test('start does not wait, the child answers /status over its socket, the home i
   daemon.start()
   assert.ok(Date.now() - begun < 500, 'start() returned at once')
   const status = await until(async () => { const s = await daemon.status(); return s.reachable ? s : null })
-  assert.deepEqual({ ...status.daemon }, { mode: 'not_paired', paired: false, reason: 'not_paired', version: '0.2.0-pc.2' })
+  assert.deepEqual({ ...status.daemon }, { mode: 'not_paired', paired: false, reason: 'not_paired', version: '0.2.0-pc.4' })
   assert.equal((await stat(daemon.home)).mode & 0o777, 0o700)
   const keys = JSON.parse(await readFile(join(daemon.home, 'env-keys.json'), 'utf8'))
   for (const key of keys) assert.ok(['APPROVAL_BOX_HOME', 'APPROVAL_BOX_SERVER', 'HOME', 'LANG', 'PATH', 'PWD', 'SHLVL', '_', 'OLDPWD'].includes(key), `unexpected env key ${key}`)
