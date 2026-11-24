@@ -9,7 +9,7 @@ internal sealed class JoinFixtureSource(IApprovalSource inner, ChildJoinState jo
     public ChildJoinState Current { get; set; } = join;
     public readonly List<string> Calls = [];
     public ChildJoinState? Join => Current;
-    public void RequestJoin(string? provider) => Calls.Add("join:" + (provider ?? "again"));
+    public void RequestJoin(string provider) => Calls.Add("join:" + provider);
     public void CancelJoin() => Calls.Add("cancel");
     public Task LeaveAsync() { Calls.Add("leave"); Current = new(JoinPhase.NotJoined); inner.Refresh(); return Task.CompletedTask; }
 

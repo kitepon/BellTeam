@@ -13,6 +13,9 @@ namespace BellTeam.Linux;
 internal sealed partial class ApprovalsWindow
 {
     private bool leaving;   // 「つなぎを外す」 asked once: 外す / やめる
+    private string? lastProvider;   // the button last pressed: 「もう一度つなぐ」 asks the same sign-in again (requestJoin always takes a provider)
+
+    private void Request(string provider) { lastProvider = provider; Device?.RequestJoin(provider); }
 
     private ChildJoinState? Join => Device?.Join;
     /// <summary>The not-joined screen (and the waiting one) takes the whole window.</summary>
@@ -44,13 +47,13 @@ internal sealed partial class ApprovalsWindow
                 column.Children.Add(Text(SignInText.Waiting, 14, Muted, wrap: true));
                 column.Children.Add(Wide(Action(SignInText.Cancel, null), () => Device?.CancelJoin()));
             }
-            else if (join.Phase == JoinPhase.Failed || join.Removed) column.Children.Add(Wide(Action(ChildJoinText.ConnectAgain, null, true), () => Device?.RequestJoin(null)));
+            else if (join.Phase == JoinPhase.Failed && lastProvider is { } again) column.Children.Add(Wide(Action(ChildJoinText.ConnectAgain, null, true), () => Request(again)));
             else
             {
                 column.Children.Add(Text(LocalFormText.FirstSignIn, 13, Muted, wrap: true));
                 // Apple's rule: its button is black and the first, and the only black one.
-                var apple = Wide(Action(SignInText.Apple, null, true), () => Device?.RequestJoin("apple")); apple.Background = Brushes.Black; apple.Foreground = Brushes.White;
-                column.Children.Add(apple); column.Children.Add(Wide(Action(SignInText.Google, null), () => Device?.RequestJoin("google")));
+                var apple = Wide(Action(SignInText.Apple, null, true), () => Request("apple")); apple.Background = Brushes.Black; apple.Foreground = Brushes.White;
+                column.Children.Add(apple); column.Children.Add(Wide(Action(SignInText.Google, null), () => Request("google")));
             }
         }
         var card = Glass(column, 22, new Thickness(26, 24)); card.MaxWidth = 520; card.HorizontalAlignment = HorizontalAlignment.Center; card.VerticalAlignment = VerticalAlignment.Center;
