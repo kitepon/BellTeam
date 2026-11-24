@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-24T11:05:12Z",
-  "expiresAt": "2026-12-01T11:05:12Z",
+  "publishedAt": "2026-11-24T12:53:21Z",
+  "expiresAt": "2026-12-01T12:53:21Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "76e020f598bbf60a2d7f1ad72c5797aaacb75d69",
-      "versionId": "sha256:b01634d4a66d8c66982ef438ee97ef062bb6355d5eae26aa599028f7a5ca0263",
+      "sourceCommit": "0f420ca382361535c60498ce82f2c564799ff9f4",
+      "versionId": "sha256:31681e14e18a85e0184c503c72829e162d8fd31272eef525575c89a36ada1765",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b01634d4a66d8c66982ef438ee97ef062bb6355d5eae26aa599028f7a5ca0263"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:31681e14e18a85e0184c503c72829e162d8fd31272eef525575c89a36ada1765"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "利用上限に達したClaudeの席が、発表された復帰時刻より前に使えるようになっていれば、早めに自動で復帰するようにします。使用量が読めない時は、これまでどおり復帰時刻まで待ちます。"
+        "Claude の設定で、貼り付けるコードの欄を正しく読み取れるように、席の操作部品（aiterm-mcp）を 0.70.115 に更新します。利用上限に達した Claude の席が、発表された復帰時刻より前に使えるようになっていれば、早めに自動で復帰するようにします（実行部品は本番で先に反映済みです）。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "76e020f598bbf60a2d7f1ad72c5797aaacb75d69",
-      "versionId": "sha256:b01634d4a66d8c66982ef438ee97ef062bb6355d5eae26aa599028f7a5ca0263",
+      "sourceCommit": "0f420ca382361535c60498ce82f2c564799ff9f4",
+      "versionId": "sha256:31681e14e18a85e0184c503c72829e162d8fd31272eef525575c89a36ada1765",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b01634d4a66d8c66982ef438ee97ef062bb6355d5eae26aa599028f7a5ca0263"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:31681e14e18a85e0184c503c72829e162d8fd31272eef525575c89a36ada1765"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "利用上限に達したClaudeの席が、発表された復帰時刻より前に使えるようになっていれば、早めに自動で復帰するようにします。使用量が読めない時は、これまでどおり復帰時刻まで待ちます。"
+        "Claude の設定で、貼り付けるコードの欄を正しく読み取れるように、席の操作部品（aiterm-mcp）を 0.70.115 に更新します。利用上限に達した Claude の席が、発表された復帰時刻より前に使えるようになっていれば、早めに自動で復帰するようにします（実行部品は本番で先に反映済みです）。"
       ]
     },
     {
