@@ -1819,7 +1819,7 @@
 			repositoryURL = "https://github.com/kitepon/login-billing.git";
 			requirement = {
 				kind = exactVersion;
-				version = 0.20.3;
+				version = 0.20.4;
 			};
 		};
 		506414939EE51762B89F847C /* XCRemoteSwiftPackageReference "peer-channel" */ = {
