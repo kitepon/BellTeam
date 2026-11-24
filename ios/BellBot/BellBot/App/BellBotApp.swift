@@ -220,6 +220,8 @@ private struct RootView: View {
                     ScrollView { VStack(spacing: 16) { StoreAccountCard(); SubscriptionCard() }.padding() }
                 } else if let state = ["waiting", "linked", "removed", "failed", "none"].first(where: { ProcessInfo.processInfo.arguments.contains("-bellbot-preview-seat-link-\($0)") }) {
                     ScrollView { SeatLinkSection.Content(model: SeatLinkModel(preview: SeatLink(state: state, code: "WXYZ-1234-QRST-5678", qrText: "https://approval-box.example/pair?c=ABCD", expiresAt: Date().addingTimeInterval(300), reason: "other"))).padding() }
+                } else if let state = ["notjoined", "removed", "signingin", "waiting", "failed", "live"].first(where: { ProcessInfo.processInfo.arguments.contains("-bellbot-preview-child-join-\($0)") }) {
+                    ChildJoinPreview(state: state)
                 } else if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-chat") {
                     NavigationStack { ConversationView(target: .bot("bot-one")) }
                 } else if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-markdown") {
@@ -408,3 +410,28 @@ private struct BellTabs: View {
         }
     }
 }
+
+#if DEBUG
+/// -bellbot-preview-child-join-<state>: the child-join screen in one state, no component, for screenshots.
+private struct ChildJoinPreview: View {
+    @StateObject private var source: PreviewChildJoin
+    private let live: Bool
+
+    init(state: String) {
+        live = state == "live"
+        let value: ChildJoinState = switch state {
+        case "removed": .notJoined(reason: "removed")
+        case "signingin": .signingIn(provider: "apple")
+        case "waiting": .waitingForParent(qrLink: "https://login-billing.kitepon.dev/join/dev.kitepon.approvalbox#lbq4:preview", expiresAt: Date().addingTimeInterval(300))
+        case "failed": .failed(code: "other_account")
+        case "live": .joined
+        default: .notJoined(reason: nil)
+        }
+        _source = StateObject(wrappedValue: PreviewChildJoin(value))
+    }
+
+    var body: some View {
+        if live { VStack { Spacer(); ChildJoinLiveBlock(source: source).padding() } } else { ChildJoinView(source: source) }
+    }
+}
+#endif
