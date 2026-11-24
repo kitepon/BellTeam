@@ -71,10 +71,11 @@ public static class UpdateScreen
         };
     }
 
-    // Updating when the current operation targets the part, then the server's own tone, then the comparison.
+    // Updating when the current operation targets the part and is running, then the server's own tone, then the comparison.
     public static UpdateBadge Badge(UpdateComponent component, UpdateOperation? current)
     {
-        if (current is not null && !Settled(current) && current.Plan.Targets.Any(target => target.ComponentId == component.Id)) return UpdateBadge.Updating;
+        // An operation whose phase or admission is unknown is a result we cannot confirm, never a running job.
+        if (current is not null && !Settled(current) && current.Plan.Targets.Any(target => target.ComponentId == component.Id)) return Unknown(current) ? UpdateBadge.Unknown : UpdateBadge.Updating;
         switch (component.Part?.Tone) { case "updating": return UpdateBadge.Updating; case "attention": return UpdateBadge.Failed; }
         return component.Comparison.State switch { "up_to_date" => UpdateBadge.UpToDate, "update_available" => UpdateBadge.Available, "incompatible" => UpdateBadge.Incompatible, _ => UpdateBadge.Unknown };
     }
