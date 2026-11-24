@@ -542,8 +542,8 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     // The push is the existing owner_question one (title = the Bot's name); tapping it opens the Bot, where the entry is.
     push: { seatApproval: item => notifications.question({ id: item.id, botId: item.botId }) },
     decisions: createApprovalDecisions({ credentials: usageAssembly?.credentials ?? null, secretRequests: usageAssembly?.facade?.secretRequests ?? null,
-      scope: Object.freeze({ terminalId: 'seat-approval', purpose: 'approval-box.connector' }),
-      secret: Object.freeze({ botId: 'bot-09e6225c', toolId: 'seat-approval-approval-box' }), code: 'SEAT_APPROVAL_DECISIONS', daemon: approvalBoxDaemon }) })
+      scope: Object.freeze({ terminalId: 'seat-approvals', purpose: 'approval-box.connector' }),
+      secret: Object.freeze({ botId: 'bot-09e6225c', toolId: 'seat-approvals-approval-box' }), code: 'SEAT_APPROVAL_DECISIONS', daemon: approvalBoxDaemon }) })
   const updateClients = hostClient ? { container: hostClient, module: hostClient } : await createUpdateClients()
   const hostUpdate = createHostUpdateAdapter({ root, client: updateClients.container })
   const moduleCatalog = createModuleUpdateCatalog({ client: updateClients.module })
