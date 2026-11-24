@@ -1,5 +1,5 @@
 using BellTeam.Core;
-using BellTeam.PeerChannel;
+using Kitepon.ApprovalBox.Client;
 
 namespace BellTeam.Linux;
 
@@ -14,10 +14,10 @@ internal sealed class JoinFixtureSource(IApprovalSource inner, ChildJoinState jo
     public Task LeaveAsync() { Calls.Add("leave"); Current = new(JoinPhase.NotJoined); inner.Refresh(); return Task.CompletedTask; }
 
     public IReadOnlyList<ViewDecision> Decisions => inner.Decisions;
-    public RuntimeState State => inner.State;
+    public ClientState State => inner.State;
     public event Action? Changed { add => inner.Changed += value; remove => inner.Changed -= value; }
-    public Task<SendOutcome> AnswerAsync(string decisionId, string? optionId, string? text, long version) => inner.AnswerAsync(decisionId, optionId, text, version);
-    public Task<SendOutcome> HoldAsync(string decisionId, bool held) => inner.HoldAsync(decisionId, held);
+    public Task<AnswerResult> AnswerAsync(string decisionId, string? optionId, string? text, long version) => inner.AnswerAsync(decisionId, optionId, text, version);
+    public Task<AnswerResult> HoldAsync(string decisionId, bool held) => inner.HoldAsync(decisionId, held);
     public void Refresh() => inner.Refresh();
     public Task<byte[]?> AttachmentAsync(string decisionId, string attachmentId) => inner.AttachmentAsync(decisionId, attachmentId);
 }

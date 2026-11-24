@@ -17,7 +17,7 @@ internal static class LinuxAccountStore
     internal static string AppleReturnLogPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BellTeam", "apple-return.log");
     private static void AppleReturnLine(string line) => AppleReturnLog.Append(AppleReturnLogPath, line);
     // Injected at build time from the vault (BellTeam.Linux.csproj); null in a build made without it. Never logged.
-    private static string? DesktopSecret => System.Reflection.CustomAttributeExtensions.GetCustomAttributes<System.Reflection.AssemblyMetadataAttribute>(typeof(LinuxAccountStore).Assembly).FirstOrDefault(a => a.Key == "GoogleDesktopClientSecret")?.Value;
+    internal static string? DesktopSecret => System.Reflection.CustomAttributeExtensions.GetCustomAttributes<System.Reflection.AssemblyMetadataAttribute>(typeof(LinuxAccountStore).Assembly).FirstOrDefault(a => a.Key == "GoogleDesktopClientSecret")?.Value;
     // Raised when the window comes to the front: the card reads the kept period against the clock again (a period that ended asks for a new QR).
     public static event Action? Foreground;
     public static void NoteForeground() => Foreground?.Invoke();
