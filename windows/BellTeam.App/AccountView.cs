@@ -49,6 +49,7 @@ internal sealed class AccountView : StackPanel, IDisposable
         "signin_cancelled" => null,
         "return_not_received" => SignInText.ReturnNotReceived,
         "unreachable_same_wifi" => LocalFormText.Of(LocalFormOutcome.PrivateNetwork),
+        "signin_failed" when error.Detail is not null => LocalFormText.Failure("signin_failed " + error.Detail),   // 1.46: Apple's own error code, at that moment only
         _ => LocalFormText.Failure(error.Code, error.Status),
     };
 
@@ -71,10 +72,10 @@ internal sealed class AccountView : StackPanel, IDisposable
     {
         CancelAttempt(); Failure = null; justPaid = false;
         var mine = attempt = CancellationTokenSource.CreateLinkedTokenSource(life.Token);
-        signingIn = provider == "google"; Render();
+        signingIn = true; Render();   // 1.46: Google and Apple both sign in in the browser first
         try
         {
-            var made = await local.MakeRequestAsync(provider, provider == "google" ? AccountStore.OpenBrowser : null, mine.Token);
+            var made = await local.MakeRequestAsync(provider, AccountStore.OpenBrowser, mine.Token);
             if (mine.IsCancellationRequested) { made.Dispose(); return; }
             request = made; signingIn = false; requestView.ShowRequest(made.Qr, made.ExpiresAt); Render();
             Paid = await made.AwaitPaidAsync(mine.Token); justPaid = true;

@@ -11,9 +11,11 @@ internal static class LocalFormConfig
     private static string? GoogleSecret =>
         typeof(LocalFormConfig).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().FirstOrDefault(a => a.Key == "GoogleDesktopSecret")?.Value is { Length: > 0 } secret ? secret : null;
 
-    // Audiences: every Google client id of BellTeam (the phone's token may carry any) and Apple's own, the app id. Apple's root: null takes the library's built-in Apple Root CA - G3 (1.37).
+    // Audiences: every Google client id of BellTeam (the phone's token may carry any), Apple's own app id and the Services ID of the PC's own Apple sign-in (1.46: it must be among them). Apple's root: null takes the library's built-in Apple Root CA - G3 (1.37).
+    // No keyholes (1.47) and no freeAccounts (1.43): BellTeam does not use them.
     public static LocalConfig Build() => new(
-        [.. LocalFormIds.GoogleClientIds, LocalFormIds.AppleBundleId], LocalFormIds.GoogleDesktopClientId,
+        [.. LocalFormIds.GoogleClientIds, LocalFormIds.AppleBundleId, LocalFormIds.AppleServicesId], LocalFormIds.GoogleDesktopClientId,
         new AppleRules([LocalFormIds.AppleBundleId], [LocalFormIds.ProductId], false, null!),
-        new PlayRules(LocalFormIds.PlayPackage, [LocalFormIds.ProductId], LocalFormIds.PlayPublicKey), 31, GoogleSecret);
+        new PlayRules(LocalFormIds.PlayPackage, [LocalFormIds.ProductId], LocalFormIds.PlayPublicKey), 31, GoogleSecret,
+        AppleServicesId: LocalFormIds.AppleServicesId, AppleReturnUrl: LocalFormIds.AppleReturnUrl);
 }
