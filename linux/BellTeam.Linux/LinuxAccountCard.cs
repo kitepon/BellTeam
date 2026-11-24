@@ -97,7 +97,7 @@ public sealed class LinuxAccountCard : StackPanel
         var block = new StackPanel { Margin = new Thickness(0, 14, 0, 0), Spacing = 6 };
         block.Children.Add(Text(LocalFormText.Title, 16, Ink, FontWeight.Bold));
         block.Children.Add(Text(LocalFormText.Lead, 13, Muted));
-        var code = new QrView(qr, 220) { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 6) }; Avalonia.Automation.AutomationProperties.SetName(code, LocalFormText.QrLabel);
+        var code = new QrView(qr, 280) { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 6) }; Avalonia.Automation.AutomationProperties.SetName(code, LocalFormText.QrLabel);
         block.Children.Add(code);
         // 1.49 (11.12): the library's own sentence, word for word, directly under the QR on every client.
         var guidance = Text(AccountGuidance.Qr, 14, Ink); guidance.TextAlignment = TextAlignment.Center; block.Children.Add(guidance);
