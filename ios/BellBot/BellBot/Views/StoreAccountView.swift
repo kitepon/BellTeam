@@ -98,7 +98,7 @@ struct StoreAccountCard: View {
                 .accessibilityIdentifier("store-purchase")
             Divider()
             Text("購読しているスマホで確認する").font(.subheadline.weight(.semibold))
-            Text("この端末にQRを出し、購読しているスマホのBellTeamで読み取ります。2台は同じWi-Fiにつないでください。")
+            Text("この端末にQRを出します。2台は同じWi-Fiにつないでください。")
                 .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
             if let request = account.request {
                 if let image = ServerLoginView.qrImage(request.qr) {
