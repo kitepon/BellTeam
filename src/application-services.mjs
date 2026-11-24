@@ -537,8 +537,8 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     decisions: createApprovalDecisions({ credentials: usageAssembly?.credentials ?? null, secretRequests: usageAssembly?.facade?.secretRequests ?? null,
       scope: Object.freeze({ terminalId: 'running-exclusions', purpose: 'approval-box.connector' }),
       secret: Object.freeze({ botId: 'bot-09e6225c', toolId: 'running-exclusions-approval-box' }), code: 'RUNNING_EXCLUSION_DECISIONS', daemon: approvalBoxDaemon }) })
-  // seat-approval-to-abx (execution/seat-approvals.md): a seat stopped on a tool approval reaches the Owner as a card (paired daemon only) and as an entry.
-  const seatApprovals = createSeatApprovals({ path: join(root, 'state', 'seat-approvals.json'), bots, transport, machineStream, daemon: approvalBoxDaemon,
+  // seat-approval-to-abx (execution/seat-approvals.md): a seat stopped on a tool approval reaches the Owner as a card (own connector connection, token path) and as an entry.
+  const seatApprovals = createSeatApprovals({ path: join(root, 'state', 'seat-approvals.json'), bots, transport, machineStream,
     // The push is the existing owner_question one (title = the Bot's name); tapping it opens the Bot, where the entry is.
     push: { seatApproval: item => notifications.question({ id: item.id, botId: item.botId }) },
     decisions: createApprovalDecisions({ credentials: usageAssembly?.credentials ?? null, secretRequests: usageAssembly?.facade?.secretRequests ?? null,
