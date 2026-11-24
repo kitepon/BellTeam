@@ -164,18 +164,20 @@ test('a slow Aiterm never piles ticks up: five tick() calls join one run, and an
   assert.equal(inspects, 2)
 })
 
-test('a machine seat stopped at the approval reads unknown, and is still watched (Centi\'s lab): unknown with a pending row opens the entry; idle with none does not', async t => {
+test('a machine seat stopped at the approval reads unknown, and is still watched (Centi\'s lab): unknown with a pending row opens the entry; unknown with none is not inspected', async t => {
   const { seatApprovals, seat } = await fixture(t)
-  seat.inspect = prompt()
-  seat.state = 'unknown'
+  let inspects = 0
+  seat.state = 'unknown'; seat.pending = false
+  Object.defineProperty(seat, 'inspect', { get() { inspects++; return prompt() } })
   await seatApprovals.tick()
-  assert.equal((await seatApprovals.list()).length, 1)
-  seat.state = 'idle'
-  await seatApprovals.tick() // the pending row is still listed by the stream fake, so the Bot stays watched
+  assert.equal(inspects, 0)
+  assert.equal((await seatApprovals.list()).length, 0)
+  seat.pending = true
+  await seatApprovals.tick()
   assert.equal((await seatApprovals.list()).length, 1)
 })
 
-test('without a pending row, an idle seat is not inspected at all', async t => {
+test('an idle seat without a pending row is not inspected at all', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'seat-approvals-'))
   t.after(() => rm(dir, { recursive: true, force: true }))
   let inspects = 0
