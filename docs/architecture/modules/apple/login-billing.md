@@ -1,6 +1,6 @@
 # ログインと購読：ローカルの形への切替（a540）
 
-[全体図](overview.md) / [接続とAI認証](requests-and-auth.md) / [購読と復元](lifecycle-and-platform.md) / [アカウントを削除](account-deletion.md)。正本の契約：Mint `login-billing/library-contract.md` 1.36 10章「ローカルの形」とライブラリの`docs/local-form.md`（Swift package `kitepon/login-billing` 0.20.4。Mintが受け入れ済み（タグv0.20.4、契約は変わらない。0.20.3は契約1.40：サインインが残っていない端末では`paidUntil`は何も返さない）。0.20.4で`QRScannerView`が、ローカルの形のQR（`lbq4:`、WindowsのQRを出すが出す形）も通す（0.20.3は`lbq1:`・`lbq2:`だけを通し、他のQRは黙って無視していたため、WindowsのQRを読み取れなかった）。1.37のsecret対応・監査の修理・Apple Root CA G3の内蔵を含む）。Tronieの裁定（2026-11-23、オーナーの言葉）：課金はクライアントだけで確かめる。サーバーも運営も課金に関わらない。Apple（iPhone・iPad・Mac Catalyst）は同じコード・同じ仕様。状態：コードあり、build 189をTestFlightへ上げる（行 a540-apple）。App Reviewへは別途。
+[全体図](overview.md) / [接続とAI認証](requests-and-auth.md) / [購読と復元](lifecycle-and-platform.md) / [アカウントを削除](account-deletion.md)。正本の契約：Mint `login-billing/library-contract.md` 1.36 10章「ローカルの形」とライブラリの`docs/local-form.md`（Swift package `kitepon/login-billing` 0.21.1。Mintが受け入れ済み（タグv0.21.1、契約1.48。両端末が0.21.1でなければQRのやり取りは`request_invalid`で終わる。0.20.5〜：`answer`はサインインのシートを開かず、サインインしていないスマホは`signin_required`を返す。ハッシュ不一致は`request_invalid`（以前は`other_request`）、相手の切断は`connection_closed`、証明の欠落は`proof_invalid`。BellTeamは`freeAccounts`・keyholesを設定しない（裁定なし）。0.20.4は受け入れ済みの前版：契約は変わらない。0.20.3は契約1.40：サインインが残っていない端末では`paidUntil`は何も返さない）。0.20.4で`QRScannerView`が、ローカルの形のQR（`lbq4:`、WindowsのQRを出すが出す形）も通す（0.20.3は`lbq1:`・`lbq2:`だけを通し、他のQRは黙って無視していたため、WindowsのQRを読み取れなかった）。1.37のsecret対応・監査の修理・Apple Root CA G3の内蔵を含む）。Tronieの裁定（2026-11-23、オーナーの言葉）：課金はクライアントだけで確かめる。サーバーも運営も課金に関わらない。Apple（iPhone・iPad・Mac Catalyst）は同じコード・同じ仕様。状態：コードあり、build 189をTestFlightへ上げる（行 a540-apple）。App Reviewへは別途。
 
 ## 形
 
@@ -20,7 +20,8 @@
 
 ```mermaid
 flowchart TD
-  Open["起動・前面復帰: LocalAccount.start"] --> Own["この端末のStore: ownPurchases → verifyAppleTransaction<br/>（商品・bundle・期限・Sandbox許可）"]
+  Updates["Transaction.updates（Storeが後から届ける更新・復元）"] --> Open
+  Open["起動（ready到達時）・前面復帰: LocalAccount.start"] --> Own["この端末のStore: ownPurchases → verifyAppleTransaction<br/>（商品・bundle・期限・Sandbox許可）"]
   Own -->|有効| Paid["paid（期限つき）→ アプリを開く・共有拡張へ期限を書く"]
   Own -->|無い| Acc["受け取った返事: paidUntil（再確認）"]
   Acc -->|有効| Paid
@@ -30,6 +31,8 @@ flowchart TD
   Req -->|"購読しているiPhoneが直接返す"| Acc2["awaitPaid → accept（署名・同一アカウントを自分で確かめる）→ 保存"]
   Acc2 --> Own
   Paid --> Ap["承認する側: QRを読む → answer(qr, confirm) → 自分のStoreの購入の証明を封印して返す"]
+  Ap -->|"signin_required（このスマホがサインインしていない）"| SI["signInLocal(apple)（Appleのシート）→ 同じQRでもう一度answer（1回だけ）"]
+  SI --> Ap
 ```
 
 ## 入口（本体に入る）
@@ -47,7 +50,7 @@ flowchart TD
 
 ## 失敗の言葉（`LocalAccount.words`）
 
-同じWi-Fiにつないでください（`unreachable_same_wifi`）／設定でローカルネットワークを許可して新しいQR（`local_network_denied`）／別のアカウントです（`other_account`）／QRの待ち時間（10分）が過ぎました（`request_expired`・`request_gone`）／相手が返事を受け取りませんでした（`device_refused`）／購読の期間が終わっています（`ended`）。コードの文字列はそのまま見せない。
+同じWi-Fiにつないでください（`unreachable_same_wifi`）／設定でローカルネットワークを許可して新しいQR（`local_network_denied`）／別のアカウントです（`other_account`）／QRの待ち時間（10分）が過ぎました（`request_expired`・`request_gone`）／相手が返事を受け取りませんでした（`device_refused`）／購読の期間が終わっています（`ended`）／QRが正しくないか相手のBellTeamが古い（`request_invalid`・`other_request`。0.21.1では版の違う2台はここで終わるので、両方を最新版にするよう言う）／相手との接続が途中で切れました（`connection_closed`）／サインインしてからもう一度（`signin_required`、承認でサインインの後も出た時だけ）／サインインできませんでした（`signin_failed`）。コードの文字列はそのまま見せない。
 
 ## 権限と設定
 
