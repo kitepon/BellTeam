@@ -812,7 +812,7 @@ private struct ApprovalChainPanel: View {
                 .foregroundStyle(LatticePalette.muted).padding(12).frame(maxWidth: .infinity, alignment: .leading)
                 .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(LatticePalette.line, style: StrokeStyle(lineWidth: 1.2, dash: [5, 4])))
             } else {
-                Text("工程表につなげています").font(.system(size: 13)).foregroundStyle(LatticePalette.muted)
+                Text(decision.linkNote).font(.system(size: 13)).foregroundStyle(LatticePalette.muted)
                     .padding(12).frame(maxWidth: .infinity, alignment: .leading)
                     .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(LatticePalette.line, style: StrokeStyle(lineWidth: 1.2, dash: [5, 4])))
             }
