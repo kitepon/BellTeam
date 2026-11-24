@@ -53,6 +53,9 @@ public static class LocalFormText
     public const string NewQr = "新しいQRを出す";
     public const string Firewall = "Windowsのファイアウォールの確認が出たら、許可してください。";
     // BellTeam's own guidance (the Owner, contract 1.50: 0.22.1 removed the library's LocalGuidance), word for word on every client. FirstSignIn: on the first sign-in screen, before the Apple / Google buttons. Qr: beside the local form's QR.
+    // The first screen (the Owner 2026-11-24: the parent-approval process on the first screen, 決裁箱 0.2.2 as the model): the app's name, one line of purpose, then the sign-in; after sign-in on a device not yet approved, this title over the QR with its validity.
+    public const string AppName = "BellTeam", Purpose = "AIのチームに、スマホやPCから指示できます。", WaitingTitle = "使っている端末の承認を待っています";
+    public static string ValidUntil(DateTimeOffset expiry) => expiry.ToLocalTime().ToString("H:mm") + " まで有効";
     public const string FirstSignIn = "すでにほかの端末で使っている方は、同じアカウントでサインインしてから、次に出るQRコードを使用中の端末のカメラで読んでください。";
     public const string Qr = "親となる端末（課金操作をするカメラのあるスマートフォンがお勧め）のカメラでQRコードを読んでください。";
     public const string OutdatedPeer = "QRが正しくないか、相手の端末のBellTeamが古い可能性があります。2台とも最新版に更新してから、相手の画面で新しいQRを出してください。";
