@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createUsageAssembly } from '../src/usage-assembly.mjs'
+import { developerAccessAllowed } from '../src/distribution-profile.mjs'
 import { copyFile, mkdtemp, rm, symlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -51,7 +52,8 @@ test('usage effect callbacks keep the original parent identity and bootstrap exp
       } }
     } })
   assert.deepEqual(ports.bootstrap.environment, { TYPESAFE_API_KEY: 'fixture' })
-  assert.deepEqual(ports.bootstrap.subscription, { environment: 'Production', accessMode: 'developer' }) // a540: no exemption flag; the mode is no gate
+  // a540: the mode is no gate; the permission still goes to the child because a usage release older than #2431 refuses developer mode without it (Z188 production start failure)
+  assert.deepEqual(ports.bootstrap.subscription, { environment: 'Production', accessMode: 'developer', developerAccessAllowed })
   await ports.onEffect('settings.changed', {}, { usageLease: lease, usageEffect: effect })
   assert.equal(callbackOptions.usageLease, lease); assert.equal(callbackOptions.usageEffect, effect)
   assert.throws(() => ports.authorizeActor('settings.setError', callbackOptions.capturedAuthorization), /FORBIDDEN/)
@@ -61,6 +63,7 @@ test('public parent bootstrap retains the legacy subscription fields and no long
   const root = await mkdtemp(join(tmpdir(), 'bellteam-public-usage-assembly-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   await copyFile(new URL('../src/usage-assembly.mjs', import.meta.url), join(root, 'usage-assembly.mjs'))
+  await copyFile(new URL('../distribution/server/distribution-profile.mjs', import.meta.url), join(root, 'distribution-profile.mjs'))
   for (const path of ['members-admission.mjs', 'usage-process.mjs', 'usage']) {
     await symlink(new URL('../src/' + path, import.meta.url), join(root, path))
   }
@@ -72,7 +75,7 @@ test('public parent bootstrap retains the legacy subscription fields and no long
   createPublicAssembly(options)
   assert.deepEqual(bootstrap.subscription, { environment: 'Production', accessMode: 'subscription' })
   createPublicAssembly({ ...options, environment: { ...options.environment, BELLTEAM_SUBSCRIPTION_ACCESS_MODE: 'developer' } }) // starts: the mode gates nothing
-  assert.deepEqual(bootstrap.subscription, { environment: 'Production', accessMode: 'developer' })
+  assert.deepEqual(bootstrap.subscription, { environment: 'Production', accessMode: 'developer', developerAccessAllowed: false }) // the public profile's own value, never the environment's
 })
 
 test('C5 credentials facade captures system authority and routes native capabilities without exposing their source', async t => {
