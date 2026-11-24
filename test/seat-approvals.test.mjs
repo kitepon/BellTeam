@@ -14,7 +14,7 @@ async function fixture(t, { paired = true, harness = 'claude', fileFails = false
   const bots = new Map([[bot.id, bot]])
   const seat = { inspect: { status: 'none' }, working: true, responses: [], respondError: null }
   const transport = {
-    currentWork: () => ({ state: seat.working ? 'working' : 'idle' }),
+    currentWork: () => ({ state: seat.state ?? (seat.working ? 'working' : 'idle') }),
     screenApproval: async (_bot, request) => {
       if (request.action === 'inspect') return seat.inspect
       if (seat.respondError) throw seat.respondError
@@ -31,7 +31,7 @@ async function fixture(t, { paired = true, harness = 'claude', fileFails = false
   const pushes = []
   const make = () => createSeatApprovals({ path: join(dir, 'seat-approvals.json'), bots, transport, decisions,
     daemon: { status: () => ({ daemon: { mode: paired ? 'pc' : 'off' } }) }, push: { seatApproval: item => pushes.push(item) },
-    machineStream: { pendingApprovals: () => [{ id: 'r1', tool: 'Bash', command: 'rm -rf /tmp/x TOKEN=abc123456789', reason: 'Dangerous rm operation on working directory or its ancestor: /tmp/x' }] }, now: () => 1_700_000_000_000 })
+    machineStream: { pendingApprovals: () => seat.pending === false ? [] : [{ id: 'r1', tool: 'Bash', command: 'rm -rf /tmp/x TOKEN=abc123456789', reason: 'Dangerous rm operation on working directory or its ancestor: /tmp/x' }] }, now: () => 1_700_000_000_000 })
   return { seatApprovals: make(), make, seat, cards, pushes, bot }
 }
 const prompt = (char = 'a') => ({ status: 'approval_required', promptDigest: digest(char), choices: [{ decision: 'approve_once', label: 'Yes' }, { decision: 'deny', label: 'No' }] })
@@ -112,7 +112,7 @@ test('a prompt that is gone, or another digest, closes the entry and withdraws t
   assert.equal(cards.cancelled.length, 1)
   seat.inspect = prompt('c')
   await seatApprovals.tick()
-  seat.working = false
+  seat.working = false; seat.pending = false
   await seatApprovals.tick()
   assert.deepEqual(await seatApprovals.list(), [])
   assert.equal(cards.cancelled.length, 2)
@@ -162,4 +162,26 @@ test('a slow Aiterm never piles ticks up: five tick() calls join one run, and an
   assert.equal(inspects, 1)
   await slow.tick() // the next tick after the run is a new run
   assert.equal(inspects, 2)
+})
+
+test('a machine seat stopped at the approval reads unknown, and is still watched (Centi\'s lab): unknown with a pending row opens the entry; idle with none does not', async t => {
+  const { seatApprovals, seat } = await fixture(t)
+  seat.inspect = prompt()
+  seat.state = 'unknown'
+  await seatApprovals.tick()
+  assert.equal((await seatApprovals.list()).length, 1)
+  seat.state = 'idle'
+  await seatApprovals.tick() // the pending row is still listed by the stream fake, so the Bot stays watched
+  assert.equal((await seatApprovals.list()).length, 1)
+})
+
+test('without a pending row, an idle seat is not inspected at all', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'seat-approvals-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  let inspects = 0
+  const bot = { id: 'bot-aaaa1111', name: 'テスト', harness: 'claude' }
+  const approvals = createSeatApprovals({ path: join(dir, 'a.json'), bots: new Map([[bot.id, bot]]), machineStream: { pendingApprovals: () => [] },
+    transport: { currentWork: () => ({ state: 'idle' }), screenApproval: async () => { inspects++; return { status: 'none' } } } })
+  await approvals.tick()
+  assert.equal(inspects, 0)
 })

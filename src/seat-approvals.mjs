@@ -140,8 +140,11 @@ export function createSeatApprovals({ path, bots, transport, machineStream = nul
 
   async function tick() {
     await load()
-    const candidates = [...bots.values()].filter(bot => HARNESSES.has(bot.harness) && transport.currentWork?.(bot)?.state === 'working')
-    // A Bot no longer working keeps no open record (its seat stopped): close it so the card is withdrawn.
+    // A machine seat stopped at a tool approval reads `unknown` within seconds (Centi's lab 11/24), so working is not the only state to look at;
+    // a pending approval row of the machine stream is a free, certain signal.
+    const watched = bot => ['working', 'unknown'].includes(transport.currentWork?.(bot)?.state) || (machineStream?.pendingApprovals?.(bot.id).length ?? 0) > 0
+    const candidates = [...bots.values()].filter(bot => HARNESSES.has(bot.harness) && watched(bot))
+    // A Bot no longer watched keeps no open record (its seat stopped): close it so the card is withdrawn.
     for (const record of records) if (record.status === 'open' && !candidates.some(bot => bot.id === record.botId)) await close(record, 'gone', null, '席が止まりました。')
     for (const bot of candidates) await watchBot(bot).catch(() => {})
   }
