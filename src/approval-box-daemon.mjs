@@ -9,7 +9,7 @@ import { createSeatsSocket } from './approval-box-seats-socket.mjs'
 import { createChildStderrLog, createModuleChildRestart } from './module-child-restart.mjs'
 
 // Hosted Approval Box connector daemon (docs/architecture/modules/runtime/approval-box-daemon.md, a490h).
-export const DAEMON_ENTRY = '/app/distribution/approval-box/runtime-home/runtime/0.2.0-pc.2/cli.mjs'
+export const DAEMON_ENTRY = '/app/distribution/approval-box/runtime-home/runtime/0.2.0-pc.4/cli.mjs'
 export const SEATS_SOCKET = 'approval-box-hosted.sock'
 export const APPROVAL_BOX_SERVER = 'https://approval-box.kitepon.dev'
 const READY_MS = 15000, STATUS_MS = 2000, PAIR_LINE_MS = 20000, PAIR_GRACE_MS = 5 * 60 * 1000, STOP_MS = 5000, EGRESS_MS = 3000
