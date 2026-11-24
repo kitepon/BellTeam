@@ -2,11 +2,17 @@
 
 Owner 2026-11-24: a seat stopped on a tool-approval prompt should send a card to him, and his answer approves that one prompt once or denies it. He added: only when the Owner has Approval Box connected; otherwise the same prompt is answered inside BellTeam.
 
-Scope of this page: the card (how BellTeam files, reads and closes it through the connection that runs today). Kiro builds the seat side (watcher, state, the answer back to Aiterm); the in-app answer already exists (`GET/POST /api/bots/:id/screen/approval`, [screen-input.md](../execution/screen-input.md)). The held client package switch is not needed: the body files through its own hosted connector daemon; the apps only read the card.
+Scope of this page: the card (how BellTeam files, reads and closes it through the connection that runs today). Kiro builds the seat side (watcher, state, the answer back to Aiterm); the in-app answer already exists (`GET/POST /api/bots/:id/screen/approval`, [screen-input.md](../execution/screen-input.md)). The held client package switch is not needed: the body files through its own connector connection; the apps only read the card.
 
-## Connection
+## Connection (corrected 2026-11-24: the first version said "daemon route only")
 
-The body's `createApprovalDecisions` (`src/lattice-approval.mjs`) with `daemon` = the paired hosted daemon: `file()` (list, adopt by `session_label`, else POST), `read()` (marks the answer fetched), `cancel()`. Seat cards use the **daemon route only**. The daemon not paired (no `daemon.mode === 'pc'`) means no card: the prompt stays answerable in BellTeam (the in-app path), nothing is filed on a token path, and no new secret request is made for this. Reason: a second token connection per purpose (Flora's rule) would need a new `request_secret` for a feature the paired daemon already carries.
+The body's `createApprovalDecisions` (`src/lattice-approval.mjs`), built once more for this purpose in `application-services.mjs`: scope `{terminalId: 'seat-approval', purpose: 'approval-box.connector'}`, code `SEAT_APPROVAL_DECISIONS`, secret `{botId: 'bot-09e6225c', toolId: 'seat-approval-approval-box'}` (Kiro files the request_secret card, as for running exclusions). The function chooses the path itself: the connector **token path** (`/connector/v1`) while the hosted daemon is not paired, the daemon once it is.
+
+Why not the daemon now: the hosted daemon cannot pair while PC_OFFER is off (Nayuta: `serverOffersPeerChannel` false makes it throw `server_flag_off`; `POST /decisions` on it answers 503 `not_paired` and files nothing), and even a paired daemon keeps a decision only on peer-channel devices, never in `/v1`. The Owner's phone and BellTeam's 決裁箱 read `/v1` today, so only the token path reaches him. Production daemon state (Molly, 2026-11-24): never paired, no credentials ever written; a body swap does not unpair it (`/srv/bellteam/state` is a persisted volume).
+
+Own connection, not the Lattice one (Flora: one connection per purpose; revoking the Lattice token must not stop seat approvals). Owner steps, once: (1) in Approval Box create a connector connection for seat approvals (a token for `https://approval-box.kitepon.dev/connector/v1`); (2) paste it into Kiro's `request_secret` card (tool id above). Without a `submitted` card `handle()` answers `SEAT_APPROVAL_DECISIONS_UNAVAILABLE`: no card is filed and the prompt stays answerable inside BellTeam.
+
+Dedupe: `file()` finds an earlier card by listing `GET /decisions` (the connector's 24 h window) and matching `session_label` exactly. The watcher's own record (botId, digest, firstSeen, decisionId) is the primary key, so a card is read and cancelled by id and a long list never causes a second filing for a known prompt.
 
 ## Card shape
 
@@ -25,8 +31,8 @@ The body's `createApprovalDecisions` (`src/lattice-approval.mjs`) with `daemon` 
 ```mermaid
 stateDiagram-v2
   [*] --> Watching: seat is up
-  Watching --> Filed: approval_required seen, daemon paired, file() returned an id (record: botId, digest, firstSeen, decisionId)
-  Watching --> InAppOnly: approval_required seen, daemon not paired or file() failed
+  Watching --> Filed: approval_required seen, file() returned an id (record: botId, digest, firstSeen, decisionId)
+  Watching --> InAppOnly: approval_required seen, no secret card submitted or file() failed
   InAppOnly --> Watching: prompt gone
   Filed --> Applying: read() = answered with approve_once or deny
   Applying --> Done: POST screen/approval {decision, digest} = 200
@@ -50,7 +56,7 @@ stateDiagram-v2
 flowchart LR
   Seat["seat (Aiterm blocked: tool approval)"] --> Watch["body watcher (Kiro)"]
   Watch -->|"GET screen/approval: digest, choices"| Aiterm["Aiterm claude_approval / agent_approval"]
-  Watch -->|"file(): title, masked context, options, session_label"| Door["createApprovalDecisions + hosted daemon"]
+  Watch -->|"file(): title, masked context, options, session_label"| Door["createApprovalDecisions (token path now, daemon once paired)"]
   Door --> Server["Approval Box server"] --> Phone["Owner's Approval Box / BellTeam 決裁箱"]
   Phone -->|"answer approve_once / deny"| Server --> Door
   Watch -->|"read() every tick; fetched"| Door
