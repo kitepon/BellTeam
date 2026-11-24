@@ -76,7 +76,7 @@ export function createSeatApprovals({ path, bots, transport, machineStream = nul
     const reason = REASON[bot.harness]
     if (bot.harness === 'claude') {
       const [row] = machineStream?.pendingApprovals?.(bot.id) ?? []
-      if (row) return { tool: row.tool ?? null, command: row.command ? cut(maskSecrets(row.command)) : null, reason }
+      if (row) return { tool: row.tool ?? null, command: row.command ? cut(maskSecrets(row.command)) : null, reason: row.reason ? `${reason}\nClaude Code の理由: ${cut(maskSecrets(row.reason))}` : reason }
     }
     const command = typeof inspected.prompt === 'string' && inspected.prompt ? cut(maskSecrets(inspected.prompt)) : null
     return { tool: typeof inspected.kind === 'string' ? inspected.kind : null, command, reason }
