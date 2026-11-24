@@ -98,7 +98,7 @@ struct StoreAccountCard: View {
                 .accessibilityIdentifier("store-purchase")
             Divider()
             Text("購読しているスマホで確認する").font(.subheadline.weight(.semibold))
-            Text("この端末にQRを出します。2台は同じWi-Fiにつないでください。")
+            Text("この端末にQRを出します。2台は同じネットワーク（同じLAN）につないでください。")
                 .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
             if let request = account.request {
                 if let image = ServerLoginView.qrImage(request.qr) {
@@ -127,7 +127,7 @@ struct StoreAccountCard: View {
             if QRScannerView.isAvailable {
                 Divider()
                 Text("別の端末を承認する").font(.subheadline.weight(.semibold))
-                Text("承認したい端末に出ているQRを読み取ります。自分で始めたものだけ承認してください。2台は同じWi-Fiにつないでください。")
+                Text("承認したい端末に出ているQRを読み取ります。自分で始めたものだけ承認してください。2台は同じネットワーク（同じLAN）につないでください。")
                     .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
                 Button("QRを読み取る", systemImage: "qrcode.viewfinder") { scanning = true }
                     .buttonStyle(.bordered).disabled(account.busy).accessibilityIdentifier("store-scan")
