@@ -8,13 +8,13 @@ Scope of this page: the card (how BellTeam files, reads and closes it through th
 
 History, so nobody builds the wrong one: #2510 said "hosted daemon only" (it cannot pair while PC_OFFER is off, and a decision filed through it never appears in `/v1`); #2531/#2532 said "connector token path with a token the Owner creates and pastes" (the Owner rejected it: 「その仕組みは却下。決裁箱で子を追加するのと同じやり方じゃダメなんですか？」). This page replaces both.
 
-The body pairs ONCE as a connector of the Owner's Approval Box account, the same way the Owner adds another device: BellTeam shows a QR code, he reads it in the Approval Box app (接続 → 「AIをつなぐ」 → 「QRコードを読む」) and approves. Nayuta builds an explicit `/v1` mode for `approval-box pair --json` (same `approval-box.pair.v1` lines `waiting`, `claimed`, `bound`/error; `qr_text` = `<publicUrl>/pair?c=<code>`; the result is a connection on the server path). PC_OFFER stays off and `a490p-pair-on-sitting` (the peer-channel pairing at the PC_OFFER sitting) is unchanged; this is a second, earlier pairing of the same body.
+The body pairs ONCE as a connector of the Owner's Approval Box account, the same way the Owner adds another device: BellTeam shows a QR code, he reads it in the Approval Box app (接続 → 「AIをつなぐ」 → 「QRコードを読む」) and approves. Nayuta released it (switch b, `approval-box@0.2.0-pc.4`, npm dist-tag `next`, source `kitepon/approval-box` main 79b60fa, PR #125): `approval-box pair --json --v1 [--server URL] [--name NAME]` prints `approval-box.pair.v1` lines. `{state:"waiting", pairing_id, code, qr_text: "https://approval-box.kitepon.dev/pair?c=…", expires_at}` (no `typed_secret`: the `code` is the typed code), then on approval `{state:"claimed", connection_id, path:"v1"}` and exit 0 (there is no `bound` line in this mode: `claimed` means linked), or `{state:"failed", code:"rejected"|"expired", message}` and exit 1. `approval-box pair status --json` answers `paired:true, path:"v1"` once linked. The Approval Box app's 「QRコードを読む」 (0.2.2) takes the `/pair?c=` URL, so no app change is needed. PC_OFFER stays off and `a490p-pair-on-sitting` (the peer-channel pairing at the PC_OFFER sitting) is unchanged; this is a second, earlier pairing of the same body.
 
 After `claimed` the pairing leaves a connection token in the pairing home (`<daemon HOME>/config.json`, 0600, the body's own uid). Seat cards use it directly on `/connector/v1`:
 
 - `createApprovalDecisions` gets one new input, `tokenSource: async () => string | null`. When given, `call()` uses it instead of `handle()`/`withResolved`; null means `SEAT_APPROVAL_DECISIONS_UNAVAILABLE`. The token is read at call time, never copied into the secret store, a card, a log or the route answers.
 - The seat-approval instance: `createApprovalDecisions({ tokenSource: readPairedToken, daemon: null, code: 'SEAT_APPROVAL_DECISIONS', ... })` (the scope and `request_secret` pair in `application-services.mjs`, `seat-approvals` / `seat-approvals-approval-box`, go away: no secret card exists for this).
-- The Lattice effects and running exclusions keep their own connections and paths unchanged. The hosted daemon (`--hosted`) stays what it is for a490p (it idles `not_paired` while PC_OFFER is off, which is harmless). It does not read this pairing: `pcPrepared()` is false without peer-channel keys.
+- The Lattice effects and running exclusions keep their own connections and paths unchanged. This path does not use the daemon: the body reads the token and files itself. Nayuta advises running the body's daemon non-hosted (a `--hosted` daemon answers `not_paired` for a `v1` connection); that is Molly's call about the daemon slot she shares with a490p, and nothing on this page depends on it. If she keeps `--hosted`, it idles `not_paired` while PC_OFFER is off, which is harmless.
 - If the Owner removes the connection in Approval Box, the next call is 401: the link state becomes `removed` and the view below offers 「もう一度つなぐ」. Nothing is filed meanwhile; the prompt stays answerable inside BellTeam.
 - At the PC_OFFER sitting the peer-channel pairing may replace this token (the same `config.json`). Whether the new connection's token still works on `/connector/v1` is Nayuta's to state in a490p; until then nothing here depends on it.
 
@@ -27,7 +27,7 @@ One view, **「AIの許可待ちを決裁箱へ送る」**, in the one place eve
 | State (route `state`) | Shown (Japanese, plain) | Action |
 | --- | --- | --- |
 | `none` | 「AIが許可を待って止まった時、決裁箱のアプリに届きます。つなぐのは1回だけです。」 | 「つなぐ」 |
-| `waiting` | the QR code and the typed code; 「決裁箱のアプリで、接続 → 「AIをつなぐ」 → 「QRコードを読む」を開き、このQRコードを読んで、許可してください。」 and the expiry time (JST) | 「やめる」 |
+| `waiting` | the QR code and the typed code (`code`); 「決裁箱のアプリで、接続 → 「AIをつなぐ」 → 「QRコードを読む」を開き、このQRコードを読んで、許可してください。」 and the expiry time (JST) | 「やめる」 |
 | `linked` | 「つながっています。AIが許可待ちで止まると、決裁箱に届きます。」 | none |
 | `removed` | 「決裁箱でつなぎが外されています。もう一度つないでください。」 | 「もう一度つなぐ」 |
 | `failed` (reason `rejected`) | 「決裁箱のアプリで「心当たりがない」が押されました。」 | 「もう一度つなぐ」 |
@@ -41,13 +41,13 @@ stateDiagram-v2
   [*] --> none
   none --> waiting: POST start (pair --json run started, waiting line read within 20 s)
   waiting --> waiting: POST start again (same waiting line returned)
-  waiting --> linked: claimed + token readable
+  waiting --> linked: claimed (exit 0) + token readable
   waiting --> failed: rejected | expired | run ended | no waiting line in 20 s
   waiting --> none: POST stop (run killed)
   failed --> waiting: POST start
   linked --> removed: a call answers 401
   removed --> waiting: POST start
-  none --> linked: config.json already holds a token (adopted at start)
+  none --> linked: pair status --json says paired:true path v1 (adopted at start)
 ```
 
 Every state leaves by the Owner's tap, the run ending, or a bounded wait (the run is capped at the code's `expires_at`, 5 minutes; the 20 s bound is the same as `approval_box_pair`'s). None waits for an operator.
@@ -58,7 +58,7 @@ Body routes in the approval-box-extension module (same-origin Owner session like
 
 | Route | Answer |
 | --- | --- |
-| `GET /api/approvals/seat-link` | `{state, code?, typedSecret?, qrText?, expiresAt?, reason?}` (state and reason as in the table) |
+| `GET /api/approvals/seat-link` | `{state, code?, qrText?, expiresAt?, reason?}` (`code` is the typed code) (state and reason as in the table) |
 | `POST /api/approvals/seat-link/start` | starts or returns the running pairing; same shape |
 | `POST /api/approvals/seat-link/stop` | kills the run; same shape |
 
