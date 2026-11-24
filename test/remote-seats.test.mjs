@@ -734,3 +734,39 @@ test('a67: a refusal with no answer, or a stop before the close, closes nothing'
     } finally { await rm(root, { recursive: true, force: true }) }
   }
 })
+
+test('a532b2s2h: the transport hands the receipt session to the wait wrapper, so an ssh-shaped remote wait hands its transcript over', async () => {
+  const { seats } = fixture()
+  const reads = []
+  seats.seatCommand = async process => process.executable === 'aiterm-transcript-read' ? (reads.push(process.args), { entries: [] }) : {}
+  seats.launched(bot, { session_id: 'bot-aaaa1111', launch_id: 'a'.repeat(32) })
+  const transport = new AitermTransport({ waitProcess: seats.waitProcess(async () => ({ outcome: 'done' })) })
+  const receipt = { session_id: 'bot-aaaa1111', wait_process: { executable: 'ssh', args: ['-T', 'kite@mac', "/bin/sh -c 'exec \"$p\" --session bot-aaaa1111 --timeout 600 --cursor 3'"] } }
+  assert.deepEqual(await transport.waitUntilDone(receipt), { outcome: 'done' })
+  for (let i = 0; i < 5; i++) await new Promise(resolve => setImmediate(resolve))
+  assert.equal(reads.length, 1)
+})
+
+test('a532b2s2t: a remote launch result has launch_id null; forward takes the id from pty_observe, and says so when there is none', async () => {
+  const { seats } = fixture()
+  const observed = [], ingested = [], logs = []
+  let observeAnswer = { structuredContent: { launch_id: 'b'.repeat(32) } }
+  seats.route({ call: async (name, args) => { observed.push([name, args]); if (observeAnswer instanceof Error) throw observeAnswer; return observeAnswer } })
+  seats.seatCommand = async process => {
+    if (process.executable === 'aiterm-transcript-read') return { entries: ['{"a":1}\n'], cursor: { claudeSessionId: 'c1', offset: 8 } }
+    ingested.push(JSON.parse(process.args.at(-1) ? process.args.slice(3).join('') : '{}'))
+    return { status: 'ready', ackedCursor: { claudeSessionId: 'c1', offset: 8 } }
+  }
+  seats.launched(bot, { session_id: 'bot-aaaa1111', launch_id: null })
+  const seat = seats.seats.get('bot-aaaa1111')
+  assert.equal(seat.launchId, null)
+  await seats.forward(seat)
+  assert.deepEqual(observed[0], ['pty_observe', { session_id: 'bot-aaaa1111' }])
+  assert.equal(ingested[0].launchId, 'b'.repeat(32))
+  // No id from the seat: nothing is read, and the log names the reason.
+  observeAnswer = new Error('gone'); ingested.length = 0
+  const write = process.stderr.write; process.stderr.write = line => { logs.push(String(line)); return true }
+  try { await seats.forward(seat) } finally { process.stderr.write = write }
+  assert.equal(ingested.length, 0)
+  assert.ok(logs.some(line => line.includes('transcript not read') && line.includes('NO_LAUNCH_ID')))
+})
