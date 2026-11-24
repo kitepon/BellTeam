@@ -107,11 +107,11 @@ public sealed class AppLoginTests
         try
         {
             var gate = new AccountGateView(Local(), () => { });
-            Until(() => Texts(gate).Contains(LocalFormText.FirstSignIn)); Assert.Empty(opened);   // nothing opens before the person presses a button
+            Until(() => Texts(gate).Contains(LocalFormText.FirstSignInChildOnly)); Assert.Empty(opened);   // nothing opens before the person presses a button
             Assert.Equal(["BellTeam", "AIのチームに、スマホやPCから指示できます。"], Texts(gate).Where(text => text.Length > 1).Take(2));
             var icon = Assert.Single(Descendants<Image>(gate)); Assert.Equal(88, icon.Width); Assert.True(icon.Source.Width > 0);   // the BellTeam app icon (the same image as Apple's), not a glyph   // the name, one line of purpose, then the Owner's text
             Assert.Equal([SignInText.Apple, SignInText.Google], Descendants<Button>(gate).Select(b => System.Windows.Automation.AutomationProperties.GetName(b)));   // Apple first, shown once
-            Assert.DoesNotContain(Texts(gate), text => text.Contains("購読", StringComparison.Ordinal));   // no billing card on the first screen
+            Assert.DoesNotContain(Texts(gate), text => text == LocalFormText.CardTitle || text == LocalFormText.StatusUnpaid);   // no billing card on the first screen (the Owner's lead itself says 購読済み)
             Click(gate, SignInText.Apple); Until(() => opened.Count == 1);
             var query = System.Web.HttpUtility.ParseQueryString(opened[0].Query);   // Apple's own page, BellTeam's Services ID, the library's return page, the fragment way
             Assert.Equal(("appleid.apple.com", "dev.kitepon.bellbot.signin", "https://login-billing.kitepon.dev/apple-return", "code id_token", "fragment"), (opened[0].Host, query["client_id"], query["redirect_uri"], query["response_type"], query["response_mode"]));
@@ -152,7 +152,7 @@ public sealed class AppLoginTests
         try
         {
             var gate = new AccountGateView(Local(), () => { });
-            Until(() => Texts(gate).Contains(LocalFormText.FirstSignIn)); Click(gate, SignInText.Apple); Until(() => opened.Count == 1);
+            Until(() => Texts(gate).Contains(LocalFormText.FirstSignInChildOnly)); Click(gate, SignInText.Apple); Until(() => opened.Count == 1);
             var state = System.Web.HttpUtility.ParseQueryString(opened[0].Query)["state"]!; var (path, port) = (state[..state.LastIndexOf('.')], state[(state.LastIndexOf('.') + 1)..]);
             using var http = new HttpClient();
             var reply = http.PostAsync($"http://127.0.0.1:{port}/{path}", new FormUrlEncodedContent(new Dictionary<string, string> { ["state"] = state, ["error"] = error })).GetAwaiter().GetResult();
@@ -199,7 +199,7 @@ public sealed class AppLoginTests
     public void TheCardNeverSaysThatAnotherAccountHoldsAPurchase() => RunSta(() =>
     {
         var gate = new AccountGateView(Local(), () => { });
-        Until(() => Texts(gate).Contains(LocalFormText.FirstSignIn));
+        Until(() => Texts(gate).Contains(LocalFormText.FirstSignInChildOnly));
         Assert.DoesNotContain(Texts(gate), text => text.Contains("別のアカウントで購入", StringComparison.Ordinal));
         Assert.DoesNotContain(Texts(new AccountView(Local(), () => { })), text => text.Contains("別のアカウントで購入", StringComparison.Ordinal));
         gate.Dispose();

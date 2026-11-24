@@ -57,6 +57,8 @@ public static class LocalFormText
     public const string AppName = "BellTeam", Purpose = "AIのチームに、スマホやPCから指示できます。", WaitingTitle = "使っている端末の承認を待っています";
     public static string ValidUntil(DateTimeOffset expiry) => expiry.ToLocalTime().ToString("H:mm") + " まで有効";
     public const string FirstSignIn = "すでにほかの端末で使っている方は、同じアカウントでサインインしてから、次に出るQRコードを使用中の端末のカメラで読んでください。";
+    // Devices that cannot become a parent (Windows and Linux only; the Owner 2026-11-24): the lead above the sign-in buttons. iPhone, Mac and Android keep FirstSignIn.
+    public const string FirstSignInChildOnly = "本アプリケーションを使用するには、iPhone、iPad、Mac、Android等の購読済みの端末で、サインイン後に表示されるQRコードを読み取る必要があります。";
     public const string Qr = "親となる端末（課金操作をするカメラのあるスマートフォンがお勧め）のカメラでQRコードを読んでください。";
     public const string OutdatedPeer = "QRが正しくないか、相手の端末のBellTeamが古い可能性があります。2台とも最新版に更新してから、相手の画面で新しいQRを出してください。";
     public const string PermissionDenied = "設定でこのアプリのローカルネットワークを許可してから、新しいQRでお試しください。";

@@ -47,7 +47,7 @@ public sealed class ApprovalsWindowTests
     {
         var join = new ApprovalsFixture.Join(); using var rig = Open(join: join); Until(() => rig.Page.Settled);
         var texts = Texts(rig.Window);
-        Assert.Contains(ChildJoinText.Title, texts); Assert.Contains(ChildJoinText.Lead, texts); Assert.Contains(LocalFormText.FirstSignIn, texts);
+        Assert.Contains(ChildJoinText.Title, texts); Assert.Contains(ChildJoinText.Lead, texts); Assert.Contains(LocalFormText.FirstSignInChildOnly, texts);
         Assert.DoesNotContain("決裁箱拡張の月額を、決裁箱と同じ請求にしてよいですか？", texts);   // no list, no columns
         Assert.DoesNotContain(texts, text => text.Contains("ほかの端末を追加", StringComparison.Ordinal) || text.Contains("購入", StringComparison.Ordinal));   // a child is never a parent and never buys
         Press(FindId(rig.Window, "child-join-apple")); join.SigningIn = false; join.Raise();   // the browser step replaces the buttons; back to the buttons
@@ -61,7 +61,7 @@ public sealed class ApprovalsWindowTests
         var join = new ApprovalsFixture.Join { SigningIn = true }; using var rig = Open(join: join); Until(() => rig.Page.Settled);
         Assert.Contains(SignInText.Waiting, Texts(rig.Window)); Assert.DoesNotContain(LogicalTree.Find<Button>(rig.Window.Content), button => System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "child-join-apple");
         Press(FindId(rig.Window, "child-join-cancel")); Assert.Equal(1, join.Cancels);
-        Until(() => Texts(rig.Window).Contains(LocalFormText.FirstSignIn));   // cancelJoin: back to the not-joined screen
+        Until(() => Texts(rig.Window).Contains(LocalFormText.FirstSignInChildOnly));   // cancelJoin: back to the not-joined screen
     });
 
     [Fact]
@@ -73,7 +73,7 @@ public sealed class ApprovalsWindowTests
         var texts = Texts(rig.Window);
         Assert.Contains(ChildJoinText.WaitingTitle, texts); Assert.Single(LogicalTree.Find<QrView>(rig.Window.Content));
         Assert.Contains(LocalFormText.ValidUntil(until), texts); Assert.Contains(LocalFormText.Qr, texts);
-        Assert.DoesNotContain(LocalFormText.FirstSignIn, texts);
+        Assert.DoesNotContain(LocalFormText.FirstSignInChildOnly, texts);
         Press(FindId(rig.Window, "child-join-cancel")); Assert.Equal(1, join.Cancels);
     });
 
@@ -91,7 +91,7 @@ public sealed class ApprovalsWindowTests
     public void ADeviceTheParentRemovedSaysSoAboveTheNotJoinedScreenAndStartsClean() => RunSta(() =>
     {
         var join = new ApprovalsFixture.Join { Removed = true }; using var rig = Open(join: join); Until(() => rig.Page.Settled);
-        var texts = Texts(rig.Window); Assert.Contains(ChildJoinText.Removed, texts); Assert.Contains(LocalFormText.FirstSignIn, texts);   // a clean start: the removed sentence above the not-joined screen
+        var texts = Texts(rig.Window); Assert.Contains(ChildJoinText.Removed, texts); Assert.Contains(LocalFormText.FirstSignInChildOnly, texts);   // a clean start: the removed sentence above the not-joined screen
         Press(FindId(rig.Window, "child-join-apple")); Assert.Equal(["apple"], join.Joins);
     });
 
