@@ -76,14 +76,17 @@ public sealed class LinuxAccountCard : StackPanel
     private void RenderFirstScreen()
     {
         if ((request?.Qr ?? preview) is { } qr) { Children.Add(QrScreen(qr)); return; }
-        var name = Text(LocalFormText.AppName, 34, Ink, FontWeight.Bold, new Thickness(0, 24, 0, 0)); name.HorizontalAlignment = HorizontalAlignment.Center;
+        // The app's own portrait above the name, 88 px with rounded corners (Windows' first screen has the same tile).
+        var icon = Round.Clip(new Image { Source = EmbeddedAsset.Portrait(176), Stretch = Stretch.UniformToFill, Width = 88, Height = 88 }, 22); icon.HorizontalAlignment = HorizontalAlignment.Center; icon.Margin = new Thickness(0, 16, 0, 0);
+        var name = Text(LocalFormText.AppName, 34, Ink, FontWeight.Bold, new Thickness(0, 14, 0, 0)); name.HorizontalAlignment = HorizontalAlignment.Center;
         var purpose = Text(LocalFormText.Purpose, 16, Muted, null, new Thickness(0, 8, 0, 24)); purpose.HorizontalAlignment = HorizontalAlignment.Center; purpose.TextAlignment = TextAlignment.Center;
-        Children.Add(name); Children.Add(purpose);
+        Children.Add(icon); Children.Add(name); Children.Add(purpose);
         var inner = new StackPanel();
         if (notice is not null) inner.Children.Add(Text(notice, 14, Ink, FontWeight.SemiBold, new Thickness(0, 0, 0, 8)));
         inner.Children.Add(Text(LocalFormText.FirstSignIn, 14, Secondary));
-        foreach (var (label, provider) in new[] { (SignInText.Apple, "apple"), (SignInText.Google, "google") })
-        { var way = Button(label, () => RequestAsync(provider), Look.Primary); way.HorizontalAlignment = HorizontalAlignment.Stretch; way.HorizontalContentAlignment = HorizontalAlignment.Center; inner.Children.Add(way); }
+        // Apple's rule: its button is black and the first, and the only black one; Google's is white with a hairline, as on Windows.
+        foreach (var (label, provider, look) in new[] { (SignInText.Apple, "apple", Look.Apple), (SignInText.Google, "google", Look.Google) })
+        { var way = Button(label, () => RequestAsync(provider), look); way.HorizontalAlignment = HorizontalAlignment.Stretch; way.HorizontalContentAlignment = HorizontalAlignment.Center; inner.Children.Add(way); }
         if (busy && request is null && attempt is { } signing) { inner.Children.Add(Waiting(SignInText.Waiting)); var stop = Capsule(LocalFormText.Cancel, Fill, Ink, 12, 14, new Thickness(16, 10)); stop.HorizontalAlignment = HorizontalAlignment.Left; stop.Margin = new Thickness(0, 12, 0, 0); stop.Click += (_, _) => signing.Cancel(); inner.Children.Add(stop); }
         if (failure is not null) inner.Children.Add(Banner(failure));
         Children.Add(SettingsUi.Card(inner));
@@ -181,7 +184,7 @@ public sealed class LinuxAccountCard : StackPanel
 
     public static string DoneText => AccountDeletionText.ResultBody(Cancel);
 
-    private enum Look { Primary, Secondary, Danger, DangerFilled }
+    private enum Look { Primary, Secondary, Danger, DangerFilled, Apple, Google }
 
     private Button Button(string label, Func<Task> click, Look look)
     {
@@ -190,10 +193,13 @@ public sealed class LinuxAccountCard : StackPanel
             Look.Primary => ((IBrush)BellTheme.ProminentFill, (IBrush)Brushes.White),
             Look.DangerFilled => (Red, Brushes.White),
             Look.Danger => (Fill, Red),
+            Look.Apple => (Brushes.Black, Brushes.White),
+            Look.Google => (Brushes.White, Ink),
             _ => (Fill, Ink),
         };
         var button = Capsule(label, background, foreground, 12, 14, new Thickness(16, 10));
         button.FontWeight = look == Look.Secondary ? FontWeight.Normal : FontWeight.SemiBold; button.HorizontalAlignment = HorizontalAlignment.Left; button.Margin = new Thickness(0, 12, 0, 0); button.IsEnabled = !busy;
+        if (look == Look.Google) { button.BorderBrush = Hairline; button.BorderThickness = new Thickness(1); }
         button.Click += async (_, _) => await click();
         return button;
     }
