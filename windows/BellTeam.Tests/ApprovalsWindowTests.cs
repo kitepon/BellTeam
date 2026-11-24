@@ -88,10 +88,11 @@ public sealed class ApprovalsWindowTests
     });
 
     [Fact]
-    public void ADeviceTheParentRemovedSaysSoAndOffersToConnectAgain() => RunSta(() =>
+    public void ADeviceTheParentRemovedSaysSoAboveTheNotJoinedScreenAndStartsClean() => RunSta(() =>
     {
         var join = new ApprovalsFixture.Join { Removed = true }; using var rig = Open(join: join); Until(() => rig.Page.Settled);
-        Assert.Contains(ChildJoinText.Removed, Texts(rig.Window)); Press(FindId(rig.Window, "child-join-again")); Assert.Equal([null], join.Joins);
+        var texts = Texts(rig.Window); Assert.Contains(ChildJoinText.Removed, texts); Assert.Contains(LocalFormText.FirstSignIn, texts);   // a clean start: the removed sentence above the not-joined screen
+        Press(FindId(rig.Window, "child-join-apple")); Assert.Equal(["apple"], join.Joins);
     });
 
     [Fact]

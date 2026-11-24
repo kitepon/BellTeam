@@ -9,7 +9,7 @@ internal enum ChildJoinPhase { NotJoined, Waiting, Failed, Joined }
 
 /// <summary>
 /// The port of the 決裁箱 window's child join (child-join.md "The port"): the Approval Box component's joinState and its three calls, as the window needs them. The window never signs in or holds a credential itself.
-/// Join(provider) is requestJoin (the library signs in first when the child form keeps none; null = again, with the provider of the last try); CancelJoin and Leave are cancelJoin and leave.
+/// Join(provider) is requestJoin(provider) (apple | google; the library signs in on this device; null = 「もう一度つなぐ」 after a failure, with the provider of the last try, which the adapter keeps); CancelJoin and Leave are cancelJoin and leave.
 /// </summary>
 internal interface IChildJoin
 {
@@ -33,7 +33,7 @@ internal interface IChildJoin
 
 /// <summary>
 /// The one screen of a window that is not joined (child-join.md): the first-screen approval view's shape. NotJoined: title, lead, the first screen's sign-in (Apple, Google); signing in: its waiting line and やめる;
-/// Waiting: title, the QR, 「H:mm まで有効」, the QR text (LocalFormText.Qr), やめる; Failed / removed: the sentence and もう一度つなぐ. Never a parent's 「ほかの端末を追加する」, a purchase or a plan.
+/// Waiting: title, the QR, 「H:mm まで有効」, the QR text (LocalFormText.Qr), やめる; Failed: the sentence and もう一度つなぐ; removed by the parent (notJoined(removed), a clean start): its sentence above the not-joined screen's Apple and Google buttons. Never a parent's 「ほかの端末を追加する」, a purchase or a plan.
 /// </summary>
 internal sealed class ChildJoinView : StackPanel
 {
@@ -51,7 +51,7 @@ internal sealed class ChildJoinView : StackPanel
             card.Children.Add(Text(SignInText.Waiting, 15, Ink, FontWeights.SemiBold));
             card.Children.Add(FirstScreenView.Button(ChildJoinText.LeaveNo, Fill, Ink, join.CancelJoin, "child-join-cancel"));
         }
-        else if (join.Phase == ChildJoinPhase.Failed || join.Removed)
+        else if (join.Phase == ChildJoinPhase.Failed)
             card.Children.Add(FirstScreenView.Button(ChildJoinText.ConnectAgain, System.Windows.Media.Brushes.Black, System.Windows.Media.Brushes.White, () => _ = join.JoinAsync(null), "child-join-again"));
         else
         {
