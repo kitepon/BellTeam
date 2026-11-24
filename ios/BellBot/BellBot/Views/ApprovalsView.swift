@@ -380,6 +380,7 @@ private struct ApprovalsScreen: View {
                 if tab != .done { originFilter }
                 if tab == .done { doneList } else { openList }
                 disconnectRow
+                SeatLinkSection()
             }
             .padding(14)
             .padding(.bottom, wide ? 0 : 70)
