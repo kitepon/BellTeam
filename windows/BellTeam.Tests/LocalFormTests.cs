@@ -95,4 +95,34 @@ public sealed class LocalFormTests
         Exception? error = null; var thread = new Thread(() => { try { action(); } catch (Exception e) { error = e; } }); thread.SetApartmentState(ApartmentState.STA); thread.Start(); thread.Join();
         if (error is not null) throw new Exception(error.Message, error);
     }
+
+    // Contract 1.50 (the Owner): BellTeam's own first sign-in guidance stands before the Apple / Google buttons, word for word, in the card and not after the QR is made.
+    [Fact]
+    public void TheFirstSignInGuidanceStandsBeforeTheTwoButtons() => RunSta(() =>
+    {
+        Assert.Equal("すでにほかの端末で使っている方は、同じアカウントでサインインしてから、次に出るQRコードを使用中の端末のカメラで読んでください。", LocalFormText.FirstSignIn);
+        var view = new LocalRequestView(_ => { }, () => { }); view.ShowIdle();
+        var texts = Descendants<TextBlock>(view).Select(text => text.Text).ToList();
+        Assert.True(texts.IndexOf(LocalFormText.Lead) < texts.IndexOf(LocalFormText.FirstSignIn), "below the lead");
+        var children = view.Children.Cast<UIElement>().ToList();
+        var guidance = children.IndexOf(children.OfType<TextBlock>().Single(text => text.Text == LocalFormText.FirstSignIn));
+        var buttons = children.FindIndex(child => child is WrapPanel);
+        Assert.True(guidance >= 0 && guidance < buttons, "before the Apple / Google buttons");
+    });
+
+    // Contract 1.49 (Mint, Tronie 2026-11-24): the QR is the library's join link of BellTeam's app id, and the library's guidance stands word for word beside it.
+    [Fact]
+    public void TheAppIdIsBellTeamsAndTheGuidanceStandsBesideTheQr() => RunSta(() =>
+    {
+        Assert.Equal("dev.kitepon.bellbot", LocalFormConfig.Build().AppId);
+        var link = "https://login-billing.kitepon.dev/join/dev.kitepon.bellbot#lbq4:" + new string('A', 170);
+        var view = new LocalRequestView(_ => { }, () => { }); view.ShowRequest(link, DateTimeOffset.Now.AddMinutes(10));
+        Assert.Contains("親となる端末（課金操作をするカメラのあるスマートフォンがお勧め）のカメラでQRコードを読んでください。", Texts(view));
+        Assert.Equal("親となる端末（課金操作をするカメラのあるスマートフォンがお勧め）のカメラでQRコードを読んでください。", LocalFormText.Qr);
+        Assert.Contains(Descendants<TextBlock>(view), text => System.Windows.Automation.AutomationProperties.GetAutomationId(text) == "local-request-guidance" && text.Text == LocalFormText.Qr);
+        var qr = Assert.Single(Descendants<QrView>(view));                                                // beside the guidance, in one row
+        using var data = new QRCoder.QRCodeGenerator().CreateQrCode(link, QRCoder.QRCodeGenerator.ECCLevel.M);
+        var cell = qr.Width / data.ModuleMatrix.Count;
+        Assert.Equal(Math.Round(cell), cell); Assert.True(cell >= 3 && qr.Width is >= 260 and <= 300, "whole-pixel modules of about 280 px: a phone camera reads sharp squares from a screen");
+    });
 }
