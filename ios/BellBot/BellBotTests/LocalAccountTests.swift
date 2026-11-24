@@ -55,6 +55,25 @@ final class LocalAccountTests: XCTestCase {
         XCTAssertTrue(LocalAccount(productId: "p").rules.audiences.contains("dev.kitepon.bellbot.signin"))
     }
 
+    /// Owner 2026-11-24: one QR read, one approve prompt. The library asks on every answer; a sign-in between two answers must not ask again.
+    func testOneQRReadAsksOnceAcrossTheSignIn() async throws {
+        final class Count: @unchecked Sendable { var asked = 0, answers = 0, signIns = 0 }
+        let count = Count()
+        let result = try await LocalAccount.answerWithSignIn(
+            ask: { count.asked += 1; return true },
+            answer: { confirm in
+                count.answers += 1
+                guard await confirm() else { return .declined }
+                if count.answers == 1 { throw LoginBillingError(code: "signin_required") }
+                return .sent
+            },
+            signIn: { count.signIns += 1 })
+        XCTAssertEqual([count.asked, count.answers, count.signIns], [1, 2, 1])
+        XCTAssertEqual(String(describing: result), "sent")
+        let declined = try await LocalAccount.answerWithSignIn(ask: { count.asked += 1; return false }, answer: { confirm in await confirm() ? .sent : .declined }, signIn: { XCTFail("no sign-in after a no") })
+        XCTAssertEqual(String(describing: declined), "declined")
+    }
+
     func testTheShippedGoogleClientIsTheOneInInfoPlist() {
         // Pinocchio's iOS client (a540-google-clients); Info.plist carries it and its reversed scheme.
         XCTAssertEqual(LocalAccount.googleClientId, "316260984663-ld7o5f8j3smgqu2h1va43lt4au031s3i.apps.googleusercontent.com")
