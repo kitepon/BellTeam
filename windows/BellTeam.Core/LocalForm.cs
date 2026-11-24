@@ -52,6 +52,7 @@ public static class LocalFormText
     public const string Window = "このQRは、このパソコンが待っている間だけ使えます（10分）。";
     public const string NewQr = "新しいQRを出す";
     public const string Firewall = "Windowsのファイアウォールの確認が出たら、許可してください。";
+    public const string OutdatedPeer = "QRが正しくないか、相手の端末のBellTeamが古い可能性があります。2台とも最新版に更新してから、相手の画面で新しいQRを出してください。";
     public const string PermissionDenied = "設定でこのアプリのローカルネットワークを許可してから、新しいQRでお試しください。";
     public const string ApproveLead = "承認したい端末に出ているQRを読み取ります。自分で始めたものだけ承認してください。2台は同じWi-Fiにつないでください。";
     private static string End(DateTimeOffset end) => end.ToLocalTime().ToString("yyyy年M月d日 H:mm");
@@ -70,12 +71,14 @@ public static class LocalFormText
         _ => throw new ArgumentOutOfRangeException(nameof(outcome), outcome, "Paid is spoken by Status / PaidOk"),
     };
 
-    // The failure lines by the library's error code (docs/local-form.md), the table's, shown in red under the card. status is unused (kept for the callers that pass the library's).
-    public static string Failure(string code, int? status = null) => code switch
+    // The failure lines by the library's error code (docs/local-form.md), the table's, shown in red under the card. status is unused (kept for the callers that pass the library's); detail is the library's Detail (Apple's own error word for signin_failed, never a token).
+    public static string Failure(string code, int? status = null, string? detail = null) => code switch
     {
         "unreachable_same_wifi" => Of(LocalFormOutcome.SameWifi),
         "local_network_denied" => PermissionDenied,
-        "qr_invalid" or "request_invalid" or "other_request" => Of(LocalFormOutcome.Refused),
+        "qr_invalid" => Of(LocalFormOutcome.Refused),
+        // 0.21.1 changed the QR hash and the add's nonce: a 0.21.0 (or older) device against a 0.21.1 one ends here, so the person is told to update both.
+        "request_invalid" or "other_request" => OutdatedPeer,
         "other_account" => Of(LocalFormOutcome.AnotherAccount),
         "request_expired" or "request_gone" => Of(LocalFormOutcome.Ended),
         "device_refused" => "相手が返事を受け取りませんでした。相手の画面で新しいQRを出してください。",
@@ -84,7 +87,10 @@ public static class LocalFormText
         "purchase_failed" or "purchase_unverified" => "購入を完了できませんでした。もう一度お試しください。",   // the Apple app's sentence (LocalAccount.words), no code
         "not_paid" or "revoked" or "proof_invalid" or "not_this_app" or "product_unknown" or "sandbox_refused" => "購入を確かめられませんでした（" + code + "）。",
         "bad_request" or "provider_unsupported" => "この端末ではそのアカウントでサインインできません。",
-        "network" => "つながりません。ネットワークを確かめて、もう一度お試しください。",
+        "network" or "unreachable" => "つながりません。ネットワークを確かめて、もう一度お試しください。",
+        "signin_required" => "サインインしてから、もう一度お試しください。",
+        "return_not_received" => "サインインの結果が戻ってきませんでした。もう一度お試しください。",
+        "signin_failed" => detail is { Length: > 0 } why ? "サインインできませんでした（" + why + "）。" : "サインインできませんでした。もう一度お試しください。",
         _ => "処理できませんでした（" + code + "）。",
     };
 }

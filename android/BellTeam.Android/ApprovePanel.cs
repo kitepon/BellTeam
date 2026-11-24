@@ -105,7 +105,8 @@ public sealed class ApprovePanel : StackPanel
         if (busy || AccountStore.Local is not { } local) return;
         busy = true; failure = null; result = null; Render();
         try { await action(local); }
-        catch (LoginBillingException error) { failure = LocalFormText.Failure(error.Code, error.Reason); }
+        catch (LoginBillingException error) when (error.Code == "signin_cancelled") { }   // the person's own choice says nothing
+        catch (LoginBillingException error) { failure = LocalFormText.Failure(error.Code, error.Reason, error.Detail); }
         asking = null; busy = false;
         if (!token.IsCancellationRequested) Render();
     }

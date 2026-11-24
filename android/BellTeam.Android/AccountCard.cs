@@ -66,7 +66,8 @@ public sealed class AccountCard : StackPanel
         busy = true; failure = notice = null; Render();
         try { await action(local); }
         catch (OperationCanceledException) { }   // the person pressed やめる, or the screen closed
-        catch (LoginBillingException error) { failure = LocalFormText.Failure(error.Code, error.Reason); }
+        catch (LoginBillingException error) when (error.Code == "signin_cancelled") { }   // the person's own choice says nothing
+        catch (LoginBillingException error) { failure = LocalFormText.Failure(error.Code, error.Reason, error.Detail); }
         request?.Dispose(); request = null; attempt?.Dispose(); attempt = null; busy = false;
         if (!token.IsCancellationRequested) await ReloadAsync();
     }
@@ -74,9 +75,9 @@ public sealed class AccountCard : StackPanel
     // One try: Google signs in on this phone (Apple is the paying iPhone's own sign-in), then the QR waits for the phone that holds the purchase; every failure ends the try with its sentence and the next step is a new QR.
     private Task RequestAsync(string provider) => RunAsync(async local =>
     {
-        attempt = CancellationTokenSource.CreateLinkedTokenSource(token);
-        if (provider == "google") await local.SignInLocalAsync(MainActivity.Current);
-        request = await local.MakeRequestAsync(MainActivity.Current, provider); expiry = DateTimeOffset.Now.AddMinutes(BellTeam.Core.LocalForm.ListenMinutes); Render();
+        attempt = CancellationTokenSource.CreateLinkedTokenSource(token); Render();
+        if (provider == "google") await local.SignInLocalAsync(MainActivity.Current).WaitAsync(attempt.Token);
+        request = await local.MakeRequestAsync(MainActivity.Current, provider).WaitAsync(attempt.Token); expiry = DateTimeOffset.Now.AddMinutes(BellTeam.Core.LocalForm.ListenMinutes); Render();
         paid = await request.AwaitPaidAsync().WaitAsync(attempt.Token); notice = LocalFormText.PaidOk;
     });
 
@@ -109,6 +110,8 @@ public sealed class AccountCard : StackPanel
             Children.Add(Button(LocalFormText.Google, () => RequestAsync("google"), Look.Primary));
             Children.Add(Button(LocalFormText.Apple, () => RequestAsync("apple"), Look.Primary));
         }
+        // Apple's sign-in runs in a browser tab that gives no signal when the person closes it: the library waits for the return, so this is the way out.
+        if (busy && request is null && attempt is { } signing) { Children.Add(Text(StoreAccountText.SigningInWeb, 13, Muted, null, new Thickness(0, 12, 0, 0))); var stop = Capsule(LocalFormText.Cancel, Fill, Ink, 12, 14, new Thickness(16, 10)); stop.HorizontalAlignment = HorizontalAlignment.Left; stop.Margin = new Thickness(0, 12, 0, 0); stop.Click += (_, _) => signing.Cancel(); Children.Add(stop); }
         if (!owned && request is null) Children.Add(Button(StoreAccountText.Refresh, () => ReloadAsync(), Look.Secondary));
         RenderDelete();
         if (failure is not null) Children.Add(Banner(failure));

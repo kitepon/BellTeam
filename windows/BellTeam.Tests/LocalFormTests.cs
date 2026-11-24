@@ -26,7 +26,8 @@ public sealed class LocalFormTests
     {
         Assert.Equal("スマホとこの端末を、同じWi-Fiにつないでください。", LocalFormText.Failure("unreachable_same_wifi"));
         Assert.Equal("設定でこのアプリのローカルネットワークを許可してから、新しいQRでお試しください。", LocalFormText.Failure("local_network_denied"));
-        Assert.All(new[] { "qr_invalid", "request_invalid", "other_request" }, code => Assert.Equal("QRが正しくありません。相手の画面で新しいQRを出してください。", LocalFormText.Failure(code)));
+        Assert.Equal("QRが正しくありません。相手の画面で新しいQRを出してください。", LocalFormText.Failure("qr_invalid"));
+        Assert.All(new[] { "request_invalid", "other_request" }, code => Assert.Equal(LocalFormText.OutdatedPeer, LocalFormText.Failure(code)));
         Assert.Equal("別のアカウントです。相手の端末と同じアカウントでサインインしてください。", LocalFormText.Failure("other_account"));
         Assert.All(new[] { "request_expired", "request_gone" }, code => Assert.Equal("QRの待ち時間（10分）が過ぎました。新しいQRを出してください。", LocalFormText.Failure(code)));
         Assert.Equal("相手が返事を受け取りませんでした。相手の画面で新しいQRを出してください。", LocalFormText.Failure("device_refused"));
