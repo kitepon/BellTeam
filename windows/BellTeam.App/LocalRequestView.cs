@@ -18,7 +18,7 @@ internal sealed class LocalRequestView : StackPanel
     public void ShowIdle(string? sentence = null)
     {
         Head();
-        var first = Text(LocalFormText.FirstSignIn, 13, Ink, FontWeights.SemiBold, new Thickness(0, 10, 0, 0));   // before the Apple / Google buttons, below the lead
+        var first = Text(LocalFormText.FirstSignInChildOnly, 13, Ink, FontWeights.SemiBold, new Thickness(0, 10, 0, 0));   // before the Apple / Google buttons, below the lead
         System.Windows.Automation.AutomationProperties.SetAutomationId(first, "local-request-first-signin"); Children.Add(first);
         Children.Add(Text(LocalFormText.Firewall, 12, Muted, null, new Thickness(0, 4, 0, 0)));
         if (sentence is not null) Children.Add(Text(sentence, 13, Red, null, new Thickness(0, 10, 0, 0)));

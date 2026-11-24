@@ -100,12 +100,12 @@ public sealed class LocalFormTests
     [Fact]
     public void TheFirstSignInGuidanceStandsBeforeTheTwoButtons() => RunSta(() =>
     {
-        Assert.Equal("すでにほかの端末で使っている方は、同じアカウントでサインインしてから、次に出るQRコードを使用中の端末のカメラで読んでください。", LocalFormText.FirstSignIn);
+        Assert.Equal("本アプリケーションを使用するには、iPhone、iPad、Mac、Android等の購読済みの端末で、サインイン後に表示されるQRコードを読み取る必要があります。", LocalFormText.FirstSignInChildOnly);   // Windows cannot become a parent: the child-only lead, word for word
         var view = new LocalRequestView(_ => { }, () => { }); view.ShowIdle();
         var texts = Descendants<TextBlock>(view).Select(text => text.Text).ToList();
-        Assert.True(texts.IndexOf(LocalFormText.Lead) < texts.IndexOf(LocalFormText.FirstSignIn), "below the lead");
+        Assert.True(texts.IndexOf(LocalFormText.Lead) < texts.IndexOf(LocalFormText.FirstSignInChildOnly), "below the lead");
         var children = view.Children.Cast<UIElement>().ToList();
-        var guidance = children.IndexOf(children.OfType<TextBlock>().Single(text => text.Text == LocalFormText.FirstSignIn));
+        var guidance = children.IndexOf(children.OfType<TextBlock>().Single(text => text.Text == LocalFormText.FirstSignInChildOnly));
         var buttons = children.FindIndex(child => child is WrapPanel);
         Assert.True(guidance >= 0 && guidance < buttons, "before the Apple / Google buttons");
     });

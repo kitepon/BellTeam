@@ -35,7 +35,7 @@ internal sealed class FirstScreenView : StackPanel
         }
         else
         {
-            var first = Text(LocalFormText.FirstSignIn, 14, Muted); System.Windows.Automation.AutomationProperties.SetAutomationId(first, "first-screen-first-signin"); card.Children.Add(first);
+            var first = Text(LocalFormText.FirstSignInChildOnly, 14, Muted); System.Windows.Automation.AutomationProperties.SetAutomationId(first, "first-screen-first-signin"); card.Children.Add(first);
             if (account.Sentence is { } sentence) card.Children.Add(Text(sentence, 13, Red, null, new Thickness(0, 10, 0, 0)));
             card.Children.Add(Button(SignInText.Apple, System.Windows.Media.Brushes.Black, System.Windows.Media.Brushes.White, () => _ = account.StartAsync("apple"), "first-screen-apple"));
             card.Children.Add(Button(SignInText.Google, System.Windows.Media.Brushes.White, Ink, () => _ = account.StartAsync("google"), "first-screen-google", bordered: true));
