@@ -50,6 +50,11 @@ final class LocalAccountTests: XCTestCase {
         XCTAssertTrue(LocalAccount.googleAudiences.contains(LocalAccount.googleClientId ?? ""))
     }
 
+    func testTheAppleServicesIdIsAnAcceptedAudience() {
+        XCTAssertEqual(LocalAccount.appleServicesId, "dev.kitepon.bellbot.signin")
+        XCTAssertTrue(LocalAccount(productId: "p").rules.audiences.contains("dev.kitepon.bellbot.signin"))
+    }
+
     func testTheShippedGoogleClientIsTheOneInInfoPlist() {
         // Pinocchio's iOS client (a540-google-clients); Info.plist carries it and its reversed scheme.
         XCTAssertEqual(LocalAccount.googleClientId, "316260984663-ld7o5f8j3smgqu2h1va43lt4au031s3i.apps.googleusercontent.com")

@@ -25,7 +25,7 @@ final class LocalAccount: ObservableObject {
     private var decision: CheckedContinuation<Bool, Never>?
     private var open: LocalRequest?
     private let form: LocalForm
-    private let rules: LocalRules
+    let rules: LocalRules
     private var updates: Task<Void, Never>?
     private static let log = Logger(subsystem: "app.bellteam.bellbot", category: "billing")
     let productId: String
@@ -40,6 +40,9 @@ final class LocalAccount: ObservableObject {
 
     /// 受け入れるGoogleのaudience: BellTeamのクライアントID全部（Web・iOS・Android・Desktop）。Android・Desktopのスマホ返事とQRの相手が、どのクライアントで作ったトークンでも通る（Windows `LocalFormIds.GoogleClientIds` と同じ並び）。
     static let googleAudiences = ["316260984663-ld7o5f8j3smgqu2h1va43lt4au031s3i.apps.googleusercontent.com", "316260984663-rmloup01smiuuv79m0tga49vtpobnsn4.apps.googleusercontent.com", "316260984663-4ks1an9gat7npa9fdkok70kadrsp80rt.apps.googleusercontent.com", "316260984663-7qi9ui73upodrlerlotlftk3vk82hprp.apps.googleusercontent.com", "316260984663-be6dklphci1vbljimpg3ljpr5nc19cvv.apps.googleusercontent.com", "316260984663-ktbg3e8931u0jv94c2fhccrig8ppau78.apps.googleusercontent.com", "316260984663-lofu7qohq45fhbfup8k3ottlgat415pk.apps.googleusercontent.com"]
+
+    /// Apple's web sign-in (a Windows or Linux child) mints its token for the Services ID, not the bundle id; the phone that answers must list it.
+    static let appleServicesId = "dev.kitepon.bellbot.signin"
 
     /// アプリ自身のKeychainグループ（共有拡張が持つ.shareではない）。未設定（試験の本体など）はnil＝既定。
     nonisolated static var passGroup: String? {
@@ -68,7 +71,7 @@ final class LocalAccount: ObservableObject {
         // The Play licensing public key (public, from Sielo/a540-play-license-key): an Android phone's reply is accepted here. Package name = this app's id on Play.
         let play = PlayRules(packageName: "dev.kitepon.bellbot", products: [productId], publicKey: "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAri9WbSLPgiw3xak9MEg8udMt8egmWdY7T3gM15nxWWPLmdWp08NXaXmDgRcHobfYn003GlaGxCzeZZktrJjjQHM28gteK4p2qnSkuVVkF9N/JIgyubCw7MQtu+jrsg24leLUfGJfOTHB5BO1sxr8g+x3HeKCfAlISaj/XpN0p6e05/lIf/vcQoDV3e72Dd5WXcDdoM9M7YCXhPSUFZ5ydxZSCOc/N/0uAvhXey/kEFjBu8rpth+n/a3gFzNDayXMcUri2yKazEww9EfDGbKoUrXQNGJOV91vpH5SKOV4IfgnHsoglxWkFTerfVUgVqrTUhV2Nh8kMPyEw2RUj/ZWQwIDAQAB")
         rules = LocalRules(apple: AppleRules(bundleIds: [bundleId], products: [productId], sandbox: true), play: play,
-                           audiences: [bundleId] + Self.googleAudiences, googleClientId: google, appId: "dev.kitepon.bellbot")
+                           audiences: [bundleId, Self.appleServicesId] + Self.googleAudiences, googleClientId: google, appId: "dev.kitepon.bellbot")
         form = LocalForm(rules: rules, anchor: Self.anchor, store: KeychainPassStore(service: "dev.kitepon.loginbilling.local", accessGroup: Self.passGroup))
         // A renewal or restore the Store delivers after launch (the device's copy can be behind on the first launch after an update) opens the app without 購入を復元.
         updates = Task { [weak self] in
