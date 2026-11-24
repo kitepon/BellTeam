@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createLatticeDecisions, LATTICE_APPROVAL_SCOPE } from '../src/lattice-approval.mjs'
+import { createApprovalDecisions, createLatticeDecisions, LATTICE_APPROVAL_SCOPE } from '../src/lattice-approval.mjs'
 import { createLatticeEffects } from '../src/lattice-facade.mjs'
 
 const params = { title: 'Alpha: Task t1', context: 'c', options: [{ id: 'done', label: '済んだ' }, { id: 'not-yet', label: 'まだ' }], requester: 'Cee', session_label: 'alpha / p1/t1' }
@@ -166,4 +166,17 @@ test('a read of an id unknown to both the daemon and the token path is GONE; can
   await assert.rejects(both.decisions.read({ decisionId: 'K-NONE' }), { code: 'LATTICE_DECISIONS_GONE', status: 404 })
   const cancel = rig({ current: { handle: 'h', revision: 1, available: true, requestId: 's' }, responses: [[404, {}]] })
   await assert.rejects(cancel.decisions.cancel({ decisionId: 'K-NONE', reason: 'r' }), { code: 'LATTICE_DECISIONS_REFUSED' })
+})
+
+test('tokenSource: the token is read at call time, 401 reports it to onUnauthorized, null or a refused source is unavailable, no secret store is used', async () => {
+  const seen = [], fetches = []
+  let token = 'tok-a'
+  const responses = [[200, { items: [] }], [401, {}], [200, { items: [] }]]
+  const fetchImpl = async (url, init) => { fetches.push(init.headers.authorization); const [status, json] = responses.shift(); return { ok: status < 300, status, json: async () => json } }
+  const decisions = createApprovalDecisions({ code: 'SEAT_APPROVAL_DECISIONS', fetchImpl, tokenSource: async () => token, onUnauthorized: value => { seen.push(value) } })
+  await assert.rejects(decisions.file({ ...params, session_label: 'Seat x' }), { code: 'SEAT_APPROVAL_DECISIONS_REFUSED' }) // no 'items' match -> POST answers 401
+  assert.deepEqual(seen, ['tok-a'])
+  token = null
+  await assert.rejects(decisions.read({ decisionId: 'K-AAAA' }), { code: 'SEAT_APPROVAL_DECISIONS_UNAVAILABLE', status: 503 })
+  assert.deepEqual(fetches, ['Bearer tok-a', 'Bearer tok-a'])
 })

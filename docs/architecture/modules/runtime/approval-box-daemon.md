@@ -159,3 +159,51 @@ Once the peer channel is up (`mode: pc`), `startHosted` returns and the daemon h
 
 - **Q4** (K-3JM9PS answer): independent of hosting. Proposal: keep the already-read answer (no daemon dependency); the OLRW owner confirms before the close.
 - **Q5** (the authenticated route for app reports, D7b): not part of hosting; belongs to the link-engine feed with the apps (Delta, Flora). This module exposes `route()` for the D7a feed (decisions the Lattice connector filed) when that PR comes.
+
+## Seat link: the body's own QR pairing for seat-approval cards (seat-link-pair-body, 2026-11-24)
+
+Contract: [seat-approval-card.md](../approval-box-extension/seat-approval-card.md) (Delta, #2538). The body pairs ONCE as a connector of the Owner's Approval Box account (the Owner scans a QR code in the Approval Box app), and the seat cards use the token that pairing leaves in `<daemon HOME>/config.json` directly on `/connector/v1`. This is a second, earlier pairing than the peer-channel one (a490p, unchanged; PC_OFFER stays off). The hosted daemon never reads it.
+
+The daemon controller gains a `seatLink` slot (state in parent memory only; the token stays in `config.json`, 0600, and is read at call time):
+
+| Call | What it does |
+| --- | --- |
+| `get()` | the view `{state, code?, qrText?, expiresAt?, reason?}`; adopts a token already in `config.json` (none -> linked) |
+| `start()` | returns the running pairing's view, or starts one `pair --json` run in the `/v1` mode (`approval-box pair --json --v1`, approval-box 0.2.0-pc.4, `SEAT_LINK_ARGS`), waits up to 20 s for the `waiting` line |
+| `stop()` | kills the run; `waiting -> none` |
+| `token()` | `readPairedToken` for `createApprovalDecisions({ tokenSource })`: the token only while the state is `linked`, else null (nothing is filed) |
+| `unauthorized(token)` | called by `createApprovalDecisions` when `/connector/v1` answers 401 for that token: `linked -> removed` (ignored when `config.json` already holds a newer token) |
+
+```mermaid
+stateDiagram-v2
+  [*] --> none
+  none --> linked: config.json holds a token (adopted by get/token/start)
+  none --> waiting: start (run spawned, waiting line within 20 s)
+  none --> failed: start and no waiting line in 20 s, spawn error, package missing, or an a490p pair run is active (reason unavailable / busy)
+  waiting --> linked: claimed line (config.json is written just before it; there is no bound line), exit 0, and a NEW token is readable
+  waiting --> failed: rejected | expired (the run is capped at expires_at, at most 5 min) | run ended without a token
+  waiting --> none: stop (run killed)
+  failed --> waiting: start
+  linked --> removed: unauthorized(token) with the token still in config.json
+  removed --> waiting: start (a new token must differ from the removed one)
+  linked --> linked: start (returns the view, no run)
+```
+
+Every state leaves by the Owner's tap, the run ending or a bounded wait; `close()` kills the run. None waits for an operator.
+
+```mermaid
+flowchart LR
+  Owner["Owner (app, same-origin session)"] -->|"GET / POST start / POST stop /api/approvals/seat-link"| Routes["approval-box-extension http-api (keeps no pairing data)"]
+  Routes --> Link["daemon.seatLink"]
+  Link -->|"spawn pair --json (/v1 mode), lines on stdout"| Pair["pair child"]
+  Pair -->|"waiting {pairing_id, code, qr_text, expires_at}"| Link
+  Pair -->|"claimed: writes"| Config[("HOME/config.json 0600: token")]
+  Link -->|"qrText to the Owner's screen only"| Owner
+  Seat["createApprovalDecisions (seat-approvals)"] -->|"tokenSource = link.token()"| Config
+  Seat -->|"Bearer token"| Server["Approval Box /connector/v1"]
+  Server -->|"401: connection removed"| Seat -->|"unauthorized(token)"| Link
+```
+
+The waiting line's `code` (the typed code) and `qr_text` are held in parent memory and returned only to the Owner's route; they are never logged, never in `status()`, diagnostics or the chart. The token is never copied to the secret store, a card, a log or a route answer.
+
+Lines of `approval-box pair --json --v1` (Nayuta, 0.2.0-pc.4): `waiting {pairing_id, code, qr_text, expires_at}`; `claimed {connection_id, path:"v1"}` then exit 0; `failed {code: rejected|expired, message}` then exit 1 (no config written). `config.json`: `{server, token, connection_id, device_name, path:"v1"}`, `token` is the Bearer on `/connector/v1`. No daemon runs for seat cards (Tronie 2026-11-24): the hosted daemon slot stays what a490p uses; the pin is still 0.2.0-pc.2 in this change and the `--v1` run needs the pc.4 pin (a separate, deliberate pin change with its lock, because the hosted daemon and the seats' door run from the same package).

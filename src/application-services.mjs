@@ -528,7 +528,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     approvalsModule = approvalsFactory({ root, exchangeMutex, prepareRelease: prepareApprovals,
       onEffect: createApprovalBoxExtensionEffects({ lattice, bots, credentials: usageAssembly?.credentials ?? null, daemon: approvalBoxDaemon }),
       onModuleChildExit: moduleChildExitReporter.observe, onModuleRestartLimit: moduleChildExitReporter.observeRestartLimit, onState: () => updateCenter?.notify() })
-    approvals = createApprovalsFacade({ controller: approvalsModule })
+    approvals = createApprovalsFacade({ controller: approvalsModule, seatLink: approvalBoxDaemon.seatLink })
     void approvalsModule.start().catch(() => {})
     approvals.start()
   }
@@ -541,9 +541,9 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   const seatApprovals = createSeatApprovals({ path: join(root, 'state', 'seat-approvals.json'), bots, transport, machineStream,
     // The push is the existing owner_question one (title = the Bot's name); tapping it opens the Bot, where the entry is.
     push: { seatApproval: item => notifications.question({ id: item.id, botId: item.botId }) },
-    // seat-approval-card.md (third version): the card uses the token of the body's own QR pairing (tokenSource, wired by Molly), no secret card and no daemon.
-    // Until it is wired nothing can be filed (UNAVAILABLE) and the entry stays in-app only.
-    decisions: createApprovalDecisions({ code: 'SEAT_APPROVAL_DECISIONS' }) })
+    // seat-approval-card.md (third version): the card uses the token of the body's own QR pairing (daemon.seatLink), no secret card and no hosted daemon.
+    // Until the Owner has paired (or after the connection is removed) nothing can be filed (UNAVAILABLE) and the entry stays in-app only.
+    decisions: createApprovalDecisions({ code: 'SEAT_APPROVAL_DECISIONS', tokenSource: () => approvalBoxDaemon.seatLink.token(), onUnauthorized: token => approvalBoxDaemon.seatLink.unauthorized(token) }) })
   const updateClients = hostClient ? { container: hostClient, module: hostClient } : await createUpdateClients()
   const hostUpdate = createHostUpdateAdapter({ root, client: updateClients.container })
   const moduleCatalog = createModuleUpdateCatalog({ client: updateClients.module })
