@@ -13,11 +13,11 @@ public sealed class QrView : Control
     public QrView(string payload, double size)
     {
         using var data = new QRCodeGenerator().CreateQrCode(payload, QRCodeGenerator.ECCLevel.M);
-        rows = data.ModuleMatrix.ToArray(); Width = Height = Math.Max(size, 3 * rows.Length);
+        rows = data.ModuleMatrix.ToArray(); Width = Height = Math.Max(3, Math.Round(size / rows.Length)) * rows.Length;
     }
     public override void Render(DrawingContext context)
     {
-        var scale = VisualRoot?.RenderScaling ?? 1;
+        var scale = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1;
         var pixels = Math.Max(1, (int)Math.Floor(Width * scale / rows.Length)); var cell = pixels / scale;   // one module = a whole number of device pixels
         var inset = (Width - cell * rows.Length) / 2;
         context.FillRectangle(Brushes.White, new Rect(0, 0, Width, Height));

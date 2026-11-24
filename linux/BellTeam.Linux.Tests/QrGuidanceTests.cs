@@ -12,7 +12,7 @@ public sealed class QrGuidanceTests
         var column = (StackPanel)((Border)block).Child!;
         var at = column.Children.ToList().FindIndex(child => child is QrView);
         Assert.True(at > 0);
-        Assert.Equal("親となる端末（課金操作をするカメラのあるスマートフォンがお勧め）のカメラでQRコードを読んでください。", ((TextBlock)column.Children[at + 1]).Text);
+        Assert.Equal(BellTeam.Core.LocalFormText.Qr, ((TextBlock)column.Children[at + 1]).Text);
         return Task.CompletedTask;
     });
 
@@ -21,7 +21,7 @@ public sealed class QrGuidanceTests
     {
         var card = new LinuxAccountCard(CancellationToken.None);
         var texts = card.Children.OfType<TextBlock>().Select(text => text.Text).ToList();
-        var at = texts.IndexOf("すでにほかの端末で使っている方は、同じアカウントでサインインしてから、次に出るQRコードを使用中の端末のカメラで読んでください。");
+        var at = texts.IndexOf(BellTeam.Core.LocalFormText.FirstSignIn);
         Assert.True(at >= 0);
         Assert.True(card.Children.ToList().FindIndex(child => child is Button) > card.Children.ToList().FindIndex(child => child is TextBlock text && text.Text == texts[at]));
         return Task.CompletedTask;
