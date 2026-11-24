@@ -423,7 +423,10 @@ export class MachineStream {
   }
 
   async extend(bot, botId, index) {
-    const path = this.path(botId), end = (await stat(path)).size
+    const path = this.path(botId), { size: end, ino } = await stat(path)
+    // The file was replaced or cut under us (history put back, mstream-archive-20261124): the offsets are those of another file, start again.
+    if ((index.ino !== undefined && index.ino !== ino) || end < index.offset) Object.assign(index, { offset: 0, count: 0, checkpoints: [], prefix: bot.initFloor > 0 ? new Map() : null })
+    index.ino = ino
     if (end <= index.offset) return
     for await (const { offset, line } of forward(path, index.offset, end)) {
       index.offset = offset + line.length + 1
