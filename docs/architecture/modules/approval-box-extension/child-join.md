@@ -28,7 +28,7 @@ Releases (all on login-billing 0.22.4, each with a sha256; Nayuta tells Tronie t
 
 A child removed on the server (the parent removed it in 接続): a signed call answers 401 `not_signed_in`, `joinState` becomes `notJoined(removed)` and `state` reads `signedOut`; the child form's kept sign-in and key are cleared, so `requestJoin(provider)` starts clean.
 
-Strings: the library owns no guidance texts (Owner 2026-11-24; login-billing contract 11.12 is a guideline). BellTeam owns every string on this page and writes it by the guideline: the QR text is the guideline's, word for word; the `other_account` sentence above is BellTeam's, in its own screen style, carrying the guideline's meaning only.
+Strings: the library owns no guidance texts (Owner 2026-11-24; login-billing contract 11.12 is a guideline). BellTeam owns every string on this page and writes it by the guideline's meaning: the QR text is the sentence above for now; the `other_account` sentence is BellTeam's, in its own screen style.
 
 ## The port
 
@@ -42,7 +42,7 @@ Where: the 決裁箱 window itself. When the client is not joined it is the firs
 | --- | --- | --- |
 | `notJoined` (first start, after 「やめる」, after an expiry, after `leave`) | title 「決裁箱につなぎます」; 「この端末を、あなたの決裁箱に子の端末として追加します。」; then the sign-in exactly as the first-screen approval view draws it (the same words and buttons: `LocalFormText.FirstSignIn`, `SignInText.Apple`, `SignInText.Google`; Core in Anis's block, Apple in Rapi's `LocalAccount`) | the Apple or Google button (`requestJoin`) |
 | `signingIn(provider)` | the first screen's line (`SignInText.Waiting`) | 「やめる」 (`cancelJoin`) |
-| `waitingForParent` | title 「決裁箱の承認を待っています」; the QR from `qrLink` (label 「決裁箱につなぐQRコード」); a spinner and 「H:mm まで有効」; beside the QR, the guideline's QR text word for word, the Owner's own and the one the first screen uses (`LocalFormText.Qr` / `LocalAccount.qrGuidance`): 「親となる端末（課金操作をするカメラのあるスマートフォンがお勧め）のカメラでQRコードを読んでください。」 It fits here too: the parent is his iPhone, the device that holds the Approval Box purchase. Never replaced by a text of our own | 「やめる」 (`cancelJoin`) |
+| `waitingForParent` | title 「決裁箱の承認を待っています」; the QR from `qrLink` (label 「決裁箱につなぐQRコード」); a spinner and 「H:mm まで有効」; beside the QR, the sentence the first screen uses (`LocalFormText.Qr` / `LocalAccount.qrGuidance`, the Owner's own sentence of guideline 11.12): 「親となる端末（課金操作をするカメラのあるスマートフォンがお勧め）のカメラでQRコードを読んでください。」 It fits here too: the parent is his iPhone, the device that holds the Approval Box purchase. BellTeam's display is BellTeam's: the wording may change in one place, `LocalFormText.Qr` and `LocalAccount.qrGuidance`, without touching this contract | 「やめる」 (`cancelJoin`) |
 | `failed(code)` with `other_account` (this device and the parent are signed in to different accounts) | 「この端末と親の端末で、サインインしているアカウントが違います。親の端末と同じアカウント（AppleかGoogle）でこの端末にサインインして、もう一度QRコードを出してください。」 (no server, no ID) | 「もう一度つなぐ」 |
 | `failed(code)` (any other parent's refusal or library refusal) | 「つなげませんでした。もう一度つないでください。」 (the library's code never shown) | 「もう一度つなぐ」 |
 | `joined`, `state` `joining` | the last view dimmed or 「つないでいます…」 | none |
