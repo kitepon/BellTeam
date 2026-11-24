@@ -43,7 +43,7 @@ internal sealed class ApprovalsHub : IDisposable
     public ApprovalsHub(LinuxWorkspace workspace, IApprovalSource? source = null)
     {
         this.workspace = workspace; Source = source;
-        if (source is not null) source.Changed += () => Run(() => { Changed?.Invoke(); DeviceChanged?.Invoke(); ReadLinks(); });
+        if (source is not null) source.Changed += () => Notify(readLinks: true);
         workspace.PropertyChanged += OnWorkspace;
         _ = AskNotLinkedAgainAsync();
     }
@@ -62,6 +62,15 @@ internal sealed class ApprovalsHub : IDisposable
     /// <summary>The peer session alone (the render seam and the tests): it is wrapped as the port.</summary>
     internal ApprovalsHub(LinuxWorkspace workspace, IDeviceDecisions? device) : this(workspace, device is null ? null : new PeerSource(device)) { }
 
+    // One repaint at a time, at most one queued: the /v1 stream replays the account's whole history at launch and every event used to repaint the whole list on the UI thread (a repaint of 250 decisions is ~300 ms).
+    private int notifyQueued, linksWanted;
+    private void Notify(bool readLinks)
+    {
+        if (readLinks) Volatile.Write(ref linksWanted, 1);
+        if (Interlocked.Exchange(ref notifyQueued, 1) == 1) return;
+        Run(() => { Volatile.Write(ref notifyQueued, 0); Changed?.Invoke(); DeviceChanged?.Invoke(); if (Interlocked.Exchange(ref linksWanted, 0) == 1) ReadLinks(); });
+    }
+
     private static void Run(Action action) { if (Dispatcher.UIThread.CheckAccess()) action(); else Dispatcher.UIThread.Post(action); }
 
     /// <summary>Asks BellTeam which of the device's decisions are linked to a chart task (a changed server forgets the answers).</summary>
@@ -70,7 +79,7 @@ internal sealed class ApprovalsHub : IDisposable
         if (!workspace.Connected || Source is null) return;
         if (origin != workspace.Server) { origin = workspace.Server; Links.Forget(); }
         BellApi api; try { api = workspace.Management.Api; } catch (BellApiException) { return; }   // the workspace closed or has no server yet: the links stay unknown (a failed link draws nothing)
-        _ = Links.ReadAsync(api, DeviceViews, () => Run(() => { Changed?.Invoke(); DeviceChanged?.Invoke(); }), life.Token);
+        _ = Links.ReadAsync(api, DeviceViews, () => Notify(readLinks: false), life.Token);
     }
 
     public void Dispose() { workspace.PropertyChanged -= OnWorkspace; life.Cancel(); }
