@@ -4,7 +4,7 @@ import { dirname } from 'node:path'
 import { writeAtomic } from './json-file.mjs'
 
 // seat-approval-to-abx (execution/seat-approvals.md): a seat blocked on a tool-approval prompt reaches the Owner, as an Approval Box card
-// when its own connector connection has a token (Delta's contract #2531), and always as an entry inside BellTeam. One record per prompt occurrence; every front answers through
+// when the body's own QR-paired connector has a token (Delta's contract #2538), and always as an entry inside BellTeam. One record per prompt occurrence; every front answers through
 // the same Aiterm respond with the digest stored here, so the first answer wins.
 export const SEAT_APPROVALS_SCHEMA = 'bellteam.seat-approvals.v1'
 const HARNESSES = new Set(['claude', 'codex'])
@@ -36,7 +36,7 @@ const view = (record, name) => ({ id: record.id, botId: record.botId, botName: n
   reason: record.facts.reason, since: new Date(record.firstSeen).toISOString(), choices: CHOICES, card: record.decisionId ? 'filed' : 'none' })
 
 // bots: the Bot Map; transport: screenApproval + currentWork; machineStream.pendingApprovals(botId); decisions: createApprovalDecisions();
-// push.seatApproval(item); tick every intervalMs once start()ed. decisions = createApprovalDecisions(): it picks the connector token path, or the daemon once paired.
+// push.seatApproval(item); tick every intervalMs once start()ed. decisions = createApprovalDecisions() with the paired token as its tokenSource.
 export function createSeatApprovals({ path, bots, transport, machineStream = null, decisions = null, push = null, now = Date.now, intervalMs = 10_000 }) {
   const events = new EventEmitter()
   let records = null, queue = Promise.resolve(), timer = null, ticking = null

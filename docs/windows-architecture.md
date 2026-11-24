@@ -366,6 +366,27 @@ flowchart LR
 - **見える所**: メンバー一覧のそのBotの行に「承認待ち」の札、そのBotの画面の上に承認の項目（そのBotの分を古い順に全部）。決裁箱のカード（`card: "filed"`）があっても、アプリの項目は残る。
 - **言葉の置き場**: Coreの`SeatApprovalText`（Linux・Androidと同じ）。Macが見た目の基準。Windowsの見え方は[windows-seat-approvals.png](windows-seat-approvals.png)（`BellTeam.exe --render-preview`の人工データ。左の行に「承認待ち」、会話の上に項目）。
 
+## 「AIの許可待ちを決裁箱へ送る」（seat-link。[seat-approval-card.md](architecture/modules/approval-box-extension/seat-approval-card.md)の「The pairing view」、オーナー2026-11-24：トークンは貼らず、BellTeamのQRを決裁箱のアプリで読んで承認）
+
+決裁箱の窓の「工程表との連携」パネル（つなぎを外すがある所）の下に1つの区画を足す。データはbodyの`GET /api/approvals/seat-link`・`POST …/start`・`POST …/stop`だけ（Coreの`SeatLinkApi`。形は`{state, code?, typedSecret?, qrText?, expiresAt?, reason?}`）。言葉と状態はCoreの`SeatLinkText`（契約の表を一字も変えず、Linux・Androidと同じ）。
+
+```mermaid
+stateDiagram-v2
+  [*] --> none: パネルを開く（GET）
+  none --> waiting: 「つなぐ」（POST start）
+  waiting --> waiting: 2秒ごとにGET（QR・打ち込むコード・手順・期限JST・「やめる」）
+  waiting --> linked: 決裁箱のアプリでQRを読んで許可
+  waiting --> failed: rejected | expired | その他
+  waiting --> none: 「やめる」（POST stop）
+  linked --> removed: 決裁箱でつなぎが外された
+  failed --> waiting: 「もう一度つなぐ」
+  removed --> waiting: 「もう一度つなぐ」
+```
+
+- 見え方：[waiting](windows-seat-link-waiting.png)（QR・打ち込むコード・「決裁箱のアプリで、接続 → 「AIをつなぐ」 → 「QRコードを読む」を開き、…」・期限・やめる）と[linked](windows-seat-link-linked.png)。linkedとnoneは中立で、赤はfailed（と読めない時）だけ。linkedにボタンは無い。
+- 読めない時：503・403・失敗は「いまはつなげません。少し待って、もう一度押してください。」と「もう一度つなぐ」。**routeの無い古いbody（404）は区画を出さない**（routeが入る前のビルドで、オーナーに紛らわしい行を見せないため）。
+- 答え（start・stop）は1回ずつで、送っている間はスピナー。パネルは縦に長くなるのでスクロールする。
+
 ## peer-channel（決裁箱の端末部品。a498）
 
 ```mermaid

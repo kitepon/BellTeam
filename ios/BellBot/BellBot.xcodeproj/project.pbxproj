@@ -73,7 +73,6 @@
 		3958583313FE3D055F09FC22 /* ApprovalBoxLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B50F1ABC10F99B3ECE4BD42 /* ApprovalBoxLink.swift */; };
 		3A8887F32417ECBC087F9390 /* ServerOrigin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 549845AE12463CD143CDEEB8 /* ServerOrigin.swift */; };
 		3AE91015609ECFC45B7F24D4 /* BotPresenceDot.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1AE6C1D856D10729E4D5448 /* BotPresenceDot.swift */; };
-		3BC2D599E744A3BD991BAE02 /* SubscriptionRequiredView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A97AF12ADC39496A4688770 /* SubscriptionRequiredView.swift */; };
 		3C8DBF8CA7C28A4E05E37065 /* PeerDeviceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4012D6AA3D96484D24BE2678 /* PeerDeviceStore.swift */; };
 		3CA85150E6BD8BE8189F7AB0 /* CommunicationNotification.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0FF407A73C66DA6E4E20B8 /* CommunicationNotification.swift */; };
 		3D10E2E685D5F7AECA308B28 /* MachineEventTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21273DCBB039D2A2650ACE23 /* MachineEventTests.swift */; };
@@ -82,6 +81,7 @@
 		3F455EAA55B797780C0D75C7 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F389F929181AEFB9BC90ACE /* SettingsView.swift */; };
 		41F3960F23EC97984F7DEC9B /* PreviewFixtureRelay.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEE043EEA88EF36CB0E9EA2F /* PreviewFixtureRelay.swift */; };
 		43BB09184EEC31FAF35EE52C /* AvatarImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14A3883CF382AE17DAC3CE67 /* AvatarImage.swift */; };
+		455B1F38E1C315CA1FF16CE2 /* FirstApprovalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A630FEC7D531C2E19E537280 /* FirstApprovalView.swift */; };
 		4713F00A6F38AAF7DE44F8E0 /* UserNotifications.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E9D3D74EF4A36F15C49C36CE /* UserNotifications.framework */; };
 		497FA865C863E1F1305FF785 /* RoomDeletionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D550B852B0446656582D8B7 /* RoomDeletionUITests.swift */; };
 		4CB610ECF2ED98695D3DA0AD /* AppStore+Terminals.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B0E5A8B0B797AF624E5874E /* AppStore+Terminals.swift */; };
@@ -398,7 +398,6 @@
 		884428616564BE00EFB0370F /* BellBotApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellBotApp.swift; sourceTree = "<group>"; };
 		887647AEA4453FDB025FBE81 /* BearerRedirectGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BearerRedirectGuard.swift; sourceTree = "<group>"; };
 		8A46AC41E8C3B106A493DE9E /* ConversationImageViewerUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationImageViewerUITests.swift; sourceTree = "<group>"; };
-		8A97AF12ADC39496A4688770 /* SubscriptionRequiredView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionRequiredView.swift; sourceTree = "<group>"; };
 		8AADF3A874E03D87F1757240 /* PrimeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrimeTests.swift; sourceTree = "<group>"; };
 		8F389F929181AEFB9BC90ACE /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		9154D4ED3669583CD9042D73 /* MemberDeletionUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemberDeletionUITests.swift; sourceTree = "<group>"; };
@@ -425,6 +424,7 @@
 		A30968C64BD470645CDCA7A4 /* HomeSessions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeSessions.swift; sourceTree = "<group>"; };
 		A3281E543C1A6DA34F67CC1A /* ServerLoginTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerLoginTests.swift; sourceTree = "<group>"; };
 		A605C887D02BB877D614167B /* PeerDecisionRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeerDecisionRecord.swift; sourceTree = "<group>"; };
+		A630FEC7D531C2E19E537280 /* FirstApprovalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstApprovalView.swift; sourceTree = "<group>"; };
 		A705FBAB6CC825EC30D4D015 /* SecretRequestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretRequestView.swift; sourceTree = "<group>"; };
 		A9B4A337277F40F6EC5D3D1E /* AuthStatesUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthStatesUITests.swift; sourceTree = "<group>"; };
 		AA28AC7BFD35A51CF55B3E60 /* SchedulesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchedulesView.swift; sourceTree = "<group>"; };
@@ -744,6 +744,7 @@
 				75B87E22433703F49BF8DB76 /* ConversationView.swift */,
 				F1DC256029DCCFC2D3382D4E /* DesktopWorkspaceView.swift */,
 				24BE5D9C546C511849AC258D /* FeatureSettingsView.swift */,
+				A630FEC7D531C2E19E537280 /* FirstApprovalView.swift */,
 				4EFD37AE7C405B4689B50CAE /* ForwardSheet.swift */,
 				5C4B518FFF8289CDACA0CA29 /* GoalsView.swift */,
 				2B2A8FB3518CD560089CC23F /* HarnessAuthenticationView.swift */,
@@ -771,7 +772,6 @@
 				A113AE7E3F745B4DD64764EB /* SettingsNavigation.swift */,
 				8F389F929181AEFB9BC90ACE /* SettingsView.swift */,
 				EB6C3A43320220B41AE46E08 /* StoreAccountView.swift */,
-				8A97AF12ADC39496A4688770 /* SubscriptionRequiredView.swift */,
 				29A5A1F43425BC7EE92C7740 /* SubscriptionView.swift */,
 				6781B9CADD0605237013A956 /* TerminalsView.swift */,
 				490AA0A6D0C276CCC209A2DA /* UpdateView.swift */,
@@ -1221,6 +1221,7 @@
 				6573A20C94F32027FD985FA7 /* ConversationView.swift in Sources */,
 				608D1EDDD04B6A1A0C0F7DCE /* DesktopWorkspaceView.swift in Sources */,
 				BA0FCCBDC792435CB3724421 /* FeatureSettingsView.swift in Sources */,
+				455B1F38E1C315CA1FF16CE2 /* FirstApprovalView.swift in Sources */,
 				9C4A3C81496F5B940BAA6811 /* ForwardSheet.swift in Sources */,
 				1654E73C4B332B67D641E881 /* GoalModels.swift in Sources */,
 				AD4516BD27FE38BB044320B5 /* GoalViewModel.swift in Sources */,
@@ -1272,7 +1273,6 @@
 				B469AA9C1179B6EDC59CBC3D /* ShareClient.swift in Sources */,
 				59C7D3B09001D6DD5FFA9A36 /* ShareCredentials.swift in Sources */,
 				32AD929CCD1343444987CFE1 /* StoreAccountView.swift in Sources */,
-				3BC2D599E744A3BD991BAE02 /* SubscriptionRequiredView.swift in Sources */,
 				B802CD07B6DA6B53B5F8DA19 /* SubscriptionView.swift in Sources */,
 				C6466FBBDB608B614443A816 /* Terminals.swift in Sources */,
 				D4A130FFEA9A6AA802FFC42B /* TerminalsView.swift in Sources */,

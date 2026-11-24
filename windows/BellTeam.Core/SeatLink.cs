@@ -6,7 +6,7 @@ namespace BellTeam.Core;
 // Drawn only from the body routes GET /api/approvals/seat-link, POST …/start, POST …/stop; the same view and words on every client. Never a token, never a path to Approval Box.
 public sealed record SeatLink
 {
-    /// <summary>none | waiting | linked | removed | failed | unavailable (the last one is the client's: the route could not be read).</summary>
+    /// <summary>none | waiting | linked | removed | failed | unavailable (the client's: the route could not be read) | absent (the client's: the body has no such route, 404; the view is not drawn).</summary>
     public string State { get; init; } = "unavailable";
     public string? Code { get; init; }
     /// <summary>The typed code shown beside the QR (the pairing's typed secret).</summary>
@@ -17,6 +17,7 @@ public sealed record SeatLink
     /// <summary>failed: rejected | expired | other.</summary>
     public string? Reason { get; init; }
     public bool Waiting => State == "waiting" && QrText is { Length: > 0 };
+    public bool Absent => State == "absent";
 }
 
 public static class SeatLinkText
@@ -51,11 +52,12 @@ public static class SeatLinkApi
     public static Task<SeatLink> StartSeatLinkAsync(this BellApi api, CancellationToken token = default) => Call(() => api.PostAsync<SeatLink>(Path + "/start", new { }, token), token);
     public static Task<SeatLink> StopSeatLinkAsync(this BellApi api, CancellationToken token = default) => Call(() => api.PostAsync<SeatLink>(Path + "/stop", new { }, token), token);
 
-    // A route that is not there (404), cannot say (503, 403) or a failed read is "unavailable": a plain line and the one button, never an exception into the screen. Cancel passes.
+    // A body that has no such route (404: older than the routes) is "absent": the view is not drawn at all. A route that cannot say (503, 403) or a failed read is "unavailable": a plain line and the one button, never an exception into the screen. Cancel passes.
     private static async Task<SeatLink> Call(Func<Task<SeatLink>> call, CancellationToken token)
     {
         try { return await call(); }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+        catch (BellApiException error) when (error.Status == HttpStatusCode.NotFound) { return new SeatLink { State = "absent" }; }
         catch (Exception) { return new SeatLink { State = "unavailable" }; }
     }
 }
