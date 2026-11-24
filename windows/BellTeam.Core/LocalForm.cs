@@ -52,6 +52,9 @@ public static class LocalFormText
     public const string Window = "このQRは、このパソコンが待っている間だけ使えます（10分）。";
     public const string NewQr = "新しいQRを出す";
     public const string Firewall = "Windowsのファイアウォールの確認が出たら、許可してください。";
+    // BellTeam's own guidance (the Owner, contract 1.50: 0.22.1 removed the library's LocalGuidance), word for word on every client. FirstSignIn: on the first sign-in screen, before the Apple / Google buttons. Qr: beside the local form's QR.
+    public const string FirstSignIn = "すでにほかの端末で使っている方は、同じアカウントでサインインしてから、次に出るQRコードを使用中の端末のカメラで読んでください。";
+    public const string Qr = "親となる端末（課金操作をするカメラのあるスマートフォンがお勧め）のカメラでQRコードを読んでください。";
     public const string OutdatedPeer = "QRが正しくないか、相手の端末のBellTeamが古い可能性があります。2台とも最新版に更新してから、相手の画面で新しいQRを出してください。";
     public const string PermissionDenied = "設定でこのアプリのローカルネットワークを許可してから、新しいQRでお試しください。";
     public const string ApproveLead = "承認したい端末に出ているQRを読み取ります。自分で始めたものだけ承認してください。2台は同じWi-Fiにつないでください。";

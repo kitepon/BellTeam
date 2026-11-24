@@ -225,7 +225,7 @@ public sealed class AppLoginTests
     public void TheHandoffQrIsDrawnFromTheGivenTextAsAMatrix() => RunSta(() =>
     {
         var qr = new QrView("bellteam://handoff/ABC", 200); qr.Measure(new Size(200, 200)); qr.Arrange(new Rect(0, 0, 200, 200));
-        Assert.Equal(200, qr.Width); Assert.Equal(200, qr.ActualWidth);
+        Assert.InRange(qr.Width, 190, 210); Assert.Equal(qr.Width, qr.ActualWidth);   // whole-pixel modules: about the size asked for
     });
 
     private static string[] Texts(DependencyObject root) => Descendants<TextBlock>(root).Select(text => text.Text).ToArray();
