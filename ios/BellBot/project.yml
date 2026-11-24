@@ -26,9 +26,10 @@ packages:
   LoginBilling:
     url: https://github.com/kitepon/login-billing.git
     exactVersion: 0.22.4
-  PeerChannel:
-    url: https://github.com/kitepon/peer-channel.git
-    revision: 0886f976a1e4e3417392dc820b1718c34a51a5c3
+  ApprovalBoxClient:
+    # The tarball of client-v0.5.0 (sha256 d115b3cf37dfccc6fdb51fb5231bdecfce9d2f7b3bc9c29908b430ec01d6bd8a) is this revision; SwiftPM cannot read the client-v<semver> tag.
+    url: https://github.com/kitepon/approval-box-apps.git
+    revision: 649f36e24a9c006f966dce1f0492a7d50fddc3fb
 targets:
   BellTeam:
     type: application
@@ -135,8 +136,8 @@ targets:
         product: EnrichedMarkdown
       - package: LoginBilling
         product: LoginBilling
-      - package: PeerChannel
-        product: PeerChannel
+      - package: ApprovalBoxClient
+        product: ApprovalBoxClient
       - target: NotificationService
         embed: true
         link: false
