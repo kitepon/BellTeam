@@ -55,7 +55,7 @@ internal sealed class ChildJoinView : StackPanel
             card.Children.Add(FirstScreenView.Button(ChildJoinText.ConnectAgain, System.Windows.Media.Brushes.Black, System.Windows.Media.Brushes.White, () => _ = join.JoinAsync(null), "child-join-again"));
         else
         {
-            card.Children.Add(Id(Text(LocalFormText.FirstSignIn, 14, Muted), "child-join-first-signin"));
+            card.Children.Add(Id(Text(LocalFormText.FirstSignInChildOnly, 14, Muted), "child-join-first-signin"));
             card.Children.Add(FirstScreenView.Button(SignInText.Apple, System.Windows.Media.Brushes.Black, System.Windows.Media.Brushes.White, () => _ = join.JoinAsync("apple"), "child-join-apple"));
             card.Children.Add(FirstScreenView.Button(SignInText.Google, System.Windows.Media.Brushes.White, Ink, () => _ = join.JoinAsync("google"), "child-join-google", bordered: true));
         }
