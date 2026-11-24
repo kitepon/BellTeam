@@ -343,9 +343,10 @@ class HostUpdater:
     def code_root(self):
         return self.prefix / 'releases' / self.config['release']
 
-    def command(self, args, timeout=30, input=None):
+    def command(self, args, timeout=30, input=None, merge_stderr=False):
         return subprocess.run(args, env=self.env, cwd='/', stdin=subprocess.DEVNULL if input is None else None,
-                              input=input, capture_output=True, timeout=timeout, check=True).stdout
+                              input=input, stdout=subprocess.PIPE, stderr=subprocess.STDOUT if merge_stderr else subprocess.PIPE,
+                              timeout=timeout, check=True).stdout
 
     def inspect_current(self):
         name = self.config['projectName']
@@ -1045,6 +1046,21 @@ def execute_installer(updater, plan, directory):
             updater.assert_model_binding(actual, read_json(saved/'normal.json',updater.uid,CATALOG_LIMIT))
             actual['imageRef'] = ref
         return actual, confirmed
+    def keep_failed_body():
+        # The recovery run recreates the container named bellteam, and its log goes with it: keep its exit state and last lines first
+        # (z188-swap-common-root: the Z188 body's exit 13 was unreadable for hours). Best effort; the rollback never waits on it.
+        try:
+            docker = config['docker']
+            ids = updater.command([docker, 'ps', '-a', '--no-trunc', '--filter', 'label=com.docker.compose.project=' + config['projectName'],
+                                   '--filter', 'label=com.docker.compose.service=bellteam', '--format', '{{.ID}}']).decode().split()
+            if not ids or not re.fullmatch('[a-f0-9]{64}', ids[0]): return
+            state = updater.command([docker, 'container', 'inspect', '--format',
+                'status={{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}} restarts={{.RestartCount}} started={{.State.StartedAt}} finished={{.State.FinishedAt}}', ids[0]])
+            lines = updater.command([docker, 'logs', '--tail', '80', ids[0]], merge_stderr=True)
+            with os.fdopen(os.open(directory / 'failed-body.log', os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), 'wb') as note:
+                note.write(state + lines[-16384:])
+        except Exception:
+            pass
     updater.progress(directory, 'swapping')
     code = run()
     actual, confirmed = (None, False)
@@ -1054,6 +1070,7 @@ def execute_installer(updater, plan, directory):
         except (Failure, subprocess.SubprocessError):
             pass
     if code or not confirmed:
+        keep_failed_body()
         rollback = 'unavailable'
         if saved and (saved / 'previous-normal.json').exists():
             try:

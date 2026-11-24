@@ -333,6 +333,21 @@ touch "$BELLTEAM_INSTALL_DIR/applied"
         result=module.execute_installer(self.updater,plan,directory)
         self.assertEqual(result['execution'],'failed');self.assertEqual(result['verification'],'failed')
         self.assertEqual(result['rollback'],'succeeded');self.assertTrue((install/'recovered').exists())
+    def test_installer_failure_keeps_failed_body_state_and_log_before_recover(self):
+        install=self.executor_fixture(fail=True);calls=[];plain=self.updater.command
+        def command(args,**options):
+            calls.append((args,options))
+            if args[1:3]==['ps','-a']:return ('c'*64+'\n').encode()
+            if args[1:3]==['container','inspect']:return b'status=restarting exit=13 oom=false restarts=3 started=s finished=f\n'
+            if args[1]=='logs':return b'{"code":"MODULE_LIFECYCLE_STATE","component":"usage","state":"backoff"}\nWarning: Detected unsettled top-level await\n'
+            return plain(args,**options)
+        self.updater.command=command
+        plan=self.plan();directory=self.prefix/'state/fixture-result';directory.mkdir()
+        result=module.execute_installer(self.updater,plan,directory)
+        self.assertEqual(result['rollback'],'succeeded')
+        note=directory/'failed-body.log';text=note.read_text()
+        self.assertIn('exit=13',text);self.assertIn('unsettled top-level await',text);self.assertEqual(note.stat().st_mode&0o777,0o600)
+        self.assertTrue(any(options.get('merge_stderr') for args,options in calls if args[1]=='logs'))
     def test_separate_process_worker_survives_frontend_recreation_and_returns_same_request(self):
         import subprocess,sys
         code=self.prefix/'fixture-worker.py'
