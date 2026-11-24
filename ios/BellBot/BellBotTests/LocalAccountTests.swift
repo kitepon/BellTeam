@@ -35,6 +35,11 @@ final class LocalAccountTests: XCTestCase {
         XCTAssertNil(account.message); XCTAssertNil(account.errorText)
     }
 
+    // The sign-out itself needs the Keychain, which the unsigned test host does not have; the screen's word is the contract's (same as Windows, Linux, Android).
+    func testTheSignOutWordIsTheOtherClientsWord() {
+        XCTAssertEqual(AccountDeletionWords.signOut, "サインアウト")
+    }
+
     func testTheGuidanceIsBellTeamsOwnWordForWord() {
         XCTAssertEqual(LocalAccount.signInGuidance, "すでにほかの端末で使っている方は、同じアカウントでサインインしてから、次に出るQRコードを使用中の端末のカメラで読んでください。")
         XCTAssertEqual(LocalAccount.qrGuidance, "親となる端末（課金操作をするカメラのあるスマートフォンがお勧め）のカメラでQRコードを読んでください。")
