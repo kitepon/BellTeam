@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { access, mkdtemp, readFile, writeFile, stat, utimes } from 'node:fs/promises'
+import { access, mkdtemp, readFile, rm, writeFile, stat, utimes } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -430,4 +430,13 @@ test('deleting a Bot calls onScheduleRemoved once for each connected schedule', 
   registry.onScheduleRemoved = async (botId, schedule) => { seen.push([botId, schedule.id]) }
   await registry.remove('bot-a')
   assert.deepEqual(seen, [['bot-a', 'linked']])
+})
+
+test('registry-missing-project: a registered Bot whose project folder is gone does not stop the start', async () => {
+  const { root, seedPath } = await fixture()
+  const options = { seedPath, botsRoot: join(root, 'seats'), stateRoot: join(root, 'state') }
+  await new BotRegistry(options).initialize()
+  await rm(join(root, 'seats/bot-a'), { recursive: true, force: true })
+  await new BotRegistry(options).initialize()
+  assert.match(await readFile(join(root, 'seats/bot-a/AGENTS.md'), 'utf8'), /bot-a/)
 })
