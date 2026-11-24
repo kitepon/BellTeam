@@ -346,6 +346,25 @@ flowchart LR
 - Windows SDK（makeappx・signtool）が要る。無い端末では、登録スクリプトが入れ方を言って止まり、導入スクリプトは登録を行わず入れ方を警告する（アプリの導入は成功のまま）。
 - Coreの追加は`ShareContent`・`BellApi.SendAsync(share)`・`Workspace.ShareAsync`・`Timeline.ShareRefusal`。LinuxにWindowsの共有先に当たるものは無い（a284は別の方式）。
 
+## 席のツール承認（seat-approval-clients。Kiroの契約 [seat-approvals.md](architecture/modules/execution/seat-approvals.md)、オーナー2026-11-24）
+
+ツールの承認プロンプトで止まった席（Claude Code・Codex）の承認は、BellTeamの中で答えられる。全クライアントで同じ項目・同じ2つのボタン・コマンドは逐語。Core（Linuxと共有）が読み・答え・言葉を持ち、Windowsは描くだけ。
+
+```mermaid
+flowchart LR
+  Srv[BellTeamサーバー<br/>GET /api/seat-approvals・POST …/:id/answer・SSE topic seat_approvals] --> Api[BellApi<br/>GetSeatApprovalsAsync・AnswerSeatApprovalAsync<br/>Core]
+  Api --> Ws[Workspace<br/>SeatApprovals: 古い順の一覧・RefreshAsyncが毎回読み直す（SSEのどのイベントでも）<br/>AnswerSeatApprovalAsync: 答え→読み直し<br/>ConversationEntry.SeatApproval: 一覧の札<br/>Core]
+  Ws --> Row[メンバー一覧の行<br/>「承認待ち」の札（琥珀）]
+  Ws --> Bar[SeatApprovalBar 選んでいるBotの画面の上<br/>見出し・ツール名・コマンド（等幅・選択可・逐語）・理由・「1回だけ許可する」「許可しない」<br/>App]
+  Bar -->|答える| Ws
+  Srv -->|カードがあってもアプリの項目は残る・pushは既存のowner_question| Push[タップでそのBotを開く]
+```
+
+- **読み**: `GET /api/seat-approvals` は `{approvals:[{id,botId,botName,harness,tool,command,reason,since,choices,card}]}`（古い順）。`command`は秘密を伏せ字にして2000字まで。TUIのClaude席は`tool`と`command`がnullで、「Botの画面を見てください」と出す。読めない（503・古い本体の404・失敗）時は項目なし（一覧の更新自体は失敗にしない）。
+- **答え**: `POST …/:id/answer {decision: approve_once|deny}`。ボタンの文字はサーバーの`choices`をそのまま（1回だけ許可する／許可しない）。200＝答えた。409 `SEAT_APPROVAL_CLOSED`＝別の場所で答えられたか、もう無い（最初の答えが勝つ）：「別の場所で答えられたか、もう承認待ちではありません。」と出して読み直す。400・404・502・通信断＝「いまは送れませんでした。もう一度押してください。」（答えは自動では再送しない）。送っている間は2つとも押せない。どの結果のあとも読み直す。
+- **見える所**: メンバー一覧のそのBotの行に「承認待ち」の札、そのBotの画面の上に承認の項目（そのBotの分を古い順に全部）。決裁箱のカード（`card: "filed"`）があっても、アプリの項目は残る。
+- **言葉の置き場**: Coreの`SeatApprovalText`（Linux・Androidと同じ）。Macが見た目の基準。Windowsの見え方は[windows-seat-approvals.png](windows-seat-approvals.png)（`BellTeam.exe --render-preview`の人工データ。左の行に「承認待ち」、会話の上に項目）。
+
 ## peer-channel（決裁箱の端末部品。a498）
 
 ```mermaid
