@@ -103,8 +103,17 @@ export class BotRegistry extends Map {
     if (this.separateState) await this.resumePendingRemovals()
     await this.migrateProfiles()
     await this.refresh()
-    await Promise.all([...this.values()].map(profile => this.writeInstructions(profile)))
+    await Promise.all([...this.values()].map(profile => this.#writeInstructionsAtStart(profile)))
     return this.refresh()
+  }
+
+  // One Bot's missing project folder (an approved rm -rf) must not crash-loop the body: recreate it once, else warn and go on.
+  async #writeInstructionsAtStart(profile) {
+    try { await this.writeInstructions(profile) } catch {
+      try { await this.projectFiles.initialize(profile.project); await this.writeInstructions(profile) } catch (error) {
+        process.stderr.write(`BellTeam registry: instructions for ${profile.id} not written at start: ${error.message}\n`)
+      }
+    }
   }
 
   // Swap readiness validates current state without bootstrap effects or repair.
