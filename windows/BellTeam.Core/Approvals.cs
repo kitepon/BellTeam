@@ -42,6 +42,8 @@ public sealed record ViewDecision
     public string? CreatedAt { get; init; } public string? UpdatedAt { get; init; } public string? CancelReason { get; init; }
     public ApprovalAmended? Amended { get; init; } public ApprovalHistoryItem[]? History { get; init; } public ApprovalAttachment[]? RequestAttachments { get; init; }
     public ApprovalOrigin? Origin { get; init; } public ApprovalRequester? Requester { get; init; } public ApprovalLink? Link { get; init; }
+    // The by-decision lookup answered 404 (read, and not linked); Link null without it means the lookup has not answered yet.
+    public bool NotLinked { get; init; }
 }
 /// <summary>GET /api/approvals/connection: connected | waiting | denied | not_connected | expired.</summary>
 public sealed record ApprovalConnection { public string? State { get; init; } public string? ConnectedAt { get; init; } public string? ExpiresAt { get; init; } }
@@ -162,7 +164,7 @@ public static class Approvals
     {
         var origin = OriginOf(decision); var link = decision.Link;
         if (decision.Status == "held") return new(origin.External && link is null ? "保留中です" : "保留中です。戻すまで工程は待ちます", "plain");
-        if (link is null) return origin.External ? new("工程表とはつながっていません", "muted") : new("工程表につなげています", "muted");
+        if (link is null) return origin.External ? new("工程表とはつながっていません", "muted") : decision.NotLinked ? new("この決裁に合う工程は、工程表に見つかっていません", "muted") : new("工程表につなげています", "muted");
         if (link.State == "diverged") return new("工程はすでに済みです。この決裁は、まだ答えられます。", "plain");
         // by-decision gives ids and state only (no task title): the line says the task without naming it.
         return new(link.Task?.Title is { Length: > 0 } name ? $"工程表「{name}」が、この回答を待っています" : "工程表の工程が、この回答を待っています", "link");
@@ -187,7 +189,11 @@ public static class Approvals
         return $"あなたの答え：{d.Options?.FirstOrDefault(option => option.Id == answer.OptionId)?.Label ?? ""}";
     }
     public static ApprovalBadge? DeliveryBadge(ViewDecision d)
-        => d.Status != "answered" ? null : d.Delivery == "unknown" ? new("届いたか不明", "amb", "") : d.Delivery == "waiting" ? new("会話に戻ると届きます", "vio", "") : new("届きました", "ok", "");
+        => d.Status != "answered" ? null : d.Delivery switch
+        {
+            "unknown" => new("届いたか不明", "amb", ""), "waiting" => new("会話に戻ると届きます", "vio", ""), "delivered" or "fetched" => new("届きました", "ok", ""),
+            _ => new("届きを確認中", "pen", "")   // no value yet (or pending): never "届きました" because the status is answered
+        };
     public static IReadOnlyList<ApprovalDoneGroup> GroupDone(IEnumerable<ViewDecision> items, DateTimeOffset now)
     {
         var groups = new List<(string Heading, List<ApprovalDoneRow> Rows)>();
@@ -211,6 +217,7 @@ public static class Approvals
     public static ApprovalDeliveryNote DeliveryNote(ViewDecision decision)
     {
         var origin = OriginOf(decision); var who = origin.Who;
+        if (decision.Delivery is not ("waiting" or "unknown" or "delivered" or "fetched")) return new("pen", $"答えました。{who}への届きを確かめています。", false);   // nothing reported yet: grey, no paste request
         if (decision.Delivery == "waiting") return new("vio", $"答えました。{who}が会話に戻ると受け取ります。", false);
         if (decision.Delivery == "unknown")
         {
@@ -246,6 +253,7 @@ public static class Approvals
             return origin.External
                 ? new("unlinked", "つながっていません", ["この決裁は、BellTeamの外から届きました。工程は作りません。", $"答えは、出したAI（{origin.Tool}）へそのまま届きます。BellTeamの工程には何も起こりません。",
                     "出したAIが、BellTeamの工程表の工程を指して申請した時だけ（セッション名に工程の宛先がある時）、通常の決裁と同じようにつながります。"], [], null, [], "", "", null)
+                : decision.NotLinked ? new("unlinked", "この決裁に合う工程は、工程表に見つかっていません", [], [], null, [], "", "", null)
                 : new("connecting", "工程表につなげています", [], [], null, [], "", "", null);
         var next = link.Next?.FirstOrDefault(); var answered = link.State == "answered" || decision.Status == "answered"; var title = link.Task?.Title ?? "";
         var named = title.Length > 0 ? $"工程「{title}」" : "工程";
