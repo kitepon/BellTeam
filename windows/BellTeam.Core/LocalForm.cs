@@ -28,7 +28,7 @@ public static class LocalFormIds
 }
 
 // The words of the local form: Rapi's final table (Tronie 2026-11-23: one spec on every platform, the Mac app is the reference), word for word. Where the paying phone may be an Android, the word is スマホ.
-// The one deviation: Windows/Linux name the private-network step (PrivateNetwork), which the contract asks of a PC whose Wi-Fi is marked Public.
+// The one deviation: Windows/Linux name the private-network step (PrivateNetwork), which the contract asks of a PC whose network is marked Public. Never 「同じWi-Fi」: a wired PC on the same LAN qualifies (the Owner, contract 11.12).
 public static class LocalFormText
 {
     public const string CardTitle = "BellTeamの購読";
@@ -39,7 +39,7 @@ public static class LocalFormText
     public static string Paid(DateTimeOffset until) => Status(until);
     public const string PaidOk = "購読を確認しました。";
     public const string Title = "購読しているスマホで確認する";
-    public const string Lead = "この端末にQRを出します。2台は同じWi-Fiにつないでください。";
+    public const string Lead = "この端末にQRを出します。2台は同じネットワーク（同じLAN）につないでください。";
     public const string Google = "QRを出す（Google）";
     public const string Apple = "QRを出す（Apple）";
     public const string QrLabel = "確認用のQRコード";
@@ -57,14 +57,14 @@ public static class LocalFormText
     public const string Qr = "親となる端末（課金操作をするカメラのあるスマートフォンがお勧め）のカメラでQRコードを読んでください。";
     public const string OutdatedPeer = "QRが正しくないか、相手の端末のBellTeamが古い可能性があります。2台とも最新版に更新してから、相手の画面で新しいQRを出してください。";
     public const string PermissionDenied = "設定でこのアプリのローカルネットワークを許可してから、新しいQRでお試しください。";
-    public const string ApproveLead = "承認したい端末に出ているQRを読み取ります。自分で始めたものだけ承認してください。2台は同じWi-Fiにつないでください。";
+    public const string ApproveLead = "承認したい端末に出ているQRを読み取ります。自分で始めたものだけ承認してください。2台は同じネットワーク（同じLAN）につないでください。";
     private static string End(DateTimeOffset end) => end.ToLocalTime().ToString("yyyy年M月d日 H:mm");
 
     // The outcomes of a try in the table's sentences. Paid is spoken by Status / PaidOk.
     public static string Of(LocalFormOutcome outcome) => outcome switch
     {
-        LocalFormOutcome.SameWifi => "スマホとこの端末を、同じWi-Fiにつないでください。",
-        LocalFormOutcome.PrivateNetwork => "スマホとこの端末を、同じWi-Fiにつないでください。このパソコンのWi-Fiは「プライベート ネットワーク」にしてください。",
+        LocalFormOutcome.SameWifi => "スマホからこの端末に届きませんでした。2台を同じネットワーク（同じLAN）につないでから、もう一度お試しください。",
+        LocalFormOutcome.PrivateNetwork => "スマホからこの端末に届きませんでした。2台を同じネットワーク（同じLAN）につないでから、もう一度お試しください。このパソコンのネットワークは「プライベート ネットワーク」にしてください。",
         LocalFormOutcome.NoPurchase => "その端末には購読がありません。購読している端末で読み取ってください。",
         LocalFormOutcome.AnotherAccount => "別のアカウントです。相手の端末と同じアカウントでサインインしてください。",
         LocalFormOutcome.Refused => "QRが正しくありません。相手の画面で新しいQRを出してください。",
