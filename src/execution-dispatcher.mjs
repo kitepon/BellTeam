@@ -55,6 +55,9 @@ export const EXECUTION_METHODS = Object.freeze({
 const portNames = ['native', 'membersAdmission', 'conversationAdmission', 'moduleOperations', 'bots', 'rooms', 'configurationStorage',
   'access', 'storage', 'seat', 'observer', 'diagnostics', 'continuation', 'terminals', 'ingress', 'harnessCli', 'seatStream']
 
+export const EXECUTION_NATIVE_METHODS = new Set(['pty_list', 'pty_read', 'pty_observe', 'pty_send', 'pty_close', 'pty_key',
+  'agent_launch', 'agent_configure', 'agent_stop', 'agent_goal', 'stream_read', 'stream_send', 'image_read', 'ensure_forward'])
+
 // This module and every relative engine import belong to the same fixed bundle.
 export function createExecutionDispatcher({ generation, ports, handoff = null, backgroundSummary = null, requestRestartSummary = null }) {
   if (typeof generation !== 'string' || !generation || !ports || Object.keys(ports).some(key => !portNames.includes(key))
@@ -102,8 +105,8 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
   // pty_key: the Owner's screen key (screen-input.md) and the Esc that cancels a limit hold (harness-accounts.md).
   // image_read: the bytes of an image a remote seat saved (remote-seat.md, a521).
   // stream_read / stream_send: the machine seat reader and the Owner's answer (machine-stream.md); without them the reader's first read is refused and nothing is stored.
-  const nativeMethods = new Set(['pty_list', 'pty_read', 'pty_observe', 'pty_send', 'pty_close', 'pty_key',
-    'agent_launch', 'agent_configure', 'agent_stop', 'agent_goal', 'stream_read', 'stream_send', 'image_read'])
+  // ensure_forward: the remote route's seat forward (remote-route.md); refused here it fell every launch back to `terminal` (a532b2s2f).
+  const nativeMethods = EXECUTION_NATIVE_METHODS
   native.call = (name, ...args) => {
     alive()
     if (!nativeMethods.has(name)) throw failure('EXECUTION_REQUEST_INVALID')

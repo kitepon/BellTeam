@@ -366,10 +366,11 @@ export class RemoteSeats {
 
   // The same wait as a local seat; a completed remote turn then hands its transcript to Throughline (C7).
   waitProcess(local) {
-    return async (process, signal) => {
+    return async (process, signal, context) => {
       const result = await local(process, signal)
       const args = Array.isArray(process?.args) ? process.args : []
-      const seat = args.includes('--session') ? await this.seatOf(args[args.indexOf('--session') + 1]) : null
+      const name = typeof context?.session === 'string' ? context.session : args.includes('--session') ? args[args.indexOf('--session') + 1] : null
+      const seat = name ? await this.seatOf(name) : null
       if (seat && ['done', 'error', 'rate_limited'].includes(result?.outcome)) void this.forward(seat)
       return result
     }
