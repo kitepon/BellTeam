@@ -76,14 +76,22 @@ public sealed class ApprovalsChildJoinTests
     });
 
     [Fact]
-    public Task FailedAndRemovedOfferTryAgainWithTheirOwnWords() => Ui.Run(async () =>
+    public Task FailedAsksTheSameSignInAgainAndRemovedStartsClean() => Ui.Run(async () =>
     {
-        var (failed, source, _) = await OpenAsync(new(JoinPhase.Failed));
-        try { Assert.True(Has(failed, ChildJoinText.Failed)); Click(Find(failed, ChildJoinText.ConnectAgain)!); Assert.Equal(["join:again"], source.Calls); } finally { failed.Close(); }
+        // After a sign-in the person chose, a failure offers 「もう一度つなぐ」 with that provider; a failure with no choice known shows the two buttons (requestJoin always takes a provider).
+        var (started, startedSource, startedDevice) = await OpenAsync(new(JoinPhase.NotJoined));
+        try
+        {
+            Click(Find(started, SignInText.Google)!); startedSource.Current = new(JoinPhase.Failed); startedDevice.Refresh(); await Task.Delay(100); Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            Assert.True(Has(started, ChildJoinText.Failed)); Click(Find(started, ChildJoinText.ConnectAgain)!); Assert.Equal(["join:google", "join:google"], startedSource.Calls);
+        }
+        finally { started.Close(); }
+        var (failed, _, _) = await OpenAsync(new(JoinPhase.Failed));
+        try { Assert.True(Has(failed, ChildJoinText.Failed)); Assert.Null(Find(failed, ChildJoinText.ConnectAgain)); Assert.NotNull(Find(failed, SignInText.Apple)); Assert.NotNull(Find(failed, SignInText.Google)); } finally { failed.Close(); }
         var (other, _, _) = await OpenAsync(new(JoinPhase.Failed, Code: "other_account"));
         try { Assert.True(Has(other, ChildJoinText.OtherAccount)); Assert.False(Has(other, "other_account")); } finally { other.Close(); }
         var (removed, _, _) = await OpenAsync(new(JoinPhase.NotJoined, Removed: true));
-        try { Assert.True(Has(removed, ChildJoinText.Removed)); Assert.NotNull(Find(removed, ChildJoinText.ConnectAgain)); } finally { removed.Close(); }
+        try { Assert.True(Has(removed, ChildJoinText.Removed)); Assert.True(Has(removed, ChildJoinText.Title)); Assert.NotNull(Find(removed, SignInText.Apple)); Assert.NotNull(Find(removed, SignInText.Google)); } finally { removed.Close(); }
     });
 
     [Fact]
