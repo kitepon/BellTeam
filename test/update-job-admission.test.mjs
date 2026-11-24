@@ -111,6 +111,22 @@ test('a body restart after a partial admission ends the operation as failed and 
   assert.equal(fresh.admission, 'accepted'); assert.equal(fresh.jobs.length, 2); await restarted.close()
 })
 
+test('a host job queued by admitJob but never saved as admitted is failed too when the restarted body reads the interrupted operation', async t => {
+  const f = await fixture(t); f.fail(true)
+  await assert.rejects(f.executor.start(f.input), { code: 'UNREADABLE' })
+  const saved = JSON.parse(await readFile(join(f.root, 'state/update-ledger/ledger.json')))
+  const orphan = saved.operations[0].jobBindings.find(binding => !binding.admitted)
+  const [first] = [...f.jobs.values()]
+  f.jobs.set(orphan.jobId, { ...structuredClone(first), jobId: orphan.jobId, idempotencyKey: orphan.idempotencyKey, state: 'queued', reason: null })
+  f.fail(false)
+  const restarted = await f.reload(); t.after(() => restarted.close())
+  await restarted.operation(f.input.requestId)
+  assert.equal(f.jobs.get(orphan.jobId).state, 'failed'); assert.equal(f.jobs.get(orphan.jobId).reason.code, 'UPDATE_PARENT_INTERRUPTED')
+  assert.equal(f.jobs.get(first.jobId).state, 'failed')
+  const again = await restarted.operation(f.input.requestId)
+  assert.equal(again.phase, 'failed'); assert.deepEqual(again.jobs.map(job => job.jobId), [first.jobId])
+})
+
 test('a saved ready report resumes after a reader failure without replaying the completed module exchange', async t => {
   const f = await fixture(t, { ids: ['web-gateway'] }); f.failReady()
   await f.executor.start(f.input)

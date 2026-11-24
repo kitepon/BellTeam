@@ -55,7 +55,8 @@ public sealed class LinuxAccountCard : StackPanel
             paid = await request.AwaitPaidAsync(attempt.Token); notice = LocalFormText.PaidOk;
         }
         catch (OperationCanceledException) { }   // the person pressed やめる, or the screen closed
-        catch (LoginBillingException error) { failure = LocalFormText.Failure(error.Code, error.Status); }
+        catch (LoginBillingException error) when (error.Code == "signin_cancelled") { }   // the person's own choice says nothing
+        catch (LoginBillingException error) { failure = LocalFormText.Failure(error.Code, error.Status, error.Detail); }
         request?.Dispose(); request = null; attempt.Dispose(); attempt = null; busy = false;
         EntitledChanged?.Invoke();
         if (!token.IsCancellationRequested) Render();
@@ -83,7 +84,8 @@ public sealed class LinuxAccountCard : StackPanel
             Children.Add(Button(LocalFormText.Apple, () => RequestAsync("apple"), Look.Primary));
         }
         else Children.Add(Button(StoreAccountText.SignOut, () => { Local?.SignOutLocal(); Reload(); Render(); return Task.CompletedTask; }, Look.Secondary));
-        if (busy && request is null) Children.Add(Waiting(StoreAccountText.SigningInWeb));
+        // The browser sign-in has no signal when the person closes the tab: it waits for the return, so this is the way out (Apple's and Google's alike).
+        if (busy && request is null && attempt is { } signing) { Children.Add(Waiting(StoreAccountText.SigningInWeb)); var stop = Capsule(LocalFormText.Cancel, Fill, Ink, 12, 14, new Thickness(16, 10)); stop.HorizontalAlignment = HorizontalAlignment.Left; stop.Margin = new Thickness(0, 12, 0, 0); stop.Click += (_, _) => signing.Cancel(); Children.Add(stop); }
         RenderDelete();
         if (failure is not null) Children.Add(Banner(failure));
     }

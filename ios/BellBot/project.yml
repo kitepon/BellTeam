@@ -25,7 +25,7 @@ packages:
     revision: 9f7204661671717ef90c701a23c8cba9ed54c613
   LoginBilling:
     url: https://github.com/kitepon/login-billing.git
-    exactVersion: 0.20.3
+    exactVersion: 0.22.4
   PeerChannel:
     url: https://github.com/kitepon/peer-channel.git
     revision: 0886f976a1e4e3417392dc820b1718c34a51a5c3
@@ -72,7 +72,7 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLSchemes:
               - com.googleusercontent.apps.316260984663-ld7o5f8j3smgqu2h1va43lt4au031s3i
-        NSLocalNetworkUsageDescription: LAN上のBellTeamへ接続するため、また同じWi-Fiの別の端末と購読を確かめ合うために、ローカルネットワークを使います。
+        NSLocalNetworkUsageDescription: LAN上のBellTeamへ接続するため、また同じネットワーク（同じLAN）の別の端末と購読を確かめ合うために、ローカルネットワークを使います。
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
           NSExceptionDomains:
@@ -123,6 +123,7 @@ targets:
         com.apple.developer.applesignin:
           - Default
         com.apple.developer.associated-domains:
+          - applinks:login-billing.kitepon.dev
           - applinks:bellteam-login.kitepon.dev
           - webcredentials:bellteam-login.kitepon.dev
           - applinks:bellteam-login-real.kitepon.dev

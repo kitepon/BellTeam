@@ -96,7 +96,9 @@ export function project(line) {
       const questions = request.tool_name === 'AskUserQuestion' ? questionsOf(request.input) : null
       if (request.tool_name === 'AskUserQuestion' && !questions) return [unknown('AskUserQuestion')]
       return [part({ view: questions ? 'question' : 'approval', title: request.tool_name ?? 'tool', text: questions ? questions[0].question : '',
-        tool: { id: null, name: str(request.tool_name), summary: toolSummary(request.input) }, request_id: value.request_id, questions, input: request.input ?? {} })]
+        tool: { id: null, name: str(request.tool_name), summary: toolSummary(request.input) }, request_id: value.request_id, questions, input: request.input ?? {},
+        // seat-approvals.md: Claude Code's own reason for asking (a measured prompt: "Dangerous rm operation on working directory or its ancestor: …").
+        decision_reason: str(request.decision_reason) })]
     }
     case 'control_cancel_request': case 'control_response': case 'stream_event':
       return [part({ view: 'control', title: str(type), text: '', request_id: str(value.request_id) ?? str(value.response?.request_id) })]
@@ -207,7 +209,7 @@ export class MachineStream {
   track(bot, botId, record, n, part, changed) {
     if (part.request_id && part.view === 'control' && part.type === 'control_cancel_request') this.setRequest(bot, part.request_id, 'expired', record.at, null, changed)
     if (isCard(part) && !bot.requests.has(part.request_id)) {
-      bot.requests.set(part.request_id, { id: part.request_id, botId, seq: record.seq, part: n, tool: part.tool.name, input: part.input, questions: part.questions,
+      bot.requests.set(part.request_id, { id: part.request_id, botId, seq: record.seq, part: n, tool: part.tool.name, input: part.input, reason: part.decision_reason ?? null, questions: part.questions,
         status: record.auto?.includes(part.request_id) ? 'auto' : 'pending', answers: null, decision: null, at: record.at, answeredAt: null, expiredAt: null })
       bot.sources.set(part.request_id, record) // the line of an open request: its row is drawn again when the status changes
     }
@@ -498,6 +500,13 @@ export class MachineStream {
   }
 
   get(requestId) { return structuredClone(this.find(requestId).request) }
+
+  // seat-approvals.md: a machine seat's open tool approvals, oldest first (Aiterm's claude_approval answers the first one). Read only.
+  pendingApprovals(botId) {
+    return [...this.state.get(botId)?.requests.values() ?? []].filter(request => request.status === 'pending' && request.tool !== 'AskUserQuestion')
+      .sort((a, b) => a.seq - b.seq || a.part - b.part)
+      .map(request => ({ id: request.id, tool: request.tool, command: toolSummary(request.input, 2000), reason: request.reason ?? null }))
+  }
 
   // Owner -> conversation -> execution -> Aiterm. 'answered' only after Aiterm took the line.
   async answer(requestId, body = {}) {

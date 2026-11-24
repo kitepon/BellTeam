@@ -77,6 +77,7 @@ struct BellBotApp: App {
                 #if DEBUG
                 if ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("-bellbot-preview") }) {
                     store.preparePreview()
+                    PreviewSnapshot.scheduleIfRequested()
                     if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-events") {
                         store.startEvents()
                     }
@@ -179,10 +180,6 @@ private struct RootView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.scenePhase) private var scenePhase
 
-    @ViewBuilder private var readyView: some View {
-        ReadyGate(billing: store.billing) { appView }
-    }
-
     @ViewBuilder private var appView: some View {
         #if targetEnvironment(macCatalyst)
         DesktopWorkspaceView().safeAreaInset(edge: .top) { LoginRequestBanner() }
@@ -196,7 +193,7 @@ private struct RootView: View {
     }
 
     var body: some View {
-        Group {
+        ReadyGate(billing: store.billing) { Group {
             switch store.phase {
             case .checking:
                 ZStack {
@@ -221,19 +218,36 @@ private struct RootView: View {
                 } else if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-billing") {
                     // 切替の版の画面確認（a485）: 設定の「利用と課金」の2枚のカードだけ。本番の運営のURLで起動して見る。
                     ScrollView { VStack(spacing: 16) { StoreAccountCard(); SubscriptionCard() }.padding() }
+                } else if let state = ["waiting", "linked", "removed", "failed", "none"].first(where: { ProcessInfo.processInfo.arguments.contains("-bellbot-preview-seat-link-\($0)") }) {
+                    ScrollView { SeatLinkSection.Content(model: SeatLinkModel(preview: SeatLink(state: state, code: "WXYZ-1234-QRST-5678", qrText: "https://approval-box.example/pair?c=ABCD", expiresAt: Date().addingTimeInterval(300), reason: "other"))).padding() }
+                } else if let state = ["notjoined", "removed", "signingin", "waiting", "failed", "live"].first(where: { ProcessInfo.processInfo.arguments.contains("-bellbot-preview-child-join-\($0)") }) {
+                    ChildJoinPreview(state: state)
                 } else if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-chat") {
                     NavigationStack { ConversationView(target: .bot("bot-one")) }
                 } else if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-markdown") {
                     NavigationStack { ConversationView(target: .bot("bot-two")) }
                 } else {
-                    readyView.modifier(ApprovalsRunner(model: store.approvals))
+                    appView.modifier(ApprovalsRunner(model: store.approvals))
                 }
                 #else
-                readyView.modifier(ApprovalsRunner(model: store.approvals))
+                appView.modifier(ApprovalsRunner(model: store.approvals))
                 #endif
             case .failure(let message):
                 ConnectionFailureView(detail: message)
             }
+        } }
+        .modifier(LocalLinkHost(account: store.localAccount))
+        // The first screen needs the device's own store read before any server: start it here, not after the server answers.
+        .task {
+            #if DEBUG
+            // The other previews show screens past the gate: no store check for them (the first-screen one sets its own request below).
+            let arguments = ProcessInfo.processInfo.arguments
+            if arguments.contains(where: { $0.hasPrefix("-bellbot-preview") }) && !arguments.contains("-bellbot-preview-first-screen-qr") { return }
+            #endif
+            await store.localAccount.start()
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-first-screen-qr") { store.localAccount.setPreviewRequest("lbq4:preview") }
+            #endif
         }
         .sheet(isPresented: $store.updatePresented) { UpdateView(updates: store.updates).bellEditorSheet() }
         .alert(AccountDeletionWords.doneTitle, isPresented: $store.accountDeleted) {
@@ -246,6 +260,22 @@ private struct RootView: View {
             }
         }
         #endif
+    }
+}
+
+/// The phone camera opens the app from the billing QR's link (https://login-billing.kitepon.dev/join/…): the link goes to the library's answer, and its confirmation sheet lives here, on any screen.
+private struct LocalLinkHost: ViewModifier {
+    @ObservedObject var account: LocalAccount
+
+    func body(content: Content) -> some View {
+        content
+            .onOpenURL { url in Task { await account.open(link: url) } }
+            .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+                if let url = activity.webpageURL { Task { await account.open(link: url) } }
+            }
+            .sheet(item: Binding(get: { account.approval }, set: { if $0 == nil { account.answer(false) } })) { _ in
+                LocalApprovalSheet { account.answer($0) }
+            }
     }
 }
 
@@ -380,3 +410,28 @@ private struct BellTabs: View {
         }
     }
 }
+
+#if DEBUG
+/// -bellbot-preview-child-join-<state>: the child-join screen in one state, no component, for screenshots.
+private struct ChildJoinPreview: View {
+    @StateObject private var source: PreviewChildJoin
+    private let live: Bool
+
+    init(state: String) {
+        live = state == "live"
+        let value: ChildJoinState = switch state {
+        case "removed": .notJoined(reason: "removed")
+        case "signingin": .signingIn(provider: "apple")
+        case "waiting": .waitingForParent(qrLink: "https://login-billing.kitepon.dev/join/dev.kitepon.approvalbox#lbq4:preview", expiresAt: Date().addingTimeInterval(300))
+        case "failed": .failed(code: "other_account")
+        case "live": .joined
+        default: .notJoined(reason: nil)
+        }
+        _source = StateObject(wrappedValue: PreviewChildJoin(value))
+    }
+
+    var body: some View {
+        if live { VStack { Spacer(); ChildJoinLiveBlock(source: source).padding() } } else { ChildJoinView(source: source) }
+    }
+}
+#endif

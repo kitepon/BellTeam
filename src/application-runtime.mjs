@@ -72,6 +72,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     goals,
     terminals: () => services.terminals,
     runningExclusions: () => services.runningExclusions,
+    seatApprovals: services.seatApprovals,
   }
   const internalPort = Number(environment.BELLTEAM_INTERNAL_PORT ?? 4181)
   const callBridgeHeaders = bootstrap.callBridgeHeaders ?? join(root, 'state/call-bridge/headers')
@@ -180,6 +181,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
       seatTurns?.start()
       idleSessions?.start()
       services.runningExclusions?.start()
+      services.seatApprovals?.start()
       services.approvalBoxDaemon?.start() // does not wait: an optional child must not hold the body start (a500)
       started = true
     } catch (error) {
@@ -208,7 +210,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
         () => services.updateCenter.close(),
         () => webGatewayControl.close(),
         () => gateway?.close(),
-        () => scheduler.stop(), () => services.runningExclusions?.stop(), () => services.approvalBoxDaemon?.close(), () => idleSessions?.stop(), () => selfTurns.stop(), () => seatTurns?.stop(),
+        () => scheduler.stop(), () => services.runningExclusions?.stop(), () => services.seatApprovals?.stop(), () => services.approvalBoxDaemon?.close(), () => idleSessions?.stop(), () => selfTurns.stop(), () => seatTurns?.stop(),
         () => closeServer(server), () => closeServer(internalServer), () => closeServer(remoteSeatServer), () => features.close(),
         // Before the providers they call (usage, diagnostics, native client) close.
         () => services.credentialRefresh?.stop(), () => services.terminals?.close?.(),

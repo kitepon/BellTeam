@@ -68,6 +68,9 @@ internal sealed class ApprovalsPage : Grid
     private string? linkState;   // the 工程表との連携 connection (GET /api/approvals/connection): connected / not_connected, null = not read yet or not readable
     private bool linkOpen;       // the 工程表との連携 panel replaces the columns
     private IApprovalSource? Device => hub.Device;
+    private IChildJoin? Join => hub.Join;
+    private bool NotJoined => Join is { Phase: not ChildJoinPhase.Joined };   // child-join.md: the window shows the join screen until the child is joined
+    private string? leaveStep;                                                 // 「つなぎを外す」: null, "confirm" (外す / やめる), "busy"
     private IReadOnlyList<ViewDecision> DeviceViews => hub.DeviceViews;
     private bool DeviceLive => Device?.State.Status == RuntimeStatus.Live;
     private bool DeviceUsable => Device is { } d && (d.State.Status == RuntimeStatus.Live || d.Decisions.Count > 0);
@@ -217,7 +220,42 @@ internal sealed class ApprovalsPage : Grid
 
     private const string Lapsed = "許可の待ち時間が過ぎました。もう一度つないでください。", ConnectFailed = Approvals.ConnectFailed, Blocked_ = "決裁箱の画面が開かなかったようです。「もう一度開く」を押してください。",
         DropAsk = "決裁箱とのつなぎを外します。外すと、工程表との連携が止まります。", DropFailed = "いまはつなぎを外せませんでした。少し待って、もう一度押してください。";
-    internal async Task OpenLinkAsync() { linkOpen = true; connect = new("idle"); Paint(); await ReadConnectionAsync(); }
+    internal async Task OpenLinkAsync() { linkOpen = true; connect = new("idle"); Paint(); await ReadConnectionAsync(); await ReadSeatLinkAsync(); }
+
+    // 「AIの許可待ちを決裁箱へ送る」 (seat-approval-card.md, the pairing view): read from the body's seat-link routes only, shown under 工程表との連携 in this panel. The QR is for the Owner's Approval Box app to read.
+    private SeatLink? seatLink; private bool seatBusy; private int seatToken;
+    internal async Task ReadSeatLinkAsync()
+    {
+        if (run is not { } source) return; var mine = ++seatToken;
+        var reply = await Api.SeatLinkAsync(source.Token);
+        if (!Running || mine != seatToken) return;
+        seatLink = reply.Absent ? null : reply; Paint(); if (reply.Waiting) _ = WatchSeatLinkAsync(mine);   // a body without the routes (404): the view is not drawn
+    }
+    // While the pairing waits (the Owner reads the QR in the Approval Box app) the body is read every 2 s; it ends with the state leaving waiting, the panel closing or a new try.
+    private async Task WatchSeatLinkAsync(int mine)
+    {
+        while (Running && mine == seatToken && linkOpen)
+        {
+            try { await Task.Delay(2000, run!.Token); } catch (OperationCanceledException) { return; }
+            var reply = await Api.SeatLinkAsync(run!.Token);
+            if (!Running || mine != seatToken) return;
+            seatLink = reply; Paint(); if (!reply.Waiting) return;
+        }
+    }
+    internal async Task StartSeatLinkAsync()
+    {
+        if (run is not { } source || seatBusy) return; var mine = ++seatToken; seatBusy = true; Paint();
+        var reply = await Api.StartSeatLinkAsync(source.Token);
+        seatBusy = false; if (!Running || mine != seatToken) return;
+        seatLink = reply; Paint(); if (reply.Waiting) _ = WatchSeatLinkAsync(mine);
+    }
+    internal async Task StopSeatLinkAsync()
+    {
+        if (run is not { } source || seatBusy) return; var mine = ++seatToken; seatBusy = true; Paint();
+        var reply = await Api.StopSeatLinkAsync(source.Token);
+        seatBusy = false; if (!Running || mine != seatToken) return;
+        seatLink = reply; Paint();
+    }
     internal async Task ReadConnectionAsync()
     {
         if (run is not { } source) return; var mine = ++connectToken;
@@ -283,13 +321,13 @@ internal sealed class ApprovalsPage : Grid
         var state = Device?.State.Status;
         pill.Visibility = Running && state == RuntimeStatus.Retrying ? Visibility.Visible : Visibility.Collapsed; pillText.Text = Approvals.Reconnect;
         var root = new Grid(); root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); root.RowDefinitions.Add(new RowDefinition());
-        root.Children.Add(Toolbar(Device is not null));
+        root.Children.Add(Toolbar(Device is not null && !NotJoined));
         var notes = new StackPanel();
         if (bannerText is not null && bannerId == SelectedId && SelectedId is not null) notes.Children.Add(Banner(bannerText));
-        if (DeviceStrip() is { } strip) notes.Children.Add(strip);
+        if (!NotJoined && DeviceStrip() is { } strip) notes.Children.Add(strip);
         if (notes.Children.Count > 0) { SetRow(notes, 1); root.Children.Add(notes); }
         // The list is the device's book; the device's own states (sign-in, approval, reconnect) are the note above it (DeviceStrip). No device on this PC: the plain state, no failure and no retry.
-        FrameworkElement main = linkOpen ? LinkPanel() : Device is null ? NotUsable() : Columns(state == RuntimeStatus.Retrying && !DeviceLive);
+        FrameworkElement main = NotJoined ? Scroll(new ChildJoinView(Join!), new Thickness(0)) : linkOpen ? LinkPanel() : Device is null ? NotUsable() : Columns(state == RuntimeStatus.Retrying && !DeviceLive);
         SetRow(main, 2); root.Children.Add(main);
         body.Children.Clear(); body.Children.Add(root);
         if (keep is not null) Dispatcher.BeginInvoke(() => Focus(root, keep), System.Windows.Threading.DispatcherPriority.Input);
@@ -380,31 +418,20 @@ internal sealed class ApprovalsPage : Grid
             var border = new Border { Child = Row(new QrView(offer.Qr, 150), info), CornerRadius = new CornerRadius(14), Padding = new Thickness(16), Margin = new Thickness(18, 0, 18, 8), Background = Brush(Muted, 0x14), BorderBrush = Brush(Muted, 0x44), BorderThickness = new Thickness(1) };
             System.Windows.Automation.AutomationProperties.SetAutomationId(border, "approvals-device-waiting"); panel.Children.Add(border);
         }
-        void Handoff(ApprovalHandoff handoff)
-        {
-            var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(18, 0, 0, 0), MaxWidth = 380 };
-            info.Children.Add(Text(Approvals.DeviceHandoffHow, 13, Ink, FontWeights.SemiBold, TextWrapping.Wrap));
-            var code = Text(StoreAccountText.HandoffCode + " " + handoff.ShortCode, 18, Ink, FontWeights.Bold); code.FontFamily = new FontFamily("Consolas"); code.Margin = new Thickness(0, 8, 0, 0); info.Children.Add(code);
-            info.Children.Add(Text(StoreAccountText.HandoffCheckNumber + " " + handoff.CheckNumber, 14, Ink, FontWeights.SemiBold)); var checkLine = Text(StoreAccountText.HandoffCheckLine, 12, Muted); checkLine.Margin = new Thickness(0, 4, 0, 0); info.Children.Add(checkLine);
-            var stop = Action("やめる", ""); stop.HorizontalAlignment = HorizontalAlignment.Left; stop.Margin = new Thickness(0, 10, 0, 0); stop.Click += (_, _) => hub.CancelSignIn?.Invoke(); info.Children.Add(Key(stop, "legacy:やめる"));
-            var border = new Border { Child = Row(new QrView(handoff.Qr, 150), info), CornerRadius = new CornerRadius(14), Padding = new Thickness(16), Margin = new Thickness(18, 0, 18, 8), Background = Brush(Muted, 0x14), BorderBrush = Brush(Muted, 0x44), BorderThickness = new Thickness(1) };
-            System.Windows.Automation.AutomationProperties.SetAutomationId(border, "approvals-device-handoff"); panel.Children.Add(border);
-        }
-        if (Device is { } device)
+        // The component's own states (child-join.md): a credential that is gone moves the join itself to NotJoined (the join screen), so no sign-in line is drawn here. NeedsAdmission is the peer channel's own admission (a verified device admits this one).
+        if (Join is { UpdateRequired: true }) Line(ChildJoinText.UpdateRequired, ChildJoinText.Retry, () => Device?.Refresh());
+        else if (Device is { } device)
             switch (device.State.Status)
             {
-                case RuntimeStatus.Connecting: Line(Approvals.DeviceJoining); break;
-                case RuntimeStatus.Retrying: Line(Approvals.DeviceReconnecting, "今すぐ試す", device.Refresh); break;
+                case RuntimeStatus.Connecting: Line(ChildJoinText.Joining); break;
+                case RuntimeStatus.Retrying: Line(ChildJoinText.Reconnecting, ChildJoinText.Retry, device.Refresh); break;
                 case RuntimeStatus.NeedsAdmission when hub.Offer is { } offer: Waiting(offer); break;
                 case RuntimeStatus.NeedsAdmission:
                     if (hub.OfferNote is { } ended) Line(ended);
                     Line(device.State.Reason == "removed" ? Approvals.DeviceRemoved : Approvals.DeviceNeedsApproval, hub.RequestApproval is null ? null : hub.OfferNote is null ? Approvals.DeviceAskApproval : "もう一度", () => hub.RequestApproval?.Invoke());
                     break;
-                case RuntimeStatus.SignedOut when hub.Handoff is { } handoff: Handoff(handoff); break;
-                case RuntimeStatus.SignedOut when hub.SigningIn: Line(Approvals.DeviceSigningIn, "やめる", () => hub.CancelSignIn?.Invoke()); break;
-                case RuntimeStatus.SignedOut: if (hub.SignInNote is { } why) Line(why); Line(device.State.Reason switch { "pass_ended" => Approvals.DevicePassEnded, "account_deleted" => Approvals.DeviceAccountDeleted, _ => Approvals.DeviceSignedOut }, hub.SignInApprovalBox is null ? null : "Approval Boxにサインイン", () => hub.SignInApprovalBox?.Invoke(), hub.SignInByHandoff is null ? null : Approvals.DeviceHandoffStart, () => hub.SignInByHandoff?.Invoke()); break;
-                case RuntimeStatus.NotEntitled: Line(Approvals.DeviceNotEntitled, "確かめ直す", device.Refresh); break;
-                case RuntimeStatus.UpdateRequired: Line(Approvals.DeviceUpdateNeeded); break;
+                case RuntimeStatus.NotEntitled: Line(ChildJoinText.NotEntitled, ChildJoinText.Recheck, device.Refresh); break;
+                case RuntimeStatus.UpdateRequired: Line(ChildJoinText.UpdateRequired, ChildJoinText.Retry, device.Refresh); break;
             }
         return panel.Children.Count > 0 ? panel : null;
     }
@@ -439,8 +466,65 @@ internal sealed class ApprovalsPage : Grid
         }
         if (phase != "opening" && drop is not { Step: "busy" }) acts.Children.Add(Act("戻る", () => { linkOpen = false; drop = null; connect = new("idle"); Paint(); }, key: "connect:back"));
         stack.Children.Add(acts);
+        if (Join is { Phase: ChildJoinPhase.Joined } joined) stack.Children.Add(JoinBlock(joined));
+        if (seatLink is { } seat) stack.Children.Add(SeatLinkSection(seat));
         if (connect.Note.Length > 0) { var note = Text(connect.Note, 13, Red, FontWeights.SemiBold, TextWrapping.Wrap); note.Margin = new Thickness(0, 12, 0, 0); note.TextAlignment = TextAlignment.Center; System.Windows.Automation.AutomationProperties.SetAutomationId(note, "approvals-connect-note"); stack.Children.Add(note); }
-        return stack;
+        return Scroll(stack, new Thickness(0));   // the seat-link view (QR, code, steps, expiry) makes the panel tall: it scrolls
+    }
+
+    // This device's join state (child-join.md): 「決裁箱につながっています」 and the two-step 「つなぎを外す」 (外す / やめる). Leaving removes this device from the account and never touches BellTeam's own sign-in.
+    private FrameworkElement JoinBlock(IChildJoin join)
+    {
+        var block = new StackPanel { Margin = new Thickness(0, 30, 0, 0), HorizontalAlignment = HorizontalAlignment.Center, MaxWidth = 480 };
+        block.Children.Add(new Border { Height = 1, Background = Brush(Muted, 0x33), Margin = new Thickness(0, 0, 0, 20) });
+        var line = Text(ChildJoinText.Joined, 16, Ink, FontWeights.Bold); line.TextAlignment = TextAlignment.Center; System.Windows.Automation.AutomationProperties.SetAutomationId(line, "child-join-joined"); block.Children.Add(line);
+        var acts = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 14, 0, 0) };
+        if (leaveStep == "busy") { var spin = Spinner(16); spin.HorizontalAlignment = HorizontalAlignment.Center; acts.Children.Add(spin); }
+        else if (leaveStep == "confirm")
+        {
+            var yes = Action(ChildJoinText.LeaveYes, "", true); yes.Click += (_, _) => _ = LeaveAsync(join); acts.Children.Add(Key(yes, "child-leave-yes"));
+            var no = Action(ChildJoinText.LeaveNo, ""); no.Margin = new Thickness(8, 0, 0, 0); no.Click += (_, _) => { leaveStep = null; Paint(); }; acts.Children.Add(Key(no, "child-leave-no"));
+        }
+        else { var leave = Action(ChildJoinText.Leave, ""); System.Windows.Automation.AutomationProperties.SetName(leave, "決裁箱への" + ChildJoinText.Leave); leave.Click += (_, _) => { leaveStep = "confirm"; Paint("child-leave-no"); }; acts.Children.Add(Key(leave, "child-leave")); }
+        block.Children.Add(acts); return block;
+    }
+    private async Task LeaveAsync(IChildJoin join)
+    {
+        leaveStep = "busy"; Paint();
+        try { await join.LeaveAsync(); } finally { leaveStep = null; if (Running) Paint(); }
+    }
+
+    private FrameworkElement SeatLinkSection(SeatLink seat)
+    {
+        var section = new StackPanel { Margin = new Thickness(0, 30, 0, 0), HorizontalAlignment = HorizontalAlignment.Center, MaxWidth = 480 };
+        section.Children.Add(new Border { Height = 1, Background = Brush(Muted, 0x33), Margin = new Thickness(0, 0, 0, 20) });
+        var head = Text(SeatLinkText.Title, 16, Ink, FontWeights.Bold); head.TextAlignment = TextAlignment.Center; section.Children.Add(head);
+        if (SeatLinkText.Badge(seat) is { } badge)
+        {
+            var tint = badge.Tone switch { "ok" => Color.FromRgb(0x2E, 0xB3, 0x9E), "err" => Color.FromRgb(0xFF, 0x3B, 0x30), _ => Muted };   // the same chip as 「ライブ」: a dot and a word
+            var chip = Pill(Row(new System.Windows.Shapes.Ellipse { Width = 8, Height = 8, Fill = Brush(tint) }, Spaced(Text(badge.Text, 12, tint, FontWeights.SemiBold), 6)), tint, 0x1F);
+            chip.HorizontalAlignment = HorizontalAlignment.Center; chip.Margin = new Thickness(0, 10, 0, 0); System.Windows.Automation.AutomationProperties.SetAutomationId(chip, "seat-link-badge"); section.Children.Add(chip);
+        }
+        var line = Text(SeatLinkText.Line(seat), 14, SeatLinkText.IsFailure(seat) ? Red : Ink, FontWeights.SemiBold, TextWrapping.Wrap); line.TextAlignment = TextAlignment.Center; line.Margin = new Thickness(0, 8, 0, 0);
+        System.Windows.Automation.AutomationProperties.SetAutomationId(line, "seat-link-text"); section.Children.Add(line);
+        if (seat.Waiting)
+        {
+            var qr = new QrView(seat.QrText!, 200, "決裁箱のアプリで読むQRコード") { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 14, 0, 8) }; section.Children.Add(qr);
+            if (!string.IsNullOrEmpty(seat.Code))
+            {
+                var typed = new TextBox { Text = seat.Code, IsReadOnly = true, FontFamily = new FontFamily("Consolas"), FontSize = 16, TextAlignment = TextAlignment.Center, BorderThickness = new Thickness(0), Background = Brushes.Transparent, HorizontalAlignment = HorizontalAlignment.Center };
+                System.Windows.Automation.AutomationProperties.SetAutomationId(typed, "seat-link-typed"); section.Children.Add(typed);
+            }
+            if (seat.ExpiresAt is { } until) { var expiry = Text(SeatLinkText.Until(until), 12.5, Muted); expiry.TextAlignment = TextAlignment.Center; expiry.Margin = new Thickness(0, 4, 0, 0); section.Children.Add(expiry); }
+        }
+        if (seatBusy) { var spin = Spinner(16); spin.Margin = new Thickness(0, 12, 0, 0); spin.HorizontalAlignment = HorizontalAlignment.Center; section.Children.Add(spin); }
+        else if (SeatLinkText.Action(seat) is { } label)
+        {
+            var button = Action(label, "", seat.State == "none" || seat.State == "removed" || seat.State == "failed" || seat.State == "unavailable");
+            button.Click += (_, _) => { if (seat.State == "waiting") _ = StopSeatLinkAsync(); else _ = StartSeatLinkAsync(); };
+            button.HorizontalAlignment = HorizontalAlignment.Center; button.Margin = new Thickness(0, 14, 0, 0); section.Children.Add(Key(button, "seat-link:" + (seat.State == "waiting" ? "cancel" : "go")));
+        }
+        return section;
     }
 
     private Grid Columns(bool dim)

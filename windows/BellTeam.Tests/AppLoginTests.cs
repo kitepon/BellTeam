@@ -95,40 +95,111 @@ public sealed class AppLoginTests
         Assert.Equal("DELETE /api/home/sessions/S1", server.Calls.Last());
     }
 
-    private static Kitepon.LoginBilling.Desktop.DesktopLocal Local() => new(LocalFormConfig.Build(), new Kitepon.LoginBilling.Desktop.MemoryPassStore());
+    private static Kitepon.LoginBilling.Desktop.DesktopLocal Local() => AccountStore.Create(new Kitepon.LoginBilling.Desktop.MemoryPassStore());   // the same wiring as the app's (the Apple-return line included)
 
     // Mint 2026-11-23: makeRequest("google") signs in by itself (it opens Google's page, then listens). Rapi's table: the card offers 「QRを出す（Apple）」 and 「QRを出す（Google）」 and nothing opens before one is pressed.
-    // Apple (contract 1.36 s10): no Apple sign-in on this PC, so no browser at all; the iPhone's reply carries its own Apple identity token.
+    // The first-screen-parent-approval row (the Owner 2026-11-24): a device that is not approved sees the process at once: the app's name, the purpose, the Owner's first-sign-in text and the two sign-in buttons (Apple first); Contract 1.46:
+    // both sign in on this PC in the browser first (the browser step has やめる), then the QR. Nothing opens before a button is pressed, and Apple's sign-in is asked once.
     [Fact]
-    public void TheFirstRunOffersBothQrButtonsGoogleOpensTheBrowserAppleNeverDoesAndNothingOffersTheNextStepBeforeAPhoneAnswered() => RunSta(() =>
+    public void TheFirstScreenShowsTheProcessAndBothSignInsOpenTheBrowserOnce() => RunSta(() =>
     {
         var opened = new List<Uri>(); var before = AccountStore.OpenBrowser; AccountStore.OpenBrowser = uri => { opened.Add(uri); return Task.CompletedTask; };
         try
         {
             var gate = new AccountGateView(Local(), () => { });
-            Until(() => Texts(gate).Contains(LocalFormText.StatusUnpaid)); Assert.Empty(opened);   // nothing opens before the person presses a button
-            Assert.Contains(LocalFormText.CardTitle, Texts(gate)); Assert.Contains(LocalFormText.Title, Texts(gate)); Assert.Contains(LocalFormText.Lead, Texts(gate));
-            Assert.Equal([LocalFormText.Apple, LocalFormText.Google], Descendants<Button>(gate).Select(b => System.Windows.Automation.AutomationProperties.GetName(b)).Where(name => name.StartsWith("QRを出す", StringComparison.Ordinal)));
-            Click(gate, LocalFormText.Apple);
-            Until(() => Descendants<QrView>(gate).Any() || Texts(gate).Contains(LocalFormText.Of(LocalFormOutcome.PrivateNetwork)));   // the QR at once (or, on a PC with no private address, the contract's sentence)
-            Assert.Empty(opened); Assert.DoesNotContain(SignInText.Waiting, Texts(gate));
-            if (Descendants<QrView>(gate).Any()) Click(gate, LocalFormText.Cancel);
-            Until(() => Descendants<Button>(gate).Any(b => System.Windows.Automation.AutomationProperties.GetName(b) == LocalFormText.Google));
-            Click(gate, LocalFormText.Google); Until(() => opened.Count == 1);
+            Until(() => Texts(gate).Contains(LocalFormText.FirstSignInChildOnly)); Assert.Empty(opened);   // nothing opens before the person presses a button
+            Assert.Equal(["BellTeam", "AIのチームに、スマホやPCから指示できます。"], Texts(gate).Where(text => text.Length > 1).Take(2));
+            var icon = Assert.Single(Descendants<Image>(gate)); Assert.Equal(88, icon.Width); Assert.True(icon.Source.Width > 0);   // the BellTeam app icon (the same image as Apple's), not a glyph   // the name, one line of purpose, then the Owner's text
+            Assert.Equal([SignInText.Apple, SignInText.Google], Descendants<Button>(gate).Select(b => System.Windows.Automation.AutomationProperties.GetName(b)));   // Apple first, shown once
+            Assert.DoesNotContain(Texts(gate), text => text == LocalFormText.CardTitle || text == LocalFormText.StatusUnpaid);   // no billing card on the first screen (the Owner's lead itself says 購読済み)
+            Click(gate, SignInText.Apple); Until(() => opened.Count == 1);
+            var query = System.Web.HttpUtility.ParseQueryString(opened[0].Query);   // Apple's own page, BellTeam's Services ID, the library's return page, the fragment way
+            Assert.Equal(("appleid.apple.com", "dev.kitepon.bellbot.signin", "https://login-billing.kitepon.dev/apple-return", "code id_token", "fragment"), (opened[0].Host, query["client_id"], query["redirect_uri"], query["response_type"], query["response_mode"]));
+            Assert.Matches(@"^[A-Za-z0-9_-]+\.\d+$", query["state"]!); Assert.False(string.IsNullOrEmpty(query["nonce"]));   // state = the loopback's path token and its port
+            Assert.Contains(SignInText.Waiting, Texts(gate)); Assert.Empty(Descendants<QrView>(gate));
+            Assert.Equal([SignInText.Cancel], Descendants<Button>(gate).Select(b => System.Windows.Automation.AutomationProperties.GetName(b)));   // the browser step has its one way out
+            Click(gate, SignInText.Cancel); Until(() => Descendants<Button>(gate).Any(b => System.Windows.Automation.AutomationProperties.GetName(b) == SignInText.Google));
+            Click(gate, SignInText.Google); Until(() => opened.Count == 2);
             Assert.Contains(SignInText.Waiting, Texts(gate)); Assert.False(gate.Account.Entitled);
             Assert.DoesNotContain(Descendants<Button>(gate), b => b.Visibility == Visibility.Visible && System.Windows.Automation.AutomationProperties.GetName(b) == StoreAccountText.GateNext);
-            Click(gate, SignInText.Cancel); Until(() => Descendants<Button>(gate).Any(b => System.Windows.Automation.AutomationProperties.GetName(b) == LocalFormText.Apple));
+            Click(gate, SignInText.Cancel); Until(() => Descendants<Button>(gate).Any(b => System.Windows.Automation.AutomationProperties.GetName(b) == SignInText.Apple));
             gate.Dispose();
         }
         finally { AccountStore.OpenBrowser = before; }
     });
+
+    // After sign-in on a device that is not approved: 「使っている端末の承認を待っています」, the QR, its validity, the Owner's QR text, やめる (a request on screen is what the library hands back after a sign-in).
+    [Fact]
+    public void AfterSignInTheScreenWaitsForTheParentWithTheQrItsValidityAndTheOwnersText() => RunSta(() =>
+    {
+        var expiry = DateTimeOffset.Now.AddMinutes(10); var link = "https://login-billing.kitepon.dev/join/dev.kitepon.bellbot#lbq4:" + new string('A', 170);
+        var view = new FirstScreenView(new AccountView(Local())); view.ShowApproval(link, expiry);
+        var texts = Texts(view);
+        Assert.Equal("使っている端末の承認を待っています", texts[0]); Assert.Single(Descendants<QrView>(view));
+        Assert.Contains(LocalFormText.ValidUntil(expiry), texts); Assert.Contains("親となる端末（課金操作をするカメラのあるスマートフォンがお勧め）のカメラでQRコードを読んでください。", texts);
+        Assert.Equal([LocalFormText.Cancel], Descendants<Button>(view).Select(b => System.Windows.Automation.AutomationProperties.GetName(b)));
+        Assert.DoesNotContain(texts, text => text.Contains("親にする", StringComparison.Ordinal));   // BellTeam has no keyholes: no start choice
+    });
+
+    // Contract 1.46: Apple's page returns to the library's page, which posts to this PC's loopback with the state; Apple's own error code is shown at that moment only, and the person's own cancel says nothing.
+    [Theory]
+    [InlineData("access_denied", true)]
+    [InlineData("user_cancelled_authorize", false)]
+    public void AnAppleErrorReturnedToTheLoopbackShowsItsCodeAndACancelShowsNothing(string error, bool shown) => RunSta(() =>
+    {
+        var opened = new List<Uri>(); var before = AccountStore.OpenBrowser; AccountStore.OpenBrowser = uri => { opened.Add(uri); return Task.CompletedTask; };
+        var logBefore = AccountStore.AppleReturnLogPath; var logFile = Path.Combine(Path.GetTempPath(), "bt-apple-return-" + Guid.NewGuid().ToString("N"), "apple-return.log"); AccountStore.AppleReturnLogPath = logFile;
+        try
+        {
+            var gate = new AccountGateView(Local(), () => { });
+            Until(() => Texts(gate).Contains(LocalFormText.FirstSignInChildOnly)); Click(gate, SignInText.Apple); Until(() => opened.Count == 1);
+            var state = System.Web.HttpUtility.ParseQueryString(opened[0].Query)["state"]!; var (path, port) = (state[..state.LastIndexOf('.')], state[(state.LastIndexOf('.') + 1)..]);
+            using var http = new HttpClient();
+            var reply = http.PostAsync($"http://127.0.0.1:{port}/{path}", new FormUrlEncodedContent(new Dictionary<string, string> { ["state"] = state, ["error"] = error })).GetAwaiter().GetResult();
+            Until(() => Descendants<Button>(gate).Any(b => System.Windows.Automation.AutomationProperties.GetName(b) == SignInText.Apple) && !Texts(gate).Contains(SignInText.Waiting));
+            Assert.Equal(shown, Texts(gate).Contains("サインインできませんでした（" + error + "）。"));   // Apple's code, never a token
+            // the library's one line per Apple return is on this device in the app's data folder: the fields that came back and Apple's code, never the state or a token
+            var line = Assert.Single(File.ReadAllLines(logFile)); Assert.Contains("state", line); Assert.Contains("error", line); Assert.DoesNotContain(path, line);
+            if (shown) Assert.Contains(error, line);
+            gate.Dispose();
+        }
+        finally { AccountStore.OpenBrowser = before; AccountStore.AppleReturnLogPath = logBefore; }
+    });
+
+    // Same-spec items of the lb0211 builds (Tronie 2026-11-24): a version mismatch tells the person to update both devices; a cancel shows nothing; a phone not signed in has its own sentence.
+    [Fact]
+    public void TheSentencesOfAVersionMismatchACancelAndASignInThatIsRequired()
+    {
+        static string? Sentence(string code, string? detail = null) => AccountView.SentenceOf(new Kitepon.LoginBilling.Desktop.LoginBillingException(code, 0, detail));
+        Assert.All(new[] { "request_invalid", "other_request" }, code => Assert.Equal(LocalFormText.OutdatedPeer, Sentence(code)));
+        Assert.Contains("2台とも最新版に更新", LocalFormText.OutdatedPeer);
+        Assert.Null(Sentence("signin_cancelled"));
+        Assert.Equal("サインインしてから、もう一度お試しください。", Sentence("signin_required"));
+        Assert.Equal("サインインできませんでした（access_denied）。", Sentence("signin_failed", "access_denied"));
+    }
+
+    // Contract 1.46 (Mint, Tronie 2026-11-24): a line a return is appended to the app's log file on this device; a write that fails never throws into the sign-in.
+    [Fact]
+    public void TheAppleReturnLineIsAppendedToTheAppsLogFileAndAFailedWriteDoesNotThrow()
+    {
+        var before = AccountStore.AppleReturnLogPath; var file = Path.Combine(Path.GetTempPath(), "bt-apple-return-" + Guid.NewGuid().ToString("N"), "apple-return.log");
+        try
+        {
+            AccountStore.AppleReturnLogPath = file;
+            AccountStore.WriteAppleReturnLine("2026-11-24T10:00:00Z apple return fields=state,error error=access_denied"); AccountStore.WriteAppleReturnLine("2026-11-24T10:01:00Z apple return fields=state,id_token");
+            Assert.Equal(["2026-11-24T10:00:00Z apple return fields=state,error error=access_denied", "2026-11-24T10:01:00Z apple return fields=state,id_token"], File.ReadAllLines(file));
+            AccountStore.AppleReturnLogPath = Path.Combine(file, "under-a-file", "apple-return.log");   // a folder cannot be made below a file
+            AccountStore.WriteAppleReturnLine("never written");
+        }
+        finally { AccountStore.AppleReturnLogPath = before; }
+    }
 
     // Owner ruling 2026-11-24: a different login is a different person with its own contract; no purchase is ever linked across accounts, so no line says one exists under another account.
     [Fact]
     public void TheCardNeverSaysThatAnotherAccountHoldsAPurchase() => RunSta(() =>
     {
         var gate = new AccountGateView(Local(), () => { });
-        Until(() => Texts(gate).Contains(LocalFormText.StatusUnpaid));
+        Until(() => Texts(gate).Contains(LocalFormText.FirstSignInChildOnly));
         Assert.DoesNotContain(Texts(gate), text => text.Contains("別のアカウントで購入", StringComparison.Ordinal));
         Assert.DoesNotContain(Texts(new AccountView(Local(), () => { })), text => text.Contains("別のアカウントで購入", StringComparison.Ordinal));
         gate.Dispose();
@@ -171,7 +242,7 @@ public sealed class AppLoginTests
     public void TheHandoffQrIsDrawnFromTheGivenTextAsAMatrix() => RunSta(() =>
     {
         var qr = new QrView("bellteam://handoff/ABC", 200); qr.Measure(new Size(200, 200)); qr.Arrange(new Rect(0, 0, 200, 200));
-        Assert.Equal(200, qr.Width); Assert.Equal(200, qr.ActualWidth);
+        Assert.InRange(qr.Width, 190, 210); Assert.Equal(qr.Width, qr.ActualWidth);   // whole-pixel modules: about the size asked for
     });
 
     private static string[] Texts(DependencyObject root) => Descendants<TextBlock>(root).Select(text => text.Text).ToArray();

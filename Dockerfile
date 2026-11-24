@@ -80,8 +80,8 @@ RUN mkdir /tmp/abx && cp distribution/approval-box/package.json distribution/app
   && npm ci --omit=dev --cache /root/.npm --prefix /tmp/abx \
   && mv /tmp/abx/node_modules distribution/approval-box/node_modules && rm -rf /tmp/abx \
   && APPROVAL_BOX_HOME=/app/distribution/approval-box/runtime-home node distribution/approval-box/node_modules/approval-box/dist/cli.mjs install-runtime \
-  && test "$(APPROVAL_BOX_HOME=/tmp/abx-check node /app/distribution/approval-box/runtime-home/runtime/0.2.0-pc.2/cli.mjs version --json | node -e 'process.stdin.on("data",d=>console.log(JSON.parse(d).version))')" = 0.2.0-pc.2 \
-  && node --input-type=module -e 'import("node:fs").then(async fs=>{const d="/app/distribution/approval-box/runtime-home/runtime/0.2.0-pc.2/chunks/";await import(d+fs.readdirSync(d).find(f=>f.startsWith("pc-daemon")))})' \
+  && test "$(APPROVAL_BOX_HOME=/tmp/abx-check node /app/distribution/approval-box/runtime-home/runtime/0.2.0-pc.4/cli.mjs version --json | node -e 'process.stdin.on("data",d=>console.log(JSON.parse(d).version))')" = 0.2.0-pc.4 \
+  && node --input-type=module -e 'import("node:fs").then(async fs=>{const d="/app/distribution/approval-box/runtime-home/runtime/0.2.0-pc.4/chunks/";await import(d+fs.readdirSync(d).find(f=>f.startsWith("pc-daemon")))})' \
   && rm -rf /tmp/abx-check distribution/approval-box/node_modules
 # Seats reach the code graph through these two (E1 lattice, config/lattice-harness-entries.json): lattice-mcp is registered for every CLI, lattice-sensor-init indexes the member's own clone.
 RUN ln -s /app/src/lattice/node_modules/@quolu/lattice/bin/lattice-mcp.mjs /usr/local/bin/lattice-mcp \

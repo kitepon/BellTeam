@@ -18,6 +18,8 @@ internal sealed class LocalRequestView : StackPanel
     public void ShowIdle(string? sentence = null)
     {
         Head();
+        var first = Text(LocalFormText.FirstSignInChildOnly, 13, Ink, FontWeights.SemiBold, new Thickness(0, 10, 0, 0));   // before the Apple / Google buttons, below the lead
+        System.Windows.Automation.AutomationProperties.SetAutomationId(first, "local-request-first-signin"); Children.Add(first);
         Children.Add(Text(LocalFormText.Firewall, 12, Muted, null, new Thickness(0, 4, 0, 0)));
         if (sentence is not null) Children.Add(Text(sentence, 13, Red, null, new Thickness(0, 10, 0, 0)));
         var buttons = new WrapPanel();
@@ -29,7 +31,11 @@ internal sealed class LocalRequestView : StackPanel
     public void ShowRequest(string qrPayload, DateTimeOffset expiry)
     {
         Head();
-        Children.Add(new QrView(qrPayload, 220, LocalFormText.QrLabel) { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 10, 0, 10) });
+        // 1.49/1.50 (the Owner's sentence, BellTeam's own text in Core): word for word beside the QR. The QR is the library's join link (longer than the bare text), so it is drawn larger.
+        var qr = new QrView(qrPayload, 280, LocalFormText.QrLabel) { VerticalAlignment = VerticalAlignment.Center };
+        var guidance = Text(LocalFormText.Qr, 15, Ink, FontWeights.SemiBold, new Thickness(18, 0, 0, 0)); guidance.VerticalAlignment = VerticalAlignment.Center; guidance.MaxWidth = 260;
+        System.Windows.Automation.AutomationProperties.SetAutomationId(guidance, "local-request-guidance");
+        Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 10), Children = { qr, guidance } });
         Children.Add(Text(LocalFormText.Firewall, 12, Muted));
         Children.Add(Text(LocalFormText.WaitingUntil(expiry), 13, Muted, null, new Thickness(0, 8, 0, 0)));
         Children.Add(Button(LocalFormText.Cancel, cancel));

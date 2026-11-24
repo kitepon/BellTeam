@@ -4,6 +4,7 @@ import SwiftUI
 /// 利用と課金の「BellTeamの購読」カード（a540、契約1.36 10章）: この端末のStoreで購読を確かめる、QRで別の端末の確認を受ける、QRを読んで別の端末を承認する。
 /// 「アカウントを削除」はこのカードの最後に置く（App Reviewの要件。ほかのOSもこの置き場と文を写す）。
 enum AccountDeletionWords {
+    static let signOut = "サインアウト"
     static let button = "アカウントを削除"
     static let title = "アカウントを削除しますか？"
     static let confirm = "削除する"
@@ -60,6 +61,9 @@ struct StoreAccountCard: View {
                 if let message = account.message { Text(message).font(BellTheme.secondaryFont) }
                 if let error = account.errorText { Text(error).font(BellTheme.secondaryFont).foregroundStyle(.red) }
                 Divider()
+                Button(AccountDeletionWords.signOut) { Task { await account.signOut() } }
+                    .buttonStyle(.bordered).disabled(account.busy)
+                    .accessibilityIdentifier("store-sign-out")
                 Button(AccountDeletionWords.button, role: .destructive) { deleting = true }
                     .buttonStyle(.bordered).disabled(account.busy)
                     .accessibilityIdentifier("store-delete-account")
@@ -74,9 +78,6 @@ struct StoreAccountCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(20).bellCard()
             .task { await account.start() }
-            .sheet(item: Binding(get: { account.approval }, set: { if $0 == nil { account.answer(false) } })) { _ in
-                ApprovalSheet { account.answer($0) }
-            }
             .sheet(isPresented: $scanning) {
                 #if os(iOS) && !targetEnvironment(macCatalyst)
                 NavigationStack {
@@ -101,16 +102,18 @@ struct StoreAccountCard: View {
                 .accessibilityIdentifier("store-purchase")
             Divider()
             Text("購読しているスマホで確認する").font(.subheadline.weight(.semibold))
-            Text("この端末にQRを出し、購読しているスマホのBellTeamで読み取ります。2台は同じWi-Fiにつないでください。")
+            Text(LocalAccount.qrLead)
                 .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
             if let request = account.request {
                 if let image = ServerLoginView.qrImage(request.qr) {
                     Image(uiImage: image).interpolation(.none).resizable().scaledToFit().frame(width: 200, height: 200)
                         .accessibilityLabel("確認用のQRコード")
                 }
+                Text(LocalAccount.qrGuidance).font(BellTheme.secondaryFont).accessibilityIdentifier("store-qr-guidance")
                 ProgressView("スマホの返事を待っています（\(request.expiresAt.formatted(date: .omitted, time: .shortened))まで）")
                 Button("やめる") { account.cancelRequest() }.buttonStyle(.bordered).accessibilityIdentifier("store-request-cancel")
             } else {
+                Text(LocalAccount.signInGuidance).font(BellTheme.secondaryFont).accessibilityIdentifier("store-signin-guidance")
                 HStack {
                     Button("QRを出す（Apple）") { Task { await account.showRequest("apple") } }
                         .buttonStyle(.bordered).disabled(account.busy).accessibilityIdentifier("store-request-apple")
@@ -128,7 +131,7 @@ struct StoreAccountCard: View {
             if QRScannerView.isAvailable {
                 Divider()
                 Text("別の端末を承認する").font(.subheadline.weight(.semibold))
-                Text("承認したい端末に出ているQRを読み取ります。自分で始めたものだけ承認してください。2台は同じWi-Fiにつないでください。")
+                Text("承認したい端末に出ているQRを読み取ります。自分で始めたものだけ承認してください。2台は同じネットワーク（同じLAN）につないでください。")
                     .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
                 Button("QRを読み取る", systemImage: "qrcode.viewfinder") { scanning = true }
                     .buttonStyle(.bordered).disabled(account.busy).accessibilityIdentifier("store-scan")
@@ -137,8 +140,10 @@ struct StoreAccountCard: View {
         }
     }
 
-    /// 返事の前の確認。自分で始めたものだけ承認してもらう。
-    private struct ApprovalSheet: View {
+}
+
+/// 返事の前の確認。自分で始めたものだけ承認してもらう。QRの読み取りでもカメラからのリンクでも出るので、画面でなく根（RootView）が持つ。
+struct LocalApprovalSheet: View {
         let onAnswer: (Bool) -> Void
 
         var body: some View {
@@ -155,5 +160,4 @@ struct StoreAccountCard: View {
             .presentationDetents([.medium])
             .interactiveDismissDisabled()
         }
-    }
 }

@@ -34,6 +34,9 @@ Client guidance: show the key bar whenever the screen view is open, except while
 | --- | --- |
 | `transport.screenKey(bot,key)` | Validates the closed set, then calls `pty_key({session_id,key})` on the Bot's current session. Aiterm serializes it with its own native operation lock against concurrent `pty_send`. No BellTeam queue, wait or refusal is added. |
 | `transport.screenApproval(bot,{action,decision?,promptDigest?})` | claude → `claude_approval` (operation_id omitted, which is Aiterm's form for ordinary `pty_send` turns), codex → `agent_approval`. Inspect: a structured result with `status="approval_required"` maps to choices; anything else is `{status:"none"}`. Respond: sends the exact digest; Aiterm rechecks the dialog and refuses if it changed. Grok/Cursor → `SCREEN_APPROVAL_UNSUPPORTED` (their dialogs are answered with keys). |
+| allowlist | `claude_approval` and `agent_approval` are in the engine's native allowlist (`EXECUTION_NATIVE_METHODS`). Before a seat-approval fix (Centi's lab 2026-11-24) the engine refused them with `EXECUTION_REQUEST_INVALID` and inspect turned that into `{status:"none"}`, so the apps' approval buttons never showed; an engine that refuses the tool now answers 503 `SCREEN_INPUT_UNAVAILABLE`, not "no dialog". |
 | compatibility | Both methods are execution dispatch methods. An older execution engine rejects them with `EXECUTION_REQUEST_INVALID`, which the HTTP layer maps to `503 SCREEN_INPUT_UNAVAILABLE`. |
 
 No text input is offered (`pty_send` free text stays the delivery path). No secret, transcript or screen text is stored.
+
+Seat approvals (a seat stopped on a tool approval reaches the Owner as an Approval Box card or an in-app entry, and the answer goes back through this same respond) are in [seat-approvals.md](seat-approvals.md). `GET …/screen/approval` now also returns `prompt` and `kind` when Aiterm names them (Codex); the contract above is otherwise unchanged.

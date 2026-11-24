@@ -5,8 +5,10 @@ using System.IO;
 
 namespace BellTeam.Core;
 
-public sealed record ConversationEntry(ChatTarget Target, string Name, string Subtitle, DateTimeOffset RecentAt, Bot? Bot, Room? Room, string? Origin = null, bool Working = false)
+public sealed record ConversationEntry(ChatTarget Target, string Name, string Subtitle, DateTimeOffset RecentAt, Bot? Bot, Room? Room, string? Origin = null, bool Working = false, SeatApproval? SeatApproval = null)
 {
+    // The amber badge on a member's row while one of its seats waits on a tool approval (seat-approval-clients); null for a room and for a member with none.
+    public string? SeatApprovalBadge => SeatApproval is null ? null : SeatApprovalText.Badge;
     public string Group => Target.IsRoom ? "ルーム" : "メンバー";
     public string Initial => Name.Length == 0 ? "?" : System.Globalization.StringInfo.GetNextTextElement(Name);
     public string Presence => Bot is { Online: true } ? "●" : "";
@@ -64,12 +66,26 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
     private readonly Dictionary<(string, ChatTarget), List<PendingSend>> pendingSends = [];
     private readonly SemaphoreSlim refreshLock = new(1);
     private List<ConversationEntry> all = [];
+    private SeatApproval[] seatApprovals = [];
     private QueueItem[] queue = [];
     private string search = "";
     private string? connectionError;
     private bool needsLogin;
     private string connectionStatus = "接続先を設定してください。";
     public string OwnerName { get; private set; } = "あなた";
+    /// <summary>The Owner's open seat tool approvals, oldest first (seat-approvals.md); empty when the body has none or cannot say. Read again on every server event and after every answer.</summary>
+    public IReadOnlyList<SeatApproval> SeatApprovals => seatApprovals;
+    public event Action? SeatApprovalsChanged;
+    /// <summary>Answers one entry (approve_once or deny), then reads the entries again whatever the outcome: a 409 means another front answered first.</summary>
+    public async Task<SeatApprovalOutcome> AnswerSeatApprovalAsync(SeatApproval approval, string decision)
+    {
+        var current = api ?? throw new BellApiException("接続先を設定してください。"); var token = connection!.Token;
+        var outcome = await current.AnswerSeatApprovalAsync(approval.Id, decision, token);
+        try { await RefreshAsync(current, token); }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+        catch (Exception) { }   // the next event or refresh reads it again
+        return outcome;
+    }
     /// <summary>The Owner profile as last read (avatar body omitted), null until read on this connection.</summary>
     public OwnerProfile? Owner { get; private set; }
     // Above the member list only while both Claude slots are limited (Kiro, same as Web loadAccountsBanner).
@@ -354,6 +370,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
             var activity = await current.GetAsync<QueueResponse>("/api/queue", token);
             var owner = await current.GetAsync<OwnerResponse>("/api/owner?avatar=omit", token);
             var accountsBanner = await AccountsBannerAsync(current, token);
+            var seat = await current.SeatApprovalsAsync(token);
             if (selected is { Target.IsRoom: true })
             {
                 // An optional setting: its failure must not fail the list refresh.
@@ -367,7 +384,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
             queue = activity.Items;
             var previous = all.ToDictionary(entry => entry.Target);
             // Working is currentWork.state only, the same source as the work graph: turns started by a schedule or the member's own continuation have no running delivery.
-            all = bots.Bots.Select(bot => new ConversationEntry(new(bot.Id, false), bot.DisplayName, CurrentWork.Label(bot.CurrentWork), bot.Recent?.At ?? DateTimeOffset.MinValue, bot, null, Server, bot.CurrentWork?.State == "working"))
+            all = bots.Bots.Select(bot => new ConversationEntry(new(bot.Id, false), bot.DisplayName, CurrentWork.Label(bot.CurrentWork), bot.Recent?.At ?? DateTimeOffset.MinValue, bot, null, Server, bot.CurrentWork?.State == "working", seat.FirstOrDefault(item => item.BotId == bot.Id)))
                 .Concat(rooms.Rooms.Select(room => new ConversationEntry(new(room.Id, true), room.Name, room.Recent?.Preview ?? room.Purpose, room.Recent?.At ?? DateTimeOffset.MinValue, null, room, Server))).ToList();
             if (notify)
                 foreach (var entry in all)
@@ -380,6 +397,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
                 drafts.Remove(key); pendingSends.Remove(key);
             }
             pendingBotDeletions.IntersectWith(all.Where(entry => entry.Bot is not null).Select(entry => entry.Target.Id));
+            seatApprovals = seat; SeatApprovalsChanged?.Invoke();
             Filter();
             RosterChanged?.Invoke();
             Changed(nameof(OnlineSummary)); Changed(nameof(ConversationSubtitle));
@@ -777,7 +795,9 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
     {
         preview = true;
         all = [new(new("preview", false), "ベル", "Windowsアプリを確認しています", DateTimeOffset.Now,
-            new Bot { Id = "preview", Name = "ベル", DisplayName = "ベル", Online = true, Position = "技術パートナー", ProfileText = "これは表示確認用の人工データです。", Role = "Windowsアプリの開発" }, null)];
+            new Bot { Id = "preview", Name = "ベル", DisplayName = "ベル", Online = true, Position = "技術パートナー", ProfileText = "これは表示確認用の人工データです。", Role = "Windowsアプリの開発" }, null,
+            SeatApproval: new SeatApproval { Id = "sa-preview-0000000000000000-1", BotId = "preview", BotName = "ベル", Harness = "codex", Tool = "Bash", Command = "git push --force origin main", Reason = "Codexが承認を待っています。", Since = DateTimeOffset.Now })];
+        seatApprovals = all.Select(entry => entry.SeatApproval).OfType<SeatApproval>().ToArray(); SeatApprovalsChanged?.Invoke();   // the seat-approval entry of the preview (--render-preview)
         Filter(); ConnectionStatus = "表示確認用の人工データ";
     }
     private static TimelineMessage[] PreviewMessages() => [

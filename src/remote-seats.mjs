@@ -361,15 +361,16 @@ export class RemoteSeats {
       } },
       ...(typeof client.pin === 'function' ? { pin: { value: () => routed(client.pin()) } } : {}),
     })
-    return routed(base)
+    return this.client = routed(base)
   }
 
   // The same wait as a local seat; a completed remote turn then hands its transcript to Throughline (C7).
   waitProcess(local) {
-    return async (process, signal) => {
+    return async (process, signal, context) => {
       const result = await local(process, signal)
       const args = Array.isArray(process?.args) ? process.args : []
-      const seat = args.includes('--session') ? await this.seatOf(args[args.indexOf('--session') + 1]) : null
+      const name = typeof context?.session === 'string' ? context.session : args.includes('--session') ? args[args.indexOf('--session') + 1] : null
+      const seat = name ? await this.seatOf(name) : null
       if (seat && ['done', 'error', 'rate_limited'].includes(result?.outcome)) void this.forward(seat)
       return result
     }
@@ -403,16 +404,19 @@ export class RemoteSeats {
   // A gap or conflict moves to Throughline's expected cursor; anything else keeps the cursor for the next completion.
   async forward(seat) {
     if (seat.forwarding) { seat.forwardAgain = true; return }
-    if (!seat.launchId || !this.seatCommand) return
+    if (!this.seatCommand) return
     seat.forwarding = true
     try {
+      // A remote agent_launch result carries launch_id null (terminal and remote route alike); the seat's own observation names it.
+      const launchId = seat.launchId ?? await this.launchIdOf(seat.sessionName)
+      if (!launchId) { process.stderr.write(`BellTeam remote seat: transcript not read: ${seat.botId} NO_LAUNCH_ID\n`); return }
       for (let page = 0; page < PAGES_PER_TURN; page++) {
         const read = await this.transcript(seat)
         if (!Array.isArray(read?.entries) || !read.entries.length || !read.cursor) break
         // remote-seat.md C7: a fork goes as `--fork` (Throughline 0.17.0 refuses that argv and stores nothing).
         const fork = seat.fork ? { sessionKind: 'fork', parentSessionId: seat.fork.parentSessionId, forkId: seat.fork.forkId } : {}
         const result = await this.throughline(['remote-ingest', ...(seat.fork ? ['--fork'] : []), '--json'], JSON.stringify({ botId: seat.botId, sessionName: seat.sessionName,
-          launchId: seat.launchId, claudeSessionId: read.cursor.claudeSessionId, entries: read.entries, cursor: read.cursor, ...fork }))
+          launchId, claudeSessionId: read.cursor.claudeSessionId, entries: read.entries, cursor: read.cursor, ...fork }))
         if (result?.status === 'ready' && result.ackedCursor) { seat.cursor = result.ackedCursor; continue }
         if (result?.expectedCursor) seat.cursor = result.expectedCursor
         process.stderr.write(`BellTeam remote seat: transcript not stored: ${seat.botId} ${typeof result?.code === 'string' ? result.code : 'FAILED'}\n`)
@@ -424,6 +428,14 @@ export class RemoteSeats {
       seat.forwarding = false
       if (seat.forwardAgain) { seat.forwardAgain = false; void this.forward(seat) }
     }
+  }
+
+  // pty_observe through the routed client: a seat on `remote` carries its route, any other seat is found by Aiterm's own map.
+  async launchIdOf(sessionName) {
+    try {
+      const id = (await this.client?.call('pty_observe', { session_id: sessionName }))?.structuredContent?.launch_id
+      return typeof id === 'string' && /^[a-f0-9]{32}$/u.test(id) ? id : null
+    } catch { return null }
   }
 
   close() { this.unwatch() }

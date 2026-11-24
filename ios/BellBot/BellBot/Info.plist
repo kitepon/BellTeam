@@ -38,7 +38,7 @@
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>194</string>
+	<string>197</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSApplicationCategoryType</key>
@@ -94,7 +94,7 @@
 	<key>NSCameraUsageDescription</key>
 	<string>承認用のQRコードを読み取るためにカメラを使います。</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>LAN上のBellTeamへ接続するため、また同じWi-Fiの別の端末と購読を確かめ合うために、ローカルネットワークを使います。</string>
+	<string>LAN上のBellTeamへ接続するため、また同じネットワーク（同じLAN）の別の端末と購読を確かめ合うために、ローカルネットワークを使います。</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>会話の画像を写真に保存するために使います。</string>
 	<key>NSPhotoLibraryUsageDescription</key>

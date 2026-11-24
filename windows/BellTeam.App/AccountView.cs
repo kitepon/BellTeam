@@ -20,6 +20,10 @@ internal sealed class AccountView : StackPanel, IDisposable
     private LocalRequest? request;
     private bool signingIn, justPaid;
 
+    // What the first screen (FirstScreenView) draws from: the browser step before the QR, the request on screen, what the last try ended with.
+    public bool SigningInWithBrowser => signingIn && request is null;
+    public LocalRequest? Request => request;
+    public string? Sentence { get; private set; }
     public bool StoreBroken { get; private set; }
     public string? Failure { get; private set; }
     public LocalPaid? Paid { get; private set; }
@@ -49,7 +53,7 @@ internal sealed class AccountView : StackPanel, IDisposable
         "signin_cancelled" => null,
         "return_not_received" => SignInText.ReturnNotReceived,
         "unreachable_same_wifi" => LocalFormText.Of(LocalFormOutcome.PrivateNetwork),
-        _ => LocalFormText.Failure(error.Code, error.Status),
+        _ => LocalFormText.Failure(error.Code, error.Status, error.Detail),   // signin_failed carries Apple's own error code (1.46), at that moment only
     };
 
     // Read what this PC holds; with no accepted period, offer the button.
@@ -69,18 +73,18 @@ internal sealed class AccountView : StackPanel, IDisposable
     // The paying phone's reply ends the wait. The person's 「やめる」 ends it quietly.
     public async Task StartAsync(string provider)
     {
-        CancelAttempt(); Failure = null; justPaid = false;
+        CancelAttempt(); Failure = null; Sentence = null; justPaid = false;
         var mine = attempt = CancellationTokenSource.CreateLinkedTokenSource(life.Token);
-        signingIn = provider == "google"; Render();
+        signingIn = true; Render();   // 1.46: Google and Apple both sign in in the browser first
         try
         {
-            var made = await local.MakeRequestAsync(provider, provider == "google" ? AccountStore.OpenBrowser : null, mine.Token);
+            var made = await local.MakeRequestAsync(provider, AccountStore.OpenBrowser, mine.Token);
             if (mine.IsCancellationRequested) { made.Dispose(); return; }
             request = made; signingIn = false; requestView.ShowRequest(made.Qr, made.ExpiresAt); Render();
             Paid = await made.AwaitPaidAsync(mine.Token); justPaid = true;
         }
-        catch (OperationCanceledException) { requestView.ShowIdle(); }
-        catch (LoginBillingException error) { requestView.ShowIdle(SentenceOf(error)); }
+        catch (OperationCanceledException) { Sentence = null; requestView.ShowIdle(); }
+        catch (LoginBillingException error) { Sentence = SentenceOf(error); requestView.ShowIdle(Sentence); }
         finally { if (ReferenceEquals(attempt, mine)) { signingIn = false; request?.Dispose(); request = null; } }
         if (!life.IsCancellationRequested && ReferenceEquals(attempt, mine)) Render();
     }
@@ -152,27 +156,38 @@ internal sealed class AccountView : StackPanel, IDisposable
     public void Dispose() { life.Cancel(); request?.Dispose(); }
 }
 
-// First run (app-sessions.md 7d, a540): the account card with the button that starts a try, then the QR a paying phone reads, then サーバーにつなぐ once the period is paid.
+// First run (app-sessions.md 7d, a540; the first-screen-parent-approval row): a device that is not yet paid sees the approval process at once (FirstScreenView: name, purpose, the Owner's first-sign-in text and the sign-in,
+// then the QR a parent device reads); a paid one sees サーバーにつなぐ on the account card.
 internal sealed class AccountGateView : StartupBackdrop, IDisposable
 {
     private readonly AccountView account;
+    private readonly FirstScreenView first;
     private readonly Button next;
+    private readonly ScrollViewer scroll;
+    private readonly Border paid;
 
     public AccountGateView(DesktopLocal local, Action connect)
     {
-        account = new AccountView(local);
+        account = new AccountView(local); first = new FirstScreenView(account);
         next = Capsule(StoreAccountText.GateNext, MacUi.ProminentFill, System.Windows.Media.Brushes.White, 12, 15, new Thickness(18, 12, 18, 12));
         next.HorizontalAlignment = HorizontalAlignment.Stretch; next.Margin = new Thickness(0, 18, 0, 0); next.Click += (_, _) => connect();
         System.Windows.Automation.AutomationProperties.SetName(next, StoreAccountText.GateNext);
         var column = new StackPanel(); column.Children.Add(account); column.Children.Add(next);
-        var holder = Card(column); holder.MaxWidth = 520; holder.Margin = new Thickness(24); holder.HorizontalAlignment = HorizontalAlignment.Center; holder.VerticalAlignment = VerticalAlignment.Center;
-        Children.Add(new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Content = holder });
+        paid = Card(column); paid.MaxWidth = 520; paid.Margin = new Thickness(24); paid.HorizontalAlignment = HorizontalAlignment.Center; paid.VerticalAlignment = VerticalAlignment.Center;
+        scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+        Children.Add(scroll);
         account.Changed += Refresh; Refresh();
     }
 
     internal AccountView Account => account;
 
-    private void Refresh() => next.Visibility = account.Entitled ? Visibility.Visible : Visibility.Collapsed;
+    // Paid: the account card with サーバーにつなぐ. Not paid (or not read yet): the first screen.
+    private void Refresh()
+    {
+        next.Visibility = account.Entitled ? Visibility.Visible : Visibility.Collapsed;
+        var show = account.Entitled ? (FrameworkElement)paid : first;
+        if (!ReferenceEquals(scroll.Content, show)) scroll.Content = show;
+    }
 
     public void Dispose() => account.Dispose();
 }

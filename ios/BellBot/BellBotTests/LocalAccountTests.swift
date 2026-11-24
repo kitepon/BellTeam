@@ -6,10 +6,13 @@ import XCTest
 @MainActor
 final class LocalAccountTests: XCTestCase {
     func testWordsNameTheWayOutNotTheCode() {
-        XCTAssertEqual(LocalAccount.words(LoginBillingError(code: "unreachable_same_wifi")), "スマホとこの端末を、同じWi-Fiにつないでください。")
+        XCTAssertEqual(LocalAccount.words(LoginBillingError(code: "unreachable_same_wifi")), "スマホからこの端末に届きませんでした。2台を同じネットワーク（同じLAN）につないでから、もう一度お試しください。")
         XCTAssertTrue(LocalAccount.words(LoginBillingError(code: "local_network_denied")).contains("ローカルネットワークを許可"))
         XCTAssertTrue(LocalAccount.words(LoginBillingError(code: "other_account")).contains("同じアカウント"))
         XCTAssertTrue(LocalAccount.words(LoginBillingError(code: "request_expired")).contains("新しいQR"))
+        XCTAssertTrue(LocalAccount.words(LoginBillingError(code: "request_invalid")).contains("最新版に更新"))
+        XCTAssertTrue(LocalAccount.words(LoginBillingError(code: "signin_required")).contains("サインイン"))
+        XCTAssertTrue(LocalAccount.words(LoginBillingError(code: "signin_failed")).contains("サインインできませんでした"))
         XCTAssertEqual(LocalAccount.words(LoginBillingError(code: "zzz")), "処理できませんでした（zzz）。")
     }
 
@@ -22,6 +25,24 @@ final class LocalAccountTests: XCTestCase {
         XCTAssertFalse(account.hasLiveContract)
         account.setPaid(.init(productId: "p", until: nil, store: "apple"))
         XCTAssertTrue(account.hasLiveContract)
+    }
+
+    func testOnlyWhatIsLibraryQRReachesTheAnswer() async {
+        let account = LocalAccount(productId: "p")
+        await account.open(link: URL(string: "https://example.com/join/dev.kitepon.bellbot#x")!)
+        await account.open(link: URL(string: "https://login-billing.kitepon.dev/other")!)
+        await account.open(link: URL(string: "https://login-billing.kitepon.dev/join/dev.kitepon.bellbot#bad")!)
+        XCTAssertNil(account.message); XCTAssertNil(account.errorText)
+    }
+
+    // The sign-out itself needs the Keychain, which the unsigned test host does not have; the screen's word is the contract's (same as Windows, Linux, Android).
+    func testTheSignOutWordIsTheOtherClientsWord() {
+        XCTAssertEqual(AccountDeletionWords.signOut, "サインアウト")
+    }
+
+    func testTheGuidanceIsBellTeamsOwnWordForWord() {
+        XCTAssertEqual(LocalAccount.signInGuidance, "すでにほかの端末で使っている方は、同じアカウントでサインインしてから、次に出るQRコードを使用中の端末のカメラで読んでください。")
+        XCTAssertEqual(LocalAccount.qrGuidance, "親となる端末（課金操作をするカメラのあるスマートフォンがお勧め）のカメラでQRコードを読んでください。")
     }
 
     func testEveryBellTeamGoogleClientIsAnAcceptedAudience() {

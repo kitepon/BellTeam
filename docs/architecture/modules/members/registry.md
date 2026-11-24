@@ -24,7 +24,7 @@ flowchart TB
 
 | 責務 | caller → 実関数 | 保存/失敗/副作用 |
 | --- | --- | --- |
-| 起動読込 | `bootstrap` → `BotRegistry.initialize` | 分離状態の移行不足を拒否。seed、`.initialized`、未完削除再開、旧profile移行、指示生成、refreshの順 |
+| 起動読込 | `bootstrap` → `BotRegistry.initialize` | 分離状態の移行不足を拒否。seed、`.initialized`、未完削除再開、旧profile移行、指示生成、refreshの順。起動時の指示生成はBotごとに独立し、projectフォルダが無い（削除された）Botは`ProjectFiles.initialize`で作り直して1回だけ書き直す。それでも書けないBotは理由を1行stderrへ出して飛ばし、本体の起動を止めない（registry-missing-project-crash-2、2026-11-24）。実行中のcreate/update/prepareStartupContextの失敗は従来どおり呼出元へ返す |
 | 台帳読取 | HTTP/MCP/実行前 → `refresh/#readProfiles/readProfile` | stateRootのmetadataでcacheを検証。Mapは投影、削除予定は実行用Mapへ戻さない |
 | 作成 | HTTP POST / MCP create_bot → `create` → memory.ensureScope | 入力/effort/fast検証→project新規取得→profile/空予定/指示生成→refresh→onChange。後段失敗でも前段保存は存在し得る |
 | プロフィール更新 | `update/previewUpdate/#mutateProfile` | Bot別に直列化。許可field、画像とcrop、model/effort/fastの契約を確認→profile保存→指示生成→通知 |

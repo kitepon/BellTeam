@@ -80,6 +80,12 @@ extension AppStore {
         if arguments.contains("-bellbot-preview-settings") { try! prepareSettingsPreview() }
         // 相関図を直接開く（iPhone/iPadはタブ、Macは窓をDesktopWorkspaceViewが開く）。
         if arguments.contains("-bellbot-preview-work-graph") { selectedTab = 4 }
+        // `-bellbot-preview-seat-approval [tui]`: a seat waiting on a tool approval (the list badge and the card on ユキ's screen); `tui` = no command text.
+        if let index = arguments.firstIndex(of: "-bellbot-preview-seat-approval") {
+            let tui = arguments.indices.contains(index + 1) && arguments[index + 1] == "tui"
+            seatApprovals.setPreview(tui: tui)
+            if arguments.contains("-bellbot-preview-open-chat") { chatPath = [.bot("bot-one")] }
+        }
         if arguments.contains("-bellbot-preview-connection-error") {
             connectionError = "更新へ接続できません。再接続しています。"
         }
@@ -182,6 +188,24 @@ struct PreviewNotificationControls: View {
             value["roomId"] = roomID
             let route = BellNotificationRoute(userInfo: ["bellteam": value])!
             BellNotifications.shared.onOpen?(route)
+        }
+    }
+}
+
+/// `-bellbot-preview-snapshot <png path>`: writes the front window to a PNG after 4 s and quits, for screenshots where no screen capture is available (Mac Catalyst without display access).
+enum PreviewSnapshot {
+    @MainActor static func scheduleIfRequested() {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let index = arguments.firstIndex(of: "-bellbot-preview-snapshot"), arguments.indices.contains(index + 1) else { return }
+        let path = arguments[index + 1]
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 4_000_000_000)
+            let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
+            if let window = scene?.windows.first(where: \.isKeyWindow) ?? scene?.windows.first {
+                let image = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in window.drawHierarchy(in: window.bounds, afterScreenUpdates: true) }
+                try? image.pngData()?.write(to: URL(fileURLWithPath: path))
+            }
+            exit(0)
         }
     }
 }

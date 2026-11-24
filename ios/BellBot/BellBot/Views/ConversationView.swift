@@ -203,11 +203,14 @@ private struct ConversationContent: View {
         .safeAreaInset(edge: .bottom, spacing: 0) { composer }
         // The header line: the nav bar is too narrow for the reason, so it sits right under it and may wrap.
         .safeAreaInset(edge: .top, spacing: 0) {
-            if !target.isRoom, let line = bot?.seatLaunch?.line {
-                SeatLaunchLine(text: line, size: BellTheme.listDetailFontSize + 1, lines: 3)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 16).padding(.vertical, 6)
-                    .background(.regularMaterial)
+            VStack(spacing: 0) {
+                if !target.isRoom, let line = bot?.seatLaunch?.line {
+                    SeatLaunchLine(text: line, size: BellTheme.listDetailFontSize + 1, lines: 3)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 16).padding(.vertical, 6)
+                        .background(.regularMaterial)
+                }
+                if case .bot(let id) = target { SeatApprovalsStrip(botId: id, model: store.seatApprovals) }
             }
         }
         .navigationBarTitleDisplayMode(.inline)

@@ -120,6 +120,17 @@ test('C7: a completed remote turn hands the completed prefix to Throughline; onl
   assert.deepEqual(reads[1], ['--session', seat.sessionName, '--cursor-session', 'c1', '--offset', '0', '--max-bytes', '1048576'])
   assert.deepEqual(seat.cursor, { claudeSessionId: 'c1', offset: 12 })
   assert.deepEqual(await seats.waitProcess(local)({ args: ['--session', 'bot-local'] }), { outcome: 'done' })
+  // a532b2s2f: a remote seat's wait is ssh with ONE command string; the session comes from the receipt, not from the arguments.
+  const before = reads.length
+  const sshWait = { executable: 'ssh', args: ['-T', 'kite@192.168.1.12', "/bin/sh -c 'exec \"$p\" --session " + seat.sessionName + " --timeout 600'"] }
+  assert.deepEqual(await seats.waitProcess(local)(sshWait, null, { session: seat.sessionName }), { outcome: 'done' })
+  while (seat.forwarding) await new Promise(resolve => setImmediate(resolve))
+  await new Promise(resolve => setImmediate(resolve))
+  assert.ok(reads.length > before, 'the ssh-shaped wait hands the transcript over')
+  const afterWith = reads.length
+  await seats.waitProcess(local)(sshWait)
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(reads.length, afterWith, 'without the session the ssh wait names no seat')
   seats.seatCommand = async () => { throw new Error('missing') }
   assert.equal(await seats.handoffContext(bot.id), '')
 })
@@ -722,4 +733,40 @@ test('a67: a refusal with no answer, or a stop before the close, closes nothing'
       assert.equal(calls.filter(call => call.name === 'agent_launch').length, 1)
     } finally { await rm(root, { recursive: true, force: true }) }
   }
+})
+
+test('a532b2s2h: the transport hands the receipt session to the wait wrapper, so an ssh-shaped remote wait hands its transcript over', async () => {
+  const { seats } = fixture()
+  const reads = []
+  seats.seatCommand = async process => process.executable === 'aiterm-transcript-read' ? (reads.push(process.args), { entries: [] }) : {}
+  seats.launched(bot, { session_id: 'bot-aaaa1111', launch_id: 'a'.repeat(32) })
+  const transport = new AitermTransport({ waitProcess: seats.waitProcess(async () => ({ outcome: 'done' })) })
+  const receipt = { session_id: 'bot-aaaa1111', wait_process: { executable: 'ssh', args: ['-T', 'kite@mac', "/bin/sh -c 'exec \"$p\" --session bot-aaaa1111 --timeout 600 --cursor 3'"] } }
+  assert.deepEqual(await transport.waitUntilDone(receipt), { outcome: 'done' })
+  for (let i = 0; i < 5; i++) await new Promise(resolve => setImmediate(resolve))
+  assert.equal(reads.length, 1)
+})
+
+test('a532b2s2t: a remote launch result has launch_id null; forward takes the id from pty_observe, and says so when there is none', async () => {
+  const { seats } = fixture()
+  const observed = [], ingested = [], logs = []
+  let observeAnswer = { structuredContent: { launch_id: 'b'.repeat(32) } }
+  seats.route({ call: async (name, args) => { observed.push([name, args]); if (observeAnswer instanceof Error) throw observeAnswer; return observeAnswer } })
+  seats.seatCommand = async process => {
+    if (process.executable === 'aiterm-transcript-read') return { entries: ['{"a":1}\n'], cursor: { claudeSessionId: 'c1', offset: 8 } }
+    ingested.push(JSON.parse(process.args.at(-1) ? process.args.slice(3).join('') : '{}'))
+    return { status: 'ready', ackedCursor: { claudeSessionId: 'c1', offset: 8 } }
+  }
+  seats.launched(bot, { session_id: 'bot-aaaa1111', launch_id: null })
+  const seat = seats.seats.get('bot-aaaa1111')
+  assert.equal(seat.launchId, null)
+  await seats.forward(seat)
+  assert.deepEqual(observed[0], ['pty_observe', { session_id: 'bot-aaaa1111' }])
+  assert.equal(ingested[0].launchId, 'b'.repeat(32))
+  // No id from the seat: nothing is read, and the log names the reason.
+  observeAnswer = new Error('gone'); ingested.length = 0
+  const write = process.stderr.write; process.stderr.write = line => { logs.push(String(line)); return true }
+  try { await seats.forward(seat) } finally { process.stderr.write = write }
+  assert.equal(ingested.length, 0)
+  assert.ok(logs.some(line => line.includes('transcript not read') && line.includes('NO_LAUNCH_ID')))
 })

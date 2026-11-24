@@ -405,15 +405,19 @@ export class AitermTransport {
     if (action === 'inspect') {
       let result
       // No dialog on screen comes back as a tool refusal; the view then shows only the key bar.
-      try { result = (await this.client.call(tool, { action: 'inspect', session_id }))?.structuredContent } catch { return { status: 'none' } }
+      // An engine that may not call the tool is not "no dialog": EXECUTION_REQUEST_INVALID reaches the HTTP layer (503 SCREEN_INPUT_UNAVAILABLE).
+      try { result = (await this.client.call(tool, { action: 'inspect', session_id }))?.structuredContent } catch (error) { if (error?.code === 'EXECUTION_REQUEST_INVALID') throw error; return { status: 'none' } }
       if (result?.status !== 'approval_required' || !digest(result.prompt_digest) || !Array.isArray(result.choices)) return { status: 'none' }
+      // seat-approvals.md: Codex's agent_approval also names what it asks (prompt, kind); the Owner's entry shows them.
       return { status: 'approval_required', promptDigest: result.prompt_digest,
         choices: result.choices.filter(choice => ['approve_once', 'deny'].includes(choice?.decision) && typeof choice.label === 'string')
-          .map(choice => ({ decision: choice.decision, label: choice.label.slice(0, 200) })) }
+          .map(choice => ({ decision: choice.decision, label: choice.label.slice(0, 200) })),
+        ...(typeof result.prompt === 'string' && result.prompt ? { prompt: result.prompt.slice(0, 2000) } : {}),
+        ...(typeof result.kind === 'string' && result.kind ? { kind: result.kind.slice(0, 100) } : {}) }
     }
     let result
     try { result = (await this.client.call(tool, { action: 'respond', session_id, approval_choice: decision, observed_prompt_digest: promptDigest }))?.structuredContent }
-    catch { throw screenFailure('SCREEN_APPROVAL_CHANGED', 409) }
+    catch (error) { throw error?.code === 'EXECUTION_REQUEST_INVALID' ? error : screenFailure('SCREEN_APPROVAL_CHANGED', 409) }
     if (result?.status !== 'submitted') throw screenFailure('SCREEN_INPUT_FAILED', 502)
     return { status: 'submitted', decision }
   }
@@ -2248,7 +2252,8 @@ export class AitermTransport {
   // signalは、追うのをやめた時に待ちのprocessを止める（watchTurn）。
   async waitUntilDone(receipt, signal = null) {
     while (!signal?.aborted) {
-      const result = await this.waitProcess(receipt.wait_process, signal)
+      // The session goes along: a remote seat's wait is `ssh ... '<aiterm-wait command>'` (one string, or base64 on Windows), so --session is not an argument of it.
+      const result = await this.waitProcess(receipt.wait_process, signal, { session: receipt.session_id })
       const recoveryFailure = recoverableTurnFailure(receipt, result)
       if (result.outcome === 'done') { this.workState.completedTurn(result); return result }
       if (result.outcome === 'timeout' || result.outcome === 'running') continue

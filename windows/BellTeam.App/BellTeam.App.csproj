@@ -12,6 +12,8 @@
     <Resource Include="../../ios/BellBot/BellBot/Assets.xcassets/AppIcon.appiconset/bellbot-icon.png" Link="Assets/BellTeam.png" />
     <!-- The Mac app bundles the same three files for its server setup screen. -->
     <EmbeddedResource Include="../../ios/BellBot/BellBot/Assets.xcassets/BellPortrait.imageset/bell-portrait.png" LogicalName="BellPortrait.png" />
+    <!-- The BellTeam app icon (the same image as Apple) on the first screen. -->
+    <EmbeddedResource Include="../../ios/BellBot/BellBot/Assets.xcassets/AppIcon.appiconset/bellbot-icon.png" LogicalName="BellTeamIcon.png" />
     <EmbeddedResource Include="../../docs/server-installation.md" LogicalName="server-installation.md" />
     <EmbeddedResource Include="../../services/subscriptions/product.json" LogicalName="product.json" />
     <InternalsVisibleTo Include="BellTeam.Tests" />
@@ -22,11 +24,11 @@
     </AssemblyAttribute>
     <InternalsVisibleTo Include="BellTeam.UiChecks" />
     <ProjectReference Include="../BellTeam.Core/BellTeam.Core.csproj" />
-    <PackageReference Include="Kitepon.ApprovalBox.Client" Version="0.1.3" />
+    <PackageReference Include="Kitepon.ApprovalBox.Client" Version="0.5.0" />
     <!-- The native engine of the package's peer adapter (libdatachannel, library name "datachannel"): the host ships it (windows/native/README.md). -->
     <None Include="../native/prebuilt/win-x64/datachannel.dll" Condition="'$(RuntimeIdentifier)' != 'win-arm64'" Link="datachannel.dll" CopyToOutputDirectory="PreserveNewest" />
     <PackageReference Include="Markdig" Version="1.4.0" />
-    <PackageReference Include="Kitepon.LoginBilling.Desktop" Version="0.20.3" />
+    <PackageReference Include="Kitepon.LoginBilling.Desktop" Version="0.22.4" />
     <PackageReference Include="QRCoder" Version="1.8.1" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
   </ItemGroup>

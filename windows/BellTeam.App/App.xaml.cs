@@ -302,9 +302,10 @@ public partial class App : Application
             {
                 // The startup screens read from the mock server (GET only). The routing is the real one: the mock answers the session and setup the scene needs.
                 var model = new Workspace(); var window = new MainWindow(model, persistPlacement: false) { AutoRetry = false };
-                StartupPhase? expected = startupScene switch { "opening" => StartupPhase.Checking, "setup" or "guide" => StartupPhase.Setup, "failure" => StartupPhase.Failure, "login" => StartupPhase.SignIn, "onboarding-choose" or "onboarding-waiting" => StartupPhase.Onboarding, "banner" => StartupPhase.Ready, _ => null };
+                StartupPhase? expected = startupScene switch { "opening" => StartupPhase.Checking, "setup" or "guide" => StartupPhase.Setup, "failure" => StartupPhase.Failure, "login" => StartupPhase.SignIn, "account" => StartupPhase.Account, "onboarding-choose" or "onboarding-waiting" => StartupPhase.Onboarding, "banner" => StartupPhase.Ready, _ => null };
                 if (expected is null) throw new ArgumentException("未対応の起動画面です。");
                 if (startupScene == "opening") window.ShowOpeningForRender();
+                else if (startupScene == "account") window.ShowAccount();   // the first screen (AccountGateView), no server read
                 else if (startupScene is "setup" or "guide") { window.ShowServerSetup(); if (startupScene == "guide") window.ShowServerGuide(); }
                 else await window.ConnectAsync(startupAddress, openLogin: false);
                 if (window.Startup != expected) throw new BellApiException($"起動画面が想定と違います: {window.Startup}");
@@ -355,15 +356,30 @@ public partial class App : Application
                 var moduleScene = approvalsScene switch { "link-waiting" => "waiting", "link-denied" => "denied", "link" => "main", "gone" or "unreadable" => approvalsScene, _ => "connected" };
                 var model = new Workspace(origin => new BellApi(origin, new ApprovalsFixture(moduleScene))); await model.ConnectAsync("http://localhost", listen: false);
                 if (model.ConnectionError is { } approvalsFailure) throw new BellApiException(approvalsFailure);
-                var demo = approvalsScene == "empty" ? new ApprovalsFixture.Demo() : new ApprovalsFixture.Demo().Fill();
+                var demo = approvalsScene is "empty" or "join" or "join-signing" or "join-waiting" or "join-failed" or "join-other-account" or "join-removed" ? new ApprovalsFixture.Demo() : new ApprovalsFixture.Demo().Fill();
                 var hub = new ApprovalsHub(model, device: approvalsScene == "unavailable" ? null : demo);
+                if (approvalsScene.StartsWith("join", StringComparison.Ordinal))
+                {
+                    // child-join.md: the 決裁箱 window of a device that is not joined (or is): the stand-in join over the real drawing.
+                    var join = new ApprovalsFixture.Join();
+                    switch (approvalsScene)
+                    {
+                        case "join-signing": join.SigningIn = true; break;
+                        case "join-waiting": join.Phase = ChildJoinPhase.Waiting; join.QrLink = "https://login-billing.kitepon.dev/join/dev.kitepon.approvalbox#lbq4:EXAMPLEJOINLINK0123456789"; join.ExpiresAt = DateTimeOffset.Now.AddMinutes(5); break;
+                        case "join-failed": join.Phase = ChildJoinPhase.Failed; join.FailedCode = "parent_refused"; break;
+                        case "join-other-account": join.Phase = ChildJoinPhase.Failed; join.FailedCode = "other_account"; break;
+                        case "join-removed": join.Removed = true; break;
+                        case "join-live" or "join-block": join.Phase = ChildJoinPhase.Joined; break;
+                    }
+                    hub.SetJoin(join);
+                }
                 var approvals = new ApprovalsWindow(hub) { Rendering = true };
                 var page = approvals.Page; page.Now = () => DateTimeOffset.UtcNow;
                 async Task Wait(Func<bool> done, string what) { var until = DateTime.UtcNow.AddSeconds(10); while (!done()) { if (DateTime.UtcNow > until) throw new BellApiException(what); await Task.Delay(20); } }
                 approvals.Sync();
                 await Wait(() => page.Settled, "決裁箱を読めませんでした。");
                 await Task.Delay(200);   // the chart-link reads arrive
-                if (approvalsScene.StartsWith("link", StringComparison.Ordinal)) { await page.OpenLinkAsync(); if (approvalsScene == "link-waiting") await Wait(() => page.ConnectPhase == "waiting", "つなぎの待ちになりませんでした。"); }
+                if (approvalsScene.StartsWith("link", StringComparison.Ordinal) || approvalsScene == "join-block") { await page.OpenLinkAsync(); if (approvalsScene == "link-waiting") await Wait(() => page.ConnectPhase == "waiting", "つなぎの待ちになりませんでした。"); }
                 if (approvalsScene is "main" or "answer") page.Select("K-1");
                 if (approvalsScene is "external") page.Select("K-3");
                 if (approvalsScene == "unknown-member") page.Select("K-4");
@@ -451,7 +467,7 @@ public partial class App : Application
                 Shutdown(0);
                 return;
             }
-            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-approvals <main|answer|external|unknown-member|held|done|filter|empty|unavailable|link|link-connected|link-waiting|link-denied|gone|unreadable> <PNG>、--render-lattice <list|list-many|list-back|list-empty|old-server|stops|stops-confirm|stops-refused|stops-open|stops-empty|stops-unread|stops-retry|stops-old|single|chart|authored|tree|tree-detail|history|owner|owner-lanes|detail|external|external-detail|highlight|unverified|last-verified|unknown|degraded|reconnecting|unavailable|not-found> <PNG>、--render-gallery <URL> <会話ID> <PNG>、--render-url <URL> [会話ID] <PNG>、--render-inspector <member|member-small|restart-busy|restart-success|room|sheet-small|sheet-large|sheet-unsupported|pending|pending-sheet> <URL> <会話ID> <PNG>、--render-screen <keys|approval|digits|sent|empty|offline|failed> <URL> <会話ID> <PNG>、--render-conversation <member|room|fork|secret|echo|states|stop|stop-notice|stop-member|draft|peer-sheet|stack|empty|failed> <URL> <会話ID> <PNG>、--render-secret <ssh-search|sudo-list|sudo-vault|reference|onetime|login|old> <URL> <PNG>、--render-page <settings|settings-lower|settings-<profile|ai|features|notifications|connection|display|billing|update|about|stop>|schedules|updates|updates-current|updates-narrow|updates-detail-narrow|update-sheet> <URL> <PNG>、--render-terminals <list|detail-auth-failed|detail-hostkey|detail-windows|detail-authorizing|keys|keys-pending|hostkey-sheet|editor-macos|editor-windows|editor-linux> <URL> <PNG>、--render-startup <opening|setup|guide|failure|login|onboarding-choose|onboarding-waiting|banner> <URL> <PNG>、--render-editor <member|settings|profile|feature|schedules|new-schedule|authentication> <URL> <ID> <PNG>、--render-editors <new-member|new-room|room|room-delete-alert|crop|member|member-delete-alert|member-delete-pending|member-delete-unconfirmed|folder-new|folder-new-windows|folder-new-missing|folder-new-typed|folder-picker|folder-picker-sub|folder-picker-created> <URL> <ID> <PNG> のいずれかです。");
+            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-approvals <main|answer|external|unknown-member|held|done|filter|empty|unavailable|link|link-connected|link-waiting|link-denied|gone|unreadable|join|join-signing|join-waiting|join-failed|join-other-account|join-removed|join-live|join-block> <PNG>、--render-lattice <list|list-many|list-back|list-empty|old-server|stops|stops-confirm|stops-refused|stops-open|stops-empty|stops-unread|stops-retry|stops-old|single|chart|authored|tree|tree-detail|history|owner|owner-lanes|detail|external|external-detail|highlight|unverified|last-verified|unknown|degraded|reconnecting|unavailable|not-found> <PNG>、--render-gallery <URL> <会話ID> <PNG>、--render-url <URL> [会話ID] <PNG>、--render-inspector <member|member-small|restart-busy|restart-success|room|sheet-small|sheet-large|sheet-unsupported|pending|pending-sheet> <URL> <会話ID> <PNG>、--render-screen <keys|approval|digits|sent|empty|offline|failed> <URL> <会話ID> <PNG>、--render-conversation <member|room|fork|secret|echo|states|stop|stop-notice|stop-member|draft|peer-sheet|stack|empty|failed> <URL> <会話ID> <PNG>、--render-secret <ssh-search|sudo-list|sudo-vault|reference|onetime|login|old> <URL> <PNG>、--render-page <settings|settings-lower|settings-<profile|ai|features|notifications|connection|display|billing|update|about|stop>|schedules|updates|updates-current|updates-narrow|updates-detail-narrow|update-sheet> <URL> <PNG>、--render-terminals <list|detail-auth-failed|detail-hostkey|detail-windows|detail-authorizing|keys|keys-pending|hostkey-sheet|editor-macos|editor-windows|editor-linux> <URL> <PNG>、--render-startup <opening|setup|guide|failure|login|account|onboarding-choose|onboarding-waiting|banner> <URL> <PNG>、--render-editor <member|settings|profile|feature|schedules|new-schedule|authentication> <URL> <ID> <PNG>、--render-editors <new-member|new-room|room|room-delete-alert|crop|member|member-delete-alert|member-delete-pending|member-delete-unconfirmed|folder-new|folder-new-windows|folder-new-missing|folder-new-typed|folder-picker|folder-picker-sub|folder-picker-created> <URL> <ID> <PNG> のいずれかです。");
 
             // Started by the Windows share sheet (sparse-package identity, scripts/register-windows-share-target.ps1): only the share window, no single-instance hand-over.
             if (e.Args.Length == 0 && await ShareActivation.ReadAsync() is { } shared)

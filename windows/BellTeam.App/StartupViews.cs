@@ -21,6 +21,10 @@ internal static class EmbeddedAsset
         using var product = JsonDocument.Parse(Text("product.json"));
         return new Uri(product.RootElement.GetProperty(key).GetString() ?? throw new InvalidOperationException($"product.json に {key} がありません。"));
     }
+    public static BitmapImage Icon(int pixelWidth)
+    {
+        var image = new BitmapImage(); image.BeginInit(); image.StreamSource = Open("BellTeamIcon.png"); image.DecodePixelWidth = pixelWidth; image.CacheOption = BitmapCacheOption.OnLoad; image.EndInit(); image.Freeze(); return image;
+    }
     public static BitmapImage Portrait(int pixelWidth)
     {
         var image = new BitmapImage(); image.BeginInit(); image.StreamSource = Open("BellPortrait.png"); image.DecodePixelWidth = pixelWidth; image.CacheOption = BitmapCacheOption.OnLoad; image.EndInit(); image.Freeze(); return image;

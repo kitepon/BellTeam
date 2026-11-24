@@ -19,13 +19,13 @@ public sealed class ApprovalsWindowTests
         public void Dispose() { Page.Stop(); Window.Close(); Hub.Dispose(); Workspace.Dispose(); }
     }
     // scene: the module's (connected, main = not connected, waiting, gone, unreadable); device: the stand-in session (null = this PC has none).
-    private static Rig Open(string scene = "connected", ApprovalsFixture.Demo? device = null, bool noDevice = false)
+    private static Rig Open(string scene = "connected", ApprovalsFixture.Demo? device = null, bool noDevice = false, ApprovalsFixture.Join? join = null)
     {
         var server = new ApprovalsFixture(scene);
         var workspace = new Workspace(origin => new BellApi(origin, server));
         Await(workspace.ConnectAsync("http://localhost", listen: false));
         var session = noDevice ? null : device ?? new ApprovalsFixture.Demo().Fill();
-        var hub = new ApprovalsHub(workspace, device: session, quiet: TimeSpan.Zero); var window = new ApprovalsWindow(hub) { Rendering = true };
+        var hub = new ApprovalsHub(workspace, device: session, quiet: TimeSpan.Zero); if (join is not null) hub.SetJoin(join); var window = new ApprovalsWindow(hub) { Rendering = true };
         window.Sync();
         return new Rig(workspace, hub, window, server, session);
     }
@@ -37,6 +37,87 @@ public sealed class ApprovalsWindowTests
     private static bool IsShown(DependencyObject at) { for (; at is not null and not Window; at = LogicalTreeHelper.GetParent(at)) if (at is UIElement { Visibility: not Visibility.Visible }) return false; return true; }
     private static Button Find(ApprovalsWindow window, string key) => LogicalTree.Find<Button>(window.Content).First(button => System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "ab:" + key);
     private static void Press(Button button) => button.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent, button));
+
+    private static Button FindId(ApprovalsWindow window, string id) => LogicalTree.Find<Button>(window.Content).First(button => System.Windows.Automation.AutomationProperties.GetAutomationId(button) == id);
+
+    // The child join (child-join.md): the window is the join screen until the child is joined; every state of the table, and the host never shows a parent's controls.
+    [Fact]
+    public void ANotJoinedWindowDrawsTheJoinScreenWithTheFirstScreensSignInAndNoList() => RunSta(() =>
+    {
+        var join = new ApprovalsFixture.Join(); using var rig = Open(join: join); Until(() => rig.Page.Settled);
+        var texts = Texts(rig.Window);
+        Assert.Contains(ChildJoinText.Title, texts); Assert.Contains(ChildJoinText.Lead, texts); Assert.Contains(LocalFormText.FirstSignInChildOnly, texts);
+        Assert.DoesNotContain("決裁箱拡張の月額を、決裁箱と同じ請求にしてよいですか？", texts);   // no list, no columns
+        Assert.DoesNotContain(texts, text => text.Contains("ほかの端末を追加", StringComparison.Ordinal) || text.Contains("購入", StringComparison.Ordinal));   // a child is never a parent and never buys
+        Press(FindId(rig.Window, "child-join-apple")); join.SigningIn = false; join.Raise();   // the browser step replaces the buttons; back to the buttons
+        Press(FindId(rig.Window, "child-join-google"));
+        Assert.Equal(["apple", "google"], join.Joins);
+    });
+
+    [Fact]
+    public void WhileTheBrowserSignsInTheWindowSaysSoAndOffersToStop() => RunSta(() =>
+    {
+        var join = new ApprovalsFixture.Join { SigningIn = true }; using var rig = Open(join: join); Until(() => rig.Page.Settled);
+        Assert.Contains(SignInText.Waiting, Texts(rig.Window)); Assert.DoesNotContain(LogicalTree.Find<Button>(rig.Window.Content), button => System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "child-join-apple");
+        Press(FindId(rig.Window, "child-join-cancel")); Assert.Equal(1, join.Cancels);
+        Until(() => Texts(rig.Window).Contains(LocalFormText.FirstSignInChildOnly));   // cancelJoin: back to the not-joined screen
+    });
+
+    [Fact]
+    public void WaitingForTheParentShowsTheQrItsValidityTheGuidanceAndStop() => RunSta(() =>
+    {
+        var until = DateTimeOffset.UtcNow.AddMinutes(5);
+        var join = new ApprovalsFixture.Join { Phase = ChildJoinPhase.Waiting, QrLink = "https://login-billing.kitepon.dev/join/dev.kitepon.approvalbox#lbq4:abc", ExpiresAt = until };
+        using var rig = Open(join: join); Until(() => rig.Page.Settled);
+        var texts = Texts(rig.Window);
+        Assert.Contains(ChildJoinText.WaitingTitle, texts); Assert.Single(LogicalTree.Find<QrView>(rig.Window.Content));
+        Assert.Contains(LocalFormText.ValidUntil(until), texts); Assert.Contains(LocalFormText.Qr, texts);
+        Assert.DoesNotContain(LocalFormText.FirstSignInChildOnly, texts);
+        Press(FindId(rig.Window, "child-join-cancel")); Assert.Equal(1, join.Cancels);
+    });
+
+    [Theory]
+    [InlineData("parent_refused", ChildJoinText.Failed)]
+    [InlineData("other_account", ChildJoinText.OtherAccount)]
+    public void AFailedJoinSaysItsOwnSentenceNeverTheCodeAndOffersToConnectAgain(string code, string sentence) => RunSta(() =>
+    {
+        var join = new ApprovalsFixture.Join { Phase = ChildJoinPhase.Failed, FailedCode = code }; using var rig = Open(join: join); Until(() => rig.Page.Settled);
+        var texts = Texts(rig.Window); Assert.Contains(sentence, texts); Assert.DoesNotContain(texts, text => text.Contains(code, StringComparison.Ordinal));
+        Press(FindId(rig.Window, "child-join-again")); Assert.Equal([null], join.Joins);   // again, with the provider of the last try
+    });
+
+    [Fact]
+    public void ADeviceTheParentRemovedSaysSoAboveTheNotJoinedScreenAndStartsClean() => RunSta(() =>
+    {
+        var join = new ApprovalsFixture.Join { Removed = true }; using var rig = Open(join: join); Until(() => rig.Page.Settled);
+        var texts = Texts(rig.Window); Assert.Contains(ChildJoinText.Removed, texts); Assert.Contains(LocalFormText.FirstSignInChildOnly, texts);   // a clean start: the removed sentence above the not-joined screen
+        Press(FindId(rig.Window, "child-join-apple")); Assert.Equal(["apple"], join.Joins);
+    });
+
+    [Fact]
+    public void AJoinedWindowIsTheNormalListAndTheBlockSaysJoinedAndLeavesInTwoSteps() => RunSta(() =>
+    {
+        var join = new ApprovalsFixture.Join { Phase = ChildJoinPhase.Joined }; using var rig = Open("main", join: join); Until(() => rig.Page.Settled);
+        Assert.Contains("決裁箱拡張の月額を、決裁箱と同じ請求にしてよいですか？", Texts(rig.Window)); Assert.DoesNotContain(ChildJoinText.Title, Texts(rig.Window));
+        Press(Find(rig.Window, "link")); Until(() => Texts(rig.Window).Contains(ChildJoinText.Joined));
+        Press(Find(rig.Window, "child-leave")); Assert.Equal(0, join.Leaves);                                  // the first press only asks
+        Press(Find(rig.Window, "child-leave-no")); Assert.Equal(0, join.Leaves); Assert.Contains(ChildJoinText.Joined, Texts(rig.Window));
+        Press(Find(rig.Window, "child-leave")); Press(Find(rig.Window, "child-leave-yes"));
+        Until(() => join.Leaves == 1 && Texts(rig.Window).Contains(ChildJoinText.Title));                       // leave: the join screen comes back
+    });
+
+    [Fact]
+    public void AJoinedWindowSaysJoiningReconnectingNotEntitledAndUpdateRequiredInTheTablesWords() => RunSta(() =>
+    {
+        var join = new ApprovalsFixture.Join { Phase = ChildJoinPhase.Joined }; var device = new ApprovalsFixture.Demo().Fill();
+        using var rig = Open(device: device, join: join); Until(() => rig.Page.Settled);
+        device.State = new(RuntimeStatus.Connecting); device.Raise(); Until(() => Texts(rig.Window).Contains(ChildJoinText.Joining));
+        device.State = new(RuntimeStatus.Retrying); device.Raise(); Until(() => Texts(rig.Window).Contains(ChildJoinText.Reconnecting));
+        Press(Find(rig.Window, "legacy:" + ChildJoinText.Retry)); Assert.Equal(1, device.Refreshed);
+        device.State = new(RuntimeStatus.NotEntitled); device.Raise(); Until(() => Texts(rig.Window).Contains(ChildJoinText.NotEntitled));
+        Assert.Contains(LogicalTree.Find<Button>(rig.Window.Content), button => System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "ab:legacy:" + ChildJoinText.Recheck);
+        device.State = new(RuntimeStatus.Live); join.UpdateRequired = true; join.Raise(); Until(() => Texts(rig.Window).Contains(ChildJoinText.UpdateRequired));
+    });
 
     [Fact]
     public void TheListIsTheDevicesBookAndNeverShowsAnId() => RunSta(() =>
@@ -167,6 +248,52 @@ public sealed class ApprovalsWindowTests
         Press(Find(rig.Window, "connect:back")); Assert.Contains("決裁箱拡張の月額を、決裁箱と同じ請求にしてよいですか？", Texts(rig.Window));
     });
 
+    // 「AIの許可待ちを決裁箱へ送る」 (seat-approval-card.md, the pairing view): in the same panel, under 工程表との連携, from the body's three seat-link routes only.
+    [Fact]
+    public void TheSeatLinkViewStartsOnceShowsTheQrTheTypedCodeTheStepsAndTheExpiry_ThenSaysLinked() => RunSta(() =>
+    {
+        using var rig = Open("main"); Until(() => rig.Page.Settled);
+        Press(Find(rig.Window, "link")); Until(() => Texts(rig.Window).Contains(SeatLinkText.None));
+        Assert.Contains(SeatLinkText.Title, Texts(rig.Window)); Assert.Empty(LogicalTree.Find<QrView>(rig.Window.Content));
+        Press(Find(rig.Window, "seat-link:go"));
+        Until(() => Texts(rig.Window).Contains(SeatLinkText.Steps));
+        Assert.Single(LogicalTree.Find<QrView>(rig.Window.Content)); Assert.Contains("WXYZ-1234-QRST-5678", Texts(rig.Window));
+        Assert.Contains(Texts(rig.Window), text => text.EndsWith("まで（JST）", StringComparison.Ordinal));
+        Assert.Contains(rig.Server.Sent, call => call.Method == "POST" && call.Path == "/api/approvals/seat-link/start");
+        Assert.Contains(LogicalTree.Find<Button>(rig.Window.Content), button => button.Content as string == SeatLinkText.Cancel);   // 「やめる」 while it waits
+        rig.Server.SeatLink = new System.Text.Json.Nodes.JsonObject { ["state"] = "linked" };                              // the Owner read the QR and approved: the 2 s watch reads it
+        Until(() => Texts(rig.Window).Contains(SeatLinkText.Linked)); Assert.Empty(LogicalTree.Find<QrView>(rig.Window.Content));
+        Assert.Contains("つながっています", Texts(rig.Window));                                                                 // the green chip above the sentence, like 「ライブ」
+        Assert.Contains(LogicalTree.Find<Border>(rig.Window.Content), border => System.Windows.Automation.AutomationProperties.GetAutomationId(border) == "seat-link-badge");
+        Assert.DoesNotContain(LogicalTree.Find<Button>(rig.Window.Content), button => System.Windows.Automation.AutomationProperties.GetAutomationId(button).StartsWith("ab:seat-link", StringComparison.Ordinal));   // linked: no button
+    });
+
+    [Theory]
+    [InlineData("removed", null, "決裁箱でつなぎが外されています。もう一度つないでください。")]
+    [InlineData("failed", "rejected", "決裁箱のアプリで「心当たりがない」が押されました。")]
+    [InlineData("failed", "expired", "許可の待ち時間が過ぎました。もう一度つないでください。")]
+    [InlineData("failed", "other", "いまはつなげません。少し待って、もう一度押してください。")]
+    public void TheSeatLinkViewSaysEachEndWithItsWordsAndOffersToConnectAgain(string state, string? reason, string line) => RunSta(() =>
+    {
+        using var rig = Open("main"); Until(() => rig.Page.Settled);
+        rig.Server.SeatLink = new System.Text.Json.Nodes.JsonObject { ["state"] = state, ["reason"] = reason };
+        Press(Find(rig.Window, "link")); Until(() => Texts(rig.Window).Contains(line));
+        Assert.Contains(state == "removed" ? "つなぎが外れています" : "つなげませんでした", Texts(rig.Window));   // gray for removed, red for failed
+        Press(Find(rig.Window, "seat-link:go"));   // もう一度つなぐ starts again
+        Until(() => Texts(rig.Window).Contains(SeatLinkText.Steps));
+    });
+
+    [Fact]
+    public void ABodyWithoutTheSeatLinkRoutesDrawsNoSeatLinkViewAndKeepsTheRestOfThePanel_AndOneThatCannotSaySaysSo() => RunSta(() =>
+    {
+        using (var rig = Open("gone")) { Until(() => rig.Page.Settled);               // every /api/approvals route is 404: an older body
+            _ = rig.Page.OpenLinkAsync(); Until(() => Texts(rig.Window).Contains("連携の状態を読めませんでした。少し待って、読み直してください。"));
+            Assert.DoesNotContain(SeatLinkText.Title, Texts(rig.Window)); Assert.Contains(Texts(rig.Window), text => text == "工程表との連携"); }
+        using (var rig = Open("unreadable")) { Until(() => rig.Page.Settled);          // 503: the body cannot say now
+            _ = rig.Page.OpenLinkAsync(); Until(() => Texts(rig.Window).Contains(SeatLinkText.Unavailable));
+            Assert.Contains(SeatLinkText.Title, Texts(rig.Window)); Assert.Contains(LogicalTree.Find<Button>(rig.Window.Content), button => button.Content as string == SeatLinkText.Again); }
+    });
+
     [Fact]
     public void TheConnectionPanelConnectsOnceOpensTheConsentPageAndWaits() => RunSta(() =>
     {
@@ -231,50 +358,15 @@ public sealed class ApprovalsWindowTests
     });
 
     [Fact]
-    public void TheDeviceStatesShowDeltasCopyForEndedSignInDeletedAccountAndRemovedDevice() => RunSta(() =>
+    public void TheDeviceStatesShowDeltasCopyForARemovedDeviceAndNoEntitlement() => RunSta(() =>
     {
-        var device = new ApprovalsFixture.Demo().Fill(); device.State = new(RuntimeStatus.SignedOut, "pass_ended");
+        var device = new ApprovalsFixture.Demo().Fill(); device.State = new(RuntimeStatus.NeedsAdmission, "removed");   // a signed-out device is the join screen's (child-join.md), not a strip line
         using var rig = Open(device: device); Until(() => rig.Page.Settled);
-        Assert.Contains(Approvals.DevicePassEnded, Texts(rig.Window));
-        device.State = new(RuntimeStatus.SignedOut, "account_deleted"); device.Raise();
-        Assert.Contains(Approvals.DeviceAccountDeleted, Texts(rig.Window));
-        device.State = new(RuntimeStatus.NeedsAdmission, "removed"); device.Raise();
         Assert.Contains(Approvals.DeviceRemoved, Texts(rig.Window));
         device.State = new(RuntimeStatus.NotEntitled, "no_entitlement"); device.Raise();
         Assert.Contains(Approvals.DeviceNotEntitled, Texts(rig.Window));
         Assert.Equal(5, rig.Page.Pending.Count);                                  // no state hides a decision
     });
-
-    [Fact]
-    public void SigningInShowsTheBrowserLineWithAnUndoAndAFailedTryShowsItsReason() => RunSta(() =>
-    {
-        var device = new ApprovalsFixture.Demo().Fill(); device.State = new(RuntimeStatus.SignedOut, "signed_out");
-        using var rig = Open(device: device); Until(() => rig.Page.Settled);
-        var cancelled = 0; rig.Hub.CancelSignIn = () => cancelled++; rig.Hub.SignInApprovalBox = () => { }; device.Raise();
-        Assert.Contains(Approvals.DeviceSignedOut, Texts(rig.Window)); Assert.NotNull(Find(rig.Window, "legacy:Approval Boxにサインイン"));
-        rig.Hub.SetSignIn(true);
-        Assert.Contains(Approvals.DeviceSigningIn, Texts(rig.Window)); Assert.DoesNotContain(Approvals.DeviceSignedOut, Texts(rig.Window));
-        Press(Find(rig.Window, "legacy:やめる")); Assert.Equal(1, cancelled);
-        rig.Hub.SetSignIn(false, "サインインできませんでした。");
-        Assert.Contains("サインインできませんでした。", Texts(rig.Window)); Assert.Contains(Approvals.DeviceSignedOut, Texts(rig.Window));
-    });
-
-    [Fact]
-    public void SignedOutOffersTheBrowserAndTheQrHandoffAndTheHandoffShowsTheQrTheCodeAndTheCheckNumberWithAnUndo() => RunSta(() =>
-    {
-        var device = new ApprovalsFixture.Demo().Fill(); device.State = new(RuntimeStatus.SignedOut);
-        using var rig = Open(device: device); Until(() => rig.Page.Settled);
-        var started = 0; var cancelled = 0; rig.Hub.SignInApprovalBox = () => { }; rig.Hub.SignInByHandoff = () => started++; rig.Hub.CancelSignIn = () => cancelled++; device.Raise();
-        Assert.Contains(Approvals.DeviceSignedOut, Texts(rig.Window)); Press(Find(rig.Window, "legacy:" + Approvals.DeviceHandoffStart)); Assert.Equal(1, started);
-        rig.Hub.SetSignIn(true); rig.Hub.SetHandoff(new ApprovalHandoff("LB1:qr", "0123-4567", "042", DateTimeOffset.UtcNow.AddMinutes(5)));
-        var texts = Texts(rig.Window);
-        Assert.Contains(Approvals.DeviceHandoffHow, texts); Assert.Contains(StoreAccountText.HandoffCode + " 0123-4567", texts); Assert.Contains(StoreAccountText.HandoffCheckNumber + " 042", texts); Assert.DoesNotContain(Approvals.DeviceSignedOut, texts);
-        Assert.Contains(LogicalTree.Find<FrameworkElement>(rig.Window.Content), element => element is QrView);
-        Press(Find(rig.Window, "legacy:やめる")); Assert.Equal(1, cancelled);
-        rig.Hub.SetHandoff(null); rig.Hub.SetSignIn(false); Assert.Contains(Approvals.DeviceSignedOut, Texts(rig.Window));
-        Assert.Equal(5, rig.Page.Pending.Count);
-    });
-
     [Fact]
     public void NeedsApprovalOffersTheAskThenShowsTheCodeAndQrAndTheNoteAfterItEnds() => RunSta(() =>
     {

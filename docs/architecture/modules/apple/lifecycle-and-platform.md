@@ -8,6 +8,7 @@
 
 ```mermaid
 flowchart TD
+  Cold["起動直後（更新後を含む）: bootstrap→enterConversations<br/>phase=ready → billing.connect → billing.refreshAccess<br/>（最初のactiveはready前で読めないので、ここで1回読む）"] --> Apple
   Root["BellBotApp.onChange scenePhase<br/>アプリ全体の集約（全sceneがbackgroundの時だけbackground）"] --> Scene["AppStore.sceneChanged<br/>sceneと診断状態を更新"]
   Scene --> Active["activeかつready<br/>前のforegroundTaskをcancel"]
   Active --> Flush["BellAPI.resetConnections<br/>専用session.flush・cookie保持"]
@@ -18,6 +19,8 @@ flowchart TD
   Scene --> Background["background<br/>foregroundTaskとSSE/資源再取得を取消"]
   Scene --> Inactive["inactive<br/>AppStoreでは停止分岐なし"]
 ```
+
+StoreKit本人権利確認は`LocalAccount.start`で、起動直後（ready到達時）・前面復帰に加え、Storeが後から届ける更新（`Transaction.updates`：更新後の初回起動で端末の写しが遅れている時の更新・復元）でも読み直す。読んだ件数・各購入の拒否コード（`ended`など）・`paid`は`Logger(app.bellteam.bellbot, billing)`に残す。
 
 根拠：[AppStore.sceneChanged](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L650)。各待機後にTask.isCancelledを検査する。refreshFromViewは失敗をthrowせずエラー表示へ返すため、次の停止状態/本人権利照会は取消されていなければ進む。sceneChangedはアプリ全体のscenePhaseだけから呼ぶ。窓ごとのscenePhaseで呼ぶと、Macで本体の窓を1枚閉じた時のbackgroundでSSEが止まり、残った窓はactiveのまま変わらないので再接続されない（2026-11-13、起動中のMacにアバターの変更が届かなかった実被弾）。Debug preview引数ではsceneChangedの呼出しを省く。各画面のtask取消は別にあり、会話は非activeでreader/過去取得を止める。
 
@@ -89,7 +92,7 @@ flowchart TD
   QR["QRを出す→購読しているiPhoneの返事&lt;br/&gt;makeRequest / awaitPaid / accept"] --> Local
   Access --> UI["UI・AI送信"]
   Local --> Share["共有Keychainのpaid-until → 共有拡張"]
-  Local --> Wall["checked かつ未払い → 購読が要る画面（SubscriptionRequiredView）"]
+  Local --> Wall["checked かつ未払い → 最初の画面（FirstApprovalView）"]
 ```
 
 根拠：[BillingStore](../../../../ios/BellBot/BellBot/Core/BillingStore.swift)、[LocalAccount](../../../../ios/BellBot/BellBot/Core/LocalAccount.swift)、[login-billing.md](login-billing.md)。
@@ -102,7 +105,7 @@ flowchart TD
 | purchase | `purchaseLocal`（印なし。ライブラリが検証済みの取引を終える）。pendingはApple承認待ちの文言、cancelledは何も出さない |
 | restore | `AppStore.sync`のあと`start`で確かめ直す。有効なら「購読を確認しました。」、無ければ有効な購読が無い文言 |
 | 管理・解約 | 「購読を管理・解約」＝`apps.apple.com/account/subscriptions`を開く（サーバー呼出し無し） |
-| 購読の壁 | `LocalAccount.checked`かつ未払いの時だけ、準備のできた画面（`ReadyGate`）をアプリの代わりに「このアプリは購読が必要です」の画面（SubscriptionRequiredView：文＋「BellTeamの購読」カード＋SubscriptionCard＋接続先の変更）にする。読み取りの前は壁を出さない。壁の判定はこの端末の値だけ |
+| 購読の壁（最初の画面） | `LocalAccount.checked`かつ未払いの時だけ、根の`ReadyGate`が全画面（サーバーの設定より前も）の代わりに`FirstApprovalView`（サインイン前＝名前・1行・最初のサインインの文・サインインのボタン、サインイン後＝承認待ちとQR。どちらも下にこの端末の購入・購入を復元・規約リンク・接続先の変更）を出す。`LocalAccount.start()`は根が起動時に呼ぶ。読み取りの前は出さない。判定はこの端末の値だけ |
 | recheck | `LocalAccount.start`だけ（サーバーを呼ばない） |
 | 共有拡張 | `LocalAccount.paid`が変わるたびに、共有Keychainの接続情報へ`paidUntil`（期限なしは遠い未来）を書き直す。拡張は期限が今より先の時だけ送信を許す |
 | stop/logout | 端末の購入は消えない。「アカウントを削除」は`signOutLocal`（この端末のサインインと受け取った返事を消す）と決裁箱の削除（[account-deletion.md](account-deletion.md)） |
