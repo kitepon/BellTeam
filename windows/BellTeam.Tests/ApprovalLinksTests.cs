@@ -5,7 +5,6 @@ using System.Windows.Controls;
 using System.Windows.Threading;
 using BellTeam.App;
 using BellTeam.Core;
-using BellTeam.PeerChannel;
 
 namespace BellTeam.Tests;
 

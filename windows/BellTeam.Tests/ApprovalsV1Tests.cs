@@ -161,6 +161,14 @@ public sealed class ApprovalsV1Tests
         expired.Start(); await Until(() => expired.State.Status == RuntimeStatus.NotEntitled); Assert.DoesNotContain(boxExpired.Calls, call => call.Path == "/v1/decisions"); await expired.DisposeAsync();
     }
 
+    [Fact]
+    public async Task AFreshClientReadsSignedOutBeforeStart_AndIsLiveAfterIt()   // package 0.1.2: nothing is Live or Loading before the first StartAsync
+    {
+        var (source, _, _) = Open();
+        Assert.Equal(RuntimeStatus.SignedOut, source.State.Status);
+        source.Start(); await Until(() => source.State.Status == RuntimeStatus.Live); await source.DisposeAsync();
+    }
+
     [Theory]
     [InlineData(ClientStatus.Joining, "Connecting")]
     [InlineData(ClientStatus.Reconnecting, "Retrying")]

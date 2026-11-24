@@ -22,7 +22,7 @@
     </AssemblyAttribute>
     <InternalsVisibleTo Include="BellTeam.UiChecks" />
     <ProjectReference Include="../BellTeam.Core/BellTeam.Core.csproj" />
-    <PackageReference Include="Kitepon.ApprovalBox.Client" Version="0.1.1" />
+    <PackageReference Include="Kitepon.ApprovalBox.Client" Version="0.1.2" />
     <!-- The native engine of the package's peer adapter (libdatachannel, library name "datachannel"): the host ships it (windows/native/README.md). -->
     <None Include="../native/prebuilt/win-x64/datachannel.dll" Condition="'$(RuntimeIdentifier)' != 'win-arm64'" Link="datachannel.dll" CopyToOutputDirectory="PreserveNewest" />
     <PackageReference Include="Markdig" Version="1.4.0" />
