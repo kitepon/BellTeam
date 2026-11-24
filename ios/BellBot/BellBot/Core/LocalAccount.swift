@@ -52,6 +52,7 @@ final class LocalAccount: ObservableObject {
     }
 
     /// BellTeam's own guidance (Owner, contract 1.50 11.12; the same words on every client): before the Apple / Google buttons, and beside the QR.
+    static let qrLead = "この端末にQRを出します。2台は同じネットワーク（同じLAN）につないでください。"
     static let signInGuidance = "すでにほかの端末で使っている方は、同じアカウントでサインインしてから、次に出るQRコードを使用中の端末のカメラで読んでください。"
     static let qrGuidance = "親となる端末（課金操作をするカメラのあるスマートフォンがお勧め）のカメラでQRコードを読んでください。"
 
@@ -81,6 +82,8 @@ final class LocalAccount: ObservableObject {
     #if DEBUG
     /// 試験用: この端末の購読確認の結果を直接置く（StoreKitに触れない）。
     func setPaid(_ value: Paid?) { paid = value; checked = true }
+    /// 画面確認用: QRの待ち画面を、ライブラリへ触れずに出す。
+    func setPreviewRequest(_ qr: String) { request = Request(qr: qr, expiresAt: Date().addingTimeInterval(600)) }
     #endif
 
     /// 起動時と前面に戻る時: この端末のStoreの購入と、受け取った返事の期限を読み直す。

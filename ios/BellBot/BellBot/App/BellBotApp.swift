@@ -180,10 +180,6 @@ private struct RootView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.scenePhase) private var scenePhase
 
-    @ViewBuilder private var readyView: some View {
-        ReadyGate(billing: store.billing) { appView }
-    }
-
     @ViewBuilder private var appView: some View {
         #if targetEnvironment(macCatalyst)
         DesktopWorkspaceView().safeAreaInset(edge: .top) { LoginRequestBanner() }
@@ -197,7 +193,7 @@ private struct RootView: View {
     }
 
     var body: some View {
-        Group {
+        ReadyGate(billing: store.billing) { Group {
             switch store.phase {
             case .checking:
                 ZStack {
@@ -227,16 +223,23 @@ private struct RootView: View {
                 } else if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-markdown") {
                     NavigationStack { ConversationView(target: .bot("bot-two")) }
                 } else {
-                    readyView.modifier(ApprovalsRunner(model: store.approvals))
+                    appView.modifier(ApprovalsRunner(model: store.approvals))
                 }
                 #else
-                readyView.modifier(ApprovalsRunner(model: store.approvals))
+                appView.modifier(ApprovalsRunner(model: store.approvals))
                 #endif
             case .failure(let message):
                 ConnectionFailureView(detail: message)
             }
-        }
+        } }
         .modifier(LocalLinkHost(account: store.localAccount))
+        // The first screen needs the device's own store read before any server: start it here, not after the server answers.
+        .task {
+            await store.localAccount.start()
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-first-screen-qr") { store.localAccount.setPreviewRequest("lbq4:preview") }
+            #endif
+        }
         .sheet(isPresented: $store.updatePresented) { UpdateView(updates: store.updates).bellEditorSheet() }
         .alert(AccountDeletionWords.doneTitle, isPresented: $store.accountDeleted) {
             Button("閉じる", role: .cancel) { }
