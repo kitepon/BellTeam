@@ -5,7 +5,7 @@ using BellTeam.Core;
 namespace BellTeam.Linux;
 
 /// <summary>
-/// The one 決裁箱 reader of the app (the entry row and the 決裁箱 window share it): this device's peer-channel session (the list is the device's book only since the /v1 close, 2026-12-12)
+/// The one 決裁箱 reader of the app (the entry row and the 決裁箱 window share it): the Approval Box client (Kitepon.ApprovalBox.Client: /v1 or this device's peer-channel session, the server picks)
 /// plus the id-level link lookup (<see cref="ApprovalLinks"/>) for the badge and the 工程とのつながり panel. Holds nothing stored. Everything reaches the screen on the UI thread.
 /// </summary>
 internal sealed class ApprovalsHub : IDisposable
@@ -13,7 +13,7 @@ internal sealed class ApprovalsHub : IDisposable
     private readonly LinuxWorkspace workspace;
     private readonly CancellationTokenSource life = new();
     private string origin = "";
-    /// <summary>This device's peer-channel session while the device part is on (null: it is off or this machine has no engine: the screen says so).</summary>
+    /// <summary>The Approval Box client of this machine (null: this build has none, the screen says so).</summary>
     internal IApprovalSource? Source { get; }
     internal ApprovalLinks Links { get; } = new();
     /// <summary>Starts the Approval Box web sign-in of the second library instance (set when that instance exists; the 「Approval Boxにサインイン」 button shows only then).</summary>
@@ -22,12 +22,9 @@ internal sealed class ApprovalsHub : IDisposable
     internal bool SigningIn { get; private set; }
     internal string? SignInNote { get; private set; }
     internal Action? CancelSignIn { get; set; }
-    /// <summary>NeedsApproval -> Waiting: the code and QR this device shows while a verified device admits it (5.3). Null offer = none open; the note says why the last one ended.</summary>
-    internal ApprovalOffer? Offer { get; private set; }
-    internal string? OfferNote { get; private set; }
+    /// <summary>NeedsApproval -> Waiting and back (5.3): the code and QR of the Waiting state are the component's (State.Offer); these two are its requestApproval / cancelApproval.</summary>
     internal Action? RequestApproval { get; set; }
     internal Action? CancelApproval { get; set; }
-    internal void SetOffer(ApprovalOffer? offer, string? note = null) { Offer = offer; OfferNote = note; Run(() => Changed?.Invoke()); }
     internal void SetSignIn(bool signingIn, string? note = null) { SigningIn = signingIn; SignInNote = note; Run(() => Changed?.Invoke()); }
     /// <summary>The device's book, connection or links changed: the open window repaints.</summary>
     internal event Action? DeviceChanged;
@@ -59,9 +56,6 @@ internal sealed class ApprovalsHub : IDisposable
     {
         if (args.PropertyName is nameof(LinuxWorkspace.Connected) or nameof(LinuxWorkspace.Server)) Run(ReadLinks);
     }
-    /// <summary>The peer session alone (the render seam and the tests): it is wrapped as the port.</summary>
-    internal ApprovalsHub(LinuxWorkspace workspace, IDeviceDecisions? device) : this(workspace, device is null ? null : new PeerSource(device)) { }
-
     // One repaint at a time, at most one queued: the /v1 stream replays the account's whole history at launch and every event used to repaint the whole list on the UI thread (a repaint of 250 decisions is ~300 ms).
     private int notifyQueued, linksWanted;
     private void Notify(bool readLinks)

@@ -1,5 +1,4 @@
 using BellTeam.Core;
-using BellTeam.PeerChannel;
 using Kitepon.LoginBilling.Desktop;
 
 namespace BellTeam.Linux;
@@ -9,7 +8,11 @@ namespace BellTeam.Linux;
 /// Nothing of the BellTeam sign-in (AccountStore) is shared: not the store, not the K. This instance hands its pass out for the Approval Box origin only (the library's own rule).
 /// </summary>
 // The PC's device part with the PC's account (this file is not linked into the Android app, which passes its own account).
-internal sealed partial class LinuxApprovalBoxDevice { public LinuxApprovalBoxDevice(string directory, Func<IReadOnlyList<(string Id, string Name)>> roster) : this(directory, new LinuxApprovalBoxAccount(), roster, LinuxHasEngine) { } }
+internal sealed partial class LinuxApprovalBoxDevice
+{
+    public LinuxApprovalBoxDevice(string directory, Func<IReadOnlyList<(string Id, string Name)>> roster)
+        : this(new LinuxApprovalBoxAccount(), LinuxHasEngine ? new Kitepon.ApprovalBox.Client.OwnerOnlyPeerStorage(directory, Environment.MachineName, "linux") : null, roster) { }
+}
 
 internal sealed class LinuxApprovalBoxAccount : IApprovalBoxAccount
 {
@@ -36,13 +39,8 @@ internal sealed class LinuxApprovalBoxAccount : IApprovalBoxAccount
     // The account was deleted (4410): the pass of this instance goes too.
     public void ClearPass() => store.Delete();
 
-    // The pass for /pc/v1: not signed in is the SignedOut state; no header for the Approval Box origin would be a wiring error, never papered over.
-    public Task<ServerAccess> AccessAsync(CancellationToken ct)
-    {
-        if (!SignedIn) throw new SignedOutException();
-        var header = billing.PassHeader(origin.GetLeftPart(UriPartial.Authority)) ?? throw new InvalidOperationException("the library hands out no pass for " + origin);
-        return Task.FromResult(new ServerAccess(origin, new Dictionary<string, string> { ["authorization"] = header }));
-    }
+    // The pass for /v1 and /pc/v1: not signed in is the SignedOut state (null); no header for the Approval Box origin would be a wiring error, never papered over.
+    public string? PassHeader() => !SignedIn ? null : billing.PassHeader(origin.GetLeftPart(UriPartial.Authority)) ?? throw new InvalidOperationException("the library hands out no pass for " + origin);
 
     // K of the Approval Box account, for a first registry only; it never leaves this process except in that registry on Approval Box's own server.
     public async Task<string> AccountAsync(CancellationToken ct) => (await billing.CheckAsync(ct)).K;

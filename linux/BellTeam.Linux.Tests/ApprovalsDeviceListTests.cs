@@ -1,8 +1,7 @@
-using System.Text.Json;
 using Avalonia.Controls;
 using Avalonia.VisualTree;
 using BellTeam.Core;
-using BellTeam.PeerChannel;
+using Kitepon.ApprovalBox.Client;
 
 namespace BellTeam.Linux;
 
@@ -10,22 +9,25 @@ namespace BellTeam.Linux;
 // Core's `Approvals` words are tested in BellTeam.Tests/ApprovalsTests.cs.
 public sealed class ApprovalsDeviceListTests
 {
-    private sealed class Device : IDeviceDecisions
+    private sealed class Device : IApprovalSource
     {
-        public DecisionBook Book { get; } = new();
-        public RuntimeState State { get; set; } = new(RuntimeStatus.Live);
+        private readonly List<ViewDecision> items = [];
+        public IReadOnlyList<ViewDecision> Decisions => items;
+        public ClientState State { get; set; } = new(ClientStatus.Live);
         public event Action? Changed;
         public readonly List<string> Calls = [];
-        public Task<SendOutcome> AnswerAsync(string decisionId, string? optionId, string? text) { Calls.Add($"{decisionId}:{optionId}:{text}"); return Task.FromResult(new SendOutcome("ok")); }
-        public Task<SendOutcome> HoldAsync(string decisionId, bool held) { Calls.Add($"hold:{decisionId}:{held}"); return Task.FromResult(new SendOutcome("ok")); }
+        public Task<AnswerResult> AnswerAsync(string decisionId, string? optionId, string? text, long version) { Calls.Add($"{decisionId}:{optionId}:{text}:{version}"); return Task.FromResult<AnswerResult>(new AnswerResult.Accepted(null)); }
+        public Task<AnswerResult> HoldAsync(string decisionId, bool held) { Calls.Add($"hold:{decisionId}:{held}"); return Task.FromResult<AnswerResult>(new AnswerResult.Accepted(null)); }
         public void Refresh() { }
         public Task<byte[]?> AttachmentAsync(string decisionId, string attachmentId) => Task.FromResult<byte[]?>(null);
-        public void Raise() => Changed?.Invoke();
-        public void Add(string id, string title, string? botId = "bot-molly") => Book.Apply("request", JsonDocument.Parse(JsonSerializer.Serialize(new
+        public void Close(string id) { var i = items.FindIndex(d => d.Id == id); items[i] = items[i] with { Status = "answered" }; Changed?.Invoke(); }
+        public void Add(string id, string title, string? botId = "bot-molly") => items.Add(new ViewDecision
         {
-            rid = "r-" + id, rv = 1, schema = "approval-box/decision@1",
-            content = new { decision_id = id, title, context = "背景", options = new[] { new { id = "a", label = "進める" }, new { id = "b", label = "見送る" } }, source = new { client = "claude-code", session_label = "端末で受信", work_label = "確認", requester = botId is null ? null : "モリー", requester_bot_id = botId, test = false } }
-        })).RootElement, [1], DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - 120_000);
+            Id = id, Title = title, Context = "背景", Status = "pending", Version = 3, CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-2).ToString("O"), UpdatedAt = DateTimeOffset.UtcNow.AddMinutes(-2).ToString("O"),
+            Options = [new ApprovalOption { Id = "a", Label = "進める" }, new ApprovalOption { Id = "b", Label = "見送る" }],
+            Origin = new ApprovalOrigin { Kind = botId is null ? "external" : "bellteam", Client = "claude-code", SessionLabel = "端末で受信", WorkLabel = "確認" },
+            Requester = botId is null ? null : new ApprovalRequester { BotId = botId, Name = "モリー" },
+        });
     }
 
     private static async Task<(ApprovalsWindow Window, ApprovalsHub Hub, Device Device, ApprovalsFixture Server)> OpenAsync(Action<Device> setup, string scene = "main", bool withDevice = true)
@@ -85,8 +87,8 @@ public sealed class ApprovalsDeviceListTests
             await window.PreviewAsync("pending", "D-9", 0);
             Click(window, "答える");
             for (var wait = 0; wait < 100 && device.Calls.Count == 0; wait++) await Task.Delay(20);
-            Assert.Equal(["D-9:a:"], device.Calls);
-            device.Book.Close("r-D-9", "answered", null, "me", 9); device.Raise();
+            Assert.Equal(["D-9:a::3"], device.Calls);   // the version the person saw goes with the answer
+            device.Close("D-9");
             for (var wait = 0; wait < 100 && window.Selected is { Status: "pending" }; wait++) await Task.Delay(20);
             Assert.NotEqual("pending", window.Selected!.Status);
             Assert.Null(Find(window, "答える"));
