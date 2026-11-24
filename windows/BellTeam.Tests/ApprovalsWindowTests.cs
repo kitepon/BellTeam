@@ -26,7 +26,7 @@ public sealed class ApprovalsWindowTests
         var workspace = new Workspace(origin => new BellApi(origin, server));
         Await(workspace.ConnectAsync("http://localhost", listen: false));
         var session = noDevice ? null : device ?? new ApprovalsFixture.Demo().Fill();
-        var hub = new ApprovalsHub(workspace, device: session); var window = new ApprovalsWindow(hub) { Rendering = true };
+        var hub = new ApprovalsHub(workspace, device: session, quiet: TimeSpan.Zero); var window = new ApprovalsWindow(hub) { Rendering = true };
         window.Sync();
         return new Rig(workspace, hub, window, server, session);
     }

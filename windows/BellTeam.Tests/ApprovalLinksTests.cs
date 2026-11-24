@@ -59,7 +59,7 @@ public sealed class ApprovalLinksTests
         var decision = new ViewDecision { Id = "K-1", Title = "題", Status = "answered", Version = 3, CreatedAt = now, UpdatedAt = now, ResumePhrase = "続けて", Options = [new ApprovalOption { Id = "a", Label = "はい" }], Answer = new ApprovalAnswer { OptionId = "a", AnsweredAt = now }, Origin = new ApprovalOrigin { Client = "claude-code", Tool = "Claude Code" } };
         var source = new Source(decision);
         var server = new ApprovalsFixture("connected"); var workspace = new Workspace(origin => new BellApi(origin, server)); Await(workspace.ConnectAsync("http://localhost", listen: false));
-        var hub = new ApprovalsHub(workspace, device: source); var window = new ApprovalsWindow(hub) { Rendering = true }; window.Sync();
+        var hub = new ApprovalsHub(workspace, device: source, quiet: TimeSpan.Zero); var window = new ApprovalsWindow(hub) { Rendering = true }; window.Sync();
         try
         {
             Until(() => window.Page.Settled); window.Page.SetTab(ApprovalsPage.Tab.Done); window.Page.Select("K-1");
