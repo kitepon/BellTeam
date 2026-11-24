@@ -8,7 +8,6 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using BellTeam.Core;
-using BellTeam.PeerChannel;
 using static BellTeam.App.LatticeLook;
 
 namespace BellTeam.App;
@@ -189,7 +188,6 @@ internal sealed class ApprovalsPage : Grid
         mine.Step = "sending"; mine.Note = null; Paint();
         SendOutcome outcome;
         try { outcome = await device.AnswerAsync(decision.Id!, mine.OptionId, mine.OptionId is null ? mine.Text : null, mine.Version); }
-        catch (NoSessionException) { outcome = new("no_session"); }
         catch (Exception error) when (error is InvalidOperationException or KeyNotFoundException or ArgumentException) { outcome = new("gone"); }
         if (!Running || !ReferenceEquals(answer, mine)) return;
         switch (outcome.Ack)
@@ -206,7 +204,7 @@ internal sealed class ApprovalsPage : Grid
     {
         if (Device is not { } device) return;
         SendOutcome outcome;
-        try { outcome = await device.HoldAsync(decision.Id!, decision.Status != "held"); } catch (Exception error) when (error is NoSessionException or InvalidOperationException or KeyNotFoundException) { outcome = new("no_session"); }
+        try { outcome = await device.HoldAsync(decision.Id!, decision.Status != "held"); } catch (Exception error) when (error is InvalidOperationException or KeyNotFoundException) { outcome = new("no_session"); }
         if (outcome.Ack == "ok") holdNotes.Remove(decision.Id!); else holdNotes[decision.Id!] = Approvals.HoldFailed;
         if (Running) Paint();
     }
@@ -420,42 +418,20 @@ internal sealed class ApprovalsPage : Grid
             var border = new Border { Child = Row(new QrView(offer.Qr, 150), info), CornerRadius = new CornerRadius(14), Padding = new Thickness(16), Margin = new Thickness(18, 0, 18, 8), Background = Brush(Muted, 0x14), BorderBrush = Brush(Muted, 0x44), BorderThickness = new Thickness(1) };
             System.Windows.Automation.AutomationProperties.SetAutomationId(border, "approvals-device-waiting"); panel.Children.Add(border);
         }
-        void Handoff(ApprovalHandoff handoff)
-        {
-            var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(18, 0, 0, 0), MaxWidth = 380 };
-            info.Children.Add(Text(Approvals.DeviceHandoffHow, 13, Ink, FontWeights.SemiBold, TextWrapping.Wrap));
-            var code = Text(StoreAccountText.HandoffCode + " " + handoff.ShortCode, 18, Ink, FontWeights.Bold); code.FontFamily = new FontFamily("Consolas"); code.Margin = new Thickness(0, 8, 0, 0); info.Children.Add(code);
-            info.Children.Add(Text(StoreAccountText.HandoffCheckNumber + " " + handoff.CheckNumber, 14, Ink, FontWeights.SemiBold)); var checkLine = Text(StoreAccountText.HandoffCheckLine, 12, Muted); checkLine.Margin = new Thickness(0, 4, 0, 0); info.Children.Add(checkLine);
-            var stop = Action("やめる", ""); stop.HorizontalAlignment = HorizontalAlignment.Left; stop.Margin = new Thickness(0, 10, 0, 0); stop.Click += (_, _) => hub.CancelSignIn?.Invoke(); info.Children.Add(Key(stop, "legacy:やめる"));
-            var border = new Border { Child = Row(new QrView(handoff.Qr, 150), info), CornerRadius = new CornerRadius(14), Padding = new Thickness(16), Margin = new Thickness(18, 0, 18, 8), Background = Brush(Muted, 0x14), BorderBrush = Brush(Muted, 0x44), BorderThickness = new Thickness(1) };
-            System.Windows.Automation.AutomationProperties.SetAutomationId(border, "approvals-device-handoff"); panel.Children.Add(border);
-        }
-        // Joined (child-join.md): the component's own states; a credential that is gone moves the join itself to NotJoined, so the sign-in lines below are not drawn.
-        if (Join is not null)
-        {
-            if (Join.UpdateRequired) Line(ChildJoinText.UpdateRequired, ChildJoinText.Retry, () => Device?.Refresh());
-            else if (Device is { } joined)
-                switch (joined.State.Status)
-                {
-                    case RuntimeStatus.Connecting: Line(ChildJoinText.Joining); break;
-                    case RuntimeStatus.Retrying: Line(ChildJoinText.Reconnecting, ChildJoinText.Retry, joined.Refresh); break;
-                    case RuntimeStatus.NotEntitled: Line(ChildJoinText.NotEntitled, ChildJoinText.Recheck, joined.Refresh); break;
-                }
-        }
+        // The component's own states (child-join.md): a credential that is gone moves the join itself to NotJoined (the join screen), so no sign-in line is drawn here. NeedsAdmission is the peer channel's own admission (a verified device admits this one).
+        if (Join is { UpdateRequired: true }) Line(ChildJoinText.UpdateRequired, ChildJoinText.Retry, () => Device?.Refresh());
         else if (Device is { } device)
             switch (device.State.Status)
             {
-                case RuntimeStatus.Connecting: Line(Approvals.DeviceJoining); break;
-                case RuntimeStatus.Retrying: Line(Approvals.DeviceReconnecting, "今すぐ試す", device.Refresh); break;
+                case RuntimeStatus.Connecting: Line(ChildJoinText.Joining); break;
+                case RuntimeStatus.Retrying: Line(ChildJoinText.Reconnecting, ChildJoinText.Retry, device.Refresh); break;
                 case RuntimeStatus.NeedsAdmission when hub.Offer is { } offer: Waiting(offer); break;
                 case RuntimeStatus.NeedsAdmission:
                     if (hub.OfferNote is { } ended) Line(ended);
                     Line(device.State.Reason == "removed" ? Approvals.DeviceRemoved : Approvals.DeviceNeedsApproval, hub.RequestApproval is null ? null : hub.OfferNote is null ? Approvals.DeviceAskApproval : "もう一度", () => hub.RequestApproval?.Invoke());
                     break;
-                case RuntimeStatus.SignedOut when hub.Handoff is { } handoff: Handoff(handoff); break;
-                case RuntimeStatus.SignedOut when hub.SigningIn: Line(Approvals.DeviceSigningIn, "やめる", () => hub.CancelSignIn?.Invoke()); break;
-                case RuntimeStatus.SignedOut: if (hub.SignInNote is { } why) Line(why); Line(device.State.Reason switch { "pass_ended" => Approvals.DevicePassEnded, "account_deleted" => Approvals.DeviceAccountDeleted, _ => Approvals.DeviceSignedOut }, hub.SignInApprovalBox is null ? null : "Approval Boxにサインイン", () => hub.SignInApprovalBox?.Invoke(), hub.SignInByHandoff is null ? null : Approvals.DeviceHandoffStart, () => hub.SignInByHandoff?.Invoke()); break;
-                case RuntimeStatus.NotEntitled: Line(Approvals.DeviceNotEntitled, "確かめ直す", device.Refresh); break;
+                case RuntimeStatus.NotEntitled: Line(ChildJoinText.NotEntitled, ChildJoinText.Recheck, device.Refresh); break;
+                case RuntimeStatus.UpdateRequired: Line(ChildJoinText.UpdateRequired, ChildJoinText.Retry, device.Refresh); break;
             }
         return panel.Children.Count > 0 ? panel : null;
     }

@@ -6,7 +6,6 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Threading;
 using BellTeam.App;
 using BellTeam.Core;
-using BellTeam.PeerChannel;
 
 namespace BellTeam.Tests;
 
@@ -359,50 +358,15 @@ public sealed class ApprovalsWindowTests
     });
 
     [Fact]
-    public void TheDeviceStatesShowDeltasCopyForEndedSignInDeletedAccountAndRemovedDevice() => RunSta(() =>
+    public void TheDeviceStatesShowDeltasCopyForARemovedDeviceAndNoEntitlement() => RunSta(() =>
     {
-        var device = new ApprovalsFixture.Demo().Fill(); device.State = new(RuntimeStatus.SignedOut, "pass_ended");
+        var device = new ApprovalsFixture.Demo().Fill(); device.State = new(RuntimeStatus.NeedsAdmission, "removed");   // a signed-out device is the join screen's (child-join.md), not a strip line
         using var rig = Open(device: device); Until(() => rig.Page.Settled);
-        Assert.Contains(Approvals.DevicePassEnded, Texts(rig.Window));
-        device.State = new(RuntimeStatus.SignedOut, "account_deleted"); device.Raise();
-        Assert.Contains(Approvals.DeviceAccountDeleted, Texts(rig.Window));
-        device.State = new(RuntimeStatus.NeedsAdmission, "removed"); device.Raise();
         Assert.Contains(Approvals.DeviceRemoved, Texts(rig.Window));
         device.State = new(RuntimeStatus.NotEntitled, "no_entitlement"); device.Raise();
         Assert.Contains(Approvals.DeviceNotEntitled, Texts(rig.Window));
         Assert.Equal(5, rig.Page.Pending.Count);                                  // no state hides a decision
     });
-
-    [Fact]
-    public void SigningInShowsTheBrowserLineWithAnUndoAndAFailedTryShowsItsReason() => RunSta(() =>
-    {
-        var device = new ApprovalsFixture.Demo().Fill(); device.State = new(RuntimeStatus.SignedOut, "signed_out");
-        using var rig = Open(device: device); Until(() => rig.Page.Settled);
-        var cancelled = 0; rig.Hub.CancelSignIn = () => cancelled++; rig.Hub.SignInApprovalBox = () => { }; device.Raise();
-        Assert.Contains(Approvals.DeviceSignedOut, Texts(rig.Window)); Assert.NotNull(Find(rig.Window, "legacy:Approval Boxにサインイン"));
-        rig.Hub.SetSignIn(true);
-        Assert.Contains(Approvals.DeviceSigningIn, Texts(rig.Window)); Assert.DoesNotContain(Approvals.DeviceSignedOut, Texts(rig.Window));
-        Press(Find(rig.Window, "legacy:やめる")); Assert.Equal(1, cancelled);
-        rig.Hub.SetSignIn(false, "サインインできませんでした。");
-        Assert.Contains("サインインできませんでした。", Texts(rig.Window)); Assert.Contains(Approvals.DeviceSignedOut, Texts(rig.Window));
-    });
-
-    [Fact]
-    public void SignedOutOffersTheBrowserAndTheQrHandoffAndTheHandoffShowsTheQrTheCodeAndTheCheckNumberWithAnUndo() => RunSta(() =>
-    {
-        var device = new ApprovalsFixture.Demo().Fill(); device.State = new(RuntimeStatus.SignedOut);
-        using var rig = Open(device: device); Until(() => rig.Page.Settled);
-        var started = 0; var cancelled = 0; rig.Hub.SignInApprovalBox = () => { }; rig.Hub.SignInByHandoff = () => started++; rig.Hub.CancelSignIn = () => cancelled++; device.Raise();
-        Assert.Contains(Approvals.DeviceSignedOut, Texts(rig.Window)); Press(Find(rig.Window, "legacy:" + Approvals.DeviceHandoffStart)); Assert.Equal(1, started);
-        rig.Hub.SetSignIn(true); rig.Hub.SetHandoff(new ApprovalHandoff("LB1:qr", "0123-4567", "042", DateTimeOffset.UtcNow.AddMinutes(5)));
-        var texts = Texts(rig.Window);
-        Assert.Contains(Approvals.DeviceHandoffHow, texts); Assert.Contains(StoreAccountText.HandoffCode + " 0123-4567", texts); Assert.Contains(StoreAccountText.HandoffCheckNumber + " 042", texts); Assert.DoesNotContain(Approvals.DeviceSignedOut, texts);
-        Assert.Contains(LogicalTree.Find<FrameworkElement>(rig.Window.Content), element => element is QrView);
-        Press(Find(rig.Window, "legacy:やめる")); Assert.Equal(1, cancelled);
-        rig.Hub.SetHandoff(null); rig.Hub.SetSignIn(false); Assert.Contains(Approvals.DeviceSignedOut, Texts(rig.Window));
-        Assert.Equal(5, rig.Page.Pending.Count);
-    });
-
     [Fact]
     public void NeedsApprovalOffersTheAskThenShowsTheCodeAndQrAndTheNoteAfterItEnds() => RunSta(() =>
     {
