@@ -140,6 +140,21 @@ test('no time in the text: usage fills it; unknown resets exit by re-read or a s
   assert.deepEqual(accounts.limitFor('claude', '1st', 'claude-fable-5-1').map(value => value.scope), ['fable'])
 })
 
+test('a limit with a known reset clears on early recovery for the same slot and scope', async t => {
+  let usage = []
+  const { accounts, advance } = await setup(t, { usage: async () => usage })
+  const text = "You've hit your weekly limit · resets 8am (UTC)"
+  await accounts.recordLimit({ harness: 'claude', slot: '1st', model: 'opus', text })
+
+  usage = [{ scope: 'fable', percent: 50 }, { scope: 'all', percent: 20 }, { scope: 'all', percent: 100 }]
+  await advance(600_000)
+  assert.equal(accounts.limitFor('claude', '1st', 'opus').length, 1)
+
+  usage = [{ scope: 'all', percent: 20 }]
+  await advance(600_000)
+  assert.equal(accounts.limitFor('claude', '1st', 'opus').length, 0)
+})
+
 test('a failing reset write keeps the entry limited and retries after 60 s, not in a hot loop', async t => {
   const { home, accounts, advance, timers } = await setup(t)
   const lines = []; accounts.log = line => lines.push(line)
@@ -148,11 +163,11 @@ test('a failing reset write keeps the entry limited and retries after 60 s, not 
   try {
     await advance(3_600_000)
     assert.equal(accounts.limitFor('claude', '1st', 'opus').length, 1)
-    // One pending retry timer 60 s ahead, nothing due now.
+    // One reset retry timer 60 s ahead, alongside the periodic usage re-read.
     const pending = [...timers.values()]
-    assert.equal(pending.length, 1)
+    assert.equal(pending.length, 2)
     await advance(0)
-    assert.equal([...timers.values()].length, 1)
+    assert.equal([...timers.values()].length, 2)
     await advance(59_999)
     assert.equal(accounts.limitFor('claude', '1st', 'opus').length, 1)
     await advance(1)

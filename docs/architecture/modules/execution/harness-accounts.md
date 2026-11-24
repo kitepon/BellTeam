@@ -64,7 +64,7 @@ flowchart TD
   Accepted[delivery accepted by Aiterm, any member input incl. the continuation; time taken before typing] --> Seen[engine memory: visible to recovery at once] --> Recover
   Seen --> Inputs[registry inputs, serialized write; a failed write is logged and rewritten with the next input] --> Recover
   Mark --> Idle[other running seats on that slot whose model is in the scope: new seat at their next idle boundary]
-  Clock[timer at resetAt / only when resetAt unknown: usage below limit or a turn in scope succeeds] --> Return[slot × scope available]
+  Clock[timer at resetAt / usage below limit / successful turn when resetAt unknown] --> Return[slot × scope available]
   Return --> Recover
   Return --> Back[seats whose effective slot is now the 1st: switch back at next idle boundary]
   Registry --> List[accounts.list / seatAccount] --> UI[settings card, member card, both-limited banner]
@@ -120,8 +120,9 @@ A seat's model scope is the first family name found in its model id (`fable`, `o
    A time without a date is its next occurrence after the detection time in that zone; `resetSource:'message'`.
    Only when the text has no time (e.g. `You've reached your Fable limit. Run /usage-credits …`), the parent reads the usage endpoint that Claude Code itself uses (`/api/oauth/usage`, as in `scripts/claude-usage.py`) with S's token, and takes `resets_at` of the row of the same scope at 100 %; `resetSource:'usage'`. An unreadable reading leaves `resetAt:null`.
 4. Leaving the limited state (the self-exit):
-   - With `resetAt` known, the entry is removed at exactly that date and time by one timer, re-armed from the registry after a restart. Nothing else removes it early. If the registry write fails at that moment, the entry stays limited, one stderr line names the code, and the clear is retried every 60 s (never a hot loop).
-   - With `resetAt` unknown, the extra exits are: a usage re-read every 10 minutes showing that scope below 100 %, or a turn in that scope on S ending `done`. A usage re-read that finds a `resets_at` for the scope sets `resetAt` and the timer from then on.
+   - With `resetAt` known, the entry is removed at exactly that date and time by one timer, re-armed from the registry after a restart. A usage re-read can remove it earlier. If the registry write fails at that moment, the entry stays limited, one stderr line names the code, and the clear is retried every 60 s (never a hot loop).
+   - While a limit is recorded, re-read usage every 10 minutes. Clear only when usage returns rows for the same slot and scope and those rows are all below 100 %. An unavailable or missing reading leaves the entry in place.
+   - With `resetAt` unknown, a turn in that scope on S ending `done` also clears the entry. A usage re-read can supply `resetAt` and arm its timer.
 5. A parsed time in the past or more than 8 days ahead is a mis-parse (a weekly limit resets within 7 days) and is not trusted: the usage fallback decides, else the reset is unknown. Each recorded limit writes one stderr line with the text, the zone used and the parsed time (Epinel's check), never a token.
 6. `accounts.list()` does not read usage; it only reports the registry. No AI is woken and no seat is started for any of this.
 
