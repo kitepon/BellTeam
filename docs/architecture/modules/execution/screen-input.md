@@ -37,3 +37,5 @@ Client guidance: show the key bar whenever the screen view is open, except while
 | compatibility | Both methods are execution dispatch methods. An older execution engine rejects them with `EXECUTION_REQUEST_INVALID`, which the HTTP layer maps to `503 SCREEN_INPUT_UNAVAILABLE`. |
 
 No text input is offered (`pty_send` free text stays the delivery path). No secret, transcript or screen text is stored.
+
+Seat approvals (a seat stopped on a tool approval reaches the Owner as an Approval Box card or an in-app entry, and the answer goes back through this same respond) are in [seat-approvals.md](seat-approvals.md). `GET …/screen/approval` now also returns `prompt` and `kind` when Aiterm names them (Codex); the contract above is otherwise unchanged.

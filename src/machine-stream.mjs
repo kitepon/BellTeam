@@ -499,6 +499,13 @@ export class MachineStream {
 
   get(requestId) { return structuredClone(this.find(requestId).request) }
 
+  // seat-approvals.md: a machine seat's open tool approvals, oldest first (Aiterm's claude_approval answers the first one). Read only.
+  pendingApprovals(botId) {
+    return [...this.state.get(botId)?.requests.values() ?? []].filter(request => request.status === 'pending' && request.tool !== 'AskUserQuestion')
+      .sort((a, b) => a.seq - b.seq || a.part - b.part)
+      .map(request => ({ id: request.id, tool: request.tool, command: toolSummary(request.input, 2000) }))
+  }
+
   // Owner -> conversation -> execution -> Aiterm. 'answered' only after Aiterm took the line.
   async answer(requestId, body = {}) {
     const { botId, bot, request } = this.find(requestId)

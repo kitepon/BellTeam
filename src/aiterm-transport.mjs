@@ -407,9 +407,12 @@ export class AitermTransport {
       // No dialog on screen comes back as a tool refusal; the view then shows only the key bar.
       try { result = (await this.client.call(tool, { action: 'inspect', session_id }))?.structuredContent } catch { return { status: 'none' } }
       if (result?.status !== 'approval_required' || !digest(result.prompt_digest) || !Array.isArray(result.choices)) return { status: 'none' }
+      // seat-approvals.md: Codex's agent_approval also names what it asks (prompt, kind); the Owner's entry shows them.
       return { status: 'approval_required', promptDigest: result.prompt_digest,
         choices: result.choices.filter(choice => ['approve_once', 'deny'].includes(choice?.decision) && typeof choice.label === 'string')
-          .map(choice => ({ decision: choice.decision, label: choice.label.slice(0, 200) })) }
+          .map(choice => ({ decision: choice.decision, label: choice.label.slice(0, 200) })),
+        ...(typeof result.prompt === 'string' && result.prompt ? { prompt: result.prompt.slice(0, 2000) } : {}),
+        ...(typeof result.kind === 'string' && result.kind ? { kind: result.kind.slice(0, 100) } : {}) }
     }
     let result
     try { result = (await this.client.call(tool, { action: 'respond', session_id, approval_choice: decision, observed_prompt_digest: promptDigest }))?.structuredContent }

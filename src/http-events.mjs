@@ -3,7 +3,7 @@ export const EVENT_KEEPALIVE_MS = 25000
 // 一つの変更で複数の監視が続けて鳴る。この間の知らせは1件にまとめる。
 export const MESSAGE_EVENT_WINDOW_MS = 50
 
-export function createMessageEvents({ store, secretRequests, ownerQuestions, machineStream = null, rooms, bots, transport, aiControl, updateCenter, eventKeepalive, messageEventWindow }) {
+export function createMessageEvents({ store, secretRequests, ownerQuestions, machineStream = null, seatApprovals = null, rooms, bots, transport, aiControl, updateCenter, eventKeepalive, messageEventWindow }) {
   const subscribers = new Set()
   let closeWatch = null
   let pendingNotify = null
@@ -63,6 +63,7 @@ export function createMessageEvents({ store, secretRequests, ownerQuestions, mac
       if (secretRequests) stops.push(secretRequests.watch(notify))
       if (ownerQuestions) stops.push(ownerQuestions.watch(notify))
       if (machineStream) stops.push(machineStream.watch(notify))
+      if (seatApprovals) stops.push(seatApprovals.watch(notify))
       if (rooms?.watch) stops.push(await rooms.watch(notify))
       if (bots?.watch) stops.push(bots.watch(notify))
       if (transport?.watchQueue) stops.push(transport.watchQueue(notify))
