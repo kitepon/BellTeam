@@ -8,10 +8,10 @@ struct SeatApprovalCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label(SeatApprovalsModel.Words.heading, systemImage: "checkmark.shield.fill")
+            Label(SeatApprovalsModel.Words.heading, systemImage: "lock.fill")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(BellTheme.violet)
-            if let tool = approval.tool { Text(tool).font(.footnote.weight(.semibold)).foregroundStyle(BellTheme.muted) }
+            if !approval.source.isEmpty { Text(approval.source).font(.footnote.weight(.semibold)).foregroundStyle(BellTheme.muted) }
             if let command = approval.command {
                 // A short command takes its own height; a long one (up to 2000 characters) scrolls inside 180 pt so the buttons stay in view.
                 let text = SelectableText(command, font: UIFont.monospacedSystemFont(ofSize: 13, weight: .regular), color: BellTheme.ink)
@@ -34,6 +34,9 @@ struct SeatApprovalCard: View {
                 }
             }
             .disabled(model.sending.contains(approval.id))
+            if model.sending.contains(approval.id) {
+                Text(SeatApprovalsModel.Words.sending).font(.footnote).foregroundStyle(BellTheme.muted)
+            }
             if model.failures.contains(approval.id) {
                 Label(SeatApprovalsModel.Words.failed, systemImage: "exclamationmark.triangle.fill").font(.footnote).foregroundStyle(.red)
             }

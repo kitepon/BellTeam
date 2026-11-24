@@ -6,11 +6,18 @@ struct SeatApproval: Decodable, Identifiable, Equatable {
     let id: String
     let botId: String
     let botName: String?
+    let harness: String?
     let tool: String?
     /// 秘密を伏せた全文。TUIのClaude席は本体が文字を持たないのでnil（画面を見てもらう）。
     let command: String?
     let reason: String?
     let choices: [Choice]
+
+    /// The line over the command, as the other clients: the tool and the harness that stopped (「Bash · Claude Code」); just the harness when the seat gave no tool.
+    var source: String {
+        let name = harness == "claude" ? "Claude Code" : harness == "codex" ? "Codex" : harness
+        return [tool, name].compactMap { $0 }.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }.joined(separator: " · ")
+    }
 }
 
 private struct SeatApprovalList: Decodable { let approvals: [SeatApproval] }
@@ -26,6 +33,7 @@ final class SeatApprovalsModel: ObservableObject {
         static let seeScreen = "Botの画面を見てください"
         static let closed = "別の場所で答えられたか、もう承認待ちではありません。"
         static let failed = "いまは送れませんでした。もう一度押してください。"
+        static let sending = "答えを送っています…"
     }
 
     @Published private(set) var items: [SeatApproval] = []
@@ -41,9 +49,9 @@ final class SeatApprovalsModel: ObservableObject {
     /// 画面確認用（`-bellbot-preview-seat-approval`）。本体は使わない。
     func setPreview(tui: Bool) {
         let choices = [SeatApproval.Choice(decision: "approve_once", label: "1回だけ許可する"), SeatApproval.Choice(decision: "deny", label: "許可しない")]
-        items = [SeatApproval(id: "sa-preview", botId: "bot-one", botName: "ユキ", tool: tui ? nil : "Bash",
+        items = [SeatApproval(id: "sa-preview", botId: "bot-one", botName: "ユキ", harness: "claude", tool: tui ? nil : "Bash",
                               command: tui ? nil : "rm -rf /Users/kite/Developer/BellTeam/ios/BellBot/build/DerivedData && xcodebuild -project ios/BellBot/BellBot.xcodeproj -scheme BellTeam clean",
-                              reason: "Claude Codeが、この操作の許可を待っています。", choices: choices)]
+                              reason: "Claude Codeが承認を待っています。", choices: choices)]
     }
     #endif
 
