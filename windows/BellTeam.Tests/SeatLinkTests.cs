@@ -29,22 +29,26 @@ public sealed class SeatLinkTests
         Assert.Equal(["つなぐ", "やめる", null, "もう一度つなぐ", "もう一度つなぐ", "もう一度つなぐ"], new[] { "none", "waiting", "linked", "removed", "failed", "unavailable" }.Select(state => SeatLinkText.Action(new() { State = state })));
         Assert.Equal([false, false, false, false, true, true], new[] { "none", "waiting", "linked", "removed", "failed", "unavailable" }.Select(state => SeatLinkText.IsFailure(new() { State = state })));   // red only for failed
         Assert.Equal("17:32まで（JST）", SeatLinkText.Until(DateTimeOffset.Parse("2026-11-24T08:32:00Z")));
+        // the state badge above the sentence: green linked, gray removed, red failed (and unavailable), none for none and waiting
+        Assert.Equal([null, null, ("つながっています", "ok"), ("つなぎが外れています", "muted"), ("つなげませんでした", "err"), ("つなげませんでした", "err")], new[] { "none", "waiting", "linked", "removed", "failed", "unavailable" }.Select(state => SeatLinkText.Badge(new() { State = state })));
     }
 
     [Fact]
-    public async Task TheThreeCallsReadTheBodysShape_AndARouteThatIsNotThereIsUnavailable()
+    public async Task TheThreeCallsReadTheBodysShape_ARouteThatCannotSayIsUnavailable_AndABodyWithoutTheRoutesIsAbsent()
     {
         var body = new Body(request => request.RequestUri!.AbsolutePath.EndsWith("/stop", StringComparison.Ordinal) ? Json("{\"state\":\"none\"}")
-            : Json("{\"state\":\"waiting\",\"code\":\"ABCD\",\"typedSecret\":\"WXYZ-1234\",\"qrText\":\"https://x.example/pair?c=ABCD\",\"expiresAt\":\"2026-11-24T08:32:00.000Z\"}"));
+            : Json("{\"state\":\"waiting\",\"code\":\"WXYZ-1234\",\"qrText\":\"https://x.example/pair?c=WXYZ-1234\",\"expiresAt\":\"2026-11-24T08:32:00.000Z\"}"));
         var api = new BellApi(new Uri("http://localhost"), body);
         var waiting = await api.StartSeatLinkAsync();
-        Assert.Equal(("waiting", "ABCD", "WXYZ-1234", "https://x.example/pair?c=ABCD", true), (waiting.State, waiting.Code, waiting.TypedSecret, waiting.QrText, waiting.Waiting)); Assert.Equal(DateTimeOffset.Parse("2026-11-24T08:32:00Z"), waiting.ExpiresAt);
+        Assert.Equal(("waiting", "WXYZ-1234", "https://x.example/pair?c=WXYZ-1234", true), (waiting.State, waiting.Code, waiting.QrText, waiting.Waiting)); Assert.Equal(DateTimeOffset.Parse("2026-11-24T08:32:00Z"), waiting.ExpiresAt);   // the typed code is code (Delta #2544)
         Assert.Equal("waiting", (await api.SeatLinkAsync()).State); Assert.Equal("none", (await api.StopSeatLinkAsync()).State);
         Assert.Equal([("POST", "/api/approvals/seat-link/start"), ("GET", "/api/approvals/seat-link"), ("POST", "/api/approvals/seat-link/stop")], body.Calls);
-        foreach (var status in new[] { HttpStatusCode.NotFound, HttpStatusCode.ServiceUnavailable, HttpStatusCode.Forbidden, HttpStatusCode.BadGateway })
+        foreach (var status in new[] { HttpStatusCode.ServiceUnavailable, HttpStatusCode.Forbidden, HttpStatusCode.BadGateway })
         {
-            var gone = new BellApi(new Uri("http://localhost"), new Body(_ => Json("{\"error\":\"X\"}", status)));
-            Assert.Equal("unavailable", (await gone.SeatLinkAsync()).State); Assert.Equal("unavailable", (await gone.StartSeatLinkAsync()).State);
+            var cannot = new BellApi(new Uri("http://localhost"), new Body(_ => Json("{\"error\":\"X\"}", status)));
+            Assert.Equal("unavailable", (await cannot.SeatLinkAsync()).State); Assert.Equal("unavailable", (await cannot.StartSeatLinkAsync()).State);
         }
+        var older = new BellApi(new Uri("http://localhost"), new Body(_ => Json("{\"error\":\"NOT_FOUND\"}", HttpStatusCode.NotFound)));   // a body older than the routes: absent, the view is not drawn
+        Assert.True((await older.SeatLinkAsync()).Absent);
     }
 }
