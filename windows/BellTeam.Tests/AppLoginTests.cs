@@ -108,7 +108,8 @@ public sealed class AppLoginTests
         {
             var gate = new AccountGateView(Local(), () => { });
             Until(() => Texts(gate).Contains(LocalFormText.FirstSignIn)); Assert.Empty(opened);   // nothing opens before the person presses a button
-            Assert.Equal(["BellTeam", "AIのチームに、スマホやPCから指示できます。"], Texts(gate).Where(text => text.Length > 1).Take(2));   // the name, one line of purpose, then the Owner's text
+            Assert.Equal(["BellTeam", "AIのチームに、スマホやPCから指示できます。"], Texts(gate).Where(text => text.Length > 1).Take(2));
+            var icon = Assert.Single(Descendants<Image>(gate)); Assert.Equal(88, icon.Width); Assert.True(icon.Source.Width > 0);   // the BellTeam app icon (the same image as Apple's), not a glyph   // the name, one line of purpose, then the Owner's text
             Assert.Equal([SignInText.Apple, SignInText.Google], Descendants<Button>(gate).Select(b => System.Windows.Automation.AutomationProperties.GetName(b)));   // Apple first, shown once
             Assert.DoesNotContain(Texts(gate), text => text.Contains("購読", StringComparison.Ordinal));   // no billing card on the first screen
             Click(gate, SignInText.Apple); Until(() => opened.Count == 1);

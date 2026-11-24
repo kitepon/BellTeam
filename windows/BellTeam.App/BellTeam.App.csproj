@@ -12,6 +12,8 @@
     <Resource Include="../../ios/BellBot/BellBot/Assets.xcassets/AppIcon.appiconset/bellbot-icon.png" Link="Assets/BellTeam.png" />
     <!-- The Mac app bundles the same three files for its server setup screen. -->
     <EmbeddedResource Include="../../ios/BellBot/BellBot/Assets.xcassets/BellPortrait.imageset/bell-portrait.png" LogicalName="BellPortrait.png" />
+    <!-- The BellTeam app icon (the same image as Apple) on the first screen. -->
+    <EmbeddedResource Include="../../ios/BellBot/BellBot/Assets.xcassets/AppIcon.appiconset/bellbot-icon.png" LogicalName="BellTeamIcon.png" />
     <EmbeddedResource Include="../../docs/server-installation.md" LogicalName="server-installation.md" />
     <EmbeddedResource Include="../../services/subscriptions/product.json" LogicalName="product.json" />
     <InternalsVisibleTo Include="BellTeam.Tests" />
