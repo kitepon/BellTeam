@@ -196,7 +196,7 @@ flowchart LR
 | 購読の応答（a540） | HTTP GET /api/subscription と POST /api/subscription/refresh（取り付け済みアプリ向けの同じ応答） → `Subscriptions.current/status` | 契約を確かめない一定の形（`entitlementState:active`・`canUseAI:true`・`canPurchase:false`・`accessMode:developer`）。購入・復元・Stripe・Google・購読の管理の道筋は無い。サーバーは課金の状態を持たず、何も止めない |
 | 旧動作確認 | HTTP setup-test → idle確認 → `runSetupTest` → `transport.setupTest` | 返信を確かめてsetupCompleteを保存。Onboardingの案内完了とは入口が異なる |
 
-運営のWorker（services/subscriptions。a485以降はログイン・課金の共通ライブラリ0.10.0のサーバー部分）はこの本体図の境界外（a540以降、本体はWorkerへ札も証明も送らず、契約を問わない）。Workerは`/auth/v1/*`（ライブラリの通信契約1.20。サインイン、Webサインイン、受け渡し、証明`prove/*`、札`ticket/check`）だけを持ち、保存するのは使い捨てのnonce・枠・Webログイン記録・証明コード・拒否したパスID・notBeforeだけ（期限付き、ライブラリのDurable Object）。Apple・Googleの鍵とkKey・パス鍵は運営Workerのsecretだけに置く。通知中継もこの本体図の外で、本体が渡す札を`ticket/check`で確かめて答えだけを読む（詳細は[Worker README](../../../../services/subscriptions/README.md)）。受領書の確認・Stripeは無くなった。 BellTeam本体が所有する[subscriptions.mjs](../../../../src/subscriptions.mjs)と[push-notifications.mjs](../../../../src/push-notifications.mjs)の公開応答だけを扱う。端末へ表示されたかは通知の受付だけでは分からない。
+BellTeamは運営のログイン・課金サーバーを持たない（2026-11-24 オーナー決定「ログイン、課金確認に自前のサーバーを使わない」、契約1.42）。`services/subscriptions`のWorker・開発用オペレーター・共通ライブラリ0.19.3の固定は本体から取り除いた（鍵・kKey・Durable Objectを持つWorkerはもう無い）。残るのは、取り付け済みの1.0.x アプリが読む旧い検証Worker（`bellteam-subscriptions`。本体のリポジトリには置かない。止めるのは行`a540-old-verify-stop`）だけである。通知中継は本体図の外で、札も課金確認も使わない（`services/notifications`）。 BellTeam本体が所有する[subscriptions.mjs](../../../../src/subscriptions.mjs)と[push-notifications.mjs](../../../../src/push-notifications.mjs)の公開応答だけを扱う。端末へ表示されたかは通知の受付だけでは分からない。
 
 ## サーバー上のアプリのセッション（a485）
 
@@ -207,7 +207,7 @@ flowchart TD
   App["アプリ<br/>POST /api/home/login/prove など"] --> GW["gateway<br/>peerとauthorizationを転送"]
   GW --> Body["body http-server<br/>/api/home/* は認証前に子へ"]
   Body -->|"home.handle{method,path,bearer,body,peer}"| Child["usage child<br/>createHomeHandler + createHomePart"]
-  Child -->|"prove/take, ticket/check（匿名）"| Worker["Operator Worker"]
+  Child -->|"prove/take, ticket/check（匿名）"| Worker["Operator（BELLTEAM_HOME_OPERATOR。BellTeamは運営しない）"]
   Child -->|"shared/login-home.json（原子的置換）"| File[("login-home.json")]
   Child -->|"publish: homeLogin{bound,enforced,hashes}"| Row["body projection"]
   Row --> Guard["authorize: Legacyは従来どおり<br/>Enforcedはguard(set, headers)"]

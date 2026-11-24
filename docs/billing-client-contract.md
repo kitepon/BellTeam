@@ -1,6 +1,6 @@
 # Billing client contract (a358)
 
-What every BellTeam app shows on its purchase page and how it reads the result. The server side is in [subscription.md](subscription.md); the Worker is in [services/subscriptions/README.md](../services/subscriptions/README.md). Owner ruling 2026-11-17: all stores cost the same, every app can sign in to the same account, each platform lists its own store first, and the options are shown at the same size and as equals.
+What every BellTeam app shows on its purchase page and how it reads the result. The server side is in [subscription.md](subscription.md); BellTeam runs no operator Worker since 2026-11-24 (no own server for login or billing). Owner ruling 2026-11-17: all stores cost the same, every app can sign in to the same account, each platform lists its own store first, and the options are shown at the same size and as equals.
 
 ## Terms
 

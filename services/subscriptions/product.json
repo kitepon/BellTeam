@@ -1,5 +1,4 @@
 {
-  "loginBillingWorkerUrl": "https://bellteam-login-test.kitepon.dev/auth/v1",
   "approvalBoxAuthUrl": "https://approval-box.kitepon.dev/auth/v1",
   "approvalBoxWebReturn": "approvalbox-websignin://return",
   "appAppleId": 6816295589,
