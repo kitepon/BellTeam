@@ -501,6 +501,18 @@ final class UpdateViewTests: XCTestCase {
         XCTAssertEqual(content.badge(for: try XCTUnwrap(content.updates.inventory?.components.last)).text, "使えない版")
     }
 
+    func testUnknownResultNeverBadgesTheTargetAsUpdating() async throws {
+        for name in ["interrupted", "disconnected_unknown"] {
+            let content = UpdateContent(updates: try await store(for: name))
+            let operation = try XCTUnwrap(content.updates.inventory?.operation)
+            let target = try XCTUnwrap(content.updates.inventory?.components.first { c in operation.plan.targets.contains { $0.componentId == c.id } })
+            XCTAssertEqual(content.badge(for: target), .unknown, name)
+        }
+        let running = UpdateContent(updates: try await store(for: "running"))
+        let runningTarget = try XCTUnwrap(running.updates.inventory?.components.first { c in running.updates.inventory?.operation?.plan.targets.contains { $0.componentId == c.id } == true })
+        XCTAssertEqual(running.badge(for: runningTarget), .updating)
+    }
+
     func testUnconfirmedRequestKeepsCheckingButOffersAnotherFormalCandidate() async throws {
         var interrupted = try XCTUnwrap(try UpdateFixtures.examples()["interrupted"])
         let plain = try await store(for: "interrupted")

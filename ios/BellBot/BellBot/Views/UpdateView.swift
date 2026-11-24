@@ -326,7 +326,11 @@ struct UpdateContent: View {
 
     /// 今の操作の対象になっている機能は「更新中」。サーバーの1行のtoneと比較の結果から印を決める。
     func badge(for component: UpdateComponent) -> PartBadge {
-        if let operation, !operation.isSettled, operation.plan.targets.contains(where: { $0.componentId == component.id }) { return .updating }
+        if let operation, !operation.isSettled, operation.plan.targets.contains(where: { $0.componentId == component.id }) {
+            // unknown admission/phase is an unknown result (the header says 確認中), not a running job
+            if operation.admission != .unknown && operation.phase != .unknown { return .updating }
+            return component.status?.tone == .attention ? .failed : .unknown
+        }
         switch component.status?.tone {
         case .updating?: return .updating
         case .attention?: return .failed
