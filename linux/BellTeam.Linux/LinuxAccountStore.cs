@@ -10,7 +10,7 @@ internal static class LinuxAccountStore
     private static DesktopLocal? local;
     public static DesktopLocal? Local => local ??= !LocalFormIds.DesktopReady ? null : new DesktopLocal(
         new LocalConfig([.. LocalFormIds.GoogleClientIds, LocalFormIds.AppleBundleId, LocalFormIds.AppleServicesId], LocalFormIds.GoogleDesktopClientId,
-            GoogleClientSecret: DesktopSecret, Apple: new AppleRules([LocalFormIds.AppleBundleId], [LocalFormIds.ProductId]), Play: new PlayRules(LocalFormIds.PlayPackage, [LocalFormIds.ProductId], LocalFormIds.PlayPublicKey),
+            GoogleClientSecret: DesktopSecret, Apple: new AppleRules([LocalFormIds.AppleBundleId], [LocalFormIds.ProductId], Sandbox: LocalFormIds.AppleAcceptsSandbox), Play: new PlayRules(LocalFormIds.PlayPackage, [LocalFormIds.ProductId], LocalFormIds.PlayPublicKey),
             AppleServicesId: LocalFormIds.AppleServicesId, AppleReturnUrl: LocalFormIds.AppleReturnUrl, AppId: LocalFormIds.AppleBundleId),
         LocalStore.ForApp("BellTeam")) { Log = AppleReturnLine };
     // One line per Apple return (the library builds it: time, fields, Apple's error code; never a token, code or subject) goes to the app's own log file in ~/.local/share/BellTeam, and nowhere else.

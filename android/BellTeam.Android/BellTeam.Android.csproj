@@ -28,13 +28,13 @@
     <!-- a520a: the 決裁箱 client is the Linux host part (LinuxAccountAbxHost.cs, linked above) over Kitepon.ApprovalBox.Client; only the account (AndroidApprovalBoxAccount) is Android's. libdatachannel v0.24.6 per ABI: android/native/README.md. -->
     <AndroidNativeLibrary Include="../native/prebuilt/arm64-v8a/libdatachannel.so" Abi="arm64-v8a" />
     <AndroidNativeLibrary Include="../native/prebuilt/x86_64/libdatachannel.so" Abi="x86_64" />
-    <PackageReference Include="Kitepon.ApprovalBox.Client" Version="0.5.0" />
+    <PackageReference Include="Kitepon.ApprovalBox.Client" Version="0.5.2" />
     <PackageReference Include="Markdig" Version="1.4.0" />
     <PackageReference Include="Tmds.DBus.Protocol" Version="0.94.1" />
     <PackageReference Include="Avalonia.Headless" Version="12.1.6" />
     <PackageReference Include="Xamarin.Firebase.Messaging" Version="125.1.3" />
     <!-- a540 (contract 1.36, the local form): Google sign-in, the request QR, this phone's own Play purchase and the answer to another device's QR through the library's android part. 0.21.1 (contract 1.48, with Apple's web sign-in) is accepted (Mint; its scanner reads the local-form QR lbq4:). -->
-    <PackageReference Include="Kitepon.LoginBilling.Android" Version="0.22.4" />
+    <PackageReference Include="Kitepon.LoginBilling.Android" Version="0.23.1" />
     <!-- Approving another device: Google's code scanner reads the QR (Play services, no camera permission of ours). -->
     <PackageReference Include="Xamarin.GooglePlayServices.Code.Scanner" Version="116.1.0.17" />
     <!-- The binding gives the QR text only (LocalRequest.Qr); this pure managed encoder (MIT) draws it. -->
