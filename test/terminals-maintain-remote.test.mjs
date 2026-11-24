@@ -50,7 +50,7 @@ test('connectRemote: an invalid probe is REMOTE_AITERM_UNAVAILABLE and a failure
   await assert.rejects(createRemoteTerminalProcesses({ project: '/srv/x', run: failed.run }).connectRemote({ remote }), error => error.code === 'AUTH_FAILED' && !error.message.includes('secret'))
 })
 
-async function setup(t, { maintainInput = 'remote', containerVersion = '0.70.112', agentHeld = true, trustCopy = true } = {}) {
+async function setup(t, { maintainInput = 'remote', containerVersion = '0.70.113', agentHeld = true, trustCopy = true } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'maintain-remote-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const registry = createTerminalRegistry({ stateRoot: root })
@@ -82,7 +82,7 @@ test('a terminal with maintainInput remote runs C8 and the check on the pinned-s
 })
 
 test('every unmet condition opens the binding path as before and names why; a terminal not switched shows no evidence', async t => {
-  for (const [reason, options] of [['AITERM_TOO_OLD', { containerVersion: '0.70.111' }], ['AGENT_EMPTY', { agentHeld: false }], ['TRUST_COPY_MISSING', { trustCopy: false }]]) {
+  for (const [reason, options] of [['AITERM_TOO_OLD', { containerVersion: '0.70.112' }], ['AGENT_EMPTY', { agentHeld: false }], ['TRUST_COPY_MISSING', { trustCopy: false }]]) {
     const { connection, opens } = await setup(t, options)
     assert.ok((await connection.target(request)).terminal, 'the launch goes on')
     assert.equal(opens().remoteOpens.length, 0, reason)
