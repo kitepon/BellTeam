@@ -38,6 +38,9 @@ public static class SeatLinkText
         "failed" => link.Reason switch { "rejected" => Rejected, "expired" => Expired, _ => Unavailable },
         _ => Unavailable,
     };
+    // The state badge above the sentence (Tronie 2026-11-24, the 決裁箱 window's 「ライブ」 chip: a dot and a word): green for linked, gray for removed, red for failed (and when the body cannot say); none for none and waiting.
+    public const string BadgeLinked = "つながっています", BadgeRemoved = "つなぎが外れています", BadgeFailed = "つなげませんでした";
+    public static (string Text, string Tone)? Badge(SeatLink link) => link.State switch { "linked" => (BadgeLinked, "ok"), "removed" => (BadgeRemoved, "muted"), "failed" or "unavailable" => (BadgeFailed, "err"), _ => null };
     public static bool IsFailure(SeatLink link) => link.State is "failed" or "unavailable";
     /// <summary>The one button of a state, null when there is none (linked).</summary>
     public static string? Action(SeatLink link) => link.State switch { "none" => Connect, "waiting" => Cancel, "linked" => null, _ => Again };
