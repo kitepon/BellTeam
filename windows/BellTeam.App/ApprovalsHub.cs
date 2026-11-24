@@ -80,7 +80,7 @@ internal sealed class ApprovalsHub : IDisposable
         TimeSpan wait;
         lock (notifyGate) { if (notifyQueued) return; notifyQueued = true; wait = lastNotified + Quiet - DateTime.UtcNow; }
         if (wait <= TimeSpan.Zero) Post(Tell);
-        else _ = Task.Delay(wait, life.Token).ContinueWith(_ => Post(Tell), TaskScheduler.Default);
+        else _ = Task.Delay(wait, life.Token).ContinueWith(done => { if (!done.IsCanceled) Post(Tell); }, TaskScheduler.Default);   // not after the hub is disposed
     }
     private void Tell() { lock (notifyGate) { notifyQueued = false; lastNotified = DateTime.UtcNow; } Changed?.Invoke(); DeviceChanged?.Invoke(); ReadLinks(); }
 
