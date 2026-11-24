@@ -8,7 +8,7 @@ using static BellTeam.Linux.SettingsUi;
 
 namespace BellTeam.Linux;
 
-// a540 (login-billing contract 1.36 section 10, the local form): the account of this PC. It never buys. A PC shows the QR of one request; the phone that holds the purchase reads it and answers over the same Wi-Fi;
+// a540 (login-billing contract 1.36 section 10, the local form): the account of this PC. It never buys. A PC shows the QR of one request; the phone that holds the purchase reads it and answers over the same network (LAN);
 // this PC checks the answer itself and keeps the end of the period. Google signs in on this PC for each try; Apple is the iPhone's own sign-in. No server, no e-mail, no name exists anywhere.
 public sealed class LinuxAccountCard : StackPanel
 {

@@ -11,7 +11,7 @@ using static BellTeam.Linux.SettingsUi;
 namespace BellTeam.Android;
 
 // a540 (login-billing contract 1.36 section 10, the local form): the subscription of this phone, laid out like the Mac 利用と課金 page (icon tile, title and one badge; the state sentence; the actions).
-// A phone that holds the Play purchase is paid by its own store check and may let another device in (ApprovePanel). A phone without one shows the QR of a request; a paying phone on the same Wi-Fi answers it and this phone
+// A phone that holds the Play purchase is paid by its own store check and may let another device in (ApprovePanel). A phone without one shows the QR of a request; a paying phone on the same network (LAN) answers it and this phone
 // keeps the end of the period. The purchase and the proof stay in the library; no e-mail or name exists anywhere.
 public sealed class AccountCard : StackPanel
 {

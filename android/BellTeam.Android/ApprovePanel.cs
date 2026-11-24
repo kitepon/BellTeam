@@ -14,7 +14,7 @@ using static BellTeam.Linux.SettingsUi;
 namespace BellTeam.Android;
 
 // a540 (login-billing contract 1.36 section 10): the phone that holds the purchase lets another device in. It reads the QR that device shows, checks that the device wants this phone's own account, asks the person once, and sends this phone's
-// own Play purchase straight to that device over the same Wi-Fi. No server takes part; the library keeps the proof and the token, this code sees neither.
+// own Play purchase straight to that device over the same network (LAN). No server takes part; the library keeps the proof and the token, this code sees neither.
 public sealed class ApprovePanel : StackPanel
 {
     private readonly CancellationToken token;

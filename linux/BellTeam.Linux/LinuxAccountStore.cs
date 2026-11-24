@@ -3,7 +3,7 @@ using Kitepon.LoginBilling.Desktop;
 
 namespace BellTeam.Linux;
 
-// The one DesktopLocal of the app (a540, login-billing contract 1.36: the local form). No server of any kind takes part in sign-in or payment: this device shows a QR, a paying phone on the same Wi-Fi answers it directly,
+// The one DesktopLocal of the app (a540, login-billing contract 1.36: the local form). No server of any kind takes part in sign-in or payment: this device shows a QR, a paying phone on the same network (LAN) answers it directly,
 // and the app checks the store's own proof itself. The record (provider, subject, the accepted reply) is a file only the user can read. null while LocalFormIds lacks Pinocchio's or Cielo's value: the card then says so.
 internal static class LinuxAccountStore
 {
