@@ -80,6 +80,7 @@ public sealed class LinuxAccountCard : StackPanel
         {
             Children.Add(Text(LocalFormText.Title, 16, Ink, FontWeight.Bold, new Thickness(0, 14, 0, 0)));
             Children.Add(Text(LocalFormText.Lead, 13, Muted, null, new Thickness(0, 6, 0, 0)));
+            Children.Add(Text(AccountGuidance.SignIn, 13, Ink, null, new Thickness(0, 6, 0, 0)));
             Children.Add(Button(LocalFormText.Google, () => RequestAsync("google"), Look.Primary));
             Children.Add(Button(LocalFormText.Apple, () => RequestAsync("apple"), Look.Primary));
         }
@@ -91,13 +92,15 @@ public sealed class LinuxAccountCard : StackPanel
     }
 
     // The QR of one request: the phone that holds the purchase reads it; this PC waits (10 minutes) and has one way out.
-    private Control QrBlock(string qr)
+    internal Control QrBlock(string qr)
     {
         var block = new StackPanel { Margin = new Thickness(0, 14, 0, 0), Spacing = 6 };
         block.Children.Add(Text(LocalFormText.Title, 16, Ink, FontWeight.Bold));
         block.Children.Add(Text(LocalFormText.Lead, 13, Muted));
         var code = new QrView(qr, 220) { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 6) }; Avalonia.Automation.AutomationProperties.SetName(code, LocalFormText.QrLabel);
         block.Children.Add(code);
+        // 1.49 (11.12): the library's own sentence, word for word, directly under the QR on every client.
+        var guidance = Text(AccountGuidance.Qr, 14, Ink); guidance.TextAlignment = TextAlignment.Center; block.Children.Add(guidance);
         block.Children.Add(Waiting(LocalFormText.WaitingUntil(expiry)));
         var stop = Capsule(LocalFormText.Cancel, Fill, Ink, 12, 14, new Thickness(16, 10));
         stop.HorizontalAlignment = HorizontalAlignment.Left; stop.Margin = new Thickness(0, 12, 0, 0); stop.Click += (_, _) => attempt?.Cancel();

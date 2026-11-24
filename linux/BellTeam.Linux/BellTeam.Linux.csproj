@@ -4,7 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <!-- Same assembly name as the Windows app: BellTeam.Core's InternalsVisibleTo("BellTeam") reaches the same render hooks. -->
     <AssemblyName>BellTeam</AssemblyName>
-    <Version>0.2.31</Version>
+    <Version>0.2.32</Version>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
   <ItemGroup>
@@ -24,7 +24,7 @@
     <PackageReference Include="Avalonia.Headless" Version="12.1.6" />
     <PackageReference Include="Markdig" Version="1.4.0" />
     <!-- a540 (contract 1.36, the local form): Google sign-in on this PC, the request QR and the check of the phone's reply, through the library's desktop part. 0.21.1 (contract 1.48, with Apple's web sign-in) is accepted by Mint. -->
-    <PackageReference Include="Kitepon.LoginBilling.Desktop" Version="0.21.1" />
+    <PackageReference Include="Kitepon.LoginBilling.Desktop" Version="0.22.1" />
     <!-- The library gives the QR text only (LocalRequest.Qr); this pure managed encoder (MIT) draws it. Android uses the same one. -->
     <PackageReference Include="QRCoder" Version="1.6.0" />
     <!-- Avalonia brings the same version; it is referenced explicitly because the notification sink uses it directly. -->

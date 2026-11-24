@@ -107,6 +107,7 @@ public sealed class AccountCard : StackPanel
             }
             Children.Add(Text(LocalFormText.Title, 16, Ink, FontWeight.Bold, new Thickness(0, 14, 0, 0)));
             Children.Add(Text(LocalFormText.Lead, 13, Muted, null, new Thickness(0, 6, 0, 0)));
+            Children.Add(Text(AccountGuidance.SignIn, 13, Ink, null, new Thickness(0, 6, 0, 0)));
             Children.Add(Button(LocalFormText.Google, () => RequestAsync("google"), Look.Primary));
             Children.Add(Button(LocalFormText.Apple, () => RequestAsync("apple"), Look.Primary));
         }
@@ -125,6 +126,8 @@ public sealed class AccountCard : StackPanel
         block.Children.Add(Text(LocalFormText.Lead, 13, Muted));
         var code = new QrView(qr, 220) { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 6) }; Avalonia.Automation.AutomationProperties.SetName(code, LocalFormText.QrLabel);
         block.Children.Add(code);
+        // 1.49 (11.12): the library's own sentence, word for word, directly under the QR on every client.
+        var guidance = Text(AccountGuidance.Qr, 14, Ink); guidance.TextAlignment = TextAlignment.Center; block.Children.Add(guidance);
         var waiting = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 4, 0, 0) };
         waiting.Children.Add(Glyph(SettingsIcons.Waiting, 16, Muted)); var wt = Text(LocalFormText.WaitingUntil(expiry), 13, Muted); wt.VerticalAlignment = VerticalAlignment.Center; waiting.Children.Add(wt);
         block.Children.Add(waiting);
