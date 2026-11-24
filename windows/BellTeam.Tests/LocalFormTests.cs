@@ -13,7 +13,7 @@ public sealed class LocalFormTests
     {
         Assert.Equal(("BellTeamの購読", "購読はまだありません。", "購読しているスマホで確認する", "QRを出す（Google）", "QRを出す（Apple）", "確認用のQRコード", "やめる", "購読を確認しました。"),
             (LocalFormText.CardTitle, LocalFormText.StatusUnpaid, LocalFormText.Title, LocalFormText.Google, LocalFormText.Apple, LocalFormText.QrLabel, LocalFormText.Cancel, LocalFormText.PaidOk));
-        Assert.Equal("この端末にQRを出し、購読しているスマホのBellTeamで読み取ります。2台は同じWi-Fiにつないでください。", LocalFormText.Lead);
+        Assert.Equal("この端末にQRを出します。2台は同じWi-Fiにつないでください。", LocalFormText.Lead);
         Assert.Equal("購読の期間が終わっています。新しいQRを出してください。", LocalFormText.PeriodEnded);
         Assert.Equal("購読中です。", LocalFormText.Status(null));
         var end = new DateTimeOffset(2026, 12, 23, 12, 0, 0, TimeSpan.Zero);
