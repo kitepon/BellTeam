@@ -424,20 +424,24 @@ export class HarnessAccounts {
     this.syncReread()
   }
 
-  // Only while some reset is unknown: re-read usage every 10 minutes.
+  // Re-read usage while a slot is limited, including when capacity returns before the announced reset.
   syncReread() {
-    const unknown = this.state.limits.some(entry => !entry.resetAt) || this.state.signedOut.length > 0
-    if (!unknown && this.reread) { this.timers.clear(this.reread); this.reread = null }
-    if (unknown && !this.reread) this.reread = this.timers.set(() => { this.reread = null; void this.rereadUnknown().then(() => this.refreshSignedOut({ probe: true })).finally(() => this.syncReread()) }, REREAD_MS)
+    const needsReread = this.state.limits.length > 0 || this.state.signedOut.length > 0
+    if (!needsReread && this.reread) { this.timers.clear(this.reread); this.reread = null }
+    if (needsReread && !this.reread) this.reread = this.timers.set(() => { this.reread = null; void this.rereadLimits().then(() => this.refreshSignedOut({ probe: true })).finally(() => this.syncReread()) }, REREAD_MS)
   }
 
-  async rereadUnknown() {
-    for (const entry of this.state.limits.filter(value => !value.resetAt)) {
+  async rereadLimits() {
+    for (const entry of this.state.limits) {
       const rows = await this.readUsage(this.root(entry.harness, entry.slot)).catch(() => null)
-      const row = rows?.find(value => value.scope === entry.scope)
-      if (!row) continue
-      if (row.percent < 100) await this.clear(entry).catch(() => {})
-      else if (row.resetsAt && this.trusted(row.resetsAt)) {
+      const matching = rows?.filter(value => value.scope === entry.scope)
+      if (!matching?.length) continue
+      if (matching.every(row => row.percent < 100)) {
+        await this.clear(entry).catch(() => {})
+        continue
+      }
+      const row = matching.find(value => value.percent >= 100)
+      if (!entry.resetAt && row?.resetsAt && this.trusted(row.resetsAt)) {
         const next = { ...entry, resetAt: row.resetsAt, resetSource: 'usage' }, same = value => this.key(value) === this.key(entry) && value.since === entry.since
         await this.update(state => state.limits.some(same) ? { ...state, limits: state.limits.map(value => same(value) ? next : value) } : state)
           .then(() => this.arm(next), () => {})
