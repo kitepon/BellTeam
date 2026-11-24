@@ -6,7 +6,7 @@ Scope of this page: the card (how BellTeam files, reads and closes it through th
 
 ## Connection (corrected 2026-11-24: the first version said "daemon route only")
 
-The body's `createApprovalDecisions` (`src/lattice-approval.mjs`), built once more for this purpose in `application-services.mjs`: scope `{terminalId: 'seat-approval', purpose: 'approval-box.connector'}`, code `SEAT_APPROVAL_DECISIONS`, secret `{botId: 'bot-09e6225c', toolId: 'seat-approval-approval-box'}` (Kiro files the request_secret card, as for running exclusions). The function chooses the path itself: the connector **token path** (`/connector/v1`) while the hosted daemon is not paired, the daemon once it is.
+The body's `createApprovalDecisions` (`src/lattice-approval.mjs`), built once more for this purpose in `application-services.mjs`: scope `{terminalId: 'seat-approvals', purpose: 'approval-box.connector'}`, code `SEAT_APPROVAL_DECISIONS`, secret `{botId: 'bot-09e6225c', toolId: 'seat-approvals-approval-box'}` (Kiro files the request_secret card, as for running exclusions). The function chooses the path itself: the connector **token path** (`/connector/v1`) while the hosted daemon is not paired, the daemon once it is.
 
 Why not the daemon now: the hosted daemon cannot pair while PC_OFFER is off (Nayuta: `serverOffersPeerChannel` false makes it throw `server_flag_off`; `POST /decisions` on it answers 503 `not_paired` and files nothing), and even a paired daemon keeps a decision only on peer-channel devices, never in `/v1`. The Owner's phone and BellTeam's 決裁箱 read `/v1` today, so only the token path reaches him. Production daemon state (Molly, 2026-11-24): never paired, no credentials ever written; a body swap does not unpair it (`/srv/bellteam/state` is a persisted volume).
 
