@@ -16,6 +16,8 @@ public static class LocalForm
 public static class LocalFormIds
 {
     public const string AppleBundleId = "dev.kitepon.bellbot", ProductId = "dev.kitepon.bellbot.monthly", PlayPackage = "dev.kitepon.bellbot";
+    // Apple's web sign-in of a device that is not Apple's (library contract 1.46): BellTeam's Services ID and the library's return page registered on it (Tronie/Mint 2026-11-24).
+    public const string AppleServicesId = "dev.kitepon.bellbot.signin", AppleReturnUrl = "https://login-billing.kitepon.dev/apple-return";
     // Every Google client id of BellTeam (Web, iOS, Android, Desktop): the audiences a phone's token may carry.
     public static readonly string[] GoogleClientIds = new[] { "ld7o5f8j3smgqu2h1va43lt4au031s3i", "rmloup01smiuuv79m0tga49vtpobnsn4", "4ks1an9gat7npa9fdkok70kadrsp80rt", "7qi9ui73upodrlerlotlftk3vk82hprp", "be6dklphci1vbljimpg3ljpr5nc19cvv", "ktbg3e8931u0jv94c2fhccrig8ppau78", "lofu7qohq45fhbfup8k3ottlgat415pk" }
         .Select(id => "316260984663-" + id + ".apps.googleusercontent.com").ToArray();

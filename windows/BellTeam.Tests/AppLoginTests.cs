@@ -98,9 +98,9 @@ public sealed class AppLoginTests
     private static Kitepon.LoginBilling.Desktop.DesktopLocal Local() => new(LocalFormConfig.Build(), new Kitepon.LoginBilling.Desktop.MemoryPassStore());
 
     // Mint 2026-11-23: makeRequest("google") signs in by itself (it opens Google's page, then listens). Rapi's table: the card offers 「QRを出す（Apple）」 and 「QRを出す（Google）」 and nothing opens before one is pressed.
-    // Apple (contract 1.36 s10): no Apple sign-in on this PC, so no browser at all; the iPhone's reply carries its own Apple identity token.
+    // Contract 1.46: Apple and Google both sign in on this PC in the browser first, then the QR. Nothing opens before a button is pressed.
     [Fact]
-    public void TheFirstRunOffersBothQrButtonsGoogleOpensTheBrowserAppleNeverDoesAndNothingOffersTheNextStepBeforeAPhoneAnswered() => RunSta(() =>
+    public void TheFirstRunOffersBothQrButtonsBothOpenTheBrowserAndNothingOffersTheNextStepBeforeAPhoneAnswered() => RunSta(() =>
     {
         var opened = new List<Uri>(); var before = AccountStore.OpenBrowser; AccountStore.OpenBrowser = uri => { opened.Add(uri); return Task.CompletedTask; };
         try
@@ -109,12 +109,13 @@ public sealed class AppLoginTests
             Until(() => Texts(gate).Contains(LocalFormText.StatusUnpaid)); Assert.Empty(opened);   // nothing opens before the person presses a button
             Assert.Contains(LocalFormText.CardTitle, Texts(gate)); Assert.Contains(LocalFormText.Title, Texts(gate)); Assert.Contains(LocalFormText.Lead, Texts(gate));
             Assert.Equal([LocalFormText.Apple, LocalFormText.Google], Descendants<Button>(gate).Select(b => System.Windows.Automation.AutomationProperties.GetName(b)).Where(name => name.StartsWith("QRを出す", StringComparison.Ordinal)));
-            Click(gate, LocalFormText.Apple);
-            Until(() => Descendants<QrView>(gate).Any() || Texts(gate).Contains(LocalFormText.Of(LocalFormOutcome.PrivateNetwork)));   // the QR at once (or, on a PC with no private address, the contract's sentence)
-            Assert.Empty(opened); Assert.DoesNotContain(SignInText.Waiting, Texts(gate));
-            if (Descendants<QrView>(gate).Any()) Click(gate, LocalFormText.Cancel);
-            Until(() => Descendants<Button>(gate).Any(b => System.Windows.Automation.AutomationProperties.GetName(b) == LocalFormText.Google));
-            Click(gate, LocalFormText.Google); Until(() => opened.Count == 1);
+            Click(gate, LocalFormText.Apple); Until(() => opened.Count == 1);
+            var query = System.Web.HttpUtility.ParseQueryString(opened[0].Query);   // Apple's own page, BellTeam's Services ID, the library's return page, the fragment way
+            Assert.Equal(("appleid.apple.com", "dev.kitepon.bellbot.signin", "https://login-billing.kitepon.dev/apple-return", "code id_token", "fragment"), (opened[0].Host, query["client_id"], query["redirect_uri"], query["response_type"], query["response_mode"]));
+            Assert.Matches(@"^[A-Za-z0-9_-]+\.\d+$", query["state"]!); Assert.False(string.IsNullOrEmpty(query["nonce"]));   // state = the loopback's path token and its port
+            Assert.Contains(SignInText.Waiting, Texts(gate)); Assert.DoesNotContain(Descendants<QrView>(gate), _ => true);
+            Click(gate, SignInText.Cancel); Until(() => Descendants<Button>(gate).Any(b => System.Windows.Automation.AutomationProperties.GetName(b) == LocalFormText.Google));
+            Click(gate, LocalFormText.Google); Until(() => opened.Count == 2);
             Assert.Contains(SignInText.Waiting, Texts(gate)); Assert.False(gate.Account.Entitled);
             Assert.DoesNotContain(Descendants<Button>(gate), b => b.Visibility == Visibility.Visible && System.Windows.Automation.AutomationProperties.GetName(b) == StoreAccountText.GateNext);
             Click(gate, SignInText.Cancel); Until(() => Descendants<Button>(gate).Any(b => System.Windows.Automation.AutomationProperties.GetName(b) == LocalFormText.Apple));
@@ -122,6 +123,36 @@ public sealed class AppLoginTests
         }
         finally { AccountStore.OpenBrowser = before; }
     });
+
+    // Contract 1.46: Apple's page returns to the library's page, which posts to this PC's loopback with the state; Apple's own error code is shown at that moment only, and the person's own cancel says nothing.
+    [Theory]
+    [InlineData("access_denied", true)]
+    [InlineData("user_cancelled_authorize", false)]
+    public void AnAppleErrorReturnedToTheLoopbackShowsItsCodeAndACancelShowsNothing(string error, bool shown) => RunSta(() =>
+    {
+        var opened = new List<Uri>(); var before = AccountStore.OpenBrowser; AccountStore.OpenBrowser = uri => { opened.Add(uri); return Task.CompletedTask; };
+        try
+        {
+            var gate = new AccountGateView(Local(), () => { });
+            Until(() => Texts(gate).Contains(LocalFormText.StatusUnpaid)); Click(gate, LocalFormText.Apple); Until(() => opened.Count == 1);
+            var state = System.Web.HttpUtility.ParseQueryString(opened[0].Query)["state"]!; var (path, port) = (state[..state.LastIndexOf('.')], state[(state.LastIndexOf('.') + 1)..]);
+            using var http = new HttpClient();
+            var reply = http.PostAsync($"http://127.0.0.1:{port}/{path}", new FormUrlEncodedContent(new Dictionary<string, string> { ["state"] = state, ["error"] = error })).GetAwaiter().GetResult();
+            Until(() => Descendants<Button>(gate).Any(b => System.Windows.Automation.AutomationProperties.GetName(b) == LocalFormText.Apple) && !Texts(gate).Contains(SignInText.Waiting));
+            Assert.Equal(shown, Texts(gate).Contains(LocalFormText.Failure("signin_failed " + error)));   // 「処理できませんでした（signin_failed access_denied）」: Apple's code, never a token
+            gate.Dispose();
+        }
+        finally { AccountStore.OpenBrowser = before; }
+    });
+
+    // Contract 1.46 (Tronie 2026-11-24): the library's Apple-return line goes to the app's own trace on this device, nowhere else.
+    [Fact]
+    public void TheAppleReturnLineGoesToTheAppsTraceOnly()
+    {
+        var written = new StringWriter(); var listener = new System.Diagnostics.TextWriterTraceListener(written); System.Diagnostics.Trace.Listeners.Add(listener);
+        try { AccountStore.WriteAppleReturnLine("2026-11-24T10:00:00Z apple return fields=state,error error=access_denied"); listener.Flush(); Assert.Contains("apple return fields=state,error error=access_denied", written.ToString()); }
+        finally { System.Diagnostics.Trace.Listeners.Remove(listener); }
+    }
 
     // Owner ruling 2026-11-24: a different login is a different person with its own contract; no purchase is ever linked across accounts, so no line says one exists under another account.
     [Fact]
