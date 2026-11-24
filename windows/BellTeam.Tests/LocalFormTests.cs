@@ -13,7 +13,7 @@ public sealed class LocalFormTests
     {
         Assert.Equal(("BellTeamの購読", "購読はまだありません。", "購読しているスマホで確認する", "QRを出す（Google）", "QRを出す（Apple）", "確認用のQRコード", "やめる", "購読を確認しました。"),
             (LocalFormText.CardTitle, LocalFormText.StatusUnpaid, LocalFormText.Title, LocalFormText.Google, LocalFormText.Apple, LocalFormText.QrLabel, LocalFormText.Cancel, LocalFormText.PaidOk));
-        Assert.Equal("この端末にQRを出します。2台は同じWi-Fiにつないでください。", LocalFormText.Lead);
+        Assert.Equal("この端末にQRを出します。2台は同じネットワーク（同じLAN）につないでください。", LocalFormText.Lead);
         Assert.Equal("購読の期間が終わっています。新しいQRを出してください。", LocalFormText.PeriodEnded);
         Assert.Equal("購読中です。", LocalFormText.Status(null));
         var end = new DateTimeOffset(2026, 12, 23, 12, 0, 0, TimeSpan.Zero);
@@ -24,7 +24,7 @@ public sealed class LocalFormTests
     [Fact]
     public void EveryFailureLineIsTheTablesByLibraryCodeAndAnUnknownCodeSaysItself()
     {
-        Assert.Equal("スマホとこの端末を、同じWi-Fiにつないでください。", LocalFormText.Failure("unreachable_same_wifi"));
+        Assert.Equal("スマホからこの端末に届きませんでした。2台を同じネットワーク（同じLAN）につないでから、もう一度お試しください。", LocalFormText.Failure("unreachable_same_wifi"));
         Assert.Equal("設定でこのアプリのローカルネットワークを許可してから、新しいQRでお試しください。", LocalFormText.Failure("local_network_denied"));
         Assert.Equal("QRが正しくありません。相手の画面で新しいQRを出してください。", LocalFormText.Failure("qr_invalid"));
         Assert.All(new[] { "request_invalid", "other_request" }, code => Assert.Equal(LocalFormText.OutdatedPeer, LocalFormText.Failure(code)));
@@ -48,7 +48,7 @@ public sealed class LocalFormTests
     {
         Assert.Equal(("別の端末を承認する", "QRを読み取る", "QRを読み取る", "閉じる", "別の端末を承認しますか", "承認", "やめる", "確認の返事を送りました。", "この端末には購読がありません。先に購読してください。"),
             (StoreAccountText.ApproveTitle, StoreAccountText.ApproveScan, StoreAccountText.ApproveScannerTitle, StoreAccountText.ApproveClose, StoreAccountText.ApproveConfirmAsk, StoreAccountText.ApproveYes, StoreAccountText.ApproveNo, StoreAccountText.ApprovedLine, StoreAccountText.ApproveNoPurchase));
-        Assert.Equal("承認したい端末に出ているQRを読み取ります。自分で始めたものだけ承認してください。2台は同じWi-Fiにつないでください。", LocalFormText.ApproveLead);
+        Assert.Equal("承認したい端末に出ているQRを読み取ります。自分で始めたものだけ承認してください。2台は同じネットワーク（同じLAN）につないでください。", LocalFormText.ApproveLead);
         Assert.Equal("この端末の購読の証明を、読み取ったQRの端末へ送ります。その端末が目の前にあり、自分で始めたものだけ承認してください。", StoreAccountText.ApproveOwnLine);
     }
 
