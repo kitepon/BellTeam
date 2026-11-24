@@ -21,7 +21,19 @@ internal interface IApprovalSource
     /// <summary>「今すぐ試す」 / 「確かめ直す」: runs the waiting attempt now (never a second copy of it).</summary>
     void Refresh();
     Task<byte[]?> AttachmentAsync(string decisionId, string attachmentId);
+
+    // The child join (child-join.md, "The port"): requestJoin / cancelJoin / leave of the Approval Box client component. null = this adapter has no child join (the window keeps its sign-in note); the screen is drawn only when it is set.
+    ChildJoinState? Join => null;
+    /// <summary>provider "apple" | "google" = the button the person pressed; null = again, with the library's kept sign-in.</summary>
+    void RequestJoin(string? provider) { }
+    void CancelJoin() { }
+    Task LeaveAsync() => Task.CompletedTask;
 }
+
+/// <summary>The component's joinState (child-join.md): NotJoined, SigningIn (notJoined while the browser sign-in of requestJoin runs), Waiting (waitingForParent: the library's join link and its expiry), Failed (a refusal or library failure; the library's code picks the sentence, only other_account has its own, and is never shown), Joined.
+/// Removed: the parent took this device off (a /v1 401 on a joined child), shown once above the not-joined screen.</summary>
+internal enum JoinPhase { NotJoined, SigningIn, Waiting, Failed, Joined }
+internal sealed record ChildJoinState(JoinPhase Phase, string? QrLink = null, DateTimeOffset? ExpiresAt = null, bool Removed = false, string? Code = null);
 
 /// <summary>The peer adapter: this device's /pc/v1 session (<see cref="IDeviceDecisions"/>) behind the port.</summary>
 internal sealed class PeerSource(IDeviceDecisions device) : IApprovalSource
