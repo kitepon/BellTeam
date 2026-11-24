@@ -14,7 +14,7 @@ public static class AccountStore
     private static LbLocalForm? local;
     internal static string? Product(string key) { using var product = JsonDocument.Parse(EmbeddedAsset.Text("product.json")); return product.RootElement.TryGetProperty(key, out var value) ? value.GetString() : null; }
     public static LbLocalForm? Local => local ??= !LocalFormIds.AndroidReady ? null : new LbLocalForm(MainActivity.Current, ServerClientId,
-        new LocalConfig([.. LocalFormIds.GoogleClientIds, LocalFormIds.AppleBundleId, LocalFormIds.AppleServicesId], Apple: new LocalAppleRules([LocalFormIds.AppleBundleId], [LocalFormIds.ProductId]),
+        new LocalConfig([.. LocalFormIds.GoogleClientIds, LocalFormIds.AppleBundleId, LocalFormIds.AppleServicesId], Apple: new LocalAppleRules([LocalFormIds.AppleBundleId], [LocalFormIds.ProductId], LocalFormIds.AppleAcceptsSandbox),
             Play: new LocalPlayRules(LocalFormIds.PlayPackage, [LocalFormIds.ProductId], LocalFormIds.PlayPublicKey), AppleWeb: new LocalAppleWeb(LocalFormIds.AppleServicesId, LocalFormIds.AppleReturnUrl), AppId: LocalFormIds.AppleBundleId),
         log: AppleReturnLine);
     // One line per Apple return (the library builds it: time, fields, Apple's error code; never a token, code or subject) goes to the app's own log file in its private files folder, and nowhere else.
