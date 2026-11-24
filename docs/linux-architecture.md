@@ -26,6 +26,9 @@ flowchart LR
   lib -->|Appleの戻り1行（時刻・届いた項目・Appleのエラーコード。トークン・code・subjectは入れない）| devlog[このアプリ自身のログファイル ~/.local/share/BellTeam/apple-return.log（0600）。どこへも送らない]
   lib <-->|同じWi-Fi・直接・暗号化| phone[購読しているスマホ<br/>QRを読み、返事を直接送る]
   ui --> notify[freedesktop通知<br/>org.freedesktop.Notifications]
+  ui --> seat[座席の許可待ちの入口（seat-approval-clients。契約 execution/seat-approvals.md）<br/>SeatApprovalCard：会話の列の入力欄の上と、一覧の行の「承認待ち」<br/>linux/BellTeam.Linux、Androidへ共通リンク]
+  seat --> ws
+  ws -->|"GET /api/seat-approvals・POST …/:id/answer・SSE seat_approvals（アニスのCore SeatApprovals）"| integration
   ui --> single[1利用者1窓<br/>$XDG_RUNTIME_DIR のUnixソケット]
   release[公開版 linux-app<br/>GitHub Releases・publish-linux-app.yml] -->|tar.gz・SHA256SUMS| install[install-linux.sh]
   install --> files[~/.local/lib/BellTeam・~/.local/bin/bellteam<br/>.desktop・アイコン]
@@ -67,6 +70,11 @@ flowchart TD
   ws -->|"reply_to・reply_quote（送信本文。契約 conversation reply.md）"| api
   server -->|"履歴の reply_to（引用の元）"| ws
   server -->|"履歴の machine_event（機械席の質問・承認・畳む行。契約 conversation machine-stream.md）"| ws
+  server -->|"GET /api/seat-approvals（開いている求め。古い順。tool・command・reasonとchoices。card none/filed）"| ws
+  server -->|"SSE seat_approvals（botIds）。再取得の合図だけ。push owner_question は押すとそのBotを開く"| ws
+  ws -->|"一覧の行の「承認待ち」・会話の列のSeatApprovalCard（見出し「承認を待っています」・tool・コマンドの原文・理由・サーバーの2つのlabel）"| view
+  view -->|"1回だけ許可する／許可しない（approve_once・deny）"| ws
+  ws -->|"POST /api/seat-approvals/:id/answer {decision}。200で閉じる・409 SEAT_APPROVAL_CLOSED=別の場所で答えられた→読み直し・400/404/502は平易な文。自動再送はしない"| api
   view -->|"カードで選ぶ・許可／拒否"| ws
   ws -->|"POST /api/seat-requests/:id/answer（answers{indexes,other} または decision）"| api
   api -->|"/api/approvals/by-decision・connection・connect（工程との結びつきと工程表との連携だけ。一覧・答え・保留・添付・events・summaryは新しい版は呼ばない。本体が消すのはa490h2）"| server
