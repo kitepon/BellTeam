@@ -28,12 +28,15 @@ struct PeerDecisionRecord: Codable, Identifiable, Equatable {
     /// The filing AI's own name and, from newer connectors, its BellTeam bot id (Approval Box `source`); the origin rule reads them (approvals-contract.md).
     var requester: String? = nil
     var requesterBotId: String? = nil
+    /// The server's `delivery` of an answered decision (waiting | delivered | unknown | fetched) and its `resume_phrase`; the device path has neither (its answer is acked by the connector).
+    var delivery: String? = nil
+    var resumePhrase: String? = nil
 
     var canAnswer: Bool { status == "pending" || status == "held" }
 
     func with(status: String, answer: Answer? = nil, cancelReason: String? = nil, now: Date = Date()) -> PeerDecisionRecord {
         PeerDecisionRecord(id: id, title: title, context: context, options: options, recommendation: recommendation, urgency: urgency, deadline: deadline, client: client,
-                           sessionLabel: sessionLabel, via: via, status: status, answer: answer, cancelReason: cancelReason, createdAt: createdAt, updatedAt: now, version: version, attachments: attachments, requester: requester, requesterBotId: requesterBotId)
+                           sessionLabel: sessionLabel, via: via, status: status, answer: answer, cancelReason: cancelReason, createdAt: createdAt, updatedAt: now, version: version, attachments: attachments, requester: requester, requesterBotId: requesterBotId, delivery: delivery, resumePhrase: resumePhrase)
     }
 
     static let schema = "approval-box/decision@1", answerSchema = "approval-box/answer@1"
@@ -80,7 +83,9 @@ struct PeerDecisionRecord: Codable, Identifiable, Equatable {
         guard let deciderId = Codec.fromBase64url(r.decided_by), let decider = registry.active[deciderId], Answering.verifyDecision(r, deciderSigningPoint: decider.signingPoint),
               let frame = try? r.answer_frame.frame(), let a = try? frame.decodeBody(AnswerBody.self), a.schema == Self.answerSchema,
               let data = try? JSONEncoder().encode(a.content), let c = try? JSONDecoder().decode(AnswerContent.self, from: data) else { return nil }
-        return with(status: "answered", answer: Answer(optionId: c.option_id, text: c.text, answeredAt: Date(timeIntervalSince1970: Double(r.at) / 1000)), now: now)
+        var decided = with(status: "answered", answer: Answer(optionId: c.option_id, text: c.text, answeredAt: Date(timeIntervalSince1970: Double(r.at) / 1000)), now: now)
+        decided.delivery = "delivered" // the device path's answer is the connector's acked one
+        return decided
     }
 }
 
