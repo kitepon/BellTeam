@@ -1,9 +1,9 @@
 #!/bin/sh
-# Puts Kitepon.LoginBilling.Desktop 0.22.1 (contract 1.50, the local form with Apple's web sign-in) in linux/packages-local, checked against the sha256 the release notes publish. A mismatch removes the file and fails.
+# Puts Kitepon.LoginBilling.Desktop 0.22.2 (contract 1.50, the local form with Apple's web sign-in) in linux/packages-local, checked against the sha256 the release notes publish. A mismatch removes the file and fails.
 set -eu
 cd "$(dirname "$0")"
-VERSION=0.22.1
-SHA256=edbb0aace062104165a6f5837a6a4ca4ba216ca44ff6e111a578278f93178e87
+VERSION=0.22.2
+SHA256=92d8e9bd1211ef8d1aecaae66aca803906388f6ed70343987ed420ae12fae55a
 FILE=Kitepon.LoginBilling.Desktop.$VERSION.nupkg
 mkdir -p packages-local
 gh release download "v$VERSION" -R kitepon/login-billing -p "$FILE" -D packages-local --clobber
