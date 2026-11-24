@@ -140,7 +140,7 @@ public sealed class AppLoginTests
             using var http = new HttpClient();
             var reply = http.PostAsync($"http://127.0.0.1:{port}/{path}", new FormUrlEncodedContent(new Dictionary<string, string> { ["state"] = state, ["error"] = error })).GetAwaiter().GetResult();
             Until(() => Descendants<Button>(gate).Any(b => System.Windows.Automation.AutomationProperties.GetName(b) == LocalFormText.Apple) && !Texts(gate).Contains(SignInText.Waiting));
-            Assert.Equal(shown, Texts(gate).Contains(LocalFormText.Failure("signin_failed " + error)));   // 「処理できませんでした（signin_failed access_denied）」: Apple's code, never a token
+            Assert.Equal(shown, Texts(gate).Contains("サインインできませんでした（" + error + "）。"));   // Apple's code, never a token
             // the library's one line per Apple return is on this device in the app's data folder: the fields that came back and Apple's code, never the state or a token
             var line = Assert.Single(File.ReadAllLines(logFile)); Assert.Contains("state", line); Assert.Contains("error", line); Assert.DoesNotContain(path, line);
             if (shown) Assert.Contains(error, line);
@@ -148,6 +148,18 @@ public sealed class AppLoginTests
         }
         finally { AccountStore.OpenBrowser = before; AccountStore.AppleReturnLogPath = logBefore; }
     });
+
+    // Same-spec items of the lb0211 builds (Tronie 2026-11-24): a version mismatch tells the person to update both devices; a cancel shows nothing; a phone not signed in has its own sentence.
+    [Fact]
+    public void TheSentencesOfAVersionMismatchACancelAndASignInThatIsRequired()
+    {
+        static string? Sentence(string code, string? detail = null) => AccountView.SentenceOf(new Kitepon.LoginBilling.Desktop.LoginBillingException(code, 0, detail));
+        Assert.All(new[] { "request_invalid", "other_request" }, code => Assert.Equal(LocalFormText.OutdatedPeer, Sentence(code)));
+        Assert.Contains("2台とも最新版に更新", LocalFormText.OutdatedPeer);
+        Assert.Null(Sentence("signin_cancelled"));
+        Assert.Equal("サインインしてから、もう一度お試しください。", Sentence("signin_required"));
+        Assert.Equal("サインインできませんでした（access_denied）。", Sentence("signin_failed", "access_denied"));
+    }
 
     // Contract 1.46 (Mint, Tronie 2026-11-24): a line a return is appended to the app's log file on this device; a write that fails never throws into the sign-in.
     [Fact]
