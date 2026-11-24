@@ -4,6 +4,7 @@ import SwiftUI
 /// 利用と課金の「BellTeamの購読」カード（a540、契約1.36 10章）: この端末のStoreで購読を確かめる、QRで別の端末の確認を受ける、QRを読んで別の端末を承認する。
 /// 「アカウントを削除」はこのカードの最後に置く（App Reviewの要件。ほかのOSもこの置き場と文を写す）。
 enum AccountDeletionWords {
+    static let signOut = "サインアウト"
     static let button = "アカウントを削除"
     static let title = "アカウントを削除しますか？"
     static let confirm = "削除する"
@@ -60,6 +61,9 @@ struct StoreAccountCard: View {
                 if let message = account.message { Text(message).font(BellTheme.secondaryFont) }
                 if let error = account.errorText { Text(error).font(BellTheme.secondaryFont).foregroundStyle(.red) }
                 Divider()
+                Button(AccountDeletionWords.signOut) { Task { await account.signOut() } }
+                    .buttonStyle(.bordered).disabled(account.busy)
+                    .accessibilityIdentifier("store-sign-out")
                 Button(AccountDeletionWords.button, role: .destructive) { deleting = true }
                     .buttonStyle(.bordered).disabled(account.busy)
                     .accessibilityIdentifier("store-delete-account")
