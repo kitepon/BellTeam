@@ -44,7 +44,7 @@ Approval Box is a system of its own: the Owner's list also holds decisions from 
 | Part | Decision |
 | --- | --- |
 | Origin on every card | **BellTeam member**: face + name (as before). **Anyone else**: a rounded-square tool tile (terminal glyph for Claude Code / Codex / Cursor, chat glyph for Claude.ai / ChatGPT, globe for other or unknown, grey, not a member colour so it can never be mistaken for a roster face) + 「<tool> · <session name>」, and a grey badge **外部から** beside the state badge. Unknown origin: globe tile + 「出どころ不明」, still shown |
-| Link line | BellTeam decision: 「工程表「…」が、この回答を待っています」. External: 「工程表とはつながっていません」 in muted grey with a muted link glyph. Neutral, never red or amber: it is not a fault |
+| Link line | BellTeam decision: 「工程表「…」が、この回答を待っています」. External: 「工程表とはつながっていません」 in muted grey with a muted link glyph. BellTeam decision the engine has not been asked about yet: 「工程表につなげています」; once the engine has answered 404 for it (retried every 30 s): 「この決裁に合う工程は、工程表に見つかっていません」 (muted, with the same link glyph). The first reads as pending only until the first answer of the engine; it never stays for a 404. Neutral, never red or amber: it is not a fault |
 | Filter 出どころ | One row under the list heading: **すべて N / BellTeam N / 外部 N**, default **すべて**. It never hides by default. While a narrower one is chosen, a persistent amber line always says 「外部の決裁 N件を隠しています。」 with すべてを見る; the choice is kept only while the app is open. Counts in the chips are always the full counts for the current tab |
 | Counting | The menu badge, the summary pending count, the toolbar counters and the ring count **all** decisions, whatever the filter or origin |
 | Order | Unchanged: 急ぎ, nearer 期限, older first. Origin never changes the order |
@@ -167,6 +167,7 @@ stateDiagram-v2
 
 | Result from Approval Box | Shown (Japanese, plain) | What happens next | Action |
 | --- | --- | --- | --- |
+| 200, delivery not reported yet (no value, or still `pending`; Approval Box sets `delivered` about 1.5 s later) | 答えました。◯◯への届きを確かめています。 (grey, never amber) | the line is not fixed at send time: it is drawn from the decision's current delivery and changes to one of the rows above and below as the value arrives (the stream or the next read); it never asks for the resume text | none |
 | 200, delivery `delivered`/`fetched` | 答えました。◯◯に届きました。 (green) | chart task becomes 済み; next task 着手可 | none |
 | 200, delivery `waiting` (a remote-MCP AI collects it when its chat resumes; not a fault) | 答えました。◯◯が会話に戻ると受け取ります。 (violet) | task 済み; the badge follows the delivery event | none |
 | 200, delivery `unknown` | 答えは保存しました。ただ、◯◯に届いたかを確かめられませんでした。工程は済みになったので、次の担当にはこちらから知らせます。念のため、再開の文を◯◯の会話に貼ってください。 (amber) | task 済み (the Lattice module's startable notice reaches the next lane); no automatic resend | 再開の文をコピー |
@@ -174,6 +175,8 @@ stateDiagram-v2
 | 402 | 決裁箱の契約が切れています。 | answers and chart updates stop until renewed | 決裁箱の契約へ |
 | 503 / network on 答える | いまは送れませんでした。答えは残っています。少し待って、もう一度押してください。 | nothing changed; same Idempotency-Key | 答える |
 | Lattice unreachable after a 200 | **Not shown** (Apple review a182, 2026-11-16: the contract has no field and the apps cannot know; no one would use it). The answer is saved; the link engine retries on its next tick and the task becomes 済み by itself | the link engine retries on its next tick | none |
+
+The delivery on screen is always the one the server (or, on a peer, the connector's ack) reports for that decision, read after the answer, never the value the card had before it and never a default: a record is not `delivered` because its status is `answered`. 再開の文をコピー and the amber line appear only for a reported `unknown`, and a later `delivered` replaces them.
 
 ## Failure views
 
