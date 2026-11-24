@@ -175,7 +175,7 @@ public sealed class GoalEditorModel(GoalSnapshot selection, string action, strin
 public static class GoalEvents
 {
     private static readonly HashSet<string> Quiet = ["updates", "settings", "setup", "ai-control", "bots"];
-    private static readonly HashSet<string> Topics = ["timeline", "queue", "bots", "rooms", "owner", "settings", "requests", "questions", "ai-control", "setup", "schedules", "updates"];
+    private static readonly HashSet<string> Topics = ["timeline", "queue", "bots", "rooms", "owner", "settings", "requests", "questions", "ai-control", "setup", "schedules", "updates", "seat_approvals"];
     private static readonly HashSet<string> Scoped = ["timeline", "queue", "requests", "questions", "schedules"];
     public static bool ShouldReload(JsonElement item, bool refreshFailing)
     {
