@@ -278,6 +278,12 @@ test('streamed snapshot versions match HTTP hashing without reading each member'
   const exact = (await f.request('profile.read', { botId: 'bot-a' })).bot
   assert.equal(exact.avatar, changes.avatar)
   assert.equal(Object.hasOwn(exact, 'avatarVersion'), false)
+  const summary = (await f.request('profile.read', { botId: 'bot-a', summary: true })).bot
+  assert.equal(summary.id, 'bot-a')
+  assert.deepEqual([summary.hasAvatar, summary.hasAvatarLarge], [true, true])
+  for (const field of Object.keys(changes)) assert.equal(Object.hasOwn(summary, field), false)
+  validateMembersResult('profile.read', { bot: summary })
+  assert.throws(() => validateMembersRequest('profile.read', { botId: 'bot-a', summary: false }, context))
 })
 
 test('avatar versions are projection-only closed metadata with exact digest format', () => {
