@@ -56,7 +56,7 @@ public sealed class LatticeWindow : Window
         PreviewKeyDown += (_, e) =>
         {
             if (Stops is { } stops && e.Key is Key.Escape or Key.F5) { if (e.Key == Key.F5) stops.Read(); else stops.Escape(); e.Handled = true; }
-            else if (e.Key == Key.Escape && (Chart?.CloseDetail() == true || (Chart is null && ReturnToChart()))) e.Handled = true;
+            else if (e.Key == Key.Escape && (Chart?.CloseReminders() == true || Chart?.CloseDetail() == true || (Chart is null && ReturnToChart()))) e.Handled = true;
         };
         Activated += (_, _) => Stops?.Foreground();
         Closed += (_, _) => { workspace.PropertyChanged -= WorkspaceChanged; StopAll(); if (ReferenceEquals(Current, this)) Current = null; };
@@ -371,7 +371,7 @@ internal sealed class LatticeChartPage : Grid
 
     public void Run(BellApi api, CancellationToken connection)
     {
-        Running = true; this.api = api; run = CancellationTokenSource.CreateLinkedTokenSource(connection);
+        Running = true; this.api = api; this.connection = connection; run = CancellationTokenSource.CreateLinkedTokenSource(connection);
         _ = FollowAsync(api, run);
     }
     // A feed that ended on its own (not found, sign-in) stays "running" until Stop, as before; only its token source is released.
@@ -380,7 +380,26 @@ internal sealed class LatticeChartPage : Grid
         try { await Feed.RunAsync((onActivity, cancel) => WithOwner(api.LatticeEventsAsync(projectId, onActivity, cancel)), source.Token); }
         finally { if (ReferenceEquals(run, source)) run = null; source.Dispose(); }
     }
-    public void Stop() { Running = false; run?.Cancel(); run = null; }
+    public void Stop() { Running = false; run?.Cancel(); run = null; CloseReminders(false); }
+
+    // 工程表の設定: one sheet over the chart page; it reads the saved switch when it opens and on reconnect, and goes with the chart (Stop).
+    private CancellationToken connection;
+    private LatticeReminderSheet? reminders;
+    private Button? gear;
+    internal LatticeReminderSheet? Reminders => reminders;
+    internal void OpenReminders()
+    {
+        if (reminders is not null || api is not { } source) return;
+        var sheet = reminders = new LatticeReminderSheet(source, projectId, ChartName, Feed, connection, () => CloseReminders(), () => window.ShowList());
+        SetRowSpan(sheet, 3); Children.Add(sheet);
+    }
+    internal bool CloseReminders(bool refocus = true)
+    {
+        if (reminders is not { } sheet) return false;
+        reminders = null; Children.Remove(sheet); sheet.Dispose();
+        if (refocus) gear?.Focus();
+        return true;
+    }
     // Each snapshot carries the app's Owner profile, like Web's `owner` on its snapshot, so the reserved owner value is drawn by name and face.
     private async IAsyncEnumerable<LatticeSnapshot> WithOwner(IAsyncEnumerable<LatticeSnapshot> snapshots)
     {
@@ -468,6 +487,11 @@ internal sealed class LatticeChartPage : Grid
         if (live && Motion) dot.BeginAnimation(OpacityProperty, new DoubleAnimation(1, .35, TimeSpan.FromSeconds(1.2)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever });
         var livePill = Pill(Row(dot, Spaced(Text(live ? "ライブ" : "再接続中", 12, live ? Color.FromRgb(0x1F, 0x86, 0x76) : Muted, FontWeights.SemiBold), 6)), live ? Color.FromRgb(0x2E, 0xB3, 0x9E) : Muted, 0x1F);
         livePill.Margin = new Thickness(14, 0, 0, 0); toolbar.Children.Add(livePill);
+        // 工程表の設定 (screen-spec): in every view, and while the chart cannot be drawn, so a missing chart can say so.
+        gear = Plain(Glass(new Border { Child = Icon("\uE713", 15, Ink), Width = 22, Height = 24 }, 14, new Thickness(9, 8, 9, 8), 0xB3), LatticeReminderSheet.Heading);
+        gear.ToolTip = LatticeReminderSheet.Heading; gear.Margin = new Thickness(14, 0, 0, 0); gear.Click += (_, _) => OpenReminders();
+        System.Windows.Automation.AutomationProperties.SetAutomationId(gear, "lattice-settings");
+        toolbar.Children.Add(gear);
         if (snapshot is null or { State: "unavailable" }) return;
         toolbar.Children.Add(ViewSwitch(LatticeChart.HistoryCount(snapshot)));
         var counts = LatticeChart.Counts(snapshot);
