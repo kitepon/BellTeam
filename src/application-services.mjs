@@ -360,7 +360,9 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
         // host-factory.md observer port: seat-turn and idle-close reports (closes, EACCES) go to the body log.
         report: message => process.stderr.write(`${message}\n`) },
       continuation: { models, harnessAuth: { status: harness => harnessAuth.status(harness, usageAssembly?.systemContext('auth.status')) },
-        messenger: { sendmessage: (...args) => messenger.sendmessage(...args) } },
+        // The engine sends as the scheduler; without its own scope a send ran in whatever request triggered the review and was
+        // refused (CONVERSATION_SENDER_FORBIDDEN / CONTEXT_REQUIRED, 2026-11-25 every minute for every limit-ended member).
+        messenger: { sendmessage: (...args) => conversationAssembly ? conversationAssembly.run({ kind: 'scheduler' }, () => messenger.sendmessage(...args)) : messenger.sendmessage(...args) } },
     }, loadFactory: async (...args) => {
       const factory = await loadExecution(...args)
       const supported = factory.supportsModelHandoff === true
