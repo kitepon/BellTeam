@@ -522,7 +522,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
       onGeneration: () => { void lattice?.deliver() },
       onModuleChildExit: moduleChildExitReporter.observe, onModuleRestartLimit: moduleChildExitReporter.observeRestartLimit, onState: () => updateCenter?.notify() })
     const reminders = createLatticeReminders(join(root, 'state/lattice-reminders.json'))
-    lattice = createLatticeFacade({ controller: latticeModule, reminders, nudgeMs: null })
+    lattice = createLatticeFacade({ controller: latticeModule, reminders })
     void latticeModule.start().catch(() => {})
   }
   // R5: Approval Box extension child (runtime/approval-box-extension-child.md). Optional like lattice; its routes answer APPROVALS_UNAVAILABLE until the child serves.
