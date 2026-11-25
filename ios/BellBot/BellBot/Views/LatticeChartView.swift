@@ -31,6 +31,7 @@ struct LatticeChartScreen: View {
     @State private var page: String?
     @State private var detent: PresentationDetent = .medium
     @State private var switching = false
+    @State private var showingSettings = false
     /// iPhone tree: the card shown over its icon (a98 Peek); tapping it opens 詳細.
     @State private var peek: String?
     /// The chart rows' own height in the switcher; the list shows at most `switchListMaximum` of it and scrolls the rest.
@@ -100,6 +101,10 @@ struct LatticeChartScreen: View {
         .toolbar(.hidden, for: .navigationBar)
         // The bar is hidden, but the title is the label of the back button on the 一覧 pushed over this chart.
         .navigationTitle(title)
+        .sheet(isPresented: $showingSettings) {
+            LatticeReminderSettingsSheet(title: title, chart: model, leave: leave)
+        }
+        .onChange(of: store.serverURL) { _, _ in showingSettings = false }
         .onChange(of: store.owner?.name, initial: true) { _, name in LatticePerson.ownerName = name }
         .task(id: scenePhase == .active) {
             // 背景へ回る・窓を閉じる時は接続を閉じ、戻ったら最新の一枚から描き直す。
@@ -215,6 +220,16 @@ struct LatticeChartScreen: View {
         .accessibilityIdentifier("lattice-back-to-list")
     }
 
+    private var settingsButton: some View {
+        Button { showingSettings = true } label: {
+            Image(systemName: "gearshape").font(.system(size: 15, weight: .semibold))
+                .frame(width: 38, height: 38)
+                .background(LatticePalette.surface.opacity(0.85), in: Circle())
+                .overlay(Circle().stroke(LatticePalette.line.opacity(0.7), lineWidth: 0.5))
+        }
+        .accessibilityLabel("工程表の設定")
+    }
+
     private func switchRow(_ title: String, symbol: String, detail: String, current: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 10) {
@@ -292,9 +307,9 @@ struct LatticeChartScreen: View {
         return VStack(spacing: 0) {
             // One row when it fits, else the progress goes to a second row: the bar never grows wider than the chart.
             ViewThatFits(in: .horizontal) {
-                HStack(spacing: 12) { allChartsButton; switcher; livePill; centerPicker; notices(snapshot); Spacer(minLength: 12); progress }
+                HStack(spacing: 12) { allChartsButton; switcher; livePill; centerPicker; notices(snapshot); Spacer(minLength: 12); progress; settingsButton }
                 VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 12) { allChartsButton; switcher; livePill; centerPicker; Spacer(minLength: 0) }
+                    HStack(spacing: 12) { allChartsButton; switcher; livePill; centerPicker; Spacer(minLength: 0); settingsButton }
                     HStack(spacing: 12) { notices(snapshot); Spacer(minLength: 12); progress }
                 }
             }
@@ -571,6 +586,7 @@ struct LatticeChartScreen: View {
                         switcher
                         Spacer(minLength: 0)
                         allChartsButton
+                        settingsButton
                     }
                     notices(snapshot)
                     banner(snapshot)
@@ -727,6 +743,90 @@ struct LatticeChartScreen: View {
                     Rectangle().fill(LatticePalette.line).frame(width: 1.5).padding(.leading, 13).padding(.top, 26).padding(.bottom, 14)
                 }
             }
+        }
+    }
+}
+
+private struct LatticeReminderSettingsSheet: View {
+    @EnvironmentObject private var store: AppStore
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
+    @ObservedObject var chart: LatticeChartModel
+    @StateObject private var model: LatticeRemindersModel
+    let title: String
+    let leave: () -> Void
+
+    init(title: String, chart: LatticeChartModel, leave: @escaping () -> Void) {
+        self.title = title
+        self.chart = chart
+        self.leave = leave
+        _model = StateObject(wrappedValue: LatticeRemindersModel(projectId: chart.projectId))
+    }
+
+    private var signedIn: Bool {
+        if case .ready = store.phase { return true }
+        return false
+    }
+
+    var body: some View {
+        let request = model.request
+        NavigationStack {
+            Form {
+                Section {
+                    Toggle("1分ごとの催促", isOn: Binding(get: { model.enabled ?? false }, set: model.setEnabled))
+                        .disabled(model.phase != .ready || !signedIn)
+                        .accessibilityValue(model.enabled.map { $0 ? "オン" : "オフ" } ?? "未確認")
+                    status
+                } header: {
+                    Text(title).textCase(nil)
+                } footer: {
+                    Text("着手できる工程や作業中の工程があるとき、手が空いている担当に知らせます。")
+                }
+            }
+            .navigationTitle("工程表の設定")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("閉じる") { dismiss() } }
+            }
+        }
+        .task(id: request) {
+            guard signedIn else { return }
+            await model.run(request, api: store.api, requireLogin: store.requireLogin(for:))
+        }
+        .onChange(of: chart.connection) { _, connection in
+            if connection == .live, signedIn { model.reread() }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active, signedIn { model.reread() }
+        }
+        .onChange(of: signedIn) { _, ready in
+            if ready { model.reread() }
+            else if model.phase != .signIn { dismiss() }
+        }
+    }
+
+    @ViewBuilder private var status: some View {
+        if model.saveFailed { Text("設定を保存できませんでした。").foregroundStyle(.red) }
+        switch model.phase {
+        case .loading:
+            ProgressView("設定を読み込んでいます。")
+        case .saving:
+            ProgressView("設定を保存しています。")
+        case .retry(let reason):
+            Text(reason).foregroundStyle(.secondary)
+            Button("読み直す", action: model.reread)
+        case .unsupported:
+            Text("このサーバーでは催促の設定を変更できません。").foregroundStyle(.secondary)
+        case .notFound:
+            Text(LatticeText.notFound)
+            Button("一覧へ戻る") { dismiss(); leave() }
+        case .signIn:
+            Text(LatticeText.login)
+        case .refused(let reason):
+            Text(reason).foregroundStyle(.secondary)
+            Button("読み直す", action: model.reread)
+        case .ready:
+            EmptyView()
         }
     }
 }

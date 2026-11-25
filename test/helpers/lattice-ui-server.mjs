@@ -10,6 +10,7 @@
 //   &history=1 (32 more finished, archived cards: 過去ログ 35, a two-digit count on the iPhone switch)
 //   &many=1 (30 more charts after the five: the switcher list runs past the screen edge, Owner iPad 2026-11-14)
 //   &zero=1 (one more chart counting 0/0: the apps leave it out of 一覧 and the switcher, task a107)
+//   &reminders=ok|old|missing|uncertain (the chart settings endpoint and its write/readback cases)
 // GET /api/lattice/blockers answers two ブロック (the ブロック一覧). /test/complete?card=p1/t04 pushes a snapshot where that card is done (the completion bloom). Times are relative to now.
 import { createServer } from 'node:http'
 
@@ -26,6 +27,8 @@ const ago = minutes => new Date(Date.now() - minutes * 60000).toISOString()
 let state, subscribers = new Set()
 function reset() {
   state = { mode: { state: 'verified', list: 'ok', stream: 'ok', unknown: false, lanes: false, owner: false, many: false, zero: false, history: false, paged: false, degraded: [] }, version: 1, done: new Set(), asks: [] }
+  state.reminders = new Map()
+  state.reminderWrites = []
 }
 reset()
 
@@ -124,7 +127,7 @@ const server = createServer((request, response) => {
   const send = (status, value) => { response.statusCode = status; response.setHeader('Content-Type', 'application/json'); response.end(JSON.stringify(value)) }
   if (path === '/test/reset') { reset(); return send(200, { ok: true }) }
   if (path === '/test/mode') {
-    for (const key of ['state', 'list', 'stream']) if (url.searchParams.has(key)) state.mode[key] = url.searchParams.get(key)
+    for (const key of ['state', 'list', 'stream', 'reminders']) if (url.searchParams.has(key)) state.mode[key] = url.searchParams.get(key)
     if (url.searchParams.has('unknown')) state.mode.unknown = url.searchParams.get('unknown') === '1'
     if (url.searchParams.has('lanes')) state.mode.lanes = url.searchParams.get('lanes') === '1'
     if (url.searchParams.has('owner')) state.mode.owner = url.searchParams.get('owner') === '1'
@@ -137,6 +140,7 @@ const server = createServer((request, response) => {
     return send(200, state.mode)
   }
   if (path === '/test/history-requests') return send(200, { asks: state.asks })
+  if (path === '/test/reminder-writes') return send(200, { writes: state.reminderWrites })
   if (path === '/test/complete') { state.done.add(url.searchParams.get('card')); push(); return send(200, { ok: true }) }
   if (path === '/api/events') { response.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' }); response.write('event: ready\ndata: {}\n\n'); return }
   if (path === '/api/bots') return send(200, { bots: [] })
@@ -149,6 +153,33 @@ const server = createServer((request, response) => {
   }
   const historyRoute = /^\/api\/lattice\/charts\/([^/]+)\/history$/u.exec(path)
   if (historyRoute && state.mode.paged) { state.asks.push(url.search); return send(200, historyPage(url)) }
+  const reminderRoute = /^\/api\/lattice\/charts\/([^/]+)\/reminders$/u.exec(path)
+  if (reminderRoute && state.mode.reminders !== 'old') {
+    const [, projectId] = reminderRoute
+    if (state.mode.reminders === 'missing' || !charts().some(chart => chart.projectId === projectId)) {
+      return send(404, { error: 'LATTICE_CHART_NOT_FOUND' })
+    }
+    const setting = () => ({ schema: 'bellteam.lattice-reminders.v1', projectId, enabled: state.reminders.get(projectId) ?? false })
+    if (request.method === 'GET') return send(200, setting())
+    if (request.method !== 'PUT') return send(405, { error: 'METHOD_NOT_ALLOWED' })
+    if (request.headers['content-type'] !== 'application/json') return send(415, { error: 'LATTICE_JSON_REQUIRED' })
+    let body = ''
+    request.setEncoding('utf8')
+    request.on('data', chunk => { body += chunk })
+    request.on('end', () => {
+      let enabled
+      try {
+        const value = JSON.parse(body)
+        if (Object.keys(value).length === 1) enabled = value.enabled
+      } catch {}
+      if (typeof enabled !== 'boolean') return send(400, { error: 'LATTICE_INVALID' })
+      state.reminderWrites.push({ projectId, enabled })
+      state.reminders.set(projectId, enabled)
+      if (state.mode.reminders === 'uncertain') return send(503, { error: 'LATTICE_UNAVAILABLE' })
+      return send(200, setting())
+    })
+    return
+  }
   const route = /^\/api\/lattice\/charts(?:\/([^/]+?)(\/events)?)?$/u.exec(path)
   if (!route) return send(404, { error: 'NOT_FOUND' })
   if (state.mode.list === 'old') return send(404, { error: 'NOT_FOUND' })
