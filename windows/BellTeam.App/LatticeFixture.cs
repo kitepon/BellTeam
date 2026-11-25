@@ -38,6 +38,11 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
     private static readonly (string Id, string? Title, string[] Tasks)[] Phases = [("ph1", "下調べ", ["t01", "t02", "t03"]), ("ph2", "部品", ["t04", "t05", "t06", "t07", "t08"]), ("ph3", null, ["t09", "t10"])];
     private static readonly Dictionary<string, int> Since = new() { ["t06"] = 52, ["t04"] = 41, ["t07"] = 36, ["t05"] = 24, ["t08"] = 18, ["t09"] = 6, ["t10"] = 3 };
     private int streams;
+    // 工程表の設定 (reminders API): the saved switch of the chart that is asked, OFF until set. 「reminders-save-fails」 saves the PUT and then answers 503 (an uncertain write); 「reminders-old」 has no reminders route; 「reminders-read-fails」 answers 503 to the first read.
+    private readonly Dictionary<string, bool> reminders = [];
+    private int reminderReads;
+    /// <summary>The bodies of the PUTs this server saw, in order (tests count them).</summary>
+    internal List<string> ReminderWrites { get; } = [];
     private string State => scene switch { "unverified" => "unverified", "last-verified" => "last_verified", "unavailable" => "unavailable", _ => "verified" };
     private static string Ago(double minutes) => DateTimeOffset.UtcNow.AddMinutes(-minutes).ToString("O");
 
@@ -139,6 +144,7 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
                 ? Json(new { error = "LATTICE_UNBLOCK_REFUSED", outcome = "refused", code = "TODO_TRANSITION_REFUSED", reason = "この工程はもう取り下げられています。" }, HttpStatusCode.Conflict)
                 : Json(new { schema = "bellteam.lattice-unblock.v1", projectId = Uri.UnescapeDataString(path["/api/lattice/charts/".Length..^"/unblock".Length]), stopId = "", outcome = "removed" }),
             "/api/approvals/by-task" when scene == "owner" && request.RequestUri.Query.Contains("task=t11") => Json(new { decisionId = "K-FIXTUR", status = "pending", title = "3画面の受け取りを承認しますか" }),
+            _ when path.StartsWith("/api/lattice/charts/", StringComparison.Ordinal) && path.EndsWith("/reminders", StringComparison.Ordinal) => Reminders(request, Uri.UnescapeDataString(path["/api/lattice/charts/".Length..^"/reminders".Length]), Json),
             "/api/lattice/charts" => Json(new { schema = "bellteam.lattice-charts.v1", at = Ago(0), charts = scene == "single" ? Charts().Take(1) : Charts() }),
             _ when path.EndsWith("/messages", StringComparison.Ordinal) => Json(new { items = Array.Empty<object>(), hasMore = false }),
             _ when path.StartsWith("/api/lattice/charts/", StringComparison.Ordinal) && path.EndsWith("/history", StringComparison.Ordinal) && scene.StartsWith("history", StringComparison.Ordinal) =>
@@ -147,6 +153,20 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
             _ => Json(new { error = "NOT_FOUND" }, HttpStatusCode.NotFound)
         };
         return Task.FromResult(response);
+    }
+
+    private HttpResponseMessage Reminders(HttpRequestMessage request, string projectId, Func<object, HttpStatusCode, HttpResponseMessage> json)
+    {
+        if (scene == "reminders-old") return json(new { error = "NOT_FOUND" }, HttpStatusCode.NotFound);
+        if (!Names.ContainsKey(projectId)) return json(new { error = "LATTICE_CHART_NOT_FOUND" }, HttpStatusCode.NotFound);
+        object Saved() => new { schema = "bellteam.lattice-reminders.v1", projectId, enabled = reminders.GetValueOrDefault(projectId) };
+        if (request.Method == HttpMethod.Put)
+        {
+            var body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult(); ReminderWrites.Add(body);
+            reminders[projectId] = JsonDocument.Parse(body).RootElement.GetProperty("enabled").GetBoolean();
+            return scene == "reminders-save-fails" ? json(new { error = "LATTICE_UNAVAILABLE" }, HttpStatusCode.ServiceUnavailable) : json(Saved(), HttpStatusCode.OK);
+        }
+        return scene == "reminders-read-fails" && Interlocked.Increment(ref reminderReads) == 1 ? json(new { error = "LATTICE_UNAVAILABLE" }, HttpStatusCode.ServiceUnavailable) : json(Saved(), HttpStatusCode.OK);
     }
 
     // One snapshot, then the stream stays open (a real stream sends heartbeats). The reconnecting scene drops after the first snapshot and answers 503 after that.
