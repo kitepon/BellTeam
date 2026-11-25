@@ -78,7 +78,7 @@ profile.createは`{input,id?:'bot-guide'}`へ更新。idは親Onboarding.ensureG
 
 ### 単一profileの画像wire・固定error ABI（第九差分）
 
-profile.readは`{botId,includeDeleting?:true}`へ。省略時はactiveのみ、trueは既listForClientのpendingも読む表示専用口。結果は既`{bot}`、画像4fieldを省かない。MCP get_bot/get_selfとHTTP profile/avatar/設定画の対象確認はreadMemberがあればfresh口へ、従来Registryは既getで互換。共通facadeの一覧だけが同leaseでmetadata→単一profileを順次復元する。外部schema・件数上限を変更しない。
+profile.readは`{botId,includeDeleting?:true,summary?:true}`へ。省略時はactiveのみ、trueは既listForClientのpendingも読む表示専用口。結果は既`{bot}`、`summary:true`でない限り画像4fieldを省かない。`summary:true`（存在・権限確認用、2026-11-26）は`avatar/avatarLarge/avatarSource/avatarLargeSource`の本文だけを外し`hasAvatar/hasAvatarLarge`を付け、version欄は付けない。fresh readの意味・失敗(404)は同じ。旧子は未知fieldを`MEMBERS_INPUT_INVALID`で断るので、親は旧子へ送って断られたら`summary`なしで読み直す（親が先に出ても動く）。MCP get_bot/get_selfとHTTP profile/avatar/設定画の対象確認はreadMemberがあればfresh口へ、従来Registryは既getで互換。共通facadeの一覧だけが同leaseでmetadata→単一profileを順次復元する。外部schema・件数上限を変更しない。
 
 src/members/errors.mjsのnormalizeMembersError(error)は有限の既domain code又は固定message prefixを認識してcode/statusを付ける。公開request/callback/effect validator、dispatch/controlで適用。Epi wireは従来の{code,outcome,status}だけを送り、未知の自由文はgenericにする。外部Room effect側でも親共通adapterが同normalizerを使ってからwireへ返す。unknown outcomeをnot_acceptedへ変更しない。保存後effect失敗では可能な限り最新snapshotを送ってから元失敗を返す。
 
@@ -154,7 +154,7 @@ methodは下表の固定列挙。任意objectのメソッド名、関数、Map�
 
 | 親→membersの操作 | 入力 / 返却と作用 |
 | --- | --- |
-| `profiles.read` / `profile.read` | `{}`又は`{botId}`。active/pendingと既profile field。画像本文は専用読取で返し、通常MCPは既URL整形 |
+| `profiles.read` / `profile.read` | `{}`又は`{botId,includeDeleting?,summary?}`。active/pendingと既profile field。画像本文は専用読取で返し、通常MCPは既URL整形 |
 | `profile.create` | `{input, seedId?}`。既create schema、seedIdは初期案内の内部経路だけ。保存後部分失敗は取り消さない |
 | `profile.preview` / `profile.update` | `{botId,changes}`。既PROFILE_FIELDSだけ。model等の適用判断は親Administration。sessionは不可 |
 | `profile.session` | `{botId,session}`、実行担当の内部callback限定。保存ACKまで旧native操作の処理範囲に含める |
