@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-24T12:53:21Z",
-  "expiresAt": "2026-12-01T12:53:21Z",
+  "publishedAt": "2026-11-25T13:18:44Z",
+  "expiresAt": "2026-12-02T13:18:44Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "0f420ca382361535c60498ce82f2c564799ff9f4",
-      "versionId": "sha256:31681e14e18a85e0184c503c72829e162d8fd31272eef525575c89a36ada1765",
+      "sourceCommit": "c04574b6e7a46157d9f06420dc4b1a7be7955e2b",
+      "versionId": "sha256:fd9387e2cd24940621cde5db10ebc69f3d82751fb6c8ab6061e7f4d2db3d4c45",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:31681e14e18a85e0184c503c72829e162d8fd31272eef525575c89a36ada1765"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:fd9387e2cd24940621cde5db10ebc69f3d82751fb6c8ab6061e7f4d2db3d4c45"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Claude の設定で、貼り付けるコードの欄を正しく読み取れるように、席の操作部品（aiterm-mcp）を 0.70.115 に更新します。利用上限に達した Claude の席が、発表された復帰時刻より前に使えるようになっていれば、早めに自動で復帰するようにします（実行部品は本番で先に反映済みです）。"
+        "工程表ごとの催促設定を保存できるようにします。毎分の催促はこの版では停止しています。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "0f420ca382361535c60498ce82f2c564799ff9f4",
-      "versionId": "sha256:31681e14e18a85e0184c503c72829e162d8fd31272eef525575c89a36ada1765",
+      "sourceCommit": "c04574b6e7a46157d9f06420dc4b1a7be7955e2b",
+      "versionId": "sha256:fd9387e2cd24940621cde5db10ebc69f3d82751fb6c8ab6061e7f4d2db3d4c45",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:31681e14e18a85e0184c503c72829e162d8fd31272eef525575c89a36ada1765"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:fd9387e2cd24940621cde5db10ebc69f3d82751fb6c8ab6061e7f4d2db3d4c45"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,13 +746,13 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Claude の設定で、貼り付けるコードの欄を正しく読み取れるように、席の操作部品（aiterm-mcp）を 0.70.115 に更新します。利用上限に達した Claude の席が、発表された復帰時刻より前に使えるようになっていれば、早めに自動で復帰するようにします（実行部品は本番で先に反映済みです）。"
+        "工程表ごとの催促設定を保存できるようにします。毎分の催促はこの版では停止しています。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "681323022563110dad23c6206937b05ac3645d40",
-      "versionId": "a7f6e88de765ec87a9e5d29a41b7eb2ef359bbe56d7dc0be5b83de5affc90f39",
+      "sourceCommit": "c04574b6e7a46157d9f06420dc4b1a7be7955e2b",
+      "versionId": "2a1f4cedb6ac9a54066f042c0d17f98fd4ebcaa818e2f7b8f49af77e1e57c70e",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -760,16 +760,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T104638Z/lattice-681323022563110dad23c6206937b05ac3645d40-linux-amd64.tar.gz",
-          "bytes": 15348684,
-          "sha256": "a7f6e88de765ec87a9e5d29a41b7eb2ef359bbe56d7dc0be5b83de5affc90f39"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261125T131556Z/lattice-c04574b6e7a46157d9f06420dc4b1a7be7955e2b-linux-amd64.tar.gz",
+          "bytes": 15348824,
+          "sha256": "2a1f4cedb6ac9a54066f042c0d17f98fd4ebcaa818e2f7b8f49af77e1e57c70e"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T104638Z/lattice-681323022563110dad23c6206937b05ac3645d40-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10949,
-          "sha256": "4837c578829ca16a6f13dc8faeb77fabc78cc218ae5fff9064b47d0b61bfe091"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261125T131556Z/lattice-c04574b6e7a46157d9f06420dc4b1a7be7955e2b-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11184,
+          "sha256": "f5464d3372203a04daf685d17657da999b3c0619c08fbfd7dcb25fd2de8b6ea5"
         },
-        "signerCommit": "681323022563110dad23c6206937b05ac3645d40"
+        "signerCommit": "c04574b6e7a46157d9f06420dc4b1a7be7955e2b"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -781,13 +781,13 @@
         }
       },
       "changes": [
-        "決裁の読み手がデーモンに切り替わるのに合わせ、決裁が無くなった印を受け渡せるようにします。"
+        "毎分の催促とオーナーへの引き継ぎを、催促が有効な工程表に絞ります。即時の優先通知は従来どおり届きます。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "681323022563110dad23c6206937b05ac3645d40",
-      "versionId": "d279e21871186329f8ebb05cf24206b8c74ec870f7a19269f678b8c8c75494bc",
+      "sourceCommit": "c04574b6e7a46157d9f06420dc4b1a7be7955e2b",
+      "versionId": "634adbb312bd162442894d73479ecf8c2868180e713cb9a66fac40a650bbaf7f",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -795,16 +795,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T104638Z/lattice-681323022563110dad23c6206937b05ac3645d40-linux-arm64.tar.gz",
-          "bytes": 15348684,
-          "sha256": "d279e21871186329f8ebb05cf24206b8c74ec870f7a19269f678b8c8c75494bc"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261125T131556Z/lattice-c04574b6e7a46157d9f06420dc4b1a7be7955e2b-linux-arm64.tar.gz",
+          "bytes": 15348834,
+          "sha256": "634adbb312bd162442894d73479ecf8c2868180e713cb9a66fac40a650bbaf7f"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T104638Z/lattice-681323022563110dad23c6206937b05ac3645d40-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10996,
-          "sha256": "89fe4fa4f457b656f17518d0bf69750493f5ddb7932ebef7c35c8217702fd596"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261125T131556Z/lattice-c04574b6e7a46157d9f06420dc4b1a7be7955e2b-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11047,
+          "sha256": "897fb52104fa9446b20b00562d1d9e9ac9691e216540602c4958e9f06f398793"
         },
-        "signerCommit": "681323022563110dad23c6206937b05ac3645d40"
+        "signerCommit": "c04574b6e7a46157d9f06420dc4b1a7be7955e2b"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -816,7 +816,7 @@
         }
       },
       "changes": [
-        "決裁の読み手がデーモンに切り替わるのに合わせ、決裁が無くなった印を受け渡せるようにします。"
+        "毎分の催促とオーナーへの引き継ぎを、催促が有効な工程表に絞ります。即時の優先通知は従来どおり届きます。"
       ]
     },
     {
