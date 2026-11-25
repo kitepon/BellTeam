@@ -64,7 +64,7 @@ members/errors.mjsのnormalizeMembersErrorは既固定semantic prefix/コード�
 
 ## Default list snapshot
 
-既`profiles.read {}`の一件ずつACKする投影profileへ、`avatarVersion` / `avatarLargeVersion` / `avatarSourceVersion` / `avatarLargeSourceVersion`を付ける。各値は既avatarVersionの空文字またはSHA256先頭16hex。largeは既HTTP同様`avatarLarge || avatar`を使う。画像4本文を送らず、既hasAvatar/hasAvatarLargeとpendingの意味は保つ。共通hash/cacheはavatar-value.mjsへ移し、http-assets.mjsの既avatarVersion exportを維持する。
+既`profiles.read {}`の一件ずつACKする投影profileへ、`avatarVersion` / `avatarLargeVersion` / `avatarSourceVersion` / `avatarLargeSourceVersion`を付ける。各値は既avatarVersionの空文字またはSHA256先頭16hex。largeは既HTTP同様`avatarLarge || avatar`を使う。画像4本文を送らず、既hasAvatar/hasAvatarLargeとpendingの意味は保つ。共通hash/cacheはavatar-value.mjsへ移し（cacheは古い順に1件ずつ捨てる4096件。全消しだと144名・約576文字列の名簿が256件ごとに空になり、snapshotのたびに約1MBを再hashしてmembers部品のCPUの約23%を使った、2026-11-26）、http-assets.mjsの既avatarVersion exportを維持する。
 
 The parent uses the ACK-completed snapshot of the same generation/revision by default, avoiding one `profile.read` per Bot. `listForClient({omitAvatars:false})` remains an internal legacy fallback, with no HTTP opt-in. The handler emits all four avatar keys as empty strings alongside the version fields, taking existing versions before computing missing legacy versions. Required-string Apple decoders retain their list contract without transferring image bodies. Fresh single-profile reads, membership/pending rechecks, authorization and failure semantics remain unchanged.
 

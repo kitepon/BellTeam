@@ -2397,12 +2397,16 @@ export class AitermTransport {
       process.stderr.write(`BellTeam accounts: limit end review unavailable: ${error?.code ?? error?.message ?? 'UNKNOWN'}\n`)
       return new Map()
     })
+    // The 1st slot's token is read through a seat process, so the effective slot is asked once per model in a review, not once per seat
+    // (a review of ~90 seats started ~90 processes in 7 s, 2026-11-26).
+    const effective = new Map()
+    const effectiveSlot = model => effective.get(model) ?? effective.set(model, this.accounts.effectiveSlot('claude', model)).get(model)
     for (const botId of new Set([...Object.keys(this.accounts.state.seats), ...ends.keys()])) {
       const bot = this.resolveBot?.(botId)
       // Every recorded seat, also one launched by an earlier engine (the session map starts empty after an exchange).
       if (!this.claudeAccountBot(bot) || this.accountMoves.has(botId)) continue
       const seats = ends.get(botId) ?? []
-      if (this.recoveryDue(botId, seats) || (this.accounts.seatSlot(botId) ?? '1st') !== await this.accounts.effectiveSlot('claude', bot.model)
+      if (this.recoveryDue(botId, seats) || (this.accounts.seatSlot(botId) ?? '1st') !== await effectiveSlot(bot.model)
         || await this.accounts.renewDue(botId, 'claude', bot.model)) this.moveAtBoundary(botId, seats)
     }
   }

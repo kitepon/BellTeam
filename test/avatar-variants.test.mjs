@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict'
+import crypto from 'node:crypto'
+import { syncBuiltinESMExports } from 'node:module'
 import { once } from 'node:events'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -7,6 +9,7 @@ import test from 'node:test'
 import { BotRegistry } from '../src/bot-registry.mjs'
 import { avatarVersion, createBellTeamServer } from '../src/http-server.mjs'
 import { callBellTeamTool } from '../src/mcp-tools.mjs'
+import { avatarVersion as cachedAvatarVersion } from '../src/avatar-value.mjs'
 
 const image = value => `data:image/png;base64,${Buffer.from(value).toString('base64')}`
 const small=image('small'), large=image('large'), source=image('original'), crop={x:0.1,y:0.2,width:0.5,height:0.6}
@@ -63,4 +66,15 @@ test('avatar variants use authenticated versioned detail images and omit source 
   assert.equal((await fetch(base+'/api/bots/bot-old/avatar-source',{headers})).status,404)
   const result=await callBellTeamTool({name:'get_self',arguments:{},registry:bots,from:bot.id,internalUrl:'http://127.0.0.1:4181'})
   for(const field of ['avatar','avatarLarge','avatarSource','avatarLargeSource'])assert.equal(result.bot[field],undefined)
+})
+
+// 2026-11-26: a cache emptied every 256 inserts re-hashed every avatar of a 144-bot roster (~576 strings) on every snapshot.
+test('avatarVersion hashes each avatar of a roster once, however many snapshots read it', () => {
+  const original = crypto.createHash; let hashes = 0
+  crypto.createHash = (...args) => { hashes++; return original(...args) }; syncBuiltinESMExports()
+  try {
+    const roster = Array.from({ length: 600 }, (_, index) => image('avatar-cache-' + index))
+    for (let snapshot = 0; snapshot < 3; snapshot++) for (const value of roster) cachedAvatarVersion(value)
+    assert.equal(hashes, 600)
+  } finally { crypto.createHash = original; syncBuiltinESMExports() }
 })
