@@ -520,7 +520,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
       runAs: (actor, send) => conversationAssembly ? conversationAssembly.run(actor, send) : send() }),
       onGeneration: () => { void lattice?.deliver() },
       onModuleChildExit: moduleChildExitReporter.observe, onModuleRestartLimit: moduleChildExitReporter.observeRestartLimit, onState: () => updateCenter?.notify() })
-    lattice = createLatticeFacade({ controller: latticeModule })
+    lattice = createLatticeFacade({ controller: latticeModule, nudgeMs: null })
     void latticeModule.start().catch(() => {})
   }
   // R5: Approval Box extension child (runtime/approval-box-extension-child.md). Optional like lattice; its routes answer APPROVALS_UNAVAILABLE until the child serves.

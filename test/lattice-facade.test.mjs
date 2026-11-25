@@ -5,7 +5,7 @@ import { createLatticeFacade, createLatticeEffects, NUDGE_MS, QUEUE_WAIT_MS, SEA
 const tick = () => new Promise(resolve => setImmediate(resolve))
 const snap = (projectId, version) => ({ schema: 'bellteam.lattice-chart.v1', projectId, epoch: 'e', version })
 
-function fixture({ respond = () => null, now } = {}) {
+function fixture({ respond = () => null, now, nudgeMs } = {}) {
   const calls = [], timers = [], nudges = []
   let gate = null
   const controller = { request: async (method, params) => {
@@ -15,8 +15,8 @@ function fixture({ respond = () => null, now } = {}) {
     if (value instanceof Error) throw value
     return value ?? (method === 'refresh' ? { snapshots: [], nextRefreshMs: 2000 } : { method, params })
   } }
-  const facade = createLatticeFacade({ controller, ...(now && { now }),
-    // The nudge timer (60 s, always armed) and the seat answer timers are kept apart from the refresh loop's timers.
+  const facade = createLatticeFacade({ controller, nudgeMs, ...(now && { now }),
+    // The nudge timer (60 s when enabled) and the seat answer timers are kept apart from the refresh loop's timers.
     setTimer: (run, ms) => { const timer = { run, ms }; (ms === NUDGE_MS ? nudges : ms === SEAT_ANSWER_MS ? [] : timers).push(timer); return timer }, clearTimer: timer => { if (timer) timer.cleared = true } })
   const fire = async () => { for (const timer of timers.splice(0)) if (!timer.cleared) timer.run(); await tick(); await tick() }
   return { facade, calls, timers, nudges, fire, hold: () => { let open; gate = new Promise(resolve => { open = resolve }); return () => { gate = null; open() } } }
@@ -191,6 +191,15 @@ test('members.list returns exactly the agreed fields; other effects are refused'
   const effect = createLatticeEffects({ bots: { listForClient: async () => [{ id: 'a', name: 'A', color: 'red', avatarVersion: 7, deleting: false, secret: 'x' }] } })
   assert.deepEqual(await effect('members.list', {}), { members: [{ id: 'a', name: 'A', color: 'red', avatarVersion: '7', deleting: false }] })
   await assert.rejects(effect('queue.read', {}), { code: 'LATTICE_EFFECT_INVALID' })
+})
+
+test('nudge: a null interval disables automatic calls and keeps explicit calls available', async () => {
+  const f = fixture({ nudgeMs: null })
+  assert.deepEqual([...f.timers, ...f.nudges], [])
+  assert.deepEqual(f.calls, [])
+  await f.facade.nudge()
+  assert.deepEqual(f.calls, [['nudge', {}]])
+  assert.deepEqual([...f.timers, ...f.nudges], [])
 })
 
 test('nudge: one 60 s timer from creation, re-armed after each call, failures swallowed', async () => {

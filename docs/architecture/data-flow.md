@@ -221,7 +221,7 @@ flowchart LR
   F -->|LT4 root run, charts, chart, refresh| C
   C -->|LT5 members.list effect inside a root call| F
   C -->|LT10 messages.send effect: startable notice to each waiting Bot| F
-  F -->|LT11 root nudge every 1 min; the child sweeps from 3 min after it started (a509)| C
+  F -.->|LT11 root nudge, automatic 1 min timer disabled in the body| C
   C -->|LT12 turns.read effect; messages.send ONE prompt per lane Bot not running| F
   Apps -->|LT13 GET blockers; POST charts/:id/unblock stopId (Owner only)| P1
   F -->|LT14 root blockers / unblock| C

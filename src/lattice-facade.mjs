@@ -80,10 +80,10 @@ export function createLatticeFacade({ controller, retryMs = 2000, nudgeMs = NUDG
     arm(mine, next)
   }
 
-  // One nudge timer for the facade's life, re-armed after each call; unref'd so it never holds the process open.
+  // A null interval disables the timer while leaving nudge() callable.
   const nudge = () => call('nudge', {}).catch(() => null)
   const armNudge = () => { setTimer(() => { void nudge().then(armNudge) }, nudgeMs)?.unref?.() }
-  armNudge()
+  if (nudgeMs !== null) armNudge()
 
   return {
     charts: () => call('charts', {}),
