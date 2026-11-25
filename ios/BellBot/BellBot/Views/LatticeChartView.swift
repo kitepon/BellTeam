@@ -774,6 +774,7 @@ private struct LatticeReminderSettingsSheet: View {
             Form {
                 Section {
                     Toggle("1分ごとの催促", isOn: Binding(get: { model.enabled ?? false }, set: model.setEnabled))
+                        .toggleStyle(.switch)
                         .disabled(model.phase != .ready || !signedIn)
                         .accessibilityValue(model.enabled.map { $0 ? "オン" : "オフ" } ?? "未確認")
                     status
