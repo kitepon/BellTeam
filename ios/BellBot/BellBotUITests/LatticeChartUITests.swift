@@ -15,6 +15,66 @@ final class LatticeChartUITests: XCTestCase {
         _ = try await call("/test/reset")
     }
 
+    func testChartReminderSettingsSavesAndReconciles() async throws {
+        let app = launch([])
+        defer { app.terminate() }
+        let chart = element(app, "lattice-chart-lattice")
+        XCTAssertTrue(chart.waitForExistence(timeout: 10))
+        chart.tap()
+        let gear = app.buttons["工程表の設定"].firstMatch
+        XCTAssertTrue(gear.waitForExistence(timeout: 10))
+        gear.tap()
+
+        let setting = app.switches["1分ごとの催促"].firstMatch
+        let switchControl = app.switches.matching(NSPredicate(format: "label == ''")).firstMatch
+        let on = NSPredicate(format: "enabled == YES AND (value == '1' OR value == 'オン')")
+        let off = NSPredicate(format: "enabled == YES AND (value == '0' OR value == 'オフ')")
+        XCTAssertTrue(setting.waitForExistence(timeout: 5))
+        XCTAssertTrue(waitFor(off, setting), setting.debugDescription)
+        XCTAssertTrue(app.staticTexts["Lattice組込"].exists)
+        switchControl.tap()
+        XCTAssertTrue(waitFor(on, setting), setting.debugDescription)
+
+        app.buttons["閉じる"].tap()
+        XCTAssertTrue(gear.waitForExistence(timeout: 5))
+        gear.tap()
+        XCTAssertTrue(setting.waitForExistence(timeout: 5))
+        XCTAssertTrue(waitFor(on, setting), setting.debugDescription)
+
+        _ = try await call("/test/mode?reminders=uncertain")
+        switchControl.tap()
+        XCTAssertTrue(app.staticTexts["設定を保存できませんでした。"].waitForExistence(timeout: 5))
+        XCTAssertTrue(waitFor(off, setting), "The failed PUT must show the saved value from GET.")
+        let writes = try await call("/test/reminder-writes")["writes"] as? [[String: Any]]
+        XCTAssertEqual(writes?.compactMap { $0["projectId"] as? String }, ["lattice", "lattice"])
+        XCTAssertEqual(writes?.compactMap { $0["enabled"] as? Bool }, [true, false])
+        shot(app, "chart-settings-readback")
+    }
+
+    func testChartReminderSettingsHandlesBothNotFoundResponses() async throws {
+        _ = try await call("/test/mode?reminders=old")
+        let app = launch([])
+        defer { app.terminate() }
+        let chart = element(app, "lattice-chart-lattice")
+        XCTAssertTrue(chart.waitForExistence(timeout: 10))
+        chart.tap()
+        let gear = app.buttons["工程表の設定"].firstMatch
+        XCTAssertTrue(gear.waitForExistence(timeout: 10))
+        gear.tap()
+
+        XCTAssertTrue(app.staticTexts["このサーバーでは催促の設定を変更できません。"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.switches["1分ごとの催促"].firstMatch.isEnabled)
+        app.buttons["閉じる"].tap()
+        XCTAssertTrue(gear.waitForExistence(timeout: 5))
+
+        _ = try await call("/test/mode?reminders=missing")
+        gear.tap()
+        let back = app.buttons["一覧へ戻る"]
+        XCTAssertTrue(back.waitForExistence(timeout: 5))
+        back.tap()
+        XCTAssertTrue(chart.waitForExistence(timeout: 5))
+    }
+
     func testListChartConnectionsAndDetailInLightAndDark() async throws {
         for scheme in ["light", "dark"] {
             _ = try await call("/test/reset")
