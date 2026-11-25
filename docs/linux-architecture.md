@@ -11,6 +11,9 @@ flowchart LR
   user[利用者] --> ui[Linux画面・操作<br/>linux/BellTeam.Linux<br/>Avalonia]
   ui --> ws[会話の状態・一覧・送信・SSE・再接続・下書き<br/>Workspace&lt;TImage&gt; in BellTeam.Core]
   ui --> core[通信・モデル・工程表・相関図・更新・端末設定<br/>windows/BellTeam.Core]
+  ui --> chart[Chart window and shared toolbar<br/>LatticeWindow / LatticeChartPage]
+  chart -->|Settings gear in tree, lanes and history| reminders[Chart reminder sheet<br/>LatticeReminderSettings]
+  reminders -->|Existing authenticated BellApi and LatticeChart.BackoffMs| core
   ui --> abx[決裁箱の入口の行と窓<br/>ApprovalsHub・ApprovalsWindow<br/>linux/BellTeam.Linux]
   abx -->|Approvals（言葉と判定）・BellApi（by-decision・連携の接続）| core
   abx -->|IApprovalSource：ClientApprovalSource＝Kitepon.ApprovalBox.Client（部品がGET /v1/auth/config のpeer_channelを読んで、/v1かこの端末の/pc/v1を選ぶ）| abxsrv[Approval Box&lt;br/&gt;approval-box.kitepon.dev /auth/v1・/v1・（/pc/v1）&lt;br/&gt;2つ目のログイン部品のpassをBearer]
@@ -55,6 +58,10 @@ flowchart TD
   api -->|JSON| server[(BellTeam本体)]
   server -->|SSE text/event-stream| sse[SseReader]
   sse --> ws
+  chart[LatticeChartPage] -->|Open or reconnect with the current chart ID| reminders[LatticeReminderSettings]
+  reminders -->|"Read GET or one PUT {enabled} per switch change"| api
+  api <-->|"/api/lattice/charts/:projectId/reminders → saved state (Lattice L25)"| server
+  api -->|Confirmed value or read/save failure| reminders
   ws -->|一覧・会話・状態の更新| view
   api -->|画像のbyte列| codec[IImageCodec&lt;Bitmap&gt;]
   codec --> view
@@ -95,6 +102,8 @@ flowchart TD
 
 - 接続先・窓の大きさ・通知の設定・ログイン情報はCoreの`LocalSettings`（`SpecialFolder.LocalApplicationData`＝`$XDG_DATA_HOME`、既定`~/.local/share`）の`BellTeam/`に置く。アプリ本体とは別の場所で、削除しても残す。
 - 書き込み（POST・PUT・DELETE）は自動で再送しない。SSEと一覧の読み直しは、Windowsと同じ上限付きバックオフで再試行を続ける（Coreの`ReconnectBackoff`）。
+
+The reminder sheet owns only the last confirmed value for its open chart. It keeps that value during an unsuccessful read, offers an immediate retry during backoff, and reads back after a failed PUT without replaying the write. The sheet cancels its requests on close or when leaving the chart. A missing chart offers the existing return to the chart list, and authentication is handled through `BellApi`. The UI also compiles into Android through the shared Avalonia chart code. The [shared screen contract](architecture/modules/lattice/screen-spec.md#工程表の設定) and [API contract](architecture/modules/lattice/README.md#get-and-put-apilatticechartsprojectidreminders) govern both clients.
 
 ## 画面構成
 
