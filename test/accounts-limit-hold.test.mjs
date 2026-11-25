@@ -288,33 +288,41 @@ test('one continuation: an intent left by a crash or a quiesce before the send -
 })
 
 test('one continuation: a preflight refusal (not started) consumes nothing; the next review sends it once', async t => {
-  const { sent, review, hooks, accounts } = await recovery(t, { rows: [row('bot-n102', '2026-11-11T12:53:25.000Z', END('2026-11-11T12:53:29.000Z', 'cancelled'))] })
+  const { sent, review, hooks, accounts, transport } = await recovery(t, { rows: [row('bot-n102', '2026-11-11T12:53:25.000Z', END('2026-11-11T12:53:29.000Z', 'cancelled'))] })
   hooks.refuse = 1
   await review()
-  // d-1 was refused before any record; the review its intent write caused sent d-2, which claimed the limit end.
+  // d-1 was refused before any record: only the intent is left, and no review of every member followed the intent write.
+  assert.deepEqual([sent.length, accounts.resumed('bot-n102')], [0, { at: '2026-11-11T12:53:29.000Z', deliveryId: null }])
+  assert.deepEqual([...transport.moveFailures], [['bot-n102', 1]])
+  // The member's retry review sends d-2, which claims the limit end and clears the member's retry.
+  await review()
   assert.deepEqual([sent.map(input => input.id), accounts.resumed('bot-n102')], [['d-2'], { at: '2026-11-11T12:53:29.000Z', deliveryId: 'd-2' }])
+  assert.equal(transport.moveFailures.size, 0)
   await accounts.recordLimit({ harness: 'claude', slot: '2nd', model: 'fable', text: "You've reached your Fable limit · resets 7pm (UTC)" })
   await review()
   assert.equal(sent.length, 1)
 })
 
-test('one continuation: the input boundary admits one delivery per limit end; a claim nobody carries is given back, its late redelivery refused', async t => {
+test('one continuation: one message per limit end; a delivery that never reached the seat is not followed by another', async t => {
   const { sent, review, hooks, accounts, deliver, transport } = await recovery(t, { rows: [row('bot-n102', '2026-11-11T12:53:25.000Z', END('2026-11-11T12:53:29.000Z', 'cancelled'))] })
+  // The chain's latest message was an earlier continuation; the new one still names the member's original request.
+  const origin = '655eb7e9-11c2-4f41-a436-e7e1162f9b66'
+  transport.continuation.states.set('bot-n102', { attempted: new Set(['claude']), sent: 0, deliveryId: '3b0e12ea-488a-42b4-8934-77cc2ff6c4fb', origin })
   hooks.input = false // accepted, but the input never reaches the seat (the delivery died)
   await review()
   assert.equal(sent.length, 1)
   const first = sent[0]
-  // While the first delivery is live, a second one for the same limit end is refused at the boundary.
-  transport.continuationClaims.add(first.id)
+  assert.match(first.message, new RegExp(`delivery_id=${origin}`))
+  // The accepted message claims the limit end at the send; a second delivery for it is refused at the boundary.
+  assert.deepEqual(accounts.resumed('bot-n102'), { at: '2026-11-11T12:53:29.000Z', deliveryId: first.id })
   await assert.rejects(deliver(first, 'd-other'), error => error.effect === 'not_started')
-  transport.continuationClaims.delete(first.id)
-  // The first one is no longer live and Aiterm shows no newer input: the next review gives the claim back and sends once more.
-  hooks.input = true
+  // Production 11-25: every review after a failed delivery sent one more (~340 per member). Now none follows.
   await accounts.recordLimit({ harness: 'claude', slot: '2nd', model: 'fable', text: "You've reached your Fable limit · resets 7pm (UTC)" })
   await review()
-  assert.equal(sent.length, 2)
-  // The old delivery arriving late (the parent's redelivery) is refused: exactly one continuation reached the seat after it.
-  await assert.rejects(deliver(first, first.id), error => error.effect === 'not_started')
+  assert.equal(sent.length, 1)
+  // The parent's redelivery of the same message passes the boundary (its own claim).
+  hooks.input = true
+  await deliver(first, first.id)
   assert.equal(sent.length, 2)
 })
 

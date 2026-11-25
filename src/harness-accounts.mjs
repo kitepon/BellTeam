@@ -241,8 +241,8 @@ export class HarnessAccounts {
     })
   }
   // harness-accounts.md "one continuation": {at, deliveryId|null} per member. The intent (deliveryId null) is written before the
-  // send and never suppresses a resend; the delivery that reaches the engine's input boundary first claims it (deliveryId),
-  // and any other delivery for the same limit end is refused there.
+  // send and never suppresses a resend; the accepted continuation message claims it (deliveryId), at the send and again at the
+  // engine's input boundary, and any other delivery for the same limit end is refused there.
   resumed(botId) { return this.state.resumed[botId] ?? null }
   intendResume(botId, at) {
     return this.update(state => state.resumed[botId]?.at === at ? state : { ...state, resumed: { ...state.resumed, [botId]: { at, deliveryId: null } } })
@@ -261,12 +261,6 @@ export class HarnessAccounts {
     })
     return outcome
   }
-  // A claimed delivery that ended explicitly not started gives the continuation back (a later review resends it).
-  releaseResume(botId, at, deliveryId) {
-    return this.update(state => state.resumed[botId]?.at === at && state.resumed[botId].deliveryId === deliveryId
-      ? { ...state, resumed: { ...state.resumed, [botId]: { at, deliveryId: null } } } : state)
-  }
-
   // The effective slot when it is logged in and not limited for the model, else null (every usable slot limited).
   async freeSlot(harness, model) {
     const slot = await this.effectiveSlot(harness, model)

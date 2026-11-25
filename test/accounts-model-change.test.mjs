@@ -20,7 +20,7 @@ test('a Claude model change in place moves the seat to the slot of the new model
 })
 
 // harness-accounts.md: the switch starts a new seat on the selected slot and leaves the old one; no pty_close.
-test('switchAccount launches a new seat for a running member and only renames a seat that is not running', async () => {
+test('switchAccount only names the new seat, running or not; the next delivery launches it (11-26 OOM)', async () => {
   const calls = [], seats = [], updates = []
   const client = { call: async (name, args) => { calls.push([name, args]); return {} } }
   const accounts = { watch: () => () => {}, close: () => {}, state: { seats: {} }, seatSlot: () => '1st',
@@ -33,12 +33,12 @@ test('switchAccount launches a new seat for a running member and only renames a 
   transport.isRunning = async () => true
   const moved = await transport.switchAccount(bot)
   assert.match(moved.session, /^bot-a-2nd-[0-9a-z]+$/u); assert.equal(moved.slot, '2nd')
-  assert.deepEqual(woken, [moved.session])
-  assert.equal(calls.some(([name]) => name === 'pty_close'), false)
+  assert.deepEqual(woken, [], 'a live idle seat gets no second seat beside it')
+  assert.equal(calls.length, 0)
   transport.isRunning = async () => false
   const renamed = await transport.switchAccount({ ...bot, id: 'bot-b', session: 'bot-b' })
-  assert.deepEqual(woken, [moved.session], 'a seat that is not running is not launched')
-  assert.deepEqual(updates, [['bot-b', renamed.session]]); assert.equal(transport.session({ id: 'bot-b' }), renamed.session)
+  assert.deepEqual(woken, [])
+  assert.deepEqual(updates, [['bot-a', moved.session], ['bot-b', renamed.session]]); assert.equal(transport.session({ id: 'bot-b' }), renamed.session)
   assert.deepEqual(seats, [['bot-a', '2nd'], ['bot-b', '2nd']])
 })
 
@@ -75,6 +75,49 @@ test('an unconfirmed seat move is reviewed again after moveRetryMs and stops onc
   } finally { process.stderr.write = stderr }
   assert.equal(attempts.length, 3, 'two failures, then one success, then no more attempts')
   assert.equal(transport.moveRetryTimer, null)
+  await transport.close()
+})
+
+// 2026-11-26 OOM: a retry looks again only at the members whose move failed, waiting longer while it keeps failing.
+test('an unconfirmed move retries only that member, on a doubling wait', async () => {
+  const slots = { 'bot-a': '1st', 'bot-b': '1st' }, attempts = { 'bot-a': [], 'bot-b': [] }
+  const accounts = { watch: () => () => {}, close: () => {}, state: { seats: slots }, seatSlot: id => slots[id] ?? null,
+    effectiveSlot: async () => '2nd', freeSlot: async () => '2nd', renewDue: async () => false }
+  const bots = { 'bot-a': { id: 'bot-a', harness: 'claude', model: 'fable' }, 'bot-b': { id: 'bot-b', harness: 'claude', model: 'fable' } }
+  const transport = new AitermTransport({ client: { call: async () => ({}) }, accounts, resolveBot: id => bots[id] })
+  transport.moveRetryMs = 20
+  transport.isIdle = () => true
+  transport.switchAccount = async bot => {
+    attempts[bot.id].push(Date.now())
+    if (bot.id === 'bot-a') throw Object.assign(new Error('x'), { code: 'CONVERSATION_SENDER_FORBIDDEN' })
+    slots[bot.id] = '2nd'
+  }
+  const stderr = process.stderr.write.bind(process.stderr); process.stderr.write = () => true
+  try {
+    await transport.reviewAccounts()
+    await new Promise(resolve => setTimeout(resolve, 230))
+  } finally { process.stderr.write = stderr }
+  assert.equal(attempts['bot-b'].length, 1, 'a member whose move succeeded is not reviewed by the retry')
+  const gaps = attempts['bot-a'].slice(1).map((at, i) => at - attempts['bot-a'][i])
+  assert.ok(gaps.length >= 3 && gaps[0] >= 15 && gaps[1] >= 35 && gaps[2] >= 75, `waits double: ${gaps}`)
+  assert.equal(transport.moveFailures.get('bot-a'), attempts['bot-a'].length)
+  await transport.close()
+})
+
+// 2026-11-26 OOM: inputs, intents, claims and seat records write the registry too; only limits or signedOut review every member.
+test('a registry write reviews every member only when limits or signedOut changed', async () => {
+  let listener = null, reviews = 0
+  const state = { seats: {}, limits: [], signedOut: [], inputs: {} }
+  const accounts = { watch: fn => { listener = fn; return () => {} }, close: () => {}, state }
+  const transport = new AitermTransport({ client: { call: async () => ({}) }, accounts, resolveBot: () => null })
+  transport.reviewAccounts = async () => { reviews++ }
+  listener()
+  state.inputs = { 'bot-a': '2026-11-26T00:00:00.000Z' }; listener()
+  state.seats = { 'bot-a': '2nd' }; listener()
+  assert.equal(reviews, 1)
+  state.limits = [{ harness: 'claude', slot: '2nd', scope: 'all' }]; listener()
+  state.signedOut = [{ harness: 'claude', slot: '1st' }]; listener()
+  assert.equal(reviews, 3)
   await transport.close()
 })
 
