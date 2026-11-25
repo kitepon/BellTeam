@@ -2,7 +2,7 @@
 
 Words (a161, Owner 2026-11-15 via Trony; Lattice 0.104.0): 前工程 = a task of the same chart that must finish first (a tree line); 他条件に接続 (接続) = waiting on a condition outside the chart (a task of another chart, a BellTeam schedule); 優先接続 = a Bot asked to be told at once when a task can start; ブロック = `todo block`, the last resort. 「待ち」 and 「止め / 止まり」 are retired words: where this spec used them they now read 接続 and ブロック (section [接続 and ブロック](#接続-and-ブロック-a161)).
 
-Shared by all three native drawings: Apple first (SwiftUI, Rapi), Web (Flora), Windows (Anis). Data only from the [lattice contract](README.md#public-contract-apps). The visual reference is Flora's design mock (`/srv/bellteam/bots/bot-7e777fe5/docs/lattice-chart-screen.html`, accepted by Trony 2026-11-11). Owner 2026-11-11: the old Web-made chart looked cheap; use each platform's rendering to the full, and never pull the Apple design down to Web limits.
+Shared by the Apple (SwiftUI, Rapi), Windows (Anis) and Linux apps. Data only from the [lattice contract](README.md#public-contract-apps). The visual reference is Flora's design mock (`/srv/bellteam/bots/bot-7e777fe5/docs/lattice-chart-screen.html`, accepted by Trony 2026-11-11). Owner 2026-11-11: the old Web-made chart looked cheap; use each platform's rendering to the full, and never pull the Apple design down to Web limits.
 
 Units: `pt` = SwiftUI points = CSS px = WinUI effective pixels. Times in ms. User-facing text is Japanese and plain: no codes, reasons, ids or paths anywhere on screen (Trony ruling 2026-11-11).
 
@@ -84,6 +84,8 @@ stateDiagram-v2
   Approvals --> Chart: 工程表で見る (the extension's 決裁箱 screen, its 詳細; Web: the chart dialog closes, hash #approvals/<decisionId>, the way back reopens the chart at that card)
   Chart --> Chart: 接続 工程へ移動 (opens that card's 詳細; a card on another chart opens that chart at it)
   Chart --> Chart: 接続 handle opens the panel / × folds it (wide: Mac, iPad, Web 1024 px+; starts folded, kept while the app is open)
+  Chart --> Reminders: 工程表の設定
+  Reminders --> Chart: 閉じる / back
   Chart --> List: chart switcher / すべての工程表
   Chart --> Conversation: 会話を開く / 統括と話す
   Conversation --> Chart: back (Web: reopening 工程表 resumes this chart)
@@ -136,6 +138,35 @@ Failure and edge views (all leave on their own; the action is optional):
 | 503 or stream drop (35 s silence) | last drawing dimmed + top pill: 工程表に再接続しています… with spinner | reconnect with backoff 1, 2, 4 … 30 s, forever while open; a new snapshot redraws | close |
 | 404 `LATTICE_CHART_NOT_FOUND` | この工程表は見つかりません。 | — | 一覧へ戻る |
 | 404 on `/api/lattice/charts` (older server) | このサーバーではまだ工程表を使えません。 | appears after the server update | 閉じる |
+
+## 工程表の設定
+
+Place a gear button with the accessible label 「工程表の設定」 in the chart toolbar in ツリー, 担当 and 過去ログ. It opens a native settings sheet titled 「工程表の設定」 for the open chart. Show the chart name and one switch labelled 「1分ごとの催促」. Supporting text: 「着手できる工程や作業中の工程があるとき、手が空いている担当に知らせます。」 The switch affects this chart. 優先接続 still sends its immediate notification.
+
+Read the [reminders API](README.md#get-and-put-apilatticechartsprojectidreminders) when the sheet opens and on reconnect. Show the saved value as ON or OFF. Leave the switch disabled while reading or saving. Send one PUT with the desired value on a change, and show the value returned by the server. If a save fails, show 「設定を保存できませんでした。」 and read back the server value to reconcile an uncertain write. Keep the confirmed value when the read fails and offer 「読み直す」. Retry transient reads with the app’s existing backoff while the sheet is open. A route-level 404 (`NOT_FOUND`) means the server predates the setting. Show 「このサーバーでは催促の設定を変更できません。」 A chart-level 404 uses the existing missing-chart path. Sign-in recovery follows the app’s existing rules. Close or back works in every state and returns to the same chart view. Ignore replies for a closed sheet or another chart.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Loading: open settings
+  Loading --> Saved: 200 with enabled
+  Loading --> Retry: network or 503
+  Retry --> Loading: automatic backoff / 読み直す
+  Loading --> OlderServer: 404 NOT_FOUND
+  Loading --> MissingChart: 404 LATTICE_CHART_NOT_FOUND
+  Loading --> SignIn: 401
+  SignIn --> Loading: signed in again
+  Saved --> Saving: toggle (PUT)
+  Saving --> Saved: 200 with enabled
+  Saving --> Loading: failure, show save message and read back
+  MissingChart --> [*]: 一覧へ戻る
+  Loading --> [*]: close
+  Retry --> [*]: close
+  OlderServer --> [*]: close
+  MissingChart --> [*]: close
+  SignIn --> [*]: close
+  Saved --> [*]: close
+  Saving --> [*]: close
+```
 
 ## ブロック一覧 (stops; Owner 2026-11-12: 「ブロッカー（止め）一覧は作ってくれ。それを見て俺が解除する。」)
 

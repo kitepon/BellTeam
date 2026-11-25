@@ -107,8 +107,11 @@ test('nudge a145: a card whose lane is no Bot and not the Owner goes to the char
 
 test('protocol: root nudge and effect turns.read', () => {
   const context = { generation: 'g1' }
-  validateLatticeRequest('nudge', {}, context)
-  assert.throws(() => validateLatticeRequest('nudge', { x: 1 }, context), { code: 'LATTICE_INVALID' })
+  validateLatticeRequest('nudge', { projectIds: ['alpha', 'beta'] }, context)
+  validateLatticeRequest('nudge', { projectIds: [] }, context)
+  for (const params of [{}, { projectIds: ['Bad'] }, { projectIds: ['alpha', 'alpha'] }]) {
+    assert.throws(() => validateLatticeRequest('nudge', params, context), { code: 'LATTICE_INVALID' })
+  }
   validateLatticeResult('nudge', { charts: 1, prompted: 0, skipped: 0, failed: 0 })
   assert.throws(() => validateLatticeResult('nudge', { charts: 1 }), { code: 'LATTICE_IPC_INVALID' })
   validateLatticeEffect('turns.read', { botIds: ['bot-a'] })
@@ -136,10 +139,13 @@ test('real Lattice: a predecessor on another chart holds the prompt until it is 
   assert.deepEqual([row.id, row.createdBy, typeof row.source], ['alpha', 'bot-a', 'string'])
   assert.deepEqual([...await cli.sources(['alpha', 'nochart'])], [['alpha', row.source], ['nochart', null]])
   assert.equal((await run('bot-b', 'beta', ['plan', 'create', '--json'], plan('p1', 'bot-b'))).exitCode, 0)
+  assert.equal((await core.nudge({ projectIds: ['alpha', 'deleted-chart'] }, effect)).charts, 1)
+  assert.deepEqual(sent.map(item => item.target), ['bot-a'], 'beta is ready but OFF; a deleted chart is ignored')
+  sent.length = 0
   await run('bot-a', 'alpha', ['todo', 'start', '--plan', 'p1', '--task', 't1'])
   const connect = await run('bot-b', 'beta', ['todo', 'dependency', 'connect', '--from-project', 'alpha', '--from-plan', 'p1', '--from-task', 't1', '--to-plan', 'p1', '--to-task', 't1', '--reason', 'waits on alpha'])
   assert.equal(connect.exitCode, 0, connect.stderr)
-  await core.nudge({}, effect)
+  await core.nudge({ projectIds: ['alpha', 'beta'] }, effect)
   assert.deepEqual(sent.map(item => item.target), ['bot-a'], 'bot-b waits on alpha/p1/t1 and is not prompted')
   const before = await core.chart({ projectId: 'beta' }, effect)
   assert.equal(before.cards[0].state, 'pending')
@@ -148,7 +154,7 @@ test('real Lattice: a predecessor on another chart holds the prompt until it is 
   assert.deepEqual(before.cards[0].connections.map(item => [item.kind, item.ref, item.reason]), [['task', 'alpha:p1/t1', 'waits on alpha']])
   await run('bot-a', 'alpha', ['todo', 'done', '--plan', 'p1', '--task', 't1', '--message', 'ok'])
   sent.length = 0
-  await core.nudge({}, effect)
+  await core.nudge({ projectIds: ['alpha', 'beta'] }, effect)
   assert.deepEqual(sent.map(item => item.target), ['bot-b'], 'prompted once the other chart\'s task is done')
   assert.match(sent[0].message, /beta[\s\S]*p1\/t1 「p1 one」: can start/u)
 })
@@ -183,11 +189,13 @@ test('nudge a509: a child answers the ticks of its first 3 minutes with the empt
   const empty = { charts: 0, prompted: 0, skipped: 0, failed: 0, filed: 0, routed: 0 }
   for (const at of [0, 60_000, 179_999]) {
     clock.now = 1_000_000 + at
-    assert.deepEqual(await core.nudge({}, effect), empty)
+    assert.deepEqual(await core.nudge({ projectIds: ['alpha', 'beta'] }, effect), empty)
   }
   assert.deepEqual(calls, [], 'nothing read, nothing sent inside the first 3 minutes')
   assert.doesNotThrow(() => validateLatticeResult('nudge', empty), 'the empty result is a valid nudge result')
   clock.now = 1_000_000 + 180_000
-  await core.nudge({}, effect).catch(() => {})
+  assert.deepEqual(await core.nudge({ projectIds: [] }, effect), empty)
+  assert.deepEqual(calls, [], 'a tick with all charts OFF does no work')
+  await core.nudge({ projectIds: ['alpha', 'beta'] }, effect).catch(() => {})
   assert.ok(calls.length > 0, 'at 3 minutes the sweep starts (it reaches for the CLI)')
 })

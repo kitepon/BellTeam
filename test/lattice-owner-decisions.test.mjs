@@ -62,16 +62,18 @@ test('owner hand-over: an already pending Lattice-filed card is withdrawn with a
   const charts = [{ projectId: 'alpha', name: 'Alpha', createdBy: 'bot-c', cards: [card('t1', 'ready'), card('t2', 'in-progress'), card('t3', 'pending')] },
     { projectId: 'beta', name: null, createdBy: 'bot-gone', cards: [card('t4', 'ready')] }]
   const record = { 'alpha/p1/t1': open('alpha', 't1', 'K-AAAA01'), 'alpha/p1/t2': open('alpha', 't2', 'K-AAAA02'), 'alpha/p1/t3': open('alpha', 't3', 'K-AAAA03'),
-    'beta/p1/t4': open('beta', 't4', 'K-AAAA04') }
+    'beta/p1/t4': open('beta', 't4', 'K-AAAA04'),
+    'off/p1/t5': { ...open('off', 't5', 'K-AAAA05'), status: 'reask' } }
   const x = rig({ charts, record, decisions: { 'K-AAAA02': { status: 'held' } } })
   assert.deepEqual(await x.go(), { filed: 2, routed: 0 })
   const cancels = x.calls.filter(([method]) => method === 'decisions.cancel').map(([, params]) => params)
   assert.deepEqual(cancels.map(params => params.decisionId), ['K-AAAA01', 'K-AAAA02'])
+  assert.ok(x.calls.every(([, params]) => params.decisionId !== 'K-AAAA05'), 'a disabled chart has no Approval Box effects')
   assert.ok(cancels[0].reason.includes('伝わりにくい') && cancels[0].reason.includes('Ceeが'))
   for (const params of cancels) validateLatticeEffect('decisions.cancel', params)
   assert.deepEqual(x.calls.filter(([method]) => method === 'messages.send').map(([, params]) => params.target), ['bot-c', 'bot-c'])
   assert.deepEqual(Object.fromEntries(Object.entries(x.stored()).map(([key, item]) => [key, item.status])),
-    { 'alpha/p1/t1': 'asked', 'alpha/p1/t2': 'asked', 'alpha/p1/t3': 'open', 'beta/p1/t4': 'open' }, 'a task that cannot move, or no creator to ask, keeps its card')
+    { 'alpha/p1/t1': 'asked', 'alpha/p1/t2': 'asked', 'alpha/p1/t3': 'open', 'beta/p1/t4': 'open', 'off/p1/t5': 'reask' }, 'a waiting task, missing creator or OFF chart keeps its record')
   const down = rig({ charts, record: { 'alpha/p1/t1': open('alpha', 't1', 'K-AAAA01') }, cancelFails: 'LATTICE_DECISIONS_UNAVAILABLE' })
   await down.go()
   assert.deepEqual(down.calls.map(([method]) => method), ['decisions.read', 'decisions.cancel'], 'unavailable ends the tick')

@@ -5,7 +5,7 @@ import { createLatticeFacade, createLatticeEffects, NUDGE_MS, QUEUE_WAIT_MS, SEA
 const tick = () => new Promise(resolve => setImmediate(resolve))
 const snap = (projectId, version) => ({ schema: 'bellteam.lattice-chart.v1', projectId, epoch: 'e', version })
 
-function fixture({ respond = () => null, now, nudgeMs } = {}) {
+function fixture({ respond = () => null, now, nudgeMs, reminders } = {}) {
   const calls = [], timers = [], nudges = []
   let gate = null
   const controller = { request: async (method, params) => {
@@ -15,7 +15,7 @@ function fixture({ respond = () => null, now, nudgeMs } = {}) {
     if (value instanceof Error) throw value
     return value ?? (method === 'refresh' ? { snapshots: [], nextRefreshMs: 2000 } : { method, params })
   } }
-  const facade = createLatticeFacade({ controller, nudgeMs, ...(now && { now }),
+  const facade = createLatticeFacade({ controller, nudgeMs, reminders, ...(now && { now }),
     // The nudge timer (60 s when enabled) and the seat answer timers are kept apart from the refresh loop's timers.
     setTimer: (run, ms) => { const timer = { run, ms }; (ms === NUDGE_MS ? nudges : ms === SEAT_ANSWER_MS ? [] : timers).push(timer); return timer }, clearTimer: timer => { if (timer) timer.cleared = true } })
   const fire = async () => { for (const timer of timers.splice(0)) if (!timer.cleared) timer.run(); await tick(); await tick() }
@@ -198,7 +198,7 @@ test('nudge: a null interval disables automatic calls and keeps explicit calls a
   assert.deepEqual([...f.timers, ...f.nudges], [])
   assert.deepEqual(f.calls, [])
   await f.facade.nudge()
-  assert.deepEqual(f.calls, [['nudge', {}]])
+  assert.deepEqual(f.calls, [['nudge', { projectIds: [] }]])
   assert.deepEqual([...f.timers, ...f.nudges], [])
 })
 
@@ -208,12 +208,26 @@ test('nudge: one 60 s timer from creation, re-armed after each call, failures sw
   assert.deepEqual(f.nudges.map(timer => timer.ms), [NUDGE_MS])
   assert.deepEqual(f.calls, [])
   f.nudges.shift().run(); await tick(); await tick()
-  assert.deepEqual(f.calls, [['nudge', {}]])
+  assert.deepEqual(f.calls, [['nudge', { projectIds: [] }]])
   assert.equal(f.nudges.length, 1, 're-armed after the call')
   down = true
   f.nudges.shift().run(); await tick(); await tick()
   assert.equal(f.calls.length, 2)
   assert.equal(f.nudges.length, 1, 'an old child refusing nudge does not stop the timer')
+})
+
+test('a sweep queued behind a seat write uses the switches saved before dispatch', async () => {
+  let enabled = ['alpha']
+  const f = fixture({ reminders: { enabledProjects: async () => enabled } })
+  const release = f.hold()
+  const write = f.facade.run({ from: 'bot-a', projectId: 'alpha', args: ['todo', 'start'] })
+  f.nudges.shift().run()
+  assert.deepEqual(f.calls.map(([method]) => method), ['run'])
+  enabled = ['beta']
+  release()
+  await write
+  await tick()
+  assert.deepEqual(f.calls.at(-1), ['nudge', { projectIds: ['beta'] }])
 })
 
 test('turns.read: working and idle pass, anything else or a failed read is unknown', async () => {

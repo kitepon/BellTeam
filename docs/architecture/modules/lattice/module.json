@@ -2,7 +2,7 @@
   "title": "Lattice工程表",
   "owner": "フローラ",
   "botId": "bot-7e777fe5",
-  "scope": "Latticeの取り込み・プロジェクトごとの工程表の保管・席のlattice道具・アプリ向け読取口（独立module子）。Lattice本体はスノーホワイト、描画は各アプリ",
+  "scope": "Latticeの取り込み・プロジェクトごとの工程表の保管・席のlattice道具・アプリ向け工程表APIと工程表ごとの催促設定（子moduleと本体）。Lattice本体はスノーホワイト、描画は各アプリ",
   "external": false,
   "provides": [
     "lattice-chart",
@@ -42,6 +42,7 @@
     "src/lattice/projection.mjs",
     "src/lattice/notices.mjs",
     "src/lattice/nudge.mjs",
+    "src/lattice/reminders.mjs",
     "src/lattice/owner-decisions.mjs",
     "src/lattice/owner-task.mjs",
     "src/lattice-approval.mjs",

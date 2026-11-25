@@ -19,7 +19,7 @@ export const QUEUE_WAIT_MS = 50_000
 // Seat writes: Claude Code aborts the MCP call at 60 s ("The operation timed out."), so the seat gets a definite answer first (a162).
 export const SEAT_ANSWER_MS = 40_000
 
-export function createLatticeFacade({ controller, retryMs = 2000, nudgeMs = NUDGE_MS, waitMs = QUEUE_WAIT_MS, answerMs = SEAT_ANSWER_MS, now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout }) {
+export function createLatticeFacade({ controller, reminders = null, retryMs = 2000, nudgeMs = NUDGE_MS, waitMs = QUEUE_WAIT_MS, answerMs = SEAT_ANSWER_MS, now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout }) {
   const subscribers = new Map()
   const queues = { seat: [], background: [] }
   let busy = false, session = 0, timer = null
@@ -34,10 +34,20 @@ export function createLatticeFacade({ controller, retryMs = 2000, nudgeMs = NUDG
       if (!job || job.answered) { if (job) continue; return }
       if (!job.pending && now() - job.queuedAt > waitMs) { job.reject(unavailable()); continue }
       busy = true; job.sent = true
-      let request
-      try { request = controller.request(job.method, job.params) } catch (error) { request = Promise.reject(error) }
-      request.then(job.resolve, error => job.reject(fail(error)))
-      Promise.resolve(request.completion ?? request).then(() => {}, () => {}).finally(() => { busy = false; pump() })
+      const finish = () => { busy = false; pump() }
+      const sendJob = params => {
+        let request
+        try { request = controller.request(job.method, params) } catch (error) { request = Promise.reject(error) }
+        request.then(job.resolve, error => job.reject(fail(error)))
+        Promise.resolve(request.completion ?? request).then(() => {}, () => {}).finally(finish)
+      }
+      // Read at dispatch so a switch saved while the sweep was queued applies to this sweep.
+      if (job.method === 'nudge' && reminders) {
+        void reminders.enabledProjects().then(projectIds => sendJob({ projectIds }), () => {
+          job.reject(unavailable())
+          finish()
+        })
+      } else sendJob(job.params)
     }
   }
 
@@ -81,13 +91,21 @@ export function createLatticeFacade({ controller, retryMs = 2000, nudgeMs = NUDG
   }
 
   // A null interval disables the timer while leaving nudge() callable.
-  const nudge = () => call('nudge', {}).catch(() => null)
+  const nudge = () => call('nudge', { projectIds: [] }).catch(() => null)
   const armNudge = () => { setTimer(() => { void nudge().then(armNudge) }, nudgeMs)?.unref?.() }
   if (nudgeMs !== null) armNudge()
 
   return {
     charts: () => call('charts', {}),
     nudge,
+    async reminderSettings(projectId, enabled) {
+      if (!reminders) throw unavailable()
+      await call('chart', { projectId })
+      try {
+        const saved = enabled === undefined ? (await reminders.enabledProjects()).includes(projectId) : await reminders.set(projectId, enabled)
+        return { schema: 'bellteam.lattice-reminders.v1', projectId, enabled: saved }
+      } catch { throw unavailable() }
+    },
     blockers: () => call('blockers', {}),
     async unblock({ projectId, stopId }) {
       const value = await call('unblock', { projectId, stopId })
