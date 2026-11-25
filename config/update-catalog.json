@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-25T13:18:44Z",
-  "expiresAt": "2026-12-02T13:18:44Z",
+  "publishedAt": "2026-11-25T14:19:54Z",
+  "expiresAt": "2026-12-02T14:19:54Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "c04574b6e7a46157d9f06420dc4b1a7be7955e2b",
-      "versionId": "sha256:fd9387e2cd24940621cde5db10ebc69f3d82751fb6c8ab6061e7f4d2db3d4c45",
+      "sourceCommit": "20964fc0e4c15b2897a1d58559063181c94eeab5",
+      "versionId": "sha256:0ed26144268b9165d10e2205bae4868c426d9646be2ec445475a6c8419c45adb",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:fd9387e2cd24940621cde5db10ebc69f3d82751fb6c8ab6061e7f4d2db3d4c45"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:0ed26144268b9165d10e2205bae4868c426d9646be2ec445475a6c8419c45adb"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "工程表ごとの催促設定を保存できるようにします。毎分の催促はこの版では停止しています。"
+        "工程表ごとの毎分の催促を有効にします。スイッチをONにした工程表だけが対象です。優先接続の即時通知は引き続き届きます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "c04574b6e7a46157d9f06420dc4b1a7be7955e2b",
-      "versionId": "sha256:fd9387e2cd24940621cde5db10ebc69f3d82751fb6c8ab6061e7f4d2db3d4c45",
+      "sourceCommit": "20964fc0e4c15b2897a1d58559063181c94eeab5",
+      "versionId": "sha256:0ed26144268b9165d10e2205bae4868c426d9646be2ec445475a6c8419c45adb",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:fd9387e2cd24940621cde5db10ebc69f3d82751fb6c8ab6061e7f4d2db3d4c45"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:0ed26144268b9165d10e2205bae4868c426d9646be2ec445475a6c8419c45adb"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "工程表ごとの催促設定を保存できるようにします。毎分の催促はこの版では停止しています。"
+        "工程表ごとの毎分の催促を有効にします。スイッチをONにした工程表だけが対象です。優先接続の即時通知は引き続き届きます。"
       ]
     },
     {
