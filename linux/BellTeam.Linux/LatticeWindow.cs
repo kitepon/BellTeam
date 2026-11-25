@@ -21,7 +21,7 @@ namespace BellTeam.Linux;
 
 /// <summary>
 /// The 工程表 window (screen-spec.md; Mac openWindow(id: "lattice")): its own window, one at a time, 一覧 then 工程表. Reads only while shown and not minimized;
-/// the list every 10 s, the open chart over its SSE. Saves nothing: closing the window drops the drawing. Mica is Windows-only: this window keeps its own gradient.
+/// the list every 10 s, the open chart over its SSE. Reminder settings are saved by the server. Mica is Windows-only: this window keeps its own gradient.
 /// </summary>
 public sealed class LatticeWindow : Window
 {
@@ -59,7 +59,7 @@ public sealed class LatticeWindow : Window
         ShowList();
         PropertyChanged += (_, e) => { if (e.Property == IsVisibleProperty || e.Property == WindowStateProperty) Sync(); };
         workspace.PropertyChanged += WorkspaceChanged;
-        AddHandler(KeyDownEvent, (_, e) => { if (e.Key == Key.Escape && (Chart?.CloseDetail() == true || (Chart is null && ReturnToChart()))) e.Handled = true; }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        AddHandler(KeyDownEvent, (_, e) => { if (e.Key == Key.Escape && (Chart?.CloseReminderSettings() == true || Chart?.CloseDetail() == true || (Chart is null && ReturnToChart()))) e.Handled = true; }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         Closed += (_, _) => { workspace.PropertyChanged -= WorkspaceChanged; StopAll(); if (ReferenceEquals(Current, this)) Current = null; };
     }
 
@@ -248,6 +248,9 @@ internal sealed class LatticeChartPage : Grid
     // 過去ログ rows of closed trees (a457): read only while 過去ログ is open, dropped when it is left.
     private readonly LatticeHistoryFeed past = new();
     private CancellationTokenSource? run;
+    private CancellationToken connectionToken;
+    private LatticeReminderSettings? reminderSettings;
+    private readonly Button reminderButton;
     internal LatticeBoard Board { get; }
     internal LatticeTreeView Tree { get; }
     // ツリー / 担当 / 過去ログ ("tree" / "lanes" / "history"): ツリー by default, remembered while the app is open (screen-spec "ツリー").
@@ -289,8 +292,17 @@ internal sealed class LatticeChartPage : Grid
     public LatticeChartPage(LatticeWindow window, string projectId, LatticeChartSummary? summary)
     {
         this.window = window; this.projectId = projectId; this.summary = summary;
+        reminderButton = Plain(Glass(Icons.Draw(Icons.Gear, 18, Brush(Ink)), 19, new Thickness(10), 0xD9), LatticeReminderSettings.Heading);
+        reminderButton.Margin = new Thickness(14, 0, 0, 0);
+        ToolTip.SetTip(reminderButton, LatticeReminderSettings.Heading);
+        AutomationProperties.SetAutomationId(reminderButton, "lattice-chart-settings");
+        reminderButton.Click += (_, _) => OpenReminderSettings();
         RowDefinitions = new RowDefinitions("Auto,Auto,*");
-        var bar = new Border { Child = toolbar, Padding = new Thickness(18, 14, 18, 10) }; Children.Add(bar);
+        var header = new DockPanel();
+        DockPanel.SetDock(reminderButton, Dock.Right);
+        header.Children.Add(reminderButton);
+        header.Children.Add(toolbar);
+        var bar = new Border { Child = header, Padding = new Thickness(18, 14, 18, 10) }; Children.Add(bar);
         SetRow(bannerHost, 1); Children.Add(bannerHost);
         Board = new LatticeBoard(window.Avatar) { Background = Brushes.Transparent };
         if (window.Clock is { } clock) Board.Clock = clock;
@@ -329,6 +341,7 @@ internal sealed class LatticeChartPage : Grid
     internal IReadOnlyDictionary<string, LatticeDecision?> Decisions => decisions;
     public void Run(BellApi api, CancellationToken connection)
     {
+        connectionToken = connection;
         decisionApi = api; Running = true; run = CancellationTokenSource.CreateLinkedTokenSource(connection);
         _ = FollowAsync(api, run);
     }
@@ -338,7 +351,34 @@ internal sealed class LatticeChartPage : Grid
         try { await Feed.RunAsync((onActivity, cancel) => WithOwner(api.LatticeEventsAsync(projectId, onActivity, cancel)), source.Token); }
         finally { if (ReferenceEquals(run, source)) run = null; source.Dispose(); }
     }
-    public void Stop() { Running = false; run?.Cancel(); run = null; past.Reset(); }
+    public void Stop()
+    {
+        CloseReminderSettings();
+        Running = false; run?.Cancel(); run = null; past.Reset();
+    }
+
+    private void OpenReminderSettings()
+    {
+        if (decisionApi is not { } api || reminderSettings is not null) return;
+        var settings = new LatticeReminderSettings(api, projectId, ChartName, Feed, connectionToken,
+            () => CloseReminderSettings(), () => window.ShowList());
+        foreach (var child in Children) child.IsEnabled = false;
+        reminderSettings = settings;
+        SetRowSpan(settings, RowDefinitions.Count);
+        Children.Add(settings);
+        settings.Open();
+    }
+
+    internal bool CloseReminderSettings()
+    {
+        if (reminderSettings is not { } settings) return false;
+        reminderSettings = null;
+        settings.Dispose();
+        Children.Remove(settings);
+        foreach (var child in Children) child.IsEnabled = true;
+        reminderButton.Focus();
+        return true;
+    }
     // Each snapshot carries the app's Owner profile, like Web's `owner` on its snapshot, so the reserved owner value is drawn by name and face.
     private async IAsyncEnumerable<LatticeSnapshot> WithOwner(IAsyncEnumerable<LatticeSnapshot> snapshots)
     {
@@ -410,6 +450,7 @@ internal sealed class LatticeChartPage : Grid
 
     private void RenderToolbar(LatticeSnapshot? snapshot)
     {
+        reminderButton.IsVisible = snapshot is not null and not { State: "unavailable" };
         toolbar.Children.Clear();
         var switcherContent = new StackPanel { Orientation = Orientation.Horizontal };
         switcherContent.Children.Add(BackIcon(13, Muted));
