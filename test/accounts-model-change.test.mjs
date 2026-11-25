@@ -77,3 +77,16 @@ test('an unconfirmed seat move is reviewed again after moveRetryMs and stops onc
   assert.equal(transport.moveRetryTimer, null)
   await transport.close()
 })
+
+// 2026-11-26: the 1st slot's token is read through a seat process; a review of many seats asks once per model, not once per seat.
+test('reviewAccounts asks the effective slot once per model', async () => {
+  const asked = []
+  const accounts = { watch: () => () => {}, close: () => {}, state: { seats: { 'bot-a': '1st', 'bot-b': '1st', 'bot-c': '1st' } },
+    seatSlot: () => '1st', effectiveSlot: async (_harness, model) => { asked.push(model); return '1st' }, renewDue: async () => false }
+  const bots = { 'bot-a': { id: 'bot-a', harness: 'claude', model: 'fable' }, 'bot-b': { id: 'bot-b', harness: 'claude', model: 'fable' },
+    'bot-c': { id: 'bot-c', harness: 'claude', model: 'opus' } }
+  const transport = new AitermTransport({ client: { call: async () => ({}) }, accounts, resolveBot: id => bots[id] })
+  transport.moveAtBoundary = () => assert.fail('no seat moves')
+  await transport.reviewAccounts()
+  assert.deepEqual(asked, ['fable', 'opus'])
+})
