@@ -209,20 +209,24 @@ Direct entrypoints and error framing: [HTTP conversation](../../src/http-convers
 ```mermaid
 flowchart LR
   Seat[Authenticated seat MCP]
-  Apps[Owner apps: Web / Apple / Windows]
+  Apps[Owner apps: Apple / Windows / Linux]
   P1[P1 HTTP mount and MCP registration]
   F[Body lattice facade: serialized root calls, refresh timer, SSE subscribers]
   C[P11 lattice child: core, projection, CLI runner]
   P4[P4 members registry]
   D11[(D11 chart stores and chart names)]
+  Settings[(BellTeam reminder switches)]
   Seat -->|LT1 lattice project, name?, args, input?; from = seat Bot id| P1
   Apps -->|LT2 GET charts / chart / events| P1
   P1 -->|LT3 run / charts / chart / subscribe| F
   F -->|LT4 root run, charts, chart, refresh| C
   C -->|LT5 members.list effect inside a root call| F
   C -->|LT10 messages.send effect: startable notice to each waiting Bot| F
-  F -.->|LT11 root nudge, automatic 1 min timer disabled in the body| C
-  C -->|LT12 turns.read effect; messages.send ONE prompt per lane Bot not running| F
+  Apps -->|LT16 GET / PUT chart reminders| P1
+  P1 -->|LT17 chart reminder read / set| F
+  F <-->|LT18 saved setting / enabled project IDs| Settings
+  F -.->|"LT11 root nudge {projectIds}, timer off until verified cutover"| C
+  C -->|"LT12 turns.read and messages.send: enabled charts, one prompt per lane Bot not running"| F
   Apps -->|LT13 GET blockers; POST charts/:id/unblock stopId (Owner only)| P1
   F -->|LT14 root blockers / unblock| C
   SCH[P4 body scheduler and registry removal hook] -->|LT15 facade.run: fixed 接続 verbs (condition add / resolve / remove, todo show) as the schedule owner Bot| F
@@ -232,7 +236,7 @@ flowchart LR
   F -->|LT9 tool result; JSON; SSE snapshot on version change| P1
 ```
 
-Since a102 (Owner 2026-11-14): LT7 is the Lattice product's contracted CLI only ([K1-K8](modules/lattice/README.md#bellteam---lattice-connection-task-a102)); D11 is Lattice's own store, which BellTeam never reads or writes directly; the chart name and creator live in Lattice (K4) and the Owner-lane filing record in BellTeam's own state. LT15 (a164) is the only way a BellTeam schedule reaches Lattice: the scheduler, the registry removal hook, the members effect `schedules.connectionRemoved` and the add-after-save wrapper of `facade.bots.setSchedule` (members-assembly) call the facade, never the members module ([README L21](modules/lattice/README.md)). LT1-LT9 compose the [lattice module contract](modules/lattice/README.md) with the [parent side](modules/runtime/lattice-child.md); neither is redrawn here. Screens show the chart name (fallback 「作った人の工程表」 / 名前のない工程表), never `projectId`.
+Since a102 (Owner 2026-11-14): LT7 is the Lattice product's contracted CLI only ([K1-K8](modules/lattice/README.md#bellteam---lattice-connection-task-a102)); D11 is Lattice's own store, which BellTeam never reads or writes directly; the chart name and creator live in Lattice (K4) and BellTeam owns the Owner-lane filing record and the reminder settings (L25). LT15 (a164) is the only way a BellTeam schedule reaches Lattice: the scheduler, the registry removal hook, the members effect `schedules.connectionRemoved` and the add-after-save wrapper of `facade.bots.setSchedule` (members-assembly) call the facade, never the members module ([README L21](modules/lattice/README.md)). LT1-LT9 compose the [lattice module contract](modules/lattice/README.md) with the [parent side](modules/runtime/lattice-child.md); neither is redrawn here. Screens show the chart name (fallback 「作った人の工程表」 / 名前のない工程表), never `projectId`.
 
 ## Startup, restart/resume and child loss
 

@@ -185,10 +185,13 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
       await rosterReader(effect)()
       return notices.deliverAll(ids, { roster, effect, lock: locked })
     },
-    // Every minute (facade timer, README L13-L15): every chart's cards from the memo -> ONE prompt per lane Bot not running.
-    async nudge(params, effect) {
-      if (now() - startedAt < firstNudgeMs) return { charts: 0, prompted: 0, skipped: 0, failed: 0, filed: 0, routed: 0 }
-      const { ids, rows } = await listed()
+    // Every minute (README L13-L15): the facade passes enabled project IDs.
+    async nudge({ projectIds }, effect) {
+      const empty = { charts: 0, prompted: 0, skipped: 0, failed: 0, filed: 0, routed: 0 }
+      if (!projectIds.length || now() - startedAt < firstNudgeMs) return empty
+      const { rows } = await listed()
+      const ids = projectIds.filter(projectId => rows.has(projectId))
+      if (!ids.length) return empty
       const memos = await syncAll(ids, effect, rows)
       const charts = ids.map((projectId, i) => ({ projectId, name: memos[i].content.name, createdBy: memos[i].content.createdBy, cards: memos[i].content.cards }))
       const laneOf = laneResolver(roster), live = roster.filter(member => !member.deleting)

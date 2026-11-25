@@ -39,6 +39,7 @@ import { prepareModuleRelease } from './module-release.mjs'
 import { createDiagnosticsFacade } from './diagnostics-facade.mjs'
 import { createWorkGraphFacade, createWorkGraphEffects } from './work-graph-facade.mjs'
 import { createLatticeFacade, createLatticeEffects } from './lattice-facade.mjs'
+import { createLatticeReminders } from './lattice/reminders.mjs'
 import { createLatticeDecisions, createApprovalDecisions } from './lattice-approval.mjs'
 import { createSeatApprovals } from './seat-approvals.mjs'
 import { createApprovalBoxExtensionEffects } from './approval-box-parent-effects.mjs'
@@ -520,7 +521,8 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
       runAs: (actor, send) => conversationAssembly ? conversationAssembly.run(actor, send) : send() }),
       onGeneration: () => { void lattice?.deliver() },
       onModuleChildExit: moduleChildExitReporter.observe, onModuleRestartLimit: moduleChildExitReporter.observeRestartLimit, onState: () => updateCenter?.notify() })
-    lattice = createLatticeFacade({ controller: latticeModule, nudgeMs: null })
+    const reminders = createLatticeReminders(join(root, 'state/lattice-reminders.json'))
+    lattice = createLatticeFacade({ controller: latticeModule, reminders, nudgeMs: null })
     void latticeModule.start().catch(() => {})
   }
   // R5: Approval Box extension child (runtime/approval-box-extension-child.md). Optional like lattice; its routes answer APPROVALS_UNAVAILABLE until the child serves.

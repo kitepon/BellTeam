@@ -36,8 +36,10 @@ export function validateLatticeRequest(method, params, context) {
   const project = id => { if (!validId(id)) throw latticeError('LATTICE_PROJECT_INVALID') }
   check(latticeObject(context, ['generation']) && validLatticeGeneration(context.generation))
   check(LATTICE_METHODS.includes(method))
-  if (['charts', 'deliver', 'nudge', 'blockers'].includes(method)) check(latticeObject(params, []))
-  else if (method === 'unblock') { check(latticeObject(params, ['projectId', 'stopId']) && str(params.stopId) && LATTICE_STOP_ID.test(params.stopId)); project(params.projectId) }
+  if (['charts', 'deliver', 'blockers'].includes(method)) check(latticeObject(params, []))
+  else if (method === 'nudge') {
+    check(latticeObject(params, ['projectIds']) && list(params.projectIds, validId) && new Set(params.projectIds).size === params.projectIds.length)
+  } else if (method === 'unblock') { check(latticeObject(params, ['projectId', 'stopId']) && str(params.stopId) && LATTICE_STOP_ID.test(params.stopId)); project(params.projectId) }
   else if (method === 'chart') { check(latticeObject(params, ['projectId'])); project(params.projectId) }
   // A history page (README L24): `before` is a previous page's opaque `next` or null; a page holds at most 100 cards.
   else if (method === 'history') {
