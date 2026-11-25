@@ -85,9 +85,9 @@ const fill = (part, values) => part.replace(/\{(\w+)\}/gu, (_, name) => {
 
 // Leona's transform: a pure stdin-to-stdout step (`mcp-lazy wrap-entry`), argv only. execFile has no stdin option, so the input goes through the child's stdin
 // (promisified execFile carries `.child`) and also as `options.input` for an injected `run`; the entry itself never appears in argv or in an error message.
-async function wrapEntry(run, relay, env, home, product, harness, entry) {
+async function wrapEntry(run, relay, env, home, product, harness, entry, idleStop) {
   const input = JSON.stringify(entry)
-  const args = ['wrap-entry', '--json', '--relay', relay, '--env', `MCP_LAZY_CACHE_DIR=${home}/.cache/mcp-lazy/${product}-${harness}`, '--env', 'MCP_LAZY_IDLE_STOP=0']
+  const args = ['wrap-entry', '--json', '--relay', relay, '--env', `MCP_LAZY_CACHE_DIR=${home}/.cache/mcp-lazy/${product}-${harness}`, '--env', `MCP_LAZY_IDLE_STOP=${idleStop}`]
   const running = run(relay, args, { env, input })
   running.child?.stdin?.on('error', () => {})
   running.child?.stdin?.end(input)
@@ -105,17 +105,18 @@ export async function configureHarnessEntries(home, { vars = {}, relay = null, r
   const products = await readJson(registry)
   if (!Array.isArray(products)) throw new Error(`E2 ${registry} がありません`)
   // An E2 item is a shared-tool file or a command (`{home}` becomes the seat home in the program and its arguments, `{name}` becomes `vars[name]` in the arguments) that prints the E1; a failed command, an unresolved `{name}` or unreadable output is the same "E1 unusable" as a bad file.
-  for (const { product, file, command, wrap } of products) {
+  for (const { product, file, command, wrap, idleStop = '0' } of products) {
     try {
       const value = command ? JSON.parse((await run(fill(command[0], { home }), command.slice(1).map(part => fill(part, { ...vars, home })), { env })).stdout) : await readJson(file)
       if (value === null) throw new Error(`${file ?? command[0]} がありません`)
       if (wrap !== undefined && wrap !== 'mcp-lazy') throw new Error(`wrap ${JSON.stringify(wrap)} は未対応です`)
+      if (!/^(0|(\d+(ms|s|m|h))+)$/u.test(idleStop)) throw new Error(`idleStop ${JSON.stringify(idleStop)} は時間の書式ではありません`)
       const { servers, hooks, settings, owns, version, cursorAllow, skipped } = parseEntries(product, value)
       applied[product] = { version, entries: [] }
       for (const part of skipped) report(`BellTeam 権限 ${product}: ${part} は適用しません`)
       for (const item of servers) {
         // wrap: 'mcp-lazy' transforms each entry when BellTeam's relay is executable (no relay: the raw entry). A failed transform skips that entry only (the seat keeps its current one).
-        try { items.push({ ...item, product, entry: wrap && relay ? await wrapEntry(run, relay, env, home, product, item.harness, item.entry) : item.entry }) } catch (error) {
+        try { items.push({ ...item, product, entry: wrap && relay ? await wrapEntry(run, relay, env, home, product, item.harness, item.entry, idleStop) : item.entry }) } catch (error) {
           report(`BellTeam MCP ${product}: ${item.harness} の ${item.name} をmcp-lazyで包めなかったので現在の状態のままにします（${safeMessage(error)}）`)
         }
       }

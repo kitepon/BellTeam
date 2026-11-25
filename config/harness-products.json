@@ -1,7 +1,7 @@
 [
   { "product": "xarticle", "file": "/srv/bellteam/shared/tools/xarticle/harness-entries.json" },
   { "product": "typesafe", "file": "/srv/bellteam/shared/tools/typesafe/harness-entries.json" },
-  { "product": "lattice", "file": "/app/config/lattice-harness-entries.json" },
+  { "product": "lattice", "file": "/app/config/lattice-harness-entries.json", "wrap": "mcp-lazy", "idleStop": "10m" },
   { "product": "throughline", "command": ["throughline", "harness-entries", "--json", "--home", "{home}"] },
   { "product": "rtk", "file": "/srv/bellteam/shared/tools/rtk/harness-entries.json" },
   { "product": "caveat", "command": ["node", "/srv/bellteam/shared/tools/caveat/current/node_modules/caveat-cli/dist/caveat.js", "harness-entries", "--json", "--harness", "codex", "--harness", "grok"] },

@@ -414,6 +414,46 @@ test('core: a chart waiting on another chart re-reads when that chart changes, n
   assert.equal(alphaReads(), 4)
 })
 
+test('core: one source process per round also answers for the external predecessors; a list needs none (incident 2026-11-26)', async () => {
+  const x = rig()
+  x.cli.reads.alpha = readOf([planMember({ tasks: [{ task_id: 't1' }], states: [['t1', 'pending']], events: [ev('plan', 't1', 'bot-7b140b27', 1)],
+    scoped: [{ kind: 'cross_plan_dependency', event_digest: 'e1', payload: { from: { project_id: 'other', plan_key: 'q', task_id: 'x' }, to: { project_id: 'alpha', plan_key: 'p1', task_id: 't1' } } }] })],
+    { connections: [{ plan_key: 'p1', task_id: 't1', connections: [{ kind: 'task', ref: 'other/q/x', state: 'open', reason: 'r', since: at(1) }] }],
+      external_tasks: [{ project_id: 'other', plan_key: 'q', task_id: 'x', status: 'in_progress', finished: false, reason: null, trigger: null }] })
+  x.cli.charts.push('other'); x.cli.tokens.other = 1; x.cli.reads.other = chartRead()
+  await x.chart(); await x.chart()
+  x.cli.calls.length = 0
+  await x.core.refresh({ projectIds: ['alpha'] }, x.effect)
+  assert.deepEqual(x.cli.calls.filter(call => call.startsWith(SOURCE)), [SOURCE + ' alpha,other'], 'one process for the chart and its external')
+  x.cli.calls.length = 0
+  await x.core.charts({}, x.effect)
+  assert.deepEqual(x.cli.calls.filter(call => call.startsWith(SOURCE)), [], 'the list already holds every token (K1)')
+})
+
+test('core: a live round and a list keep a chart read inside its gap, max(10 s, 4 x the read); chart and nudge reads are never held (incident 2026-11-26)', async () => {
+  const x = rig({ firstNudgeMs: 0 })
+  const run = x.cli.run
+  x.cli.run = async call => { if (call.args.join(' ') === READ) x.clock.now += 5000; return run(call) } // each display read takes 5 s -> gap 20 s
+  const refresh = () => x.core.refresh({ projectIds: ['alpha'] }, x.effect)
+  const reads = () => x.count(READ)
+  await refresh()
+  x.cli.reads.alpha = chartRead({ status: 'done' }); x.cli.tokens.alpha = 2
+  assert.deepEqual([(await refresh()).snapshots, reads()], [[], 1], 'inside the gap the kept memo is served')
+  await x.core.charts({}, x.effect)
+  assert.equal(reads(), 1, 'a list is held too')
+  x.clock.now += 19_999
+  await refresh()
+  assert.equal(reads(), 1)
+  x.clock.now += 1
+  assert.deepEqual([(await refresh()).snapshots.map(s => s.cards[0].state), reads()], [['done'], 2], 'the first tick after the gap reads once')
+  x.cli.tokens.alpha = 3
+  await x.chart()
+  assert.equal(reads(), 3, 'an app opening the chart always reads')
+  x.cli.tokens.alpha = 4; x.clock.now += 1000 // still inside the gap
+  await x.core.nudge({ projectIds: ['alpha'] }, x.effect)
+  assert.equal(reads(), 4, 'the nudge sweep is not held')
+})
+
 test('core: list syncs up to 16 charts at once as a pool, not batches (production 2026-11-14)', async () => {
   const x = rig()
   x.cli.charts = Array.from({ length: 40 }, (_, i) => `c${i}`)
@@ -447,6 +487,7 @@ test('core: version moves only when the projected content changes; refresh retur
   x.cli.tokens.alpha = 2
   assert.deepEqual((await refresh()).snapshots, [])
   x.cli.reads.alpha = chartRead({ status: 'done' }); x.cli.tokens.alpha = 3
+  x.clock.now += 10_000
   const changed = await refresh()
   assert.deepEqual(changed.snapshots.map(s => [s.version, s.cards[0].state]), [[2, 'done']])
   await x.chart()

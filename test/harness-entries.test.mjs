@@ -599,6 +599,19 @@ test('Approval Box: without an executable relay the raw E1 entry is written, no 
   assert.equal(JSON.parse(await f.read('.cursor/mcp.json')).mcpServers['approval-box'].command, RAW.cursor.command)
 })
 
+test('an E2 idleStop reaches the relay as MCP_LAZY_IDLE_STOP; a value that is not a duration makes that product E1 unusable (incident 2026-11-26)', async () => {
+  const f = await abSeat()
+  await writeFile(join(f.home, '../registry.json'), JSON.stringify([{ ...E2_AB, idleStop: '10m' }]))
+  await f.apply()
+  assert.deepEqual(f.calls.find(call => call[0] === AB.relay), [AB.relay, 'wrap-entry', '--json', '--relay', AB.relay, '--env', `MCP_LAZY_CACHE_DIR=${f.home}/.cache/mcp-lazy/approval-box-claude`, '--env', 'MCP_LAZY_IDLE_STOP=10m'])
+  const g = await abSeat()
+  await writeFile(join(g.home, '../registry.json'), JSON.stringify([{ ...E2_AB, idleStop: 'soon' }]))
+  const before = await g.bytes()
+  await g.apply()
+  assert.match(g.reports[0], /approval-box.*E1を使えない.*idleStop "soon" は時間の書式ではありません/u)
+  assert.deepEqual(await g.bytes(), before)
+})
+
 test('an E2 wrap value other than mcp-lazy makes that product E1 unusable', async () => {
   const f = await abSeat()
   await writeFile(join(f.home, '../registry.json'), JSON.stringify([{ ...E2_AB, wrap: 'other' }]))
