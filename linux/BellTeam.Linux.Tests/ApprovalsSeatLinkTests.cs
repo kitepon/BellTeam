@@ -4,7 +4,7 @@ using BellTeam.Core;
 
 namespace BellTeam.Linux;
 
-// 「AIの許可待ちを決裁箱へ送る」 (seat-approval-card.md): drawn only from the body's three routes, in the 工程表との連携 panel; a body without the routes (404) draws no section.
+// 「決裁箱につなぐ」 (seat-approval-card.md): drawn only from the body's three routes, in the 工程表との連携 panel; a body without the routes (404) draws no section.
 public sealed class ApprovalsSeatLinkTests
 {
     private static async Task<ApprovalsWindow> OpenAsync(string scene, string seat)
@@ -42,14 +42,25 @@ public sealed class ApprovalsSeatLinkTests
     });
 
     [Fact]
-    public Task StartShowsTheQrAndTheTypedCodeAndStopLeaves() => Ui.Run(async () =>
+    public Task RemovedAndExpiredEachShowTheirWordsAndTheTryAgainButton() => Ui.Run(async () =>
+    {
+        foreach (var (seat, words) in new[] { ("removed", SeatLinkText.Removed), ("failed-expired", SeatLinkText.Expired) })
+        {
+            var window = await OpenAsync("connected", seat);
+            try { Assert.True(Has(window, words)); Assert.True(Has(window, SeatLinkText.Again)); }
+            finally { window.Close(); }
+        }
+    });
+
+    [Fact]
+    public Task StartShowsTheQrAndBothCodesAndBothWaysAndStopLeaves() => Ui.Run(async () =>
     {
         var window = await OpenAsync("connected", "none");
         try
         {
             Assert.True(Has(window, SeatLinkText.None));
             Find(window, SeatLinkText.Connect)!.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); await Task.Delay(200); Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-            Assert.True(Has(window, SeatLinkText.Scan)); Assert.True(Has(window, "4CH9-MGVR-13NC-MC6C")); Assert.NotEmpty(window.GetVisualDescendants().OfType<QrView>());
+            Assert.True(Has(window, SeatLinkText.Scan)); Assert.True(Has(window, "ABCD-EFGH")); Assert.True(Has(window, "4CH9MGVR13NCMC6C")); Assert.True(Has(window, SeatLinkText.CodeLabel)); Assert.True(Has(window, SeatLinkText.SecretLabel)); Assert.True(Has(window, SeatLinkText.Type)); Assert.NotEmpty(window.GetVisualDescendants().OfType<QrView>());
             Find(window, SeatLinkText.Cancel)!.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); await Task.Delay(200); Avalonia.Threading.Dispatcher.UIThread.RunJobs();
             Assert.True(Has(window, SeatLinkText.None));
         }
