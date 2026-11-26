@@ -12,7 +12,7 @@ async function setup(t, answer) {
   const file = join(root, 'state', 'approval-box-extension', 'harness-entries.json')
   const calls = []
   const state = { answer }
-  const run = (cmd, args, options, done) => { calls.push([cmd, args, options.env.HOME]); typeof state.answer === 'function' ? state.answer(done) : done(state.answer instanceof Error ? state.answer : null, state.answer instanceof Error ? '' : state.answer) }
+  const run = (cmd, args, options) => { calls.push([cmd, args, options.signal instanceof AbortSignal, options.maxBuffer]); return new Promise((resolve, reject) => typeof state.answer === 'function' ? state.answer(resolve, reject) : state.answer instanceof Error ? reject(state.answer) : resolve({ stdout: state.answer })) }
   return { file, calls, state, publisher: createSeatEntryPublisher({ file, seatHome: '/home/bell', run }) }
 }
 
@@ -21,7 +21,8 @@ test('publish writes the seats runtime entry as an atomic, readable file and run
   assert.deepEqual(await publisher.publish(), { ok: true, changed: true, version: '0.2.0-pc.5' })
   assert.deepEqual(JSON.parse(await readFile(file, 'utf8')), e1('0.2.0-pc.5'))
   assert.equal((await stat(file)).mode & 0o777, 0o644)
-  assert.deepEqual(calls[0], ['/home/bell/.approval-box/bin/approval-box', ['harness-entries', '--json'], '/home/bell'])
+  assert.equal((await stat(join(file, '..'))).mode & 0o755, 0o755)
+  assert.deepEqual(calls[0], ['/home/bell/.approval-box/bin/approval-box', ['harness-entries', '--json'], true, 1048576])
   assert.deepEqual(await readdir(join(file, '..')), ['harness-entries.json'])
 })
 
@@ -52,17 +53,21 @@ test('no file is created when the runtime was never readable, and a second publi
   assert.equal((await publisher.publish()).reason, 'unreadable')
   assert.equal(await readFile(file, 'utf8').catch(() => 'absent'), 'absent')
   let release
-  state.answer = done => { release = () => done(null, JSON.stringify(e1('0.2.0-pc.5'))) }
+  state.answer = resolve => { release = () => resolve({ stdout: JSON.stringify(e1('0.2.0-pc.5')) }) }
   const first = publisher.publish()
   assert.equal((await publisher.publish()).reason, 'busy')
   release(); assert.equal((await first).ok, true)
+})
+
+test('a missing runner is refused at construction', () => {
+  assert.throws(() => createSeatEntryPublisher({ file: '/x/y.json' }), /SEAT_ENTRY_RUNNER_REQUIRED/)
 })
 
 test('start publishes at once and close stops the timer', async t => {
   const timers = []
   const root = await mkdtemp(join(tmpdir(), 'abe-')); t.after(() => rm(root, { recursive: true, force: true }))
   const file = join(root, 'e', 'harness-entries.json')
-  const publisher = createSeatEntryPublisher({ file, run: (c, a, o, done) => done(null, JSON.stringify(e1('0.2.0-pc.5'))), setTimer: (fn, ms) => { timers.push([fn, ms]); return { unref() {} } }, clearTimer: () => timers.push('cleared') })
+  const publisher = createSeatEntryPublisher({ file, run: async () => ({ stdout: JSON.stringify(e1('0.2.0-pc.5')) }), setTimer: (fn, ms) => { timers.push([fn, ms]); return { unref() {} } }, clearTimer: () => timers.push('cleared') })
   publisher.start()
   await new Promise(resolve => setTimeout(resolve, 30))
   assert.equal(JSON.parse(await readFile(file, 'utf8')).version, '0.2.0-pc.5')

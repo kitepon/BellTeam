@@ -516,8 +516,9 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     void workGraphModule.start().catch(() => {})
   }
   // a490h: the one hosted Approval Box connector daemon (no-op when the image has no package, as in dev and tests). a490f: the decision readers below use it once it is paired.
-  const approvalBoxDaemon = createApprovalBoxDaemon({ root })
-  const approvalBoxPort = createApprovalBoxPort({ daemon: approvalBoxDaemon })
+  const seatRun = createSeatProcessRunner(root, { environment: 'base' }) // the seats' Approval Box binary is the seat user's: run it as the seat user (seat-process.mjs)
+  const approvalBoxDaemon = createApprovalBoxDaemon({ root, seatRun })
+  const approvalBoxPort = createApprovalBoxPort({ daemon: approvalBoxDaemon, seatRun })
   if (latticeFactory) {
     // Optional module like work-graph: the routes and the seat tool answer LATTICE_UNAVAILABLE until the child is available.
     // Each new child generation (start, restart, exchange) re-delivers unacked startable notices; the call waits until the child is ready.
