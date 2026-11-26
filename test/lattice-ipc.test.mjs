@@ -265,6 +265,14 @@ test('actual IPC: initialize, ready, resume, charts, chart, refresh, run, errors
   const named = channel.request('run', { from: 'bot-b', projectId: 'alpha', args: ['status'], input: null, name: '名前' }).then(() => order.push('named run'))
   await Promise.all([slow, next, named])
   assert.deepEqual(order, ['chart', 'charts', 'seat read', 'slow run', 'next run', 'named run'])
+  // f20: a slow write of one project holds no write of another project (lanes), while nudge and deliver share one lane.
+  const lanes = []
+  const slowAlpha = channel.request('run', { from: 'bot-a', projectId: 'alpha', args: ['todo', 'slow'], input: null }).then(() => lanes.push('alpha slow'))
+  const beta = channel.request('run', { from: 'bot-a', projectId: 'beta', args: ['todo', 'start'], input: null }).then(() => lanes.push('beta'), () => lanes.push('beta'))
+  await beta
+  assert.deepEqual(lanes, ['beta'], 'beta finished while alpha was still running')
+  await slowAlpha
+  assert.deepEqual(lanes, ['beta', 'alpha slow'])
   await assert.rejects(channel.request('run', { from: 'bot-a', projectId: 'alpha', args: ['setup'], input: null }), { code: 'LATTICE_COMMAND_NOT_SEAT_SURFACE', status: 400 })
   assert.equal(effects.length >= 1, true)
   assert.equal(channel.snapshot().root, 0)

@@ -15,6 +15,8 @@ const READ_TODO = new Set(['show', 'status', 'blockers', 'display'])
 // Takes the run params whole: a `name` renames the chart (a write) and an `input` always writes, whatever the command.
 export const latticeRunReads = ({ args, input = null, name } = {}) => name === undefined && input === null && Array.isArray(args) && (READ_VERBS.has(args[0])
   || (args[0] === 'plan' && args[1] === 'show') || (args[0] === 'todo' && (READ_TODO.has(args[1]) || (['note', 'notice'].includes(args[1]) && args[2] === 'list'))))
+// Writes of one lane run one at a time, lanes beside each other (lattice-child.md: Call queue). `link` and the sweeps share the one Owner record file.
+export const latticeWriteLane = (method, params) => ['nudge', 'deliver', 'link'].includes(method) ? 'shared' : `project:${params.projectId}`
 export const latticeError = (code, status = 400) => Object.assign(new Error(code), { code, status, outcome: 'not_accepted' })
 export const latticeObject = (value, required, optional = []) => value && typeof value === 'object' && !Array.isArray(value)
   && required.every(key => Object.hasOwn(value, key)) && Object.keys(value).every(key => required.includes(key) || optional.includes(key))
