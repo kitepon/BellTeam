@@ -4,6 +4,9 @@ import { createSeatProcessRunner } from '../src/seat-process.mjs'
 import { runShellCommand } from '../src/scheduler.mjs'
 import { restoreBotEnvironments } from '../src/bot-environment.mjs'
 import { runWaitProcess } from '../src/aiterm-transport.mjs'
+import { seatCommandSpec, validateSecretEnv } from '../src/seat-command.mjs'
+import { spawnSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 
 test('席readerはserver評価envや不正入力を子起動前に拒否する', () => {
   assert.throws(() => createSeatProcessRunner('relative'), { code: 'SEAT_PROJECT_INVALID' })
@@ -39,4 +42,35 @@ test('利用者の置き場の実行は、席と同じ特権入口へ、project�
   assert.equal(env.npm_config_prefix, '/home/bell/.local')
   assert.ok(env.PATH.startsWith('/home/bell/.local/bin:'))
   assert.equal(env.DISABLE_AUTOUPDATER, '1')
+})
+
+test('O2: a secret environment is validated before any process starts and is never in argv', () => {
+  const run = createSeatProcessRunner('/synthetic-project')
+  for (const bad of [null, [], 'x', { lower: 'a' }, { '1A': 'a' }, { A: 1 }, { PATH: 'x' }, { HOME: 'x' }, { NODE_OPTIONS: 'x' }, { LD_PRELOAD: 'x' }, { BELLTEAM_X: 'x' },
+    { A: 'a\0b' }, { A: 'x'.repeat(64 * 1024 + 1) }, Object.fromEntries(Array.from({ length: 33 }, (_, i) => [`V${i}`, 'a'])), Object.create({ A: 'a' })])
+    assert.throws(() => run('true', [], { secretEnv: bad }), { code: 'SEAT_SECRET_ENV_INVALID' })
+  assert.throws(() => validateSecretEnv({ GH_TOKEN: 'a' }, { GH_TOKEN: 'already' }), { code: 'SEAT_SECRET_ENV_INVALID' })
+  assert.deepEqual(validateSecretEnv({ GH_TOKEN: 'a', DB_PASSWORD_2: 'b' }), { GH_TOKEN: 'a', DB_PASSWORD_2: 'b' })
+  const spec = seatCommandSpec('true', [], { project: '/synthetic-project', environment: 'base', secretEnv: true })
+  assert.ok(spec.args.includes('--env-stdin'))
+  assert.ok(!spec.args.some(value => value.includes('super-secret')))
+  assert.ok(!seatCommandSpec('true', [], { project: '/synthetic-project' }).args.includes('--env-stdin'))
+})
+
+test('O2: run-seat-command reads exactly one stdin line, merges it for the command only, and leaves the rest of stdin to the command', { skip: process.getuid?.() !== 1000 }, () => {
+  const entry = fileURLToPath(new URL('../src/run-seat-command.mjs', import.meta.url))
+  const run = (line, rest, script = 'printf "%s|" "$SYNTH_SECRET"; cat') => spawnSync(process.execPath, [entry, '/tmp', '--base-environment', '--env-stdin', '--', 'sh', '-c', script],
+    { input: line + '\n' + rest, encoding: 'utf8', env: { PATH: process.env.PATH } })
+  const ok = run(JSON.stringify({ SYNTH_SECRET: 'value-123' }), 'rest-of-stdin')
+  assert.equal(ok.status, 0)
+  assert.equal(ok.stdout, 'value-123|rest-of-stdin')
+  for (const bad of [JSON.stringify({ PATH: 'x' }), JSON.stringify({ SYNTH_SECRET: 1 }), 'not json', JSON.stringify([])]) {
+    const refused = run(bad, 'rest', 'echo started')
+    assert.notEqual(refused.status, 0)
+    assert.ok(!refused.stdout.includes('started'))
+    assert.ok(!refused.stderr.includes('value-123'))
+  }
+  const eof = spawnSync(process.execPath, [entry, '/tmp', '--base-environment', '--env-stdin', '--', 'sh', '-c', 'echo started'], { input: '{"A":"b"}', encoding: 'utf8', env: { PATH: process.env.PATH } })
+  assert.notEqual(eof.status, 0)
+  assert.ok(!eof.stdout.includes('started'))
 })
