@@ -103,7 +103,7 @@ stateDiagram-v2
   note right of Hosted: before Bound the daemon answers 503 not_paired, so the switch never runs before Bound
 ```
 
-Every state leaves by a command this module runs (`--off`), never by waiting for another module. A running seat keeps its old entries until its CLI restarts (the registration pass does not run at seat start); the check below names which seats were restarted.
+Every state leaves by a command this module runs (`--off`), never by waiting for another module. A running seat keeps its old entries until its CLI restarts (the registration pass does not run at seat start, and a CLI keeps what it loaded); the check below names which seats were restarted.
 
 ## 5. The sitting, in order
 
@@ -112,7 +112,8 @@ Every state leaves by a command this module runs (`--off`), never by waiting for
 | 1 | Nayuta | open /v1 decisions cleared, `PC_OFFER` on |
 | 2 | Molly | pairing reports **Bound** (the Owner's iPhone steps above) |
 | 3a | Delta | container seats: `install-runtime` pc.5, `use-hosted --socket /srv/bellteam/state/approval-box-hosted.sock` |
-| 3b | Molly | one registration pass on the entry named in section 6 (Delta tells her; she adds it) |
+| 3b | Molly | after Delta's message "install done": one on-demand pass of the registration (her script backs up the seat config files first, runs the same E2 pass the body runs at start, prints which files changed; only approval-box lines are expected) |
+| 3b' | the seat's owner | restart of each seat whose CLI was running before the pass: a running CLI keeps the entries it loaded, so it reads the new runtime only after a restart (who restarts which seat: asked of Tronie) |
 | 3c | Delta | rabbit, Mac, fox: `use-hosted --socket <host door>` (a door exists only while a seat runs there; on fox use runtime pc.5) |
 | 4 | Delta | first real request: a BellTeam seat files one request; the card is on the Owner's iPhone; his answer returns to the seat; `list_my_decisions` reads it answered |
 | 5 | Delta | one result to Tronie, with what was checked and what was not |
@@ -121,7 +122,7 @@ Not before Bound: a switch earlier makes every request tool on that host answer 
 
 ## 6. What Delta asks of Molly
 
-The entry is the one the runtime itself names: E2's `approval-box` item already runs `~/.approval-box/bin/approval-box harness-entries --json`. Today that prints runtime 0.1.37 and no `hosted.json` exists on this machine. After `install-runtime` the same command names the pc.5 runtime, so the registration needs no new item of its own: it needs **one live pass of `configureHarnessEntries` after the seats have installed the runtime** (otherwise the new runtime reaches the entries only at the next body start or Bot registry change). Delta runs the install on the seats; Molly runs the pass.
+The entry is the one the runtime itself names: E2's `approval-box` item already runs `~/.approval-box/bin/approval-box harness-entries --json`. Today that prints runtime 0.1.37 and no `hosted.json` exists on this machine. After `install-runtime` the same command names the pc.5 runtime, so the registration needs no new item of its own: it needs **one live pass of `configureHarnessEntries` after the seats have installed the runtime** (otherwise the new runtime reaches the entries only at the next body start or Bot registry change). Delta runs the install on the seats and sends Molly "install done"; Molly runs her prepared on-demand script once (no body restart) and reports which files changed. The pass covers every product in `config/harness-products.json`; Molly diffs and expects only approval-box lines.
 
 ## 7. Failure handling and protections
 
