@@ -219,7 +219,7 @@ private struct RootView: View {
                     // 切替の版の画面確認（a485）: 設定の「利用と課金」の2枚のカードだけ。本番の運営のURLで起動して見る。
                     ScrollView { VStack(spacing: 16) { StoreAccountCard(); SubscriptionCard() }.padding() }
                 } else if let state = ["waiting", "linked", "removed", "failed", "none"].first(where: { ProcessInfo.processInfo.arguments.contains("-bellbot-preview-seat-link-\($0)") }) {
-                    ScrollView { SeatLinkSection.Content(model: SeatLinkModel(preview: SeatLink(state: state, code: "WXYZ-1234-QRST-5678", qrText: "https://approval-box.example/pair?c=ABCD", expiresAt: Date().addingTimeInterval(300), reason: "other"))).padding() }
+                    ScrollView { SeatLinkSection.Content(model: SeatLinkModel(preview: SeatLink(state: state, code: "ABCD-EFGH", typedSecret: "WXYZ1234QRST5678", qrText: "https://approval-box.example/pair?c=ABCD", expiresAt: Date().addingTimeInterval(300), reason: "other"))).padding() }
                 } else if let state = ["notjoined", "removed", "signingin", "waiting", "failed", "live"].first(where: { ProcessInfo.processInfo.arguments.contains("-bellbot-preview-child-join-\($0)") }) {
                     ChildJoinPreview(state: state)
                 } else if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-chat") {

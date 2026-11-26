@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 「AIの許可待ちを決裁箱へ送る」: under 「決裁箱につながっています」 and the sign-out. Owner's session only; the QR is drawn from qrText with the component the device pairing already uses.
+/// 「決裁箱につなぐ」: under 「決裁箱につながっています」 and the sign-out. Owner's session only; the QR is drawn from qrText with the component the device pairing already uses.
 struct SeatLinkSection: View {
     @EnvironmentObject private var store: AppStore
     var body: some View { Content(model: SeatLinkModel(api: store.api)) }
@@ -66,15 +66,24 @@ struct SeatLinkSection: View {
                     Image(uiImage: picture).interpolation(.none).resizable().scaledToFit().frame(width: 180, height: 180)
                         .accessibilityLabel("決裁箱のアプリで読むQRコード")
                 }
-                if let typed = link.code, !typed.isEmpty {
-                    Text(verbatim: typed).font(.system(size: 16, design: .monospaced)).textSelection(.enabled)
-                        .accessibilityIdentifier("seat-link-typed")
-                }
+                value(SeatLinkWords.codeLabel, link.code, id: "seat-link-code")
+                value(SeatLinkWords.secretLabel, link.typedSecret, id: "seat-link-secret")
                 if let until = link.expiresAt {
                     Text(SeatLinkWords.until(until)).font(.system(size: 12.5)).foregroundStyle(LatticePalette.muted)
                 }
             }
             .frame(maxWidth: .infinity)
+        }
+
+        /// A labelled value the Owner can select and copy.
+        @ViewBuilder private func value(_ label: String, _ text: String?, id: String) -> some View {
+            if let text, !text.isEmpty {
+                VStack(spacing: 2) {
+                    Text(label).font(.system(size: 12)).foregroundStyle(LatticePalette.muted)
+                    Text(verbatim: text).font(.system(size: 16, design: .monospaced)).textSelection(.enabled)
+                        .accessibilityIdentifier(id)
+                }
+            }
         }
 
         @ViewBuilder private func actions(_ link: SeatLink) -> some View {
