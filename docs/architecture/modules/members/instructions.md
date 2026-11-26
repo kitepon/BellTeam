@@ -32,6 +32,8 @@ flowchart TD
 ```mermaid
 flowchart LR
   Profile[プロフィール・短期記憶] --> Render[既renderBotInstructions]
+  Position["profile.position に「統括」を含む"] -->|"含む席だけ"| Coord["役割節の直後に統括節1つ<br/>assign-owner/SKILL.md に従う1行"]
+  Coord --> Render
   Local["各席 AGENTS.local.md<br/>本人編集の永続正本"] --> Compose[席writerで読取・合成]
   Render --> Compose
   Compose --> Agents[生成AGENTS.md]
@@ -46,6 +48,10 @@ flowchart LR
 `ProjectFiles.writeInstructions` と `operateMembersProject` のwriteInstructions/prepareStartupContextが、既プロフィール・短期記憶の生成本文に個別正本を合成する。正本無し/空は既本文を維持、改定は次の再生成で読む。プロフィール変更・harness変更・短期記憶更新も正本を書き換えず、CLAUDEは既参照一行を維持する。固定pathの通常ファイルだけを読み、symlink/所有者不一致/読取中変化等は生成AGENTSを書き換える前に拒否する。失敗を個別指示無しの成功へ丸めない。
 
 CLI固有のAGENTS.overrideやCLAUDE.localに依存しない。個別指示は生成AGENTS本文として届き、各CLIの既読込経路と制限に従う。教本等の内容・改訂判断・責任境界を生成機構が決定しない。個別正本を削除又は空にした後の再生成で追加本文を除去できる。
+
+### 統括席の担当割り当て節（Owner 2026-11-26「やってみて。君のおすすめで」）
+
+`renderBotInstructions`は、`profile.position`に「統括」を含む席の生成AGENTSにだけ、自分の`## 役割`節の直後（`# 作業手順`の前）へ短い節`# 統括の担当割り当て`を1つ入れる。内容は1行: 仕事や裁定の担当（誰の工程か）を割り当てる・割り当て直す前に`/srv/bellteam/shared/tools/assign-owner/SKILL.md`に従う。統括でない席の生成本文は従来とバイト単位で同じ。判定は生成の都度のprofile.positionだけで、新しい統括席にも自動で付く。入力・保存場所・公開窓口・失敗契約は変えない（純関数の本文だけ）。手順本文の中身（SKILL.md）はassign-ownerの所有で、ここへ複製しない。`composeProjectInstructions`（`src/project-instructions.mjs`、`AGENTS.local.md`の合成）はこの経路の合成段で、2026-11-26からmembersのsource一覧に載せる。
 
 ## Ownerプロフィールと規範
 

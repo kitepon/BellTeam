@@ -75,6 +75,7 @@
     "src/http-schedule-api.mjs",
     "src/bot-registry.mjs",
     "src/project-files.mjs",
+    "src/project-instructions.mjs",
     "src/owner-profile.mjs",
     "src/user-rules.mjs",
     "src/global-instructions.mjs",
