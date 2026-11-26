@@ -106,8 +106,11 @@ Every state leaves by a child exit, the shared backoff or `close()`; none waits 
 | --- | --- | --- |
 | 1 (this page) | docs only | main |
 | 2 O2 (in code, abx PR "O2 runner") | `src/seat-command.mjs` (`validateSecretEnv`, spec flag `--env-stdin`), `src/seat-process.mjs` (option `secretEnv`), `src/run-seat-command.mjs` (reads exactly one stdin line, validates again, merges for the command only), `test/seat-process.test.mjs` | body |
-| 3a facade and effects (in code, inert until 3b wires them) | `src/auth-mediation-facade.mjs` (roots `resolve` / `admin` / `status`; fills the seat's project root as cwd; a dead child answers `outcome: error`, never a direct 1Password read), `src/auth-mediation-effects.mjs` (`members.roots`, `secret.get/put/erase` on the fixed scope, `seat.run` through the O2 runner with the Bot root as project and `env --chdir` below it, outputs cut at 64 KiB, `timedOut` on abort), `test/auth-mediation-parent.test.mjs` | body |
-| 3b process and framework | `src/auth-mediation-process.mjs`, the component name in `module-process.mjs` / `module-release.mjs` / `web-gateway-release.mjs`, the fixed start binary (`scripts/auth-mediation-start.c`, Dockerfile), install / package / verify scripts, artifact file list, update adapters and assembly in `application-services.mjs`, catalog row | body + module row (Rai's signed asset) |
+| 3a facade and effects (in code) | `src/auth-mediation-facade.mjs`, `src/auth-mediation-effects.mjs`, `test/auth-mediation-parent.test.mjs` | body |
+| 3b process and framework (in code) | `src/auth-mediation-process.mjs` (probe root `status {}`), `auth-mediation` in the component lists of `module-process.mjs`, `module-locks.mjs`, `module-exchange-diagnostic.mjs`, `scripts/auth-mediation-start.c` (+ an optional state folder and `AUTH_MEDIATION_STATE` in `module-start.c`: created 0700 by the fixed start), Dockerfile / package list / image workflow paths, assembly in `application-services.mjs` (factory exported by `bootstrap.mjs`), `test/auth-mediation-process.test.mjs` (the real child through the parent channel) | body |
+| 4 sockets (in code) | `src/auth-mediation-relay.mjs` (endpoint `state/auth-mediation-relay.sock` and the supervision of Rai's `scripts/auth-mediation/relay.py` as the seat uid), `test/auth-mediation-relay-endpoint.test.mjs` | body |
+| 5 MCP registration (in code) | `auth_exec` from Rai's `src/auth-mediation/mcp.mjs` in the shared tool list of `mcp-tools.mjs`; `authMediation` in the tool context of `application-runtime.mjs`; no seat entry (the tool rides the BellTeam MCP the seats already have) | body |
+| 6 distribution (later) | publish workflow, artifact file list, install / package / verify scripts, update adapters, catalog row for a signed module release | body + module row |
 | 4 sockets | container socket and host socket mount | body |
 | 5 MCP and registration | registration of Rai's `auth_exec` in the shared list; E2 item only if Rai publishes a separate entry | body (+ members row if the E2 list or common rules change) |
 
@@ -120,3 +123,30 @@ The child's protocol file is the contract: methods `resolve`, `admin`, `status`;
 ### Where the command runs (`seat.run` `cwd`)
 
 The runner's `project` fixes the base environment (`PATH`, npm prefix and cache, `BELLTEAM_PROJECT` come from it) and the working folder. So the runner's project is the **Bot's project root** (`bots.projectPath(botId)`), and a `cwd` below it is applied with `/usr/bin/env --chdir=<cwd> -- <argv>` (the folder is an argument, not a secret; the secret environment still goes only through the stdin line). When `cwd` equals the root, the command is run directly. The value of `cwd` is exactly what the child sent.
+
+## The sockets (slice 4, 2026-11-26)
+
+The body (uid 1001) cannot create `shared/tools/auth-mediation/` (owned by uid 1000, 0711) or a socket owned by the main-server user (host owner of the shared files = uid 1000). So the listeners are Rai's `scripts/auth-mediation/relay.py`, run as the **seat uid** through the existing privileged entry (`sudo bellteam-seat-exec` -> `run-seat-command`, base environment; image path `/app/scripts/auth-mediation/relay.py`). It creates `container.sock` (0666) and `host.sock` (0600), frames one request line per connection (64 KiB, 10 s), reads SO_PEERCRED in-process on the container socket (peer uid must be 1000), and asks the body over **one** unix socket the body owns, `/srv/bellteam/state/auth-mediation-relay.sock` (0666, reached only by the seat uid), with the frame `{via, peer:{uid,cwd}|null, request}`. The body endpoint (`src/auth-mediation-relay.mjs`) maps it, calls the facade and returns the child's one reply line unchanged.
+
+```mermaid
+flowchart LR
+  Script["Bot script: auth (container)"] --> CSock["container.sock 0666 (seat uid relay)"]
+  Host["main-server unit: auth (kite)"] --> HSock["host.sock 0600 (seat uid relay)"]
+  CSock --> Relay["relay.py (seat uid): framing, SO_PEERCRED"]
+  HSock --> Relay
+  Relay -->|"{via, peer, request}, one line"| End["body endpoint: state/auth-mediation-relay.sock"]
+  End --> Fac["facade: containerSocket / hostSocket / admin"]
+  Fac --> Child["auth-mediation child"]
+  Sup["body supervision: start without waiting, 1-30 s restart, SIGTERM at close"] -.-> Relay
+```
+
+| Step | Data | Notes |
+| --- | --- | --- |
+| S1 client -> relay | one JSON line `{op:'exec', command, cwd}` or `{op:'admin', verb, args}` | Rai's "Socket line protocol" (README); the container socket ignores `cwd` |
+| S2 relay -> body | `{via, peer, request}` | peer = `{uid, cwd}` read by the relay (container) or null (host); the body checks uid 1000 again and the shape of the words |
+| S3 body -> child | `resolve {command, cwd: peer cwd | client folder, via, unit?}` or `admin {cwd: peer cwd, verb, args}` | the child matches the registered roots / units; a refused request reads no secret |
+| S4 reply | the child's answer line, unchanged | an answer later than 40 s is `{"outcome":"error","error":"Timed out."}` (the relay waits 45 s) |
+
+States: the endpoint listens from body start (`start()` does not wait). The relay is `Starting -> Ready` (its "auth-mediation relay ready" line, 15 s) `-> Backoff` on exit (1, 2, 4, 8, 16, 30 s, no attempt limit) `-> Closed` (SIGTERM; the relay removes its sockets; SIGKILL after 5 s). While the relay is down the client's socket is missing and the client answers "The authentication module is not running."; no client reads 1Password itself. Without a seat runtime (dev, tests) no relay is started.
+
+Stated limits: the endpoint socket is 0666 so any seat-uid process can speak to it and claim a peer cwd, which is as strong as "cd into another Bot's folder and run auth" today; `host.sock` 0600 does not keep seats out either (seats are uid 1000 too). Both are the known same-uid bypass the Owner put on hold.
