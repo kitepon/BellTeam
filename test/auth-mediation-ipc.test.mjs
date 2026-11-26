@@ -20,6 +20,7 @@ async function fixture({ token = true } = {}) {
     bots: { 'bot-a': { grants: [{ command: 'node app.mjs' }] } }, units: {}, stopped: [] }))
   let stored = token ? 'tok' : null, ran = null
   const service = createAuthMediationService({ policyPath: join(dir, 'policy.json'), auditPath: join(dir, 'audit.jsonl'),
+    realpath: async p => p,
     runOp: async args => { assert.equal(args[2], 'node app.mjs'); return ok } })
   const effect = async (method, params) => {
     if (method === 'members.roots') return { roots: { 'bot-a': '/srv/bellteam/bots/bot-a' } }
