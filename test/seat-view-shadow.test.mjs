@@ -51,14 +51,14 @@ test('pty_list include goes only to an Aiterm whose schema has it, and a failed 
   assert.deepEqual(await run(null), [{}, {}])
 })
 
-test('the seat list is the sessions[] rows; route_since and an older Codex row come from Aiterm\'s meta only while the generic row lacks them', () => {
+test('the seat list is the sessions[] rows plus the meta-only seats; route_since and an older Codex row come from Aiterm\'s meta only while the generic row lacks them', () => {
   const old = (session, extra = {}) => ({ session_id: session, harness: 'claude-code', launch_id: 'l-' + session, route_since: 'r', turn: { state: 'idle' }, own_work: own, ...extra })
   const data = { schema: 'aiterm.seat-turns.v1', seats: [old('a'), old('b'), old('c'), old('x', { harness: 'codex-cli', turn: { ...running, event_cursor: 4, wait_process: 'w' } })], unread: ['u'] }
   const rows = [{ session_id: 'a', harness: 'claude-code', launch_id: 'l-a', turn: running, own_work: { ...own, tasks: 1 } }, { session_id: 'b', harness: 'claude-code', launch_id: 'l-b', turn: null },
     { session_id: 'x', harness: 'codex-cli', launch_id: 'l-x', turn: { state: 'running', turn_id: 't9', started_at: '2026-11-23T00:00:00.000Z', event_cursor: 4, interim_from: null } },
     { session_id: 'n', harness: 'claude-code', launch_id: 'l-n', turn: { state: 'idle' }, own_work: own }]
   const out = genericSeatData(data, rows)
-  assert.deepEqual(out.seats.map(seat => seat.session_id), ['a', 'x', 'n']) // c is not in sessions[]: gone; b is unread; n is new
+  assert.deepEqual(out.seats.map(seat => seat.session_id), ['a', 'x', 'n', 'c']) // b is unread; n is new; c is only in the meta (a seat bound to a terminal): its meta row stays, last
   assert.deepEqual(out.seats[0].turn, { ...running, event_cursor: null })
   assert.equal(out.seats[0].own_work.tasks, 1)
   assert.equal(out.seats[0].route_since, 'r')
