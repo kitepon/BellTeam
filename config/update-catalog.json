@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-26T12:40:59Z",
-  "expiresAt": "2026-12-03T12:40:59Z",
+  "publishedAt": "2026-11-26T13:11:58Z",
+  "expiresAt": "2026-12-03T13:11:58Z",
   "releases": [
     {
       "componentId": "usage",
@@ -491,8 +491,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "f9c49999b17206d7a2e660a6e972c55b11b95862",
-      "versionId": "cfa77c90f6c30c1f83f066721bd0434cad36214ae299c5f293e6806352827f6b",
+      "sourceCommit": "ab04a27ab8c7965810a3d5648618a986243f2bd0",
+      "versionId": "76a0a65355f1a5df7f5600f907b3fbca022c9f34f8142408ce29880e0a2da52b",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T124007Z/execution-f9c49999b17206d7a2e660a6e972c55b11b95862-linux-amd64.tar.gz",
-          "bytes": 3880096,
-          "sha256": "cfa77c90f6c30c1f83f066721bd0434cad36214ae299c5f293e6806352827f6b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T131136Z/execution-ab04a27ab8c7965810a3d5648618a986243f2bd0-linux-amd64.tar.gz",
+          "bytes": 3880226,
+          "sha256": "76a0a65355f1a5df7f5600f907b3fbca022c9f34f8142408ce29880e0a2da52b"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T124007Z/execution-f9c49999b17206d7a2e660a6e972c55b11b95862-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11177,
-          "sha256": "493f026796ed9f2a6133c757ff5185de73c031c5e62fd757e65fef007c75f94f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T131136Z/execution-ab04a27ab8c7965810a3d5648618a986243f2bd0-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11083,
+          "sha256": "e6032d7973bcba392012c5da9d65cb671d12bc43d373a81dd926464e99708efb"
         },
-        "signerCommit": "f9c49999b17206d7a2e660a6e972c55b11b95862"
+        "signerCommit": "ab04a27ab8c7965810a3d5648618a986243f2bd0"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +519,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "遠隔の席の route_since を keeper の ready_at から決め、席の画面の数え方を直します。"
+        "端末の席のうち、席の一覧に載らないものが、オーナーの稼働ランプで待機に見える不具合（Z207）を直します。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "f9c49999b17206d7a2e660a6e972c55b11b95862",
-      "versionId": "946d471febb90f83d7f7dd0475baa3441f34c605565c3b22912280e45c9f08f1",
+      "sourceCommit": "ab04a27ab8c7965810a3d5648618a986243f2bd0",
+      "versionId": "014613b2f6e30047e433373002d13efa95a364affbff8bfa7e2635d1e028a285",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +533,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T124007Z/execution-f9c49999b17206d7a2e660a6e972c55b11b95862-linux-arm64.tar.gz",
-          "bytes": 3880096,
-          "sha256": "946d471febb90f83d7f7dd0475baa3441f34c605565c3b22912280e45c9f08f1"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T131136Z/execution-ab04a27ab8c7965810a3d5648618a986243f2bd0-linux-arm64.tar.gz",
+          "bytes": 3880226,
+          "sha256": "014613b2f6e30047e433373002d13efa95a364affbff8bfa7e2635d1e028a285"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T124007Z/execution-f9c49999b17206d7a2e660a6e972c55b11b95862-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11040,
-          "sha256": "a3cd4ea28b6fbdf712ea27d43eeef18ca843b1cbe949b072483d89da1aa20991"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T131136Z/execution-ab04a27ab8c7965810a3d5648618a986243f2bd0-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11114,
+          "sha256": "e215dcdbd44fa94c0ac112aa833bad96de52aa4245bfc3ccee6f29d11abd1f40"
         },
-        "signerCommit": "f9c49999b17206d7a2e660a6e972c55b11b95862"
+        "signerCommit": "ab04a27ab8c7965810a3d5648618a986243f2bd0"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,7 +552,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "遠隔の席の route_since を keeper の ready_at から決め、席の画面の数え方を直します。"
+        "端末の席のうち、席の一覧に載らないものが、オーナーの稼働ランプで待機に見える不具合（Z207）を直します。"
       ]
     },
     {
