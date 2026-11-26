@@ -1,12 +1,12 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-26T02:01:09Z",
-  "expiresAt": "2026-12-03T02:01:09Z",
+  "publishedAt": "2026-11-26T02:29:09Z",
+  "expiresAt": "2026-12-03T02:29:09Z",
   "releases": [
     {
       "componentId": "usage",
-      "sourceCommit": "c3851cd10be9bec09cf4e19c6b40c93d7bee1ee2",
-      "versionId": "0cf43bc4e6dc97f937e8f91e1867ea6924f86992f82cdac5f8fc11ff85330e1c",
+      "sourceCommit": "a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2",
+      "versionId": "884cbc82c05095b39a2c2cc8f1c8333fde1add3d801a140c8e36abdd37f1ce39",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -14,16 +14,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261124T012246Z/usage-c3851cd10be9bec09cf4e19c6b40c93d7bee1ee2-linux-amd64.tar.gz",
-          "bytes": 92256,
-          "sha256": "0cf43bc4e6dc97f937e8f91e1867ea6924f86992f82cdac5f8fc11ff85330e1c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T022827Z/usage-a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2-linux-amd64.tar.gz",
+          "bytes": 92690,
+          "sha256": "884cbc82c05095b39a2c2cc8f1c8333fde1add3d801a140c8e36abdd37f1ce39"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261124T012246Z/usage-c3851cd10be9bec09cf4e19c6b40c93d7bee1ee2-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11144,
-          "sha256": "272e5fe2101be76a47534ef3c7e3b03b76fa936042891236a1c4f05617205d61"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T022827Z/usage-a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10917,
+          "sha256": "690f4b2123b25644f78b9b0e85ed24227b9a6735721d96895193d60b494fe349"
         },
-        "signerCommit": "c3851cd10be9bec09cf4e19c6b40c93d7bee1ee2"
+        "signerCommit": "a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -48,13 +48,13 @@
         }
       },
       "changes": [
-        "使わなくなった課金サーバーの設定を取り除きます。"
+        "会話の履歴の参照を新しい形に合わせます（表に出る動作は変わりません）。"
       ]
     },
     {
       "componentId": "usage",
-      "sourceCommit": "c3851cd10be9bec09cf4e19c6b40c93d7bee1ee2",
-      "versionId": "2c326a91b4960b001f6acba07ec5a7f664091b949287d90e3d6760ec50806fec",
+      "sourceCommit": "a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2",
+      "versionId": "366932a04cdd14a51a6ce8c309f7fc7fe641dbdbde586f5f3303aa2989675a6e",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -62,16 +62,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261124T012246Z/usage-c3851cd10be9bec09cf4e19c6b40c93d7bee1ee2-linux-arm64.tar.gz",
-          "bytes": 92256,
-          "sha256": "2c326a91b4960b001f6acba07ec5a7f664091b949287d90e3d6760ec50806fec"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T022827Z/usage-a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2-linux-arm64.tar.gz",
+          "bytes": 92690,
+          "sha256": "366932a04cdd14a51a6ce8c309f7fc7fe641dbdbde586f5f3303aa2989675a6e"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261124T012246Z/usage-c3851cd10be9bec09cf4e19c6b40c93d7bee1ee2-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11140,
-          "sha256": "9bdf1dfc2e9054afbd5a67b8c36faa6984c92fb05ed0b74c98f71c788663fedb"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T022827Z/usage-a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11058,
+          "sha256": "af52416df974fdefd00252ab9e6dc5b5ca8854ea9c6e98ba909a9b605c3a7b9c"
         },
-        "signerCommit": "c3851cd10be9bec09cf4e19c6b40c93d7bee1ee2"
+        "signerCommit": "a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -96,7 +96,7 @@
         }
       },
       "changes": [
-        "使わなくなった課金サーバーの設定を取り除きます。"
+        "会話の履歴の参照を新しい形に合わせます（表に出る動作は変わりません）。"
       ]
     },
     {
@@ -183,8 +183,8 @@
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "acabd657d8fd1f4331cf9792bd647981dbab87ba",
-      "versionId": "ef5ecd10c1bff1adc04b13f2ec5c5e1bf1b8f3dee37f50cb28ba3742ff61302a",
+      "sourceCommit": "a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2",
+      "versionId": "61a276e2ad5caac4397328ff75fc26b10fa966e83adb799027f91e27f0fa507d",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -192,16 +192,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261125T231444Z/conversation-acabd657d8fd1f4331cf9792bd647981dbab87ba-linux-amd64.tar.gz",
-          "bytes": 3796151,
-          "sha256": "ef5ecd10c1bff1adc04b13f2ec5c5e1bf1b8f3dee37f50cb28ba3742ff61302a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T022821Z/conversation-a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2-linux-amd64.tar.gz",
+          "bytes": 3798623,
+          "sha256": "61a276e2ad5caac4397328ff75fc26b10fa966e83adb799027f91e27f0fa507d"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261125T231444Z/conversation-acabd657d8fd1f4331cf9792bd647981dbab87ba-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11221,
-          "sha256": "bed380aa1e72a819bc54f79244b7dbce1d5ac3f6e77740d8c59d4ac07d3ea8c5"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T022821Z/conversation-a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11037,
+          "sha256": "2a336e7be401d9837806a6f768596e1e2eea2b6199c19465da417c38bc4f2759"
         },
-        "signerCommit": "acabd657d8fd1f4331cf9792bd647981dbab87ba"
+        "signerCommit": "a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -232,13 +232,13 @@
         }
       },
       "changes": [
-        "画像の版を計算する処理を軽くします（名簿を読み直すたびに画像を計算し直さないようにします）。"
+        "会話の履歴を、全件をメモリに載せず、1件ごとの小さな参照だけを持って必要な時にログから読む形にします。会話モジュールのメモリ使用量が下がります。"
       ]
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "acabd657d8fd1f4331cf9792bd647981dbab87ba",
-      "versionId": "8f4d8828a4e233c74a2fb9278c629ac1b70e7b878186c87c0def45713ddcb6d9",
+      "sourceCommit": "a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2",
+      "versionId": "8daad028d3ba43001f897fac4d633f712a2cd4a8d25e85286cc2354a9451f7a2",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -246,16 +246,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261125T231444Z/conversation-acabd657d8fd1f4331cf9792bd647981dbab87ba-linux-arm64.tar.gz",
-          "bytes": 3796151,
-          "sha256": "8f4d8828a4e233c74a2fb9278c629ac1b70e7b878186c87c0def45713ddcb6d9"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T022821Z/conversation-a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2-linux-arm64.tar.gz",
+          "bytes": 3798623,
+          "sha256": "8daad028d3ba43001f897fac4d633f712a2cd4a8d25e85286cc2354a9451f7a2"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261125T231444Z/conversation-acabd657d8fd1f4331cf9792bd647981dbab87ba-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11233,
-          "sha256": "d0c3cb3f0186b58b0c9435657b9abcd6206721e51d4342930a078d9d0ef6741f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T022821Z/conversation-a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11037,
+          "sha256": "2c19ad5fca59bccfbf44f6f379da6e2822a1bb6a1851fb5afc59994618bdcc60"
         },
-        "signerCommit": "acabd657d8fd1f4331cf9792bd647981dbab87ba"
+        "signerCommit": "a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -286,7 +286,7 @@
         }
       },
       "changes": [
-        "画像の版を計算する処理を軽くします（名簿を読み直すたびに画像を計算し直さないようにします）。"
+        "会話の履歴を、全件をメモリに載せず、1件ごとの小さな参照だけを持って必要な時にログから読む形にします。会話モジュールのメモリ使用量が下がります。"
       ]
     },
     {
@@ -427,8 +427,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "c50de56e2fe6bd132f77802616be514cb3e41b9a",
-      "versionId": "1b46823dfb1dc14847fc7ee081b7ce6a18ff455a1d178425aae72d22dbe1d394",
+      "sourceCommit": "a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2",
+      "versionId": "4b7bacc250a33947a51a7199f6bc4a34f61ffe332862a46c54c775a0e1eea3cd",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -436,16 +436,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T015300Z/web-gateway-c50de56e2fe6bd132f77802616be514cb3e41b9a-linux-amd64.tar.gz",
-          "bytes": 4562149,
-          "sha256": "1b46823dfb1dc14847fc7ee081b7ce6a18ff455a1d178425aae72d22dbe1d394"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T022833Z/web-gateway-a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2-linux-amd64.tar.gz",
+          "bytes": 4564504,
+          "sha256": "4b7bacc250a33947a51a7199f6bc4a34f61ffe332862a46c54c775a0e1eea3cd"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T015300Z/web-gateway-c50de56e2fe6bd132f77802616be514cb3e41b9a-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11158,
-          "sha256": "b5414e1b2894d85a113c3dfd4d8397bc160a284d511370ff7ea8ef20d8d63343"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T022833Z/web-gateway-a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11068,
+          "sha256": "0ec69171b20ee31776bc3fdf3e88746f28c5a56580ef5277c51987391798e44a"
         },
-        "signerCommit": "c50de56e2fe6bd132f77802616be514cb3e41b9a"
+        "signerCommit": "a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -454,13 +454,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "席の環境に、コミットの作者とコミッターを noreply の身元にする設定を加えます。"
+        "会話の履歴の参照を新しい形に合わせます（表に出る動作は変わりません）。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "c50de56e2fe6bd132f77802616be514cb3e41b9a",
-      "versionId": "d0c285fa82f6cfff2c967487d0ae46c9452cde6d1d02b23a0f5439be82f62ece",
+      "sourceCommit": "a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2",
+      "versionId": "ad4f1b4168d1360e42c8f70cf2fd407af80e0469a5f49fc9343784d48cf6d563",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -468,16 +468,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T015300Z/web-gateway-c50de56e2fe6bd132f77802616be514cb3e41b9a-linux-arm64.tar.gz",
-          "bytes": 4562150,
-          "sha256": "d0c285fa82f6cfff2c967487d0ae46c9452cde6d1d02b23a0f5439be82f62ece"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T022833Z/web-gateway-a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2-linux-arm64.tar.gz",
+          "bytes": 4564505,
+          "sha256": "ad4f1b4168d1360e42c8f70cf2fd407af80e0469a5f49fc9343784d48cf6d563"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T015300Z/web-gateway-c50de56e2fe6bd132f77802616be514cb3e41b9a-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10974,
-          "sha256": "7c7071f8ed84cb9b38a8512cb80d9f278b9858db850f8bfab3f9159f97017ae4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T022833Z/web-gateway-a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11021,
+          "sha256": "2eb4e6db7311870faab9200f3c992dde9511983b466a87f73190d8b3030add93"
         },
-        "signerCommit": "c50de56e2fe6bd132f77802616be514cb3e41b9a"
+        "signerCommit": "a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -486,7 +486,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "席の環境に、コミットの作者とコミッターを noreply の身元にする設定を加えます。"
+        "会話の履歴の参照を新しい形に合わせます（表に出る動作は変わりません）。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "c50de56e2fe6bd132f77802616be514cb3e41b9a",
-      "versionId": "sha256:5a9ab4beb6c66b8bb0b3a3fde31d67530f4adff1ee9eab427b352c55f3e9fb96",
+      "sourceCommit": "a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2",
+      "versionId": "sha256:ecc0f6a3930c030f9ba4fb02a6f4c60cfa2f00a034ddce77c5dd2ed84f39fdd0",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:5a9ab4beb6c66b8bb0b3a3fde31d67530f4adff1ee9eab427b352c55f3e9fb96"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ecc0f6a3930c030f9ba4fb02a6f4c60cfa2f00a034ddce77c5dd2ed84f39fdd0"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Botがコミットする時の作者とコミッターを、オーナーの noreply の身元に固定します。席が自分の画面に見えるメールアドレスを指定しても、公開コミットに入るのは noreply になります。"
+        "会話の履歴を、全件をメモリに載せず、1件ごとの小さな参照だけを持って必要な時にログから読む形にします。本体のメモリ使用量が下がります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "c50de56e2fe6bd132f77802616be514cb3e41b9a",
-      "versionId": "sha256:5a9ab4beb6c66b8bb0b3a3fde31d67530f4adff1ee9eab427b352c55f3e9fb96",
+      "sourceCommit": "a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2",
+      "versionId": "sha256:ecc0f6a3930c030f9ba4fb02a6f4c60cfa2f00a034ddce77c5dd2ed84f39fdd0",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:5a9ab4beb6c66b8bb0b3a3fde31d67530f4adff1ee9eab427b352c55f3e9fb96"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ecc0f6a3930c030f9ba4fb02a6f4c60cfa2f00a034ddce77c5dd2ed84f39fdd0"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Botがコミットする時の作者とコミッターを、オーナーの noreply の身元に固定します。席が自分の画面に見えるメールアドレスを指定しても、公開コミットに入るのは noreply になります。"
+        "会話の履歴を、全件をメモリに載せず、1件ごとの小さな参照だけを持って必要な時にログから読む形にします。本体のメモリ使用量が下がります。"
       ]
     },
     {
