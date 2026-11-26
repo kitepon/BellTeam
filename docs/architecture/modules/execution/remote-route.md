@@ -71,7 +71,7 @@ No new guard: the only protection is "never fall back to `terminal` for a `remot
 
 ## Open items
 
-1. `route_since` of a `remote` seat: the generic read is `forward_status({id}).ready_at` (stage 3 step 2). The one relayed `pty_list` carries no row for a `remote` seat, so the lost-route resume (remote-seat.md "Resume after the route came back") does not see them yet; it follows in step 2 (the keeper ensure already restarts the route; a seat whose CLI gave up on the MCP while the route was away is the case step 2 covers).
+1. `route_since` of a `remote` seat (stage 3 step 2, 2026-11-26): the keeper's `ready_at`, which every `ensure_forward` answer already carries (launch, and the once-a-minute keep). `RemoteRoutes` keeps it per terminal (`readyAt`: set by the answer, deleted when the answer has none = not ready) and `views` puts it on each row of that terminal as `route_since`, so the lost-route resume (remote-seat.md "Resume after the route came back") sees `remote` seats again with the rule unchanged. No new Aiterm call (the separate `forward_status` read is not needed: the same fact, no extra ssh start). A first view before the first answer has no `route_since`: nothing happens until the next tick.
 2. Crust: the known_hosts file and the agent socket survive while a wait runs (answered: yes, rename over the same path; both live under /tmp for the container's life).
 
 ## Order inside the stage

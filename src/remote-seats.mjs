@@ -189,7 +189,7 @@ export class RemoteSeats {
       const port = result?.structuredContent?.port ?? result?.port
       if (result?.isError || !Number.isInteger(port)) return null
       seat.port = String(port)
-      return { remote, forward, port, revision: forward.revision ?? null, url: `${seat.origin}${seat.pathname.replace(/\/$/u, '')}` }
+      return { remote, forward, port, readyAt: result?.structuredContent?.ready_at ?? null, revision: forward.revision ?? null, url: `${seat.origin}${seat.pathname.replace(/\/$/u, '')}` }
     } catch (error) {
       process.stderr.write(`BellTeam remote route: ensure_forward failed, launching on terminal: ${bot.id}: ${error?.code ?? 'FAILED'}\n`)
       return null
