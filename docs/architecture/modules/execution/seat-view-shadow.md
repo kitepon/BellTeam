@@ -23,7 +23,7 @@ flowchart LR
   OLD --> SHADOW
   FS -.-> SHADOW
   SHADOW --> CMP
-  CMP -->|"clean for a working period"| SWITCH["switch: CW reads sessions[]; Aiterm may drop OLD"]
+  CMP -->|"clean (Tronie 2026-11-26: Z205 log 0 differences)"| SWITCH["genericSeatData: CW reads sessions[] (turn, own_work, unread); route_since and Codex rows stay OLD; Aiterm may drop OLD after step 2 and stage 4"]
 ```
 
 The shadow never changes what BellTeam does: it only reads and compares. A shadow failure (a generic read refused, a transcript unreadable) is counted as `shadow_unavailable` and never reaches the Owner or any delivery.
@@ -60,5 +60,5 @@ The shadow holds nothing and refuses nothing: no guard, so no state to leave. It
 
 1. This design and Elegg's answers (done 2026-11-23: decisions above; Aiterm 0.70.108 carries `include`).
 2. Step 1 code, shadow only (PR "a532b2 stage 3 step 1"): the shadow adds `include` to the existing `pty_list` read when the connected Aiterm's tool schema lists it (older Aiterm: the call is unchanged), compares `turn`, `own_work` and unread against the `_meta` rows, counts per field, reports one `SEAT_VIEW_SHADOW_DIFF` line per seat and field per minute. Adoptable on its own: additive, no behaviour change.
-3. One working day of counters on Aiterm 0.70.108 (container and terminals); then the switch (CurrentWork reads `sessions[]`), together with stage 2 if clean by then (Tronie), otherwise in the first later train.
+3. One working day of counters on Aiterm 0.70.108 (container and terminals): clean, ruled by Tronie 2026-11-26 from the Z205 log (0 `SEAT_VIEW_SHADOW_DIFF`; latest summary turn=0/81536 own_work=0/81536 unread=0/51). Switch (this change): `genericSeatData` in `seat-view-shadow.mjs` is applied to the `_meta` data in `AitermTransport.#seatTurns` before `CurrentWork.endRead`; the shadow keeps comparing the unswitched data, so a later difference still shows. Per seat: `turn` and `own_work` come from `sessions[]`, a seat whose generic `turn` is null joins `unread`; `route_since` and every other field stay Aiterm's (step 2). Two fallbacks, both Aiterm-shaped: a Codex row keeps Aiterm's turn (its watch/wait contract needs `wait_process` and `event_cursor`, which the generic turn does not carry; stage 4 removes that), and an Aiterm without the generic fields (< 0.70.108, no `turn` key on the rows) leaves the data untouched. No flag: the fallback is per row; to go back, revert the change. Terminal seats already read `sessions[]` (`viewRows`, remote-route.md).
 4. Step 2 (`route_since` from `forward_status`) the same way.

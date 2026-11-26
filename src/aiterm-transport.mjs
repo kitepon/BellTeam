@@ -31,7 +31,7 @@ import { MachineStreamReaders } from './machine-stream-reader.mjs'
 import { writeAtomic } from './json-file.mjs'
 import { readRunningExclusions, exclusionsMeta } from './running-exclusions.mjs'
 import { retiredHarness, RETIRED_HARNESS_NOTICE } from './retired-harness.mjs'
-import { SeatViewShadow } from './seat-view-shadow.mjs'
+import { genericSeatData, SeatViewShadow } from './seat-view-shadow.mjs'
 import { isRemoteBot, seatTarget, KEY_RELOAD, remoteSeatNotStarted } from './remote-seats.mjs'
 
 export { AitermClient } from './aiterm-client.mjs'
@@ -1634,7 +1634,8 @@ export class AitermTransport {
     let result
     try { result = await client.call('pty_list', { include: ['turn', 'own_work'] }, { meta: sent ? { ...CALLER_META, 'aiterm/own_work_exclusions': sent } : CALLER_META })
     } catch (error) { this.workState.endRead(read, null); throw error }
-    let data = result?._meta?.['aiterm/seat_turns']
+    const aiterm = result?._meta?.['aiterm/seat_turns']
+    let data = genericSeatData(aiterm, result?.structuredContent?.sessions)
     // remote-route.md: seats launched on `remote` are not in this relayed list; one pty_list per machine adds their rows (same shape).
     if (data && Array.isArray(data.seats) && this.remoteSeats) {
       const extra = await this.remoteSeats.routes.views(sent ? { ...CALLER_META, 'aiterm/own_work_exclusions': sent } : null).catch(() => null)
@@ -1642,7 +1643,7 @@ export class AitermTransport {
       void this.remoteSeats.routes.keep()
     }
     this.workState.endRead(read, data)
-    try { this.seatViewShadow.compare(data, result) } catch { this.seatViewShadow.unavailable++ }
+    try { this.seatViewShadow.compare(aiterm, result) } catch { this.seatViewShadow.unavailable++ }
     if (this.seatMcpSeen && Array.isArray(data?.seats)) this.resumeLostRoutes(bots, data.seats)
     if (!data) return null
     if (data.schema !== 'aiterm.seat-turns.v1' || data.error || !Array.isArray(data.seats))
