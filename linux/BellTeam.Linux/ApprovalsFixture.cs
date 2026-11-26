@@ -55,7 +55,7 @@ internal sealed class ApprovalsFixture(string scene = "main", string seat = "non
         {
             if (route.EndsWith("/start", StringComparison.Ordinal)) seat = "waiting"; else if (route.EndsWith("/stop", StringComparison.Ordinal)) seat = "none";
             return seat == "waiting"
-                ? Json(new { state = "waiting", code = "4CH9-MGVR-13NC-MC6C", qrText = "https://approval-box.example/pair?c=4CH9MGVR13NCMC6C", expiresAt = DateTimeOffset.UtcNow.AddMinutes(4).AddSeconds(30).ToString("O") })
+                ? Json(new { state = "waiting", code = "ABCD-EFGH", typedSecret = "4CH9MGVR13NCMC6C", qrText = "https://approval-box.example/pair?c=4CH9MGVR13NCMC6C", expiresAt = DateTimeOffset.UtcNow.AddMinutes(4).AddSeconds(30).ToString("O") })
                 : seat is "failed-rejected" or "failed-expired" ? Json(new { state = "failed", reason = seat[7..] }) : Json(new { state = seat });
         }
         HttpResponseMessage Disconnect() { connection = "not_connected"; return Json(new { state = connection }); }

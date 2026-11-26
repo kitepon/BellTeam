@@ -8,7 +8,7 @@ using static BellTeam.Linux.LatticeLook;
 
 namespace BellTeam.Linux;
 
-// 「AIの許可待ちを決裁箱へ送る」 (seat-approval-card.md, "The pairing view"): under the 連携 panel of the 決裁箱 window, the same on every client. Drawn only from the body's three routes
+// 「決裁箱につなぐ」 (seat-approval-card.md, "The pairing view"): under the 連携 panel of the 決裁箱 window, the same on every client. Drawn only from the body's three routes
 // (GET /api/approvals/seat-link, POST …/start, POST …/stop); the QR is drawn from qrText, never from anything this client reads elsewhere. A body without the routes reads as unavailable (the plain line and one button).
 internal sealed partial class ApprovalsWindow
 {
@@ -45,6 +45,15 @@ internal sealed partial class ApprovalsWindow
         chip.HorizontalAlignment = HorizontalAlignment.Left; return chip;
     }
 
+    private static Control Value(string label, string value)
+    {
+        var text = new SelectableTextBlock { Text = value, FontSize = 18, FontWeight = FontWeight.Bold, FontFamily = new FontFamily("monospace"), Foreground = Brush(Ink), HorizontalAlignment = HorizontalAlignment.Center };
+        Avalonia.Automation.AutomationProperties.SetName(text, label);
+        var box = new StackPanel { Spacing = 2, HorizontalAlignment = HorizontalAlignment.Center };
+        var caption = Text(label, 12, Muted); caption.HorizontalAlignment = HorizontalAlignment.Center;
+        box.Children.Add(caption); box.Children.Add(text); return box;
+    }
+
     internal Control? SeatLinkSection()
     {
         if (seatLink is not { } link) return null;
@@ -57,7 +66,10 @@ internal sealed partial class ApprovalsWindow
         {
             var code = new QrView(qr, 200) { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 0) }; Avalonia.Automation.AutomationProperties.SetName(code, "決裁箱につなぐQRコード");
             section.Children.Add(code);
-            if (link.Code is { Length: > 0 } typed) { var text = Text(typed, 18, Ink, FontWeight.Bold, wrap: true); text.FontFamily = new FontFamily("monospace"); text.HorizontalAlignment = HorizontalAlignment.Center; section.Children.Add(text); }
+            // The app needs both codes (without the 確認コード the pairing binds no key): two labelled, selectable values, then the typed way written under them.
+            if (link.Code is { Length: > 0 } code1) section.Children.Add(Value(SeatLinkText.CodeLabel, code1));
+            if (link.TypedSecret is { Length: > 0 } secret) section.Children.Add(Value(SeatLinkText.SecretLabel, secret));
+            section.Children.Add(Text(SeatLinkText.Type, 14.5, Ink, wrap: true));
             if (link.ExpiresAt is { } expiry) { var left = Text(SeatLinkText.Until(expiry), 12, Muted); left.HorizontalAlignment = HorizontalAlignment.Center; section.Children.Add(left); }
         }
         if (SeatLinkText.Action(link) is { } label)
