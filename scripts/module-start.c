@@ -67,15 +67,15 @@ int main(int argc, char **argv) {
         || info.st_gid != SERVER_UID || info.st_nlink != 1 || (info.st_mode & 07777) != 0600
         || flock(writer, LOCK_EX | LOCK_NB) || fstatat(state, MODULE_NAME ".lock", &linked, AT_SYMLINK_NOFOLLOW)
         || !same(&info, &linked)) return fail();
-    if (dup2(writer, 5) != 5) return fail();
-    close(writer);
 #ifdef MODULE_STATE_ENV
-    /* The child's own folder under the state root, created 0700 here (the child reads its path from MODULE_STATE_ENV and writes only there). */
+    /* The child's own folder under the state root, created 0700 here BEFORE the lock file replaces the state directory descriptor (fd 5) (the child reads its path from MODULE_STATE_ENV and writes only there). */
     if (mkdirat(state, MODULE_NAME, 0700) && errno != EEXIST) return fail();
     int folder = openat(state, MODULE_NAME, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
     if (folder < 0 || fstat(folder, &info) || info.st_uid != SERVER_UID || info.st_gid != SERVER_UID || (info.st_mode & 07777) != 0700) return fail();
     close(folder);
 #endif
+    if (dup2(writer, 5) != 5) return fail();
+    close(writer);
     char root[512], entry[560];
     int size = builtin ? snprintf(root, sizeof(root), "%s", BUILTIN_ROOT)
         : snprintf(root, sizeof(root), "%s/" MODULE_NAME "/releases/%s/payload", PRIVATE_ROOT, argv[1]);
