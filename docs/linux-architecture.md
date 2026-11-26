@@ -22,7 +22,7 @@ flowchart LR
   core -->|HTTP API・SSE| integration[BellTeam共通入口<br/>モリー]
   core --> local[このPCの設定・認証情報<br/>~/.local/share/BellTeam]
   ui --> account[アカウント画面・最初の起動の関門<br/>LinuxAccountCard・LinuxAccountGate・QrView<br/>a540 契約1.36 §10 ローカル形式のデスクトップ部]
-  account -->|Google・Appleのサインイン・QRの要求・返事の確認・期間・サインアウト| lib[login-billing 0.22.4 デスクトップ部<br/>Kitepon.LoginBilling.Desktop DesktopLocal]
+  account -->|Google・Appleのサインイン・QRの要求・返事の確認・期間・サインアウト| lib[login-billing 0.24.1 デスクトップ部<br/>Kitepon.LoginBilling.Desktop DesktopLocal]
   lib --> pass[ローカルの記録（提供元・本人の識別・受け取った返事）所有者だけ読める<br/>LocalStore.ForApp ~/.local/share/BellTeam/login-billing/local]
   lib -->|Googleのサインインと公開鍵だけ| google[Google<br/>accounts.google.com・oauth2.googleapis.com・公開鍵]
   lib -->|Appleのサインインと公開鍵だけ。戻りはライブラリの静的な戻りページ（https://login-billing.kitepon.dev/apple-return。トークンはURLの断片に載り、ページの置き場へは届かない）が127.0.0.1へ渡す| apple[Apple<br/>appleid.apple.com・公開鍵]
