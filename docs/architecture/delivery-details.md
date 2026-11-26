@@ -151,3 +151,5 @@ Aiterm 0.63.12 prefixes `AGENT_INPUT_NOT_READY` and `AGENT_INPUT_TARGET_UNAVAILA
 実装：[messenger.mjs](../../src/messenger.mjs)、[aiterm-transport.mjs](../../src/aiterm-transport.mjs)、[delivery-job.mjs](../../src/delivery-job.mjs)、[room-messenger.mjs](../../src/room-messenger.mjs)、[execution-bridge.mjs](../../src/execution-bridge.mjs)。確認先はmessenger、aiterm-transport/send-rejection、delivery-job/recovery、room-messenger/routing、bot-session-state、execution-bridge、seat-aiterm-launch。局所検証と図の読取確認は[確認範囲](detail-status.md)で区別する。
 
 現branchでは追跡担当の同期決定を`followAcceptedDelivery`、回答取得を`readTurnAnswer`、画像保持の同期判定を`retainUntrackedImages`へ抽出した。全checkpoint、accepted/completionの所有、onTurnEnd/回答を出す分岐、削除awaitとactivity.releaseの位置はsubmitに残る。関連123件を局所確認し、本番/native再送はしていない。
+
+**失敗の段階の符号（chart-reminder-first-wake、2026-11-26）。** `dispatch`は起こす前に段階を`BOT_LAUNCH_FAILED`、文を打つ前に`BOT_SEND_FAILED`と置く。席が文を受けた（受領が返った）後は段階を外し、その後の待ちの失敗は`BOT_DELIVERY_FAILED`（受理済み・完了不明の追跡に残る）にする。以前は起こした直後に文が通った配送でも、待ちが失敗すると起動の失敗と記録され、画面には「起動に失敗」と出ていた（センチの実験、起こした席の最初の催促3631a06a）。
