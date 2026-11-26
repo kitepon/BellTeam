@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto'
+import { realpath as fsRealpath } from 'node:fs/promises'
+import { posix } from 'node:path'
 import { authorize, importV1 } from './policy.mjs'
 import { envReturn, runEnv } from './env.mjs'
 import { botForCwd, callerKey } from './identity.mjs'
@@ -7,9 +9,14 @@ const NOT_REGISTERED = 'This command is not registered.'
 const REFUSALS = { stopped: 'This command is stopped by the operator.', denied: 'This command is not permitted.' }
 
 // store: {read, write}; items: createItemCache; audit: line => Promise; roots: () => {botId: absoluteRoot}.
-export function createAuthCore({ store, items, audit, roots, now = () => new Date() }) {
+export function createAuthCore({ store, items, audit, roots, now = () => new Date(), realpath = fsRealpath }) {
   // An audit failure never refuses a request (the diagnostic is the caller's); it is swallowed here by design.
   const record = (rec, outcome, extra = {}) => { void Promise.resolve(audit({ ...rec, outcome, ...extra })).catch(() => {}) }
+
+  const insideProject = async (cwd, root, real) => {
+    if (!root || cwd !== posix.normalize(cwd) || (cwd.length > 1 && cwd.endsWith('/'))) return false
+    try { const [c, r] = await Promise.all([real(cwd), real(root)]); return c === r || c.startsWith(r + '/') } catch { return false }
+  }
 
   // request: {command: string[], cwd, via: 'mcp'|'container-socket'|'host-socket', botId?, unit?}
   async function resolve(request) {
@@ -21,6 +28,10 @@ export function createAuthCore({ store, items, audit, roots, now = () => new Dat
         : (id => id && { kind: 'bot', id })(botForCwd(await roots(), request.cwd))
     const rec = { time: at.toISOString(), request_id: randomUUID(), caller: caller ? callerKey(caller) : null, item: name, via: request.via, cwd: request.cwd }
     if (!caller || request.command.length === 0) { record(rec, 'unknown-caller'); return { outcome: 'unknown-caller', error: 'The caller is not registered.' } }
+    // The run path starts a process in cwd, so cwd must be a clean path inside the Bot's own project (symlinks resolved).
+    if (request.via === 'mcp' && !(await insideProject(request.cwd, (await roots())[request.botId], realpath))) {
+      record(rec, 'denied'); return { outcome: 'denied', error: 'The working folder is outside your project.' }
+    }
     const verdict = authorize(policy, caller, name, request.cwd, at.getTime())
     if (verdict !== 'granted') {
       if (verdict === 'stopped') items.flush(name)

@@ -15,7 +15,7 @@ function setup({ policy = {}, items = { 'gh release list -R a/b': { credential: 
   const store = { policy: { ...emptyPolicy(), vault: 'v', admins: ['bot-admin'], ...policy }, read: async () => structuredClone(store.policy), write: async p => { store.policy = p } }
   const cache = createItemCache({ now: () => clock, runOp: async args => { calls++; if (!items[args[2]]) throw new Error('x'); return itemJson(items[args[2]]) } })
   const lines = []
-  const core = createAuthCore({ store, items: cache, audit: l => lines.push(l), roots: () => ({ 'bot-a': '/srv/bellteam/bots/bot-a', 'bot-b': '/srv/bellteam/bots/bot-b' }), now: () => new Date(clock) })
+  const core = createAuthCore({ realpath: async p => ({ '/srv/bellteam/bots/bot-a/link': '/etc' })[p] ?? p, store, items: cache, audit: l => lines.push(l), roots: () => ({ 'bot-a': '/srv/bellteam/bots/bot-a', 'bot-b': '/srv/bellteam/bots/bot-b' }), now: () => new Date(clock) })
   return { core, store, lines, calls: () => calls, tick: ms => { clock += ms } }
 }
 const gh = { command: 'gh release list -R a/b' }
@@ -96,4 +96,14 @@ test('admin only for admins; grant, revoke, stop, resume change authorization an
   await t.core.admin('bot-admin', 'stop', { command: gh.command }); assert.equal((await t.core.resolve(req)).outcome, 'stopped')
   await t.core.admin('bot-admin', 'resume', { command: gh.command }); assert.equal((await t.core.resolve(req)).outcome, 'granted')
   await t.core.admin('bot-admin', 'revoke', { bot: 'bot-a', command: gh.command }); assert.equal((await t.core.resolve(req)).outcome, 'denied')
+})
+
+test('MCP path: cwd must be clean and inside the Bot project, symlinks resolved', async () => {
+  const t = setup({ policy: { bots: { 'bot-a': { grants: [{ command: 'node app.mjs' }] } } } })
+  const ask = cwd => t.core.resolve({ command: ['node', 'app.mjs'], botId: 'bot-a', cwd, via: 'mcp' }).then(r => r.outcome)
+  assert.equal(await ask('/srv/bellteam/bots/bot-a'), 'granted')
+  assert.equal(await ask('/srv/bellteam/bots/bot-a/sub/deeper'), 'granted')
+  for (const bad of ['/srv/bellteam/bots/bot-a/../bot-b', '/srv/bellteam/bots/bot-a/', '/srv/bellteam/bots//bot-a', '/srv/bellteam/bots/bot-ab', '/srv/bellteam/bots/bot-a/link', '/tmp'])
+    assert.equal(await ask(bad), 'denied', bad)
+  assert.equal(t.calls(), 1)
 })
