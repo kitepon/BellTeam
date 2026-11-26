@@ -1,5 +1,4 @@
 import Combine
-import PeerChannel
 import SwiftUI
 
 // 決裁箱拡張のアプリ契約 `/api/approvals/*`（docs/architecture/modules/approval-box-extension/contract/approvals-contract.md）。
@@ -172,7 +171,6 @@ enum ApprovalText {
     static let sendFailed = "いまは送れませんでした。答えは残っています。少し待って、もう一度押してください。"
     static let conflict = "内容が直されました。もう一度確かめてください。"
     static let closedElsewhere = "別の端末ですでに答えられています。"
-    static let notConnectedToAI = "この端末は、いまAIとつながっていません。つながると答えを送れます。"
     static let held = "保留中です。戻すまで工程は待ちます"
     static let heldExternal = "保留中です"
 
@@ -213,7 +211,7 @@ enum ApprovalText {
 // MARK: Records as the view's decisions
 
 extension ApprovalDecision {
-    /// A decision as this device holds it (peer-channel): content only from the device. With a link (the id-level lookup found the engine's row) it is BellTeam's own decision; without one it counts as external.
+    /// A decision as the embedded client holds it. With a link (the id-level lookup found the engine's row) it is BellTeam's own decision; without one it counts as external.
     init(record r: PeerDecisionRecord, link: ApprovalLink? = nil, linkMissing: Bool? = nil, roster: [ApprovalRosterMember] = []) {
         let (origin, requester) = ApprovalOrigin.classify(r, roster: roster)
         let iso = ISO8601DateFormatter()
@@ -229,7 +227,7 @@ extension ApprovalDecision {
                   amended: ApprovalAmended(is: false, fields: [], note: nil, at: nil), history: [],
                   requestAttachments: r.attachments.map {
                       ApprovalAttachment(id: $0.id, name: $0.name, contentType: $0.contentType, size: $0.size,
-                                         sha256: $0.sha256 ?? (Codec.fromBase64url($0.id) ?? Data()).map { String(format: "%02x", $0) }.joined())
+                                         sha256: $0.sha256 ?? "")
                   },
                   origin: origin, requester: requester, link: link, linkMissing: linkMissing)
     }
@@ -241,17 +239,10 @@ extension ApprovalDecision {
 
 // MARK: Model
 
-/// 決裁箱の画面の状態と操作。中身は ApprovalBoxLink の決裁（決裁箱の `/v1`、peer-channel が使える日からは端末が持つ決裁）から描く。サインインと端末の状態は ApprovalBoxLink が持つ。
+/// 決裁箱の画面の状態と操作。中身は ApprovalBoxLink の決裁（子の端末として決裁箱へつないだ部品が読む決裁）から描く。つなぎの状態は ApprovalBoxLink が持つ。
 @MainActor
 final class ApprovalsModel: ObservableObject {
-    enum Gate: Equatable {
-        case loading, ready, reconnecting
-        case signedOut(note: String?)
-        case signingIn
-        case notEntitled
-        case needsApproval(note: String?)
-        case waiting(code: String, qr: String, expiresAt: Date)
-    }
+    enum Gate: Equatable { case loading, ready, reconnecting, join, notEntitled, updateRequired }
     struct Note: Equatable { let text: String; let tone: SettingsTone }
 
     let link: ApprovalBoxLink
@@ -293,17 +284,15 @@ final class ApprovalsModel: ObservableObject {
     /// 読み直す: a live session is left alone; anything else tries again at once.
     func reread() {
         readRequest &+= 1
-        if link.state != .live { Task { await link.retryNow() } }
+        if link.state != .live { link.retryNow() }
     }
 
     static func gate(of state: ApprovalBoxLink.State) -> Gate {
         switch state {
-        case .signedOut(let note): .signedOut(note: note)
-        case .signingIn: .signingIn
+        case .join: .join
         case .joining: .loading
         case .notEntitled: .notEntitled
-        case .needsApproval(let note): .needsApproval(note: note)
-        case .waiting(let code, let qr, let expiresAt): .waiting(code: code, qr: qr, expiresAt: expiresAt)
+        case .updateRequired: .updateRequired
         case .live: .ready
         case .reconnecting: .reconnecting
         }
@@ -311,7 +300,7 @@ final class ApprovalsModel: ObservableObject {
 
     /// Keeps the entry count and the screen current while the app is in front (a started link is left alone), and the 工程表とのつながり of each decision current.
     func run(api: BellAPI) async {
-        await link.start()
+        link.start()
         while !Task.isCancelled {
             await refreshLinks(api: api)
             try? await Task.sleep(for: .seconds(Self.linkRetry))
@@ -396,29 +385,23 @@ final class ApprovalsModel: ObservableObject {
     /// An answer: `optionId` for a button, `text` for 指示を書いて返す. The connector's ack decides what the person sees; the draft stays on anything but accepted.
     /// Not resent on its own: a failed send leaves the choice for the person to press again.
     func answer(_ d: ApprovalDecision, optionId: String?, text: String?) async {
-        await send(d) { try await self.link.answer(d.id, optionId: optionId, text: text) } accepted: { nil }  // the sentence is drawn from the live decision (answered(_:)), not saved from this pre-answer one
+        await send(d) { await self.link.answer(d.id, optionId: optionId, text: text) } accepted: { nil }  // the sentence is drawn from the live decision (answered(_:)), not saved from this pre-answer one
     }
 
     func hold(_ d: ApprovalDecision, hold: Bool) async {
-        await send(d) { try await self.link.hold(d.id, held: hold) } accepted: { nil }
+        await send(d) { await self.link.hold(d.id, held: hold) } accepted: { nil }
     }
 
-    private func send(_ d: ApprovalDecision, _ work: () async throws -> ApprovalWriteOutcome, accepted: () -> (text: String, tone: SettingsTone)?) async {
+    private func send(_ d: ApprovalDecision, _ work: () async -> ApprovalWriteOutcome, accepted: () -> (text: String, tone: SettingsTone)?) async {
         notes[d.id] = nil
         sending.insert(d.id)
         defer { sending.remove(d.id) }
-        do {
-            switch try await work() {
-            case .accepted:
-                if let banner = accepted() { notes[d.id] = Note(text: banner.text, tone: banner.tone) }
-            case .closedElsewhere: notes[d.id] = Note(text: ApprovalText.closedElsewhere, tone: .violet)
-            case .stale: notes[d.id] = Note(text: ApprovalText.conflict, tone: .violet)
-            case .draftKept, .refused: notes[d.id] = Note(text: ApprovalText.sendFailed, tone: .orange)
-            }
-        } catch PeerDeviceError.noSession {
-            notes[d.id] = Note(text: ApprovalText.notConnectedToAI, tone: .orange)
-        } catch {
-            notes[d.id] = Note(text: ApprovalText.sendFailed, tone: .orange)
+        switch await work() {
+        case .accepted:
+            if let banner = accepted() { notes[d.id] = Note(text: banner.text, tone: banner.tone) }
+        case .closedElsewhere: notes[d.id] = Note(text: ApprovalText.closedElsewhere, tone: .violet)
+        case .stale: notes[d.id] = Note(text: ApprovalText.conflict, tone: .violet)
+        case .draftKept, .refused: notes[d.id] = Note(text: ApprovalText.sendFailed, tone: .orange)
         }
     }
 }

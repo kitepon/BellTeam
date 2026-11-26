@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The 決裁箱 window as a CHILD of the Owner's Approval Box (child-join.md, abx-child-join-contract). The states and member names are the embedded component's (client-component.md 0.5 section 9);
-/// the screen below draws them. Not wired to the live 決裁箱 sign-in yet: the component (client-v0.5.0) is not released, and nothing ships before Nayuta says Approval Box is complete.
+/// the screen below draws them; ApprovalBoxLink wires them to the embedded component (ApprovalBoxClient 0.5.0). Nothing ships before Nayuta says Approval Box is complete.
 enum ChildJoinState: Equatable {
     /// reason "removed": the parent removed this device in 接続.
     case notJoined(reason: String?)
