@@ -1,7 +1,7 @@
 import { createModuleEndpoint } from './module-ipc.mjs'
 import { LATTICE_STATE_COMPATIBILITY, LATTICE_PROTOCOL_VERSION, validLatticeGeneration, latticeError, latticeObject,
   validateLatticeRequest, validateLatticeEffect, validateLatticeEffectResult, validateLatticeControl,
-  validateLatticeControlResult, validateLatticeReady, validateLatticeResult, latticeWireError, latticeRunReads } from './lattice-protocol.mjs'
+  validateLatticeControlResult, validateLatticeReady, validateLatticeResult, latticeWireError, latticeRunReads, latticeWriteLane } from './lattice-protocol.mjs'
 
 const failure = (code, outcome = 'unknown', status = 503) => Object.assign(new Error(code), { code, outcome, status })
 const check = value => { if (!value) throw failure('LATTICE_IPC_INVALID') }
@@ -73,8 +73,8 @@ export function createLatticeParentChannel(child, { generation, onEffect }) {
 }
 
 export function createLatticeChildChannel({ dispatcher, event = process, versionId = process.argv[2] === 'builtin' ? null : process.argv[2] }) {
-  let generation = null, accepting = false, quiesced = false, epoch = 0, orphaned = false, readySent = false, chain = Promise.resolve(), channel
-  const active = new Set()
+  let generation = null, accepting = false, quiesced = false, epoch = 0, orphaned = false, readySent = false, channel
+  const lanes = new Map(), active = new Set()
   const drain = async () => { while (active.size) await Promise.allSettled([...active]) }
   const close = () => channel.close()
   const orphan = () => {
@@ -118,10 +118,10 @@ export function createLatticeChildChannel({ dispatcher, event = process, version
       if (!accepting || active.size >= 8) throw failure('LATTICE_NOT_ACCEPTED', 'not_accepted')
       dispatcher.validateRequest(message.method, message.params, message.context)
       quiesced = false
-      // Writes run one at a time in arrival order; reads never wait behind a write (README L3; incident 2026-11-14:
-      // a ~40 s `todo add` on a large plan held every list and chart read). Each call reaches the parent only through its bound effect.
-      const write = !(READS.has(message.method) || (message.method === 'run' && latticeRunReads(message.params))), done = deferred(), before = write ? chain : null
-      if (write) chain = done.promise
+      // Writes of one lane run one at a time in arrival order, lanes beside each other; reads never wait behind a write (README L3; incident 2026-11-14:
+      // a ~40 s `todo add` on a large plan held every list and chart read; f20: and every write of every other chart). Each call reaches the parent only through its bound effect.
+      const write = !(READS.has(message.method) || (message.method === 'run' && latticeRunReads(message.params))), done = deferred(), lane = write ? latticeWriteLane(message.method, message.params) : null, before = write ? lanes.get(lane) : null
+      if (write) lanes.set(lane, done.promise)
       active.add(done.promise)
       const effect = async (method, params) => {
         const value = await channel.call('effect', method, params, { operation: message.id }, { timeout: 30000 })
@@ -134,7 +134,7 @@ export function createLatticeChildChannel({ dispatcher, event = process, version
           return await dispatcher.dispatch(message.method, message.params, message.context, effect)
         } catch (error) { throw Object.assign(new Error('LATTICE_OPERATION_FAILED'), latticeWireError(error, 'unknown')) }
       }
-      run.finish = () => { active.delete(done.promise); done.resolve() }
+      run.finish = () => { active.delete(done.promise); if (lanes.get(lane) === done.promise) lanes.delete(lane); done.resolve() }
       return run
     },
   })

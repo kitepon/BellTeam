@@ -44,7 +44,7 @@ flowchart TD
   HTTP --> WorkGraph["work-graph.createWorkGraphApi / Owner GET snapshot・SSE"]
   WorkGraph --> WGFacade["work-graph-facade / 子moduleへのrefresh・snapshot"]
   HTTP --> Lattice["lattice.createLatticeApi / Owner GET charts・chart・SSE / GET・PUT chart reminders"]
-  Lattice --> LFacade["lattice-facade / 子moduleへのcharts・chart・refresh・run（1本の直列chain）"]
+  Lattice --> LFacade["lattice-facade / 子moduleへのcharts・chart・refresh・run（書き込みはプロジェクトごとのlane＋共有lane、各laneは直列）"]
   HTTP --> Accounts["http-accounts-api / GET accounts"]
   Accounts --> ExecAccounts["execution.accounts list"]
   HTTP --> BotItems["members profiles-http / Bot items"]
