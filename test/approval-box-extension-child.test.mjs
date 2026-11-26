@@ -285,15 +285,15 @@ test('http: owner only, JSON and Idempotency-Key required for answers, errors be
 
 test('http: the seat-link routes are the three calls of the parent, Owner only, and 503 without the slot', async () => {
   const calls = []
-  const seatLink = { get: async () => (calls.push('get'), { state: 'none' }), start: async () => (calls.push('start'), { state: 'waiting', code: 'C', qrText: 'u', expiresAt: 'e' }), stop: async () => (calls.push('stop'), { state: 'none' }) }
-  const api = createApprovalsApi({ facade: { pairing: seatLink }, internal: false })
+  const pairing = { get: async () => (calls.push('get'), { state: 'none' }), start: async () => (calls.push('start'), { state: 'waiting', code: 'C', qrText: 'u', expiresAt: 'e' }), stop: async () => (calls.push('stop'), { state: 'none' }) }
+  const api = createApprovalsApi({ facade: { pairing }, internal: false })
   assert.deepEqual((await call(api, 'GET', '/api/approvals/seat-link')).body, { state: 'none' })
   assert.equal((await call(api, 'POST', '/api/approvals/seat-link/start')).body.code, 'C')
   assert.deepEqual((await call(api, 'POST', '/api/approvals/seat-link/stop')).body, { state: 'none' })
   assert.deepEqual(calls, ['get', 'start', 'stop'])
   assert.equal((await call(api, 'POST', '/api/approvals/seat-link')).status, 405)
   assert.equal((await call(api, 'GET', '/api/approvals/seat-link/start')).status, 405)
-  assert.equal((await call(createApprovalsApi({ facade: { pairing: seatLink }, internal: true }), 'GET', '/api/approvals/seat-link')).status, 403)
+  assert.equal((await call(createApprovalsApi({ facade: { pairing }, internal: true }), 'GET', '/api/approvals/seat-link')).status, 403)
   assert.equal((await call(createApprovalsApi({ facade: {}, internal: false }), 'GET', '/api/approvals/seat-link')).status, 503)
 })
 

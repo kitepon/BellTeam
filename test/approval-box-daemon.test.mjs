@@ -24,16 +24,6 @@ if (command === 'daemon') {
       : route === '/decisions' ? { ok: true, result: { items: [] } } : route === '/confirm' ? { ok: false, status: 409, code: 'confirm_required', message: 'x', body: { check_token: 'ct', decisions: [] } } : { ok: false, status: 404, code: 'not_found', message: 'x' }) + '\\n') }) }).listen(path)
   process.stderr.write('daemon up secret-looking-text-should-be-masked-' + 'x'.repeat(50) + '\\n')
   setInterval(() => {}, 1000)
-} else if (command === 'pair' && rest.includes('--v1')) {
-  const out = line => process.stdout.write(JSON.stringify({ schema: 'approval-box.pair.v1', ...line }) + '\\n')
-  const mode = (() => { try { return JSON.parse(readFileSync(join(home, 'v1-mode.json'), 'utf8')) } catch { return {} } })()
-  if (mode.noWaiting) setInterval(() => {}, 1000)
-  else {
-    out({ state: 'waiting', pairing_id: 'p1', code: 'SEAT-CODE', qr_text: 'https://x/pair?c=SEAT-CODE', expires_at: new Date(Date.now() + 120000).toISOString() })
-    if (mode.reject) setTimeout(() => { out({ state: 'failed', code: 'rejected', message: 'no' }); process.exit(1) }, 200)
-    else if (mode.hang) setInterval(() => {}, 1000)
-    else setTimeout(() => { writeFileSync(join(home, 'config.json'), JSON.stringify({ server: 's', token: mode.token ?? 'tok-new', connection_id: 'c1', device_name: 'd', path: 'v1' })); out({ state: 'claimed', connection_id: 'c1', path: 'v1' }); process.exit(0) }, 300)
-  }
 } else if (command === 'pair') {
   const out = line => process.stdout.write(JSON.stringify(line) + '\\n')
   out({ type: 'waiting', code: 'ABCD-EFGH-IJKL-MNOP', typed_secret: 'TYPED-SECRET', qr_text: 'QR-TEXT-SECRET', expires_at: '2026-11-29T00:00:00Z', rebind: rest.includes('--rebind') })
@@ -188,76 +178,11 @@ test('call: the daemon\'s reply as it is, ok:false included, never a throw (a516
 })
 
 // seat-approval-card.md: the body's own pairing for seat cards
-const mode = (root, value) => writeFile(join(root, 'state', 'approval-box-daemon', 'v1-mode.json'), JSON.stringify(value))
 async function linkSetup(t) {
   const x = await setup(t)
   await mkdir(x.daemon.home, { recursive: true })
   return x
 }
-
-test('seat link: start returns the waiting line, the run claims (claimed = linked), the token is read only while linked', async t => {
-  const { daemon } = await linkSetup(t)
-  assert.deepEqual(await daemon.seatLink.get(), { state: 'none' })
-  assert.equal(await daemon.seatLink.token(), null)
-  const waiting = await daemon.seatLink.start()
-  assert.deepEqual(waiting, { state: 'waiting', code: 'SEAT-CODE', qrText: 'https://x/pair?c=SEAT-CODE', expiresAt: waiting.expiresAt })
-  assert.deepEqual(await daemon.seatLink.start(), waiting, 'a second start returns the same waiting line')
-  assert.equal(await daemon.seatLink.token(), null, 'not linked yet')
-  await until(async () => (await daemon.seatLink.get()).state === 'linked')
-  assert.deepEqual(await daemon.seatLink.get(), { state: 'linked' })
-  assert.equal(await daemon.seatLink.token(), 'tok-new')
-  assert.deepEqual(await daemon.seatLink.start(), { state: 'linked' }, 'start while linked starts no run')
-  assert.equal(JSON.stringify(await daemon.status()).includes('SEAT-TYPED'), false, 'the secrets never reach status()')
-})
-
-test('seat link: a token already in config.json is adopted; a 401 for that token marks removed; a new pairing needs a different token', async t => {
-  const { daemon } = await linkSetup(t)
-  await writeFile(join(daemon.home, 'config.json'), JSON.stringify({ token: 'tok-old' }))
-  assert.deepEqual(await daemon.seatLink.get(), { state: 'linked' })
-  await daemon.seatLink.unauthorized('some-other-token')
-  assert.equal((await daemon.seatLink.get()).state, 'linked', 'a 401 for another token is ignored')
-  await daemon.seatLink.unauthorized('tok-old')
-  assert.deepEqual(await daemon.seatLink.get(), { state: 'removed' })
-  assert.equal(await daemon.seatLink.token(), null, 'nothing is filed while removed')
-  await mode(daemon.home.replace(/\/state\/approval-box-daemon$/, ''), { token: 'tok-old' })
-  await daemon.seatLink.start()
-  await until(async () => (await daemon.seatLink.get()).state === 'failed')
-  assert.equal((await daemon.seatLink.get()).reason, 'ended', 'the same token again is not a new pairing')
-  await mode(daemon.home.replace(/\/state\/approval-box-daemon$/, ''), { token: 'tok-fresh' })
-  await daemon.seatLink.start()
-  await until(async () => (await daemon.seatLink.get()).state === 'linked')
-  assert.equal(await daemon.seatLink.token(), 'tok-fresh')
-})
-
-test('seat link: rejected, stop, no waiting line within the bound, and a missing package are each left', async t => {
-  const { daemon, root } = await linkSetup(t)
-  await mode(root, { reject: true })
-  await daemon.seatLink.start()
-  await until(async () => (await daemon.seatLink.get()).state === 'failed')
-  assert.deepEqual(await daemon.seatLink.get(), { state: 'failed', reason: 'rejected' })
-  await mode(root, { hang: true })
-  assert.equal((await daemon.seatLink.start()).state, 'waiting')
-  assert.deepEqual(await daemon.seatLink.stop(), { state: 'none' })
-  assert.deepEqual(await daemon.seatLink.get(), { state: 'none' })
-  const missing = await setup(t, { missing: true })
-  assert.deepEqual(await missing.daemon.seatLink.start(), { state: 'failed', reason: 'unavailable' })
-})
-
-test('seat link: no waiting line is killed at the bound and fails', async t => {
-  const root = await mkdtemp(join(tmpdir(), 'abd-'))
-  const entry = join(root, 'cli.mjs')
-  await writeFile(entry, FAKE)
-  await mkdir(join(root, 'state', 'approval-box-daemon'), { recursive: true })
-  await mode(root, { noWaiting: true })
-  let fire
-  const daemon = createApprovalBoxDaemon({ root, entry, setTimer: (fn, ms) => ms === 20000 ? (fire = fn, { unref() {} }) : setTimeout(fn, ms) })
-  t.after(async () => { await daemon.close(); await rm(root, { recursive: true, force: true }) })
-  const started = daemon.seatLink.start()
-  await until(() => fire)
-  fire()
-  assert.deepEqual(await started, { state: 'failed', reason: 'no_waiting_line' })
-  assert.deepEqual(await daemon.seatLink.get(), { state: 'failed', reason: 'no_waiting_line' })
-})
 
 test('P3 pairing: none, then waiting with the short code, the typed secret and the QR, then linked once the daemon is paired; removed when the pairing goes; stop leaves it none', async t => {
   const { daemon, root } = await setup(t)
