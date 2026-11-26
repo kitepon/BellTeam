@@ -45,7 +45,7 @@
     "src/lattice/reminders.mjs",
     "src/lattice/owner-decisions.mjs",
     "src/lattice/owner-task.mjs",
-    "src/lattice-approval.mjs",
+    "src/lattice-decisions.mjs",
     "src/lattice-protocol.mjs",
     "src/lattice-ipc.mjs",
     "src/lattice-dispatcher.mjs",

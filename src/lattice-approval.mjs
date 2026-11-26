@@ -1,13 +1,7 @@
-// Body side of the Lattice effects decisions.file / decisions.read (lattice README L18-L19; Trony ruling 2026-11-13).
-// The body files Owner-lane tasks to the Approval Box with its OWN connector connection (and running exclusions with another one, a41): the token is a Flora request_secret
-// (tool id below) held in BellTeam's secret store and read only inside withResolved (usage secret-credentials.md, Mika).
-export const LATTICE_APPROVAL_SCOPE = Object.freeze({ terminalId: 'lattice', purpose: 'approval-box.connector' })
-export const LATTICE_APPROVAL_SECRET = Object.freeze({ botId: 'bot-7e777fe5', toolId: 'lattice-approval-box' })
+// The connector client of the running exclusions and the seat approval cards (Kiro). Lattice moved to the P1 port (src/lattice-decisions.mjs, f24); this moves to the 決裁箱拡張 module with Kiro's code step (seats-on-hosted-daemon.md).
+// Each caller has its OWN connector connection: the token is a request_secret card held in BellTeam's secret store and read only inside withResolved (usage secret-credentials.md, Mika).
 const ORIGIN = 'https://approval-box.kitepon.dev/connector/v1'
 const idOf = value => value?.id ?? value?.decision_id
-
-export const createLatticeDecisions = options =>
-  createApprovalDecisions({ ...options, scope: LATTICE_APPROVAL_SCOPE, secret: LATTICE_APPROVAL_SECRET, code: 'LATTICE_DECISIONS' })
 
 // One connector connection per owner (Flora 2026-11-13: never shared; the session_label identity, revocation and outages stay
 // per purpose). Each caller passes its own credential scope and request_secret card {botId, toolId}.

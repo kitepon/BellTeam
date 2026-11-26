@@ -159,7 +159,7 @@ const PERMANENT = /^(SENDER_NOT_FOUND|BOT_NOT_FOUND|MESSAGE_REQUIRED)\b/u
 
 // The effects the child may call, inside a root call. Rows carry exactly the agreed keys and types.
 // runAs(actor, send): the conversation actor scope for a send; deliver and the nudge timer run outside any request scope.
-// decisions: createLatticeDecisions (lattice-approval.mjs, README L18-L19); absent -> LATTICE_DECISIONS_UNAVAILABLE, the child retries next tick.
+// decisions: createLatticeDecisions (lattice-decisions.mjs over P1, README L18-L19); absent -> LATTICE_DECISIONS_UNAVAILABLE, the child retries next tick.
 export function createLatticeEffects({ bots, messenger, transport, decisions = null, runAs = (actor, send) => send() }) {
   const text = value => value == null ? '' : String(value)
   return async (method, params) => {

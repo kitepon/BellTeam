@@ -40,7 +40,7 @@ import { createDiagnosticsFacade } from './diagnostics-facade.mjs'
 import { createWorkGraphFacade, createWorkGraphEffects } from './work-graph-facade.mjs'
 import { createLatticeFacade, createLatticeEffects } from './lattice-facade.mjs'
 import { createLatticeReminders } from './lattice/reminders.mjs'
-import { createLatticeDecisions } from './lattice-approval.mjs'
+import { createLatticeDecisions } from './lattice-decisions.mjs'
 import { createApprovalBoxPort } from './approval-box-port.mjs'
 import { createSeatApprovals } from './seat-approvals.mjs'
 import { createApprovalBoxExtensionEffects } from './approval-box-parent-effects.mjs'
@@ -522,7 +522,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     // Optional module like work-graph: the routes and the seat tool answer LATTICE_UNAVAILABLE until the child is available.
     // Each new child generation (start, restart, exchange) re-delivers unacked startable notices; the call waits until the child is ready.
     latticeModule = latticeFactory({ root, exchangeMutex, prepareRelease: prepareLattice, onEffect: createLatticeEffects({ bots, messenger, transport,
-      decisions: createLatticeDecisions({ credentials: usageAssembly?.credentials ?? null, secretRequests: usageAssembly?.facade?.secretRequests ?? null, daemon: approvalBoxDaemon }),
+      decisions: createLatticeDecisions({ port: () => approvals?.decisions }),
       runAs: (actor, send) => conversationAssembly ? conversationAssembly.run(actor, send) : send() }),
       onGeneration: () => { void lattice?.deliver() },
       onModuleChildExit: moduleChildExitReporter.observe, onModuleRestartLimit: moduleChildExitReporter.observeRestartLimit, onState: () => updateCenter?.notify() })
