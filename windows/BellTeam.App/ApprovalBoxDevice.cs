@@ -7,7 +7,7 @@ using Kitepon.ApprovalBox.Client;
 namespace BellTeam.App;
 
 /// <summary>
-/// Wires the 決裁箱 page of this PC to the one <see cref="ApprovalBoxClient"/> of Kitepon.ApprovalBox.Client 0.5.3 (client-component section 9, child-join.md): this PC joins the Owner's Approval Box as a CHILD device,
+/// Wires the 決裁箱 page of this PC to the one <see cref="ApprovalBoxClient"/> of Kitepon.ApprovalBox.Client 0.5.4 (client-component section 9, child-join.md): this PC joins the Owner's Approval Box as a CHILD device,
 /// signed with its own key (the component's Desktop form: Windows CNG key and kept sign-in under <c>approval-box-child</c>, apart from BellTeam's own login-billing stores and from the device history); the package reads /v1 now and the peer channel when
 /// GET /v1/auth/config says peer_channel. The join (<see cref="IChildJoin"/>) and the screens stay here; no pass, no lbq1 handoff, no PassProvider.
 /// </summary>
