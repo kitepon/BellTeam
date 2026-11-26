@@ -11,6 +11,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema, isInitializeRequest } fr
 
 import { bellTeamTools, callBellTeamTool, forkWritesProject } from './mcp-tools.mjs'
 import { readJson } from './http-response.mjs'
+import { readMemberSummary } from './members-facade.mjs'
 
 // 席の名札。各CLIの設定が、席のCLIの環境変数 AITERM_SESSION_ID をこのヘッダへ写す（harness-config.mjs）。
 // Aitermは席のCLIを Bot ID（アカウント席は `<botId>-<1st|2nd>-<base36>`）の名前のセッションで起こし、この変数をセッションごとに必ず付ける。
@@ -49,7 +50,7 @@ export function seatBotId(request, bots) {
 export async function resolveSeatBotId(request, bots) {
   if (typeof bots.readMember !== 'function') return seatBotId(request, bots)
   for (const id of seatCandidates(request.headers[SEAT_HEADER.toLowerCase()])) {
-    try { if ((await bots.readMember(id)).id === id) return id }
+    try { if ((await readMemberSummary(bots, id)).id === id) return id }
     catch (error) { if (error.code !== 'BOT_NOT_FOUND' || error.status !== 404) throw error }
   }
   return null
@@ -275,7 +276,7 @@ export function createSeatMcp({ bots, tools, toolsForSource = () => ({}), runToo
 async function memberId(id, bots) {
   if (typeof id !== 'string') return null
   if (typeof bots.readMember !== 'function') return bots.has(id) ? id : null
-  try { return (await bots.readMember(id)).id === id ? id : null }
+  try { return (await readMemberSummary(bots, id)).id === id ? id : null }
   catch (error) { if (error.code === 'BOT_NOT_FOUND' && error.status === 404) return null; throw error }
 }
 

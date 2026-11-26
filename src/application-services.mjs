@@ -78,6 +78,7 @@ import { createRemoteSeatListener, remoteSeatPort } from './remote-seat-port.mjs
 import { prepareOlrwManagement } from './olrw-management-loader.mjs'
 import { roomForwardSource } from './origin-reference.mjs'
 import { createHomeFront } from './home-login-front.mjs'
+import { readMemberSummary } from './members-facade.mjs'
 
 // Saving a report is observation; a store refusal must not fail the child's call, its quiesce or a module exchange.
 export const conversationDiagnosticPort = diagnostics => report => Promise.resolve()
@@ -245,7 +246,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     waitProcess: (process, signal) => runWaitProcess(process, signal, { seatProject: root }),
   } : {}
   const requireMember = async (bot, context) => {
-    if (typeof bots.readMember === 'function') { await bots.readMember(bot.id, context); return }
+    if (typeof bots.readMember === 'function') { await readMemberSummary(bots, bot.id, context); return }
     await bots.refresh(context)
     if (!bots.get(bot.id)) throw Object.assign(new Error('BOT_NOT_FOUND'), { code: 'BOT_NOT_FOUND', status: 404, effect: 'not_started' })
   }

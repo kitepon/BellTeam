@@ -62,6 +62,10 @@ HTTP list output never contains avatar bodies. The facade defaults to the confir
 
 members/errors.mjsのnormalizeMembersErrorは既固定semantic prefix/コードだけをcode/statusへ変換する。自由message/stack/入力値をwireへ渡さず、未登録errorはruntimeの既generic fallbackへ。受理後outcome unknownを変更しない。部分保存後のeffect失敗でも可能な限り最新metadata投影を先に送って、保存済み状態を古い表示へ隠さない。元例外は保持し成功へ丸めない。
 
+## Parent reads that need no roster or images (2026-11-26, members-roster-per-dispatch)
+
+The parent's `bots.readCached` returns the ACK-completed projection of the live generation without a members call; only an unavailable projection or another generation re-snapshots (`profiles.read`), and an unconfirmed re-snapshot still fails 503 `MEMBERS_PROJECTION_UNCONFIRMED`. The conversation effect `members.profiles.read` uses it, so a dispatch no longer rebuilds 144 records (~475 records/s). `bots.readMemberSummary` sends `profile.read {botId, summary:true}` (no image bodies) for existence-only callers (seat-mcp, http-conversation-api, conversation observer `current`, requireMember, direct receipt, conversation execution effects) and repeats once without `summary` when an older child answers `MEMBERS_INPUT_INVALID`; every other error propagates unretried. `readMember` stays the full read for the single-profile GET, image routes and get_bot/get_self. No new connection; the projection and the facade stay the only roster owners.
+
 ## Default list snapshot
 
 既`profiles.read {}`の一件ずつACKする投影profileへ、`avatarVersion` / `avatarLargeVersion` / `avatarSourceVersion` / `avatarLargeSourceVersion`を付ける。各値は既avatarVersionの空文字またはSHA256先頭16hex。largeは既HTTP同様`avatarLarge || avatar`を使う。画像4本文を送らず、既hasAvatar/hasAvatarLargeとpendingの意味は保つ。共通hash/cacheはavatar-value.mjsへ移し（cacheは古い順に1件ずつ捨てる4096件。全消しだと144名・約576文字列の名簿が256件ごとに空になり、snapshotのたびに約1MBを再hashしてmembers部品のCPUの約23%を使った、2026-11-26）、http-assets.mjsの既avatarVersion exportを維持する。

@@ -4,6 +4,7 @@ import { normalInputPending } from './conversation-channel.mjs'
 import { diagnosticCauseCodes, failureCode } from './diagnostic-report-context.mjs'
 import { mcpRequestContext, sendOutcomeUnknown } from './mcp-request-context.mjs'
 import { returnedExecutionError } from './execution-error.mjs'
+import { readMemberSummary } from './members-facade.mjs'
 
 const directFailureCodes = new Set([...diagnosticCauseCodes,
   'BOT_SESSION_UNCONFIRMED', 'BOT_INPUT_NOT_READY', 'BOT_SEND_OUTCOME_UNKNOWN', 'AGENT_SESSION_REQUIRED',
@@ -117,7 +118,7 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
       if (project) await environmentReady?.(project)
       const outcome = await transport.membersAdmission.withLease(async membersLease => {
         const check = aiControl.admit()
-        if (typeof bots.readMember === 'function') await bots.readMember(record.target, { membersLease })
+        if (typeof bots.readMember === 'function') await readMemberSummary(bots, record.target, { membersLease })
         else await bots.refresh?.({ membersLease })
         const bot = bots.get(record.target)
         if (!bot) throw Object.assign(new Error('BOT_NOT_FOUND'), { code: 'BOT_NOT_FOUND', status: 404 })

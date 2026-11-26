@@ -42,11 +42,12 @@ export function createConversationParentEffects({ getServices, observerEffects, 
         result = { source: await services.seatStream.rowSource(params.botId, params.rowId) }
         break
       case 'members.profiles.read': {
-        if (typeof services.bots?.refresh !== 'function') unavailable()
+        const read = services.bots?.readCached ?? services.bots?.refresh
+        if (typeof read !== 'function') unavailable()
         // fork-inquiry.md "Live relay members lease": a callback (fork delivery.answer) reuses the root's members lease,
         // which the root result already returned; without it profiles.read takes the members read pin.
         const { membersLease, ...readContext } = context.operationContext ?? {}
-        await services.bots.refresh(Object.hasOwn(context, 'callbackKind') ? readContext : context.operationContext)
+        await read.call(services.bots, Object.hasOwn(context, 'callbackKind') ? readContext : context.operationContext)
         result = { bots: [...services.bots.values()].map(({ id, name, displayName, position, role }) => ({ id, name,
           ...(displayName === undefined ? {} : { displayName }), ...(position === undefined ? {} : { position }),
           ...(role === undefined ? {} : { role }) })) }

@@ -1,6 +1,9 @@
 import { validateMembersResult } from './members/protocol.mjs'
 import { MEMBERS_READ_PIN_METHODS } from './members-admission.mjs'
 
+// Existence/authorization callers need the identity, not the avatar bodies (~1 MB): the summary read where the facade has one.
+export const readMemberSummary = (bots, id, context) => (bots.readMemberSummary ?? bots.readMember).call(bots, id, context)
+
 // Request/callback are the same live controller's closed public channel methods.
 export function createMembersFacade({ request, callback, admission, projection }) {
   const withContext = (method, context, operation) => context.membersReadPin || !context.membersLease && MEMBERS_READ_PIN_METHODS.includes(method)
@@ -28,7 +31,20 @@ export function createMembersFacade({ request, callback, admission, projection }
       throw Object.assign(new Error('MEMBERS_PROJECTION_UNCONFIRMED'), { code: 'MEMBERS_PROJECTION_UNCONFIRMED', status: 503, outcome: 'unknown' })
     return view.profiles
   })
+  // The ACK-completed projection of this generation already holds every committed roster change (each changing root snapshots before it returns);
+  // only a stale or unavailable view re-snapshots (2026-11-26: a snapshot per conversation dispatch was ~475 records/s).
+  const readCached = async (context = {}) => {
+    const view = projection.snapshot()
+    if (view.available && view.generation === admission.capture().generation && Number.isSafeInteger(view.revision)) return view.profiles
+    return readProfiles(context)
+  }
   const readMember = async (botId, context) => (await invoke('profile.read', { botId }, context)).bot
+  // An older members child answers MEMBERS_INPUT_INVALID to the unknown field: read the full profile then.
+  const readMemberSummary = async (botId, context, extra = {}) => {
+    try { return (await invoke('profile.read', { botId, ...extra, summary: true }, context)).bot }
+    catch (error) { if (error?.code !== 'MEMBERS_INPUT_INVALID') throw error }
+    return (await invoke('profile.read', { botId, ...extra }, context)).bot
+  }
   const readListedMember = async (botId, context) => (await invoke('profile.read', { botId, includeDeleting: true }, context)).bot
   const collectProfiles = async (profilesContext, memberContext) => {
     const profiles = await readProfiles(profilesContext)
@@ -63,7 +79,8 @@ export function createMembersFacade({ request, callback, admission, projection }
     entries: () => [...bots.values()].map(bot => [bot.id, bot]).values(),
     [Symbol.iterator]: () => bots.entries(),
     refresh: readProfiles,
-    listForClient, readMember, readListedMember,
+    readCached,
+    listForClient, readMember, readMemberSummary, readListedMember,
     readRemovalStates: context => invoke('removals.read', {}, context),
     hasPendingRemoval: async (botId, context) => (await invoke('removals.read', {}, context)).removals.some(value => value.botId === botId),
     remove: (botId, context) => invoke('profile.remove', { botId }, context),
