@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { seatViewDifferences, SeatViewShadow } from '../src/seat-view-shadow.mjs'
+import { genericSeatData, seatViewDifferences, SeatViewShadow } from '../src/seat-view-shadow.mjs'
 
 const running = { state: 'running', turn_id: 't1', started_at: '2026-11-23T00:00:00.000Z', interim_from: 'v1:3:b:9', event_cursor: null, wait_process: null }
 const own = { processes: 0, excluded: 0, child_results: 0, tasks: 0, exclusions_digest: 'd', oldest: null, task: null }
@@ -49,4 +49,20 @@ test('pty_list include goes only to an Aiterm whose schema has it, and a failed 
   assert.deepEqual(await run(withInclude), [{ include: ['turn', 'own_work'] }, { include: ['turn', 'own_work'] }])
   assert.deepEqual(await run([{ name: 'pty_list', inputSchema: { properties: {} } }]), [{}, {}])
   assert.deepEqual(await run(null), [{}, {}])
+})
+
+test('the switch takes turn, own_work and unread from sessions[], keeps route_since and Codex rows, and leaves an old Aiterm alone', () => {
+  const old = (session, extra = {}) => ({ session_id: session, harness: 'claude-code', launch_id: 'l-' + session, route_since: 'r', turn: { state: 'idle' }, own_work: own, ...extra })
+  const data = { schema: 'aiterm.seat-turns.v1', seats: [old('a'), old('b'), old('c'), old('x', { harness: 'codex-cli', turn: { ...running, event_cursor: 4, wait_process: 'w' } })], unread: ['u'] }
+  const sessions = [{ session_id: 'a', turn: running, own_work: { ...own, tasks: 1 } }, { session_id: 'b', turn: null }, { session_id: 'c' }, { session_id: 'x', turn: { state: 'idle' } }]
+  const out = genericSeatData(data, sessions)
+  assert.deepEqual(out.seats.map(seat => seat.session_id), ['a', 'c', 'x'])
+  assert.deepEqual(out.seats[0].turn, { ...running, event_cursor: null })
+  assert.equal(out.seats[0].own_work.tasks, 1)
+  assert.equal(out.seats[0].route_since, 'r')
+  assert.deepEqual(out.unread.sort(), ['b', 'u'])
+  assert.equal(out.seats[1], data.seats[2]) // no turn field for c: Aiterm's row stays
+  assert.equal(out.seats[2].turn.wait_process, 'w')
+  assert.equal(genericSeatData(data, [{ session_id: 'a' }]), data)
+  assert.equal(genericSeatData(undefined, sessions), undefined)
 })

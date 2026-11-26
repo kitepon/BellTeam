@@ -1,6 +1,8 @@
 // a532b2 stage 3 (docs/architecture/modules/execution/seat-view-shadow.md): the generic turn / own_work of `pty_list` rows
-// (Aiterm >= 0.70.108, argument `include`) compared with Aiterm's seat_turns rows from the same call. Read-only: no
-// state, no delivery and no Owner message depends on it; a failure here only counts as unavailable.
+// (Aiterm >= 0.70.108, argument `include`) compared with Aiterm's seat_turns rows from the same call. The comparison is
+// read-only: a failure here only counts as unavailable. genericSeatData below is the switch that uses the generic rows.
+import { viewRows } from './remote-route.mjs'
+
 const FIELDS = ['turn', 'own_work', 'unread']
 const SAME_TURN = ['state', 'turn_id', 'started_at', 'interim_from']
 const SAME_OWN = ['processes', 'excluded', 'child_results', 'tasks', 'exclusions_digest', 'oldest', 'task']
@@ -26,6 +28,23 @@ export function seatViewDifferences({ rows, unread = [], sessions }) {
     if (Object.hasOwn(other, 'own_work') && !same(pick(row.own_work, SAME_OWN), pick(other.own_work, SAME_OWN))) miss('own_work')
   }
   return found
+}
+
+// The switch: the seats of this call take turn, own_work and unread from `sessions[]`; route_since and every other field stay
+// Aiterm's until step 2. A Codex row keeps Aiterm's turn (its watch/wait contract needs wait_process and event_cursor, which the
+// generic turn does not carry), and an Aiterm without the generic fields (< 0.70.108) leaves data as it is.
+export function genericSeatData(data, sessions) {
+  const readable = Array.isArray(sessions) ? sessions.filter(row => row && Object.hasOwn(row, 'turn')) : []
+  if (!Array.isArray(data?.seats) || !readable.length) return data
+  const generic = viewRows(readable), turns = new Map(generic.rows.map(row => [row.session_id, row])), lost = new Set(generic.unread)
+  const unread = new Set(Array.isArray(data.unread) ? data.unread : [])
+  const seats = data.seats.flatMap(seat => {
+    if (seat?.harness === 'codex-cli') return [seat]
+    if (lost.has(seat?.session_id)) { unread.add(seat.session_id); return [] }
+    const row = turns.get(seat?.session_id)
+    return [row ? { ...seat, turn: row.turn, own_work: row.own_work ?? seat.own_work } : seat]
+  })
+  return { ...data, seats, unread: [...unread] }
 }
 
 export class SeatViewShadow {
