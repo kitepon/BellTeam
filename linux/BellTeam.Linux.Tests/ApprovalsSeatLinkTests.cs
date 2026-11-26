@@ -49,7 +49,7 @@ public sealed class ApprovalsSeatLinkTests
         {
             Assert.True(Has(window, SeatLinkText.None));
             Find(window, SeatLinkText.Connect)!.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); await Task.Delay(200); Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-            Assert.True(Has(window, SeatLinkText.Steps)); Assert.True(Has(window, "4CH9-MGVR-13NC-MC6C")); Assert.NotEmpty(window.GetVisualDescendants().OfType<QrView>());
+            Assert.True(Has(window, SeatLinkText.Scan)); Assert.True(Has(window, "4CH9-MGVR-13NC-MC6C")); Assert.NotEmpty(window.GetVisualDescendants().OfType<QrView>());
             Find(window, SeatLinkText.Cancel)!.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); await Task.Delay(200); Avalonia.Threading.Dispatcher.UIThread.RunJobs();
             Assert.True(Has(window, SeatLinkText.None));
         }
