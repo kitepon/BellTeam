@@ -151,7 +151,7 @@ Source: `node /srv/bellteam/shared/tools/assign-owner/who-owns.mjs --uses approv
 | --- | --- | --- |
 | `src/approval-box-daemon.mjs`, `src/approval-box-seats-socket.mjs` (the connector controller and the relay socket it starts), the new P1 file `src/approval-box-port.mjs` | **approval-box-extension**, in a new `parentSource` list of its `module.json` (parent-side, body process; the existing `source` list keeps pinning only the child files) | the hosted connector and its pairing are this module's |
 | `src/approval-box-daemon-mcp.mjs` | runtime (Molly) | the Bot MCP tools; `approval_box_pair` and `approval_box_pair_status` retire, `approval_box_daemon_status` stays |
-| `src/lattice-approval.mjs` (`createApprovalDecisions`) | **approval-box-extension** (the P1 client); Lattice keeps only its own `createLatticeDecisions` call site | one factory, one owner |
+| `src/lattice-approval.mjs` (`createApprovalDecisions`) | **deleted** (the old token path: Kiro's #2639 and Flora's #2641 are on P1; nothing imports it) | one port, no second connector client |
 | `src/approval-box-door-route.mjs` | integration (Molly): transport to P2 | the body's route for the remote seats; parses nothing, calls the module object's `call` |
 | `src/terminals/approval-door*.mjs` | terminals (Krust): transport | the host doors |
 | `src/approval-box-parent-*.mjs` | runtime/integration (Molly): P4 | hosting of this module |

@@ -537,7 +537,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     approvalsModule = approvalsFactory({ root, exchangeMutex, prepareRelease: prepareApprovals,
       onEffect: createApprovalBoxExtensionEffects({ lattice, bots, credentials: usageAssembly?.credentials ?? null, daemon: approvalBoxDaemon }),
       onModuleChildExit: moduleChildExitReporter.observe, onModuleRestartLimit: moduleChildExitReporter.observeRestartLimit, onState: () => updateCenter?.notify() })
-    approvals = createApprovalsFacade({ controller: approvalsModule, seatLink: approvalBoxDaemon.seatLink, pairing: approvalBoxDaemon.pairing, decisions: approvalBoxPort })
+    approvals = createApprovalsFacade({ controller: approvalsModule, pairing: approvalBoxDaemon.pairing, decisions: approvalBoxPort })
     void approvalsModule.start().catch(() => {})
     approvals.start()
   }

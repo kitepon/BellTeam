@@ -2,7 +2,7 @@ import { spawn as nodeSpawn } from 'node:child_process'
 import { createSocket } from 'node:dgram'
 import { randomBytes } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { chmod, mkdir, readFile } from 'node:fs/promises'
+import { chmod, mkdir } from 'node:fs/promises'
 import { connect as netConnect, createConnection } from 'node:net'
 import { join } from 'node:path'
 import { createSeatsSocket } from './approval-box-seats-socket.mjs'
@@ -16,8 +16,6 @@ export const APPROVAL_BOX_SERVER = 'https://approval-box.kitepon.dev'
 const READY_MS = 15000, STATUS_MS = 2000, PAIR_LINE_MS = 20000, PAIR_GRACE_MS = 5 * 60 * 1000, STOP_MS = 5000, EGRESS_MS = 3000
 const PAIR_MAX_MS = 7 * 24 * 60 * 60 * 1000 + PAIR_GRACE_MS
 // seat link (seat-approval-card.md): the body's own `/v1` pairing. shortcut: Nayuta's flag for the /v1 mode is not released, so it is this one constant; change it when her pin lands.
-export const SEAT_LINK_ARGS = Object.freeze(['pair', '--json', '--v1'])
-const SEAT_LINK_MAX_MS = 5 * 60 * 1000
 // Egress targets (Nayuta c8h): UDP for the relay (STUN/TURN), TCP 443 for the Approval Box server.
 export const EGRESS_TARGETS = Object.freeze([
   { kind: 'udp', host: 'stun.cloudflare.com', port: 3478 },
@@ -152,77 +150,10 @@ export function createApprovalBoxDaemon({ root, entry = DAEMON_ENTRY, node = pro
     recovery.running()
   }
 
-  // seat-approval-card.md: pair the body once as the Owner's connector (QR scan); the token left in HOME/config.json is read at call time.
-  // State lives in parent memory only; the waiting line's secrets leave only through view() to the Owner's route.
-  let link = { state: 'none' }, linkRun = null, removedToken = null
-  const configToken = async () => {
-    try { const token = JSON.parse(await readFile(join(home, 'config.json'), 'utf8'))?.token; return typeof token === 'string' && token && !/[\r\n]/u.test(token) ? token : null } catch { return null }
-  }
-  const view = () => link.starting ? { state: 'none' } : ({ state: link.state, ...(link.state === 'waiting' ? { code: link.code, qrText: link.qrText, expiresAt: link.expiresAt } : {}), ...(link.reason ? { reason: link.reason } : {}) })
-  const adopt = async () => {
-    if (link.state !== 'none') return
-    const token = await configToken()
-    if (token && token !== removedToken) link = { state: 'linked' }
-  }
   const reasonOf = line => { const text = `${line?.code ?? ''} ${line?.error ?? ''} ${line?.reason ?? ''}`.toLowerCase(); return text.includes('reject') ? 'rejected' : text.includes('expire') ? 'expired' : null }
-  const seatLink = {
-    async get() { await adopt(); return view() },
-    async token() { await adopt(); return link.state === 'linked' ? configToken() : null },
-    // The server answered 401 for this token: the Owner removed the connection. A newer token in config.json is not that one.
-    async unauthorized(token) {
-      if (link.state === 'linked' && token && token === await configToken()) { removedToken = token; link = { state: 'removed' } }
-    },
-    async start() {
-      await adopt()
-      if (link.state === 'linked') return view()
-      if (link.state === 'waiting' && linkRun) { await linkRun.first; return view() }
-      if (closed || !exists(entry)) return (link = { state: 'failed', reason: 'unavailable' }, view())
-      if (run && ['starting', 'waiting', 'claimed'].includes(run.state)) return (link = { state: 'failed', reason: 'busy' }, view()) // an a490p pair run holds the same home
-      await mkdir(home, { recursive: true, mode: 0o700 })
-      const stale = removedToken ?? await configToken()
-      const target = spawn(node, [entry, ...SEAT_LINK_ARGS], { env: env(), cwd: home, stdio: ['ignore', 'pipe', 'ignore'] })
-      const mine = linkRun = { process: target, claimed: false, timer: null, firstTimer: null }
-      link = { state: 'waiting', code: null, qrText: null, expiresAt: null, starting: true }
-      let ready
-      const first = mine.first = new Promise(resolve => { ready = resolve })
-      const finish = async reason => {
-        clearTimer(mine.timer); clearTimer(mine.firstTimer)
-        if (linkRun === mine) { // not stopped by the Owner meanwhile
-          linkRun = null
-          const token = mine.claimed ? await configToken() : null
-          if (link.state === 'waiting') link = token && token !== stale ? { state: 'linked' } : { state: 'failed', reason: reason ?? 'ended' }
-          if (link.state === 'linked') removedToken = null
-        }
-        ready()
-      }
-      lines(target.stdout, text => {
-        let line
-        try { line = JSON.parse(text) } catch { return }
-        if (!line || typeof line !== 'object' || linkRun !== mine) return
-        const type = line.type ?? line.event ?? line.state
-        if (isWaiting(line) && link.starting) {
-          link = { state: 'waiting', code: String(line.code ?? '').slice(0, 64), qrText: String(line.qr_text ?? '').slice(0, 512), expiresAt: typeof line.expires_at === 'string' ? line.expires_at.slice(0, 40) : null }
-          const left = Date.parse(line.expires_at) - now()
-          mine.timer = setTimer(() => { mine.reason = 'expired'; void stopChild(target) }, Number.isFinite(left) ? Math.max(1000, Math.min(left, SEAT_LINK_MAX_MS)) : SEAT_LINK_MAX_MS); mine.timer?.unref?.()
-          ready()
-        } else if (type === 'claimed') mine.claimed = true // pc.4 /v1 mode: config.json is written just before this line, and there is no `bound` line
-        else if (reasonOf(line)) mine.reason = reasonOf(line)
-      })
-      target.once('close', () => { void finish(mine.reason) }) // close, not exit: stdout is drained before the last lines are read
-      target.once('error', () => { void finish('unavailable') })
-      mine.firstTimer = setTimer(() => { if (link.starting && linkRun === mine) { mine.reason = 'no_waiting_line'; void stopChild(target) } }, PAIR_LINE_MS); mine.firstTimer?.unref?.()
-      await first
-      return view()
-    },
-    async stop() {
-      const mine = linkRun
-      if (mine && link.state === 'waiting') { linkRun = null; clearTimer(mine.timer); clearTimer(mine.firstTimer); link = { state: 'none' }; await stopChild(mine.process) }
-      return view()
-    },
-  }
 
   const controller = {
-    home, socketPath, seatLink,
+    home, socketPath,
     available: () => exists(entry),
     // Never waits for the daemon: a failed first start only registers the recovery (a500: an optional child must not hold the body).
     start() {
@@ -301,7 +232,7 @@ export function createApprovalBoxDaemon({ root, entry = DAEMON_ENTRY, node = pro
       seatEntries.close()
       seatsReady = false
       clearTimer(run?.timer)
-      await Promise.all([stopChild(child), stopChild(run?.process), stopChild(linkRun?.process), seats.close()])
+      await Promise.all([stopChild(child), stopChild(run?.process), seats.close()])
       await stderrLog.flush()
     },
   }
