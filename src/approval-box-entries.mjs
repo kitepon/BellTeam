@@ -28,6 +28,7 @@ export function createSeatEntryPublisher({ file, seatHome = process.env.APPROVAL
       const text = JSON.stringify(value, null, 2) + '\n'
       if (await readFile(file, 'utf8').catch(() => null) === text) return { ok: true, changed: false, version: value.version }
       await mkdir(dirname(file), { recursive: true, mode: 0o755 })
+      await chmod(dirname(file), 0o755) // mkdir's mode is cut by the umask; Molly's E2 pass reads as the seat user
       const temp = `${file}.${process.pid}.tmp`
       await writeFile(temp, text, { mode: 0o644 }); await chmod(temp, 0o644)
       await rename(temp, file)

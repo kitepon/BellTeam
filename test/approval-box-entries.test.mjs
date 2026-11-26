@@ -74,3 +74,12 @@ test('start publishes at once and close stops the timer', async t => {
   assert.equal(timers[0][1], 60000)
   publisher.close(); assert.equal(timers.at(-1), 'cleared')
 })
+
+test('the folder is 0755 and the file 0644 even under a 077 umask', async t => {
+  const before = process.umask(0o077)
+  t.after(() => process.umask(before))
+  const { publisher, file } = await setup(t, JSON.stringify(e1('0.2.0-pc.5')))
+  await publisher.publish()
+  assert.equal((await stat(join(file, '..'))).mode & 0o777, 0o755)
+  assert.equal((await stat(file)).mode & 0o777, 0o644)
+})
