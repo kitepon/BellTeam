@@ -1,0 +1,42 @@
+#!/usr/bin/env python3
+"""auth exec COMMAND... [-- ARGS...]: runs the command with the secret from the authentication module.
+The item is named by COMMAND (as typed); ARGS are appended at run time and never take part in authorization.
+Same line protocol as the old broker; the module reads the caller's folder itself on the container socket, and takes the folder sent here on the host socket."""
+import json, os, socket, subprocess, sys
+
+SOCK = os.environ.get("AUTH_SOCK") or "/srv/bellteam/shared/tools/auth-mediation/container.sock"
+
+
+def ask(request):
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    s.settimeout(60)
+    s.connect(SOCK)
+    s.sendall((json.dumps(request) + "\n").encode())
+    return json.loads(s.makefile().readline())
+
+
+def main():
+    if len(sys.argv) < 3 or sys.argv[1] != "exec":
+        sys.exit("usage: auth exec COMMAND... [-- ARGS...]")
+    command, args = sys.argv[2:], []
+    if "--" in command:
+        i = command.index("--")
+        command, args = command[:i], command[i + 1:]
+    if not command:
+        sys.exit("usage: auth exec COMMAND... [-- ARGS...]")
+    try:
+        resp = ask({"op": "exec", "command": command, "cwd": os.getcwd()})
+    except (OSError, ValueError):
+        sys.exit("The authentication module is not running.")
+    if resp.get("outcome") != "granted":
+        print(resp.get("error", "Refused."), file=sys.stderr)
+        return 2 if resp.get("outcome") == "error" else 1
+    try:
+        # The caller's environment passes through (e.g. GIT_COMMIT_SHA for docker compose); item variables are added on top.
+        return subprocess.run(command + args, env={**os.environ, **resp["env"]}).returncode
+    except OSError:
+        sys.exit("The command could not be started.")
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
