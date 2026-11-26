@@ -6,10 +6,12 @@ Owner: Molly (body container). Design source: [peer-channel v0.2](../approval-bo
 
 The body hosts and supervises ONE connector daemon for the four server-side readers and pairs it once (design 5.4). In this change:
 
+**Ownership (one port, 2026-11-26).** `src/approval-box-daemon.mjs`, `src/approval-box-seats-socket.mjs` and `src/approval-box-port.mjs` are the 決裁箱拡張 module's parent-side source (`module.json` `parentSource`; owner Delta, [seats-on-hosted-daemon.md](../approval-box-extension/seats-on-hosted-daemon.md) sections 1 and 1a). This page keeps the body's side: it builds that object (`createApprovalBoxDaemon` + `createApprovalBoxPort` in `createApplicationServices`, with the seat runner for the seats' binary), hosts it (start without waiting, close), hands the doors a function to call (same socket path), and serves the one diagnostic tool. A change to the parent-side adapter ships in a body train.
+
 1. **Image**: the exact package from a lock (`distribution/approval-box/`), installed with its own `install-runtime` so the runtime copy has the native `node-datachannel` next to `cli.mjs` (the npm copy does not; checked). Runs from `/app/distribution/approval-box/runtime-home/runtime/0.2.0-pc.4/cli.mjs`.
 2. **Child** `src/approval-box-daemon.mjs`: spawns `node cli.mjs daemon --hosted` as the body's own uid (1001), state under `/srv/bellteam/state/approval-box-daemon/` (0700, no new mount), restarts with the shared 1-30 s backoff, never blocks the body start.
-3. **Local API** (parent side): `status()` and `route(method, path, body)` over the daemon's unix socket (`state/pc/daemon.sock`, NDJSON `{method,path,body}` -> `{ok,result|status,code,message}`). **a490f (reader switch)**: the two readers that share `createApprovalDecisions` (`src/lattice-approval.mjs`: the Lattice effects `decisions.file/read/cancel` and the running-exclusions check) ask `status()`; when the daemon is paired (`daemon.mode === 'pc'`, the answer is reused 3 s) they use `route()` for the decision routes, otherwise the token path on `/connector/v1`, unchanged. A read or cancel of an id the daemon never filed (status 404 code `not_found`, and only that) falls back to the token path, so a decision filed before the pairing is read until the close; `file()` lists the daemon, then looks once at the token-path list (best effort) so nothing is filed twice. `route()` now carries the box's structured error `body` (`{check_token, decisions}` of `confirm_required`, `{existing}`), which filing needs. Error codes (`*_UNAVAILABLE` 503, `*_REFUSED` 409) and the 5 s bound per request are as before (Flora). Both purposes now share the daemon's one connection (Nayuta's ruling; their `session_label`s do not overlap). `olrw-management-caller.mjs` verifies a decision of another connection and is not switched here (OLRW caller owner, chart a490q4).
-4. **Pairing step** (design 5.4, Owner's one sitting): MCP tools `approval_box_pair`, `approval_box_pair_status`, `approval_box_daemon_status` for the body's own Bot only. They run `pair --json` and return the `waiting` line (code, typed_secret, qr_text, expires_at) so the Owner's phone step can be put in his card, then the claimed / bound lines.
+3. **Local API** (parent side of the 決裁箱拡張 module, one port: ruling B, Tronie 2026-11-26): `status()` and `route(method, path, body)` over the daemon's unix socket (`state/pc/daemon.sock`, NDJSON `{method,path,body}` -> `{ok,result|status,code,message}`). The readers no longer reach it themselves: Kiro (seat cards, running exclusions), Flora (read and cancel of legacy Lattice records) and every other caller use **P1 `approvals.decisions`** (`src/approval-box-port.mjs`), which files, reads and cancels through `route()` with typed errors and a 5 s bound; the old token path (`createApprovalDecisions`, `seatLink`, `pair --v1`) was deleted (#2645). `olrw-management-caller.mjs` is not switched here (OLRW caller owner, chart a490q4).
+4. **Pairing** is the module's **P3** (the Owner's one pairing, one QR, in the app's pairing view; `daemon.pairing`: none / waiting / linked / failed / removed). The MCP tools `approval_box_pair` and `approval_box_pair_status` are retired (this change); the secrets of the waiting line (`code`, `typed_secret`, `qr_text`) go only to the Owner's session through P3, never to a Bot's tool result. `approval_box_daemon_status` stays: body's own Bot only, read-only (mode, paired, reason, version, `seats`, optional egress).
 5. **Egress check** (Q3: "UDP egress to be checked"): `approval_box_daemon_status {egress:true}` sends a STUN Binding request over UDP to `stun.cloudflare.com:3478`, `turn.cloudflare.com:3478` and `:443` and opens TCP 443 to the Approval Box server, each with a 3 s bound, and reports ok / timeout / error per target.
 
 Not in this change: the link-engine feed route for app reports (Q5) and the reader base change; see "Open questions".
@@ -25,14 +27,12 @@ flowchart TD
   Restart["restart: 1-30 s backoff, no attempt limit"] --> Child
   Child -->|exit| Restart
   Parent["parent: status() / route()"] -->|"NDJSON over the socket"| Sock
-  Readers["Lattice decisions + running-exclusions (createApprovalDecisions)"] -->|"paired: route(); unknown id (404 not_found): token path"| Parent
-  Readers -. "not paired: /connector/v1 with the token (unchanged)" .-> Legacy["Approval Box /connector/v1 (closes with /v1)"]
-  Bot["body's own Bot (MCP)"] --> Tools["approval_box_pair / _pair_status / _daemon_status"]
+  Callers["Kiro seat cards + running exclusions, Flora read/cancel (P1 approvals.decisions)"] -->|"file / read / cancel via route()"| Parent
+  P3["P3 pairing manager (module): pair --json child, one at a time"] -->|"credentials written to HOME"| Child
+  Bot["body's own Bot (MCP)"] --> Tools["approval_box_daemon_status"]
   Tools --> Allow{"caller is the body's Bot, not a fork?"}
   Allow -->|no| Refuse["refused, nothing run"]
-  Allow -->|yes| Pair["pair --json child (one at a time)"]
-  Pair -->|"waiting line"| Bot
-  Pair -->|"credentials written to HOME"| Child
+  Allow -->|yes| Parent
   Tools --> Egress["egress probe: UDP STUN x3, TCP 443"]
   Close["application-runtime close"] --> Stop["SIGTERM child, SIGKILL after 5 s; pair child killed"]
 ```
@@ -46,13 +46,13 @@ flowchart LR
   Home[("/srv/bellteam/state/approval-box-daemon: config (token, K), pc/ keys, journal; 0700, never in a secret card or log")] <--> Child
   Child <-->|"pc/1 over peer-channel (no content on the server)"| Relay["Approval Box server / TURN"]
   Child -->|"status JSON (mode, paired, reason, version)"| Parent[parent]
-  Pair["pair --json child"] -->|"stdout lines: waiting {code, typed_secret, qr_text, expires_at}, claimed, bound"| Mem[("memory of the parent only")]
-  Mem -->|"waiting line"| Tool["MCP result to the body's Bot"]
+  Pair["pair --json child (P3)"] -->|"stdout lines: waiting {code, typed_secret, qr_text, expires_at}, claimed, bound"| Mem[("memory of the parent only")]
+  Mem -->|"waiting line"| View["P3 answer to the Owner's pairing view"]
   Pair -->|"credentials"| Home
   Child -->|"stderr lines, masked, last 200"| Log[("state/approval-box-daemon-stderr.jsonl")]
 ```
 
-`pair --json` lines carry secrets (valid 7 days; binding window 5 minutes after the Owner's claim, Nayuta): they are held in parent memory only, never written to the stderr log, diagnostics or the chart. The MCP result carries them to the one Bot that asked (the transcript of that seat keeps them; that is the accepted cost of the Owner's one sitting and why the waiting line is short-lived).
+`pair --json` lines carry secrets (valid 7 days; binding window 5 minutes after the Owner's claim, Nayuta): they are held in parent memory only, never written to the stderr log, diagnostics or the chart. They reach only the Owner's own session through P3; no Bot's tool result carries them any more.
 
 ## State transitions
 
@@ -63,7 +63,7 @@ stateDiagram-v2
   Absent --> Absent: package missing (dev/test image): start() is a no-op, status says unavailable
   Starting --> NotPaired: socket answers GET /status with mode not_paired
   Starting --> Backoff: no answer in 15 s, or the child exits
-  NotPaired --> Pairing: approval_box_pair
+  NotPaired --> Pairing: P3 start (the Owner in the app)
   Pairing --> NotPaired: pair child ends without bound (expired, failed, killed)
   Pairing --> Paired: bound; the daemon loop (2 s) reads the new config and starts the peer channel
   NotPaired --> Paired: config already present (restart of a paired body)
@@ -77,9 +77,9 @@ stateDiagram-v2
   Closed --> [*]
 ```
 
-Pair run (inside `Pairing`): `Idle -> Waiting` (waiting line read within 20 s; else the run is killed, `PAIR_NO_WAITING_LINE`) `-> Claimed -> Bound`; or `-> Ended` (child exit without bound, or the parent's cap reached: 7 days + 5 minutes after the run started, then killed; the pair child itself also ends when the server reports expired or rejected). A second `approval_box_pair` while `Waiting` returns the same waiting line; after `Ended` or `Bound` it starts a new run (`rebind` only when asked). Every state leaves by a child exit, a bounded wait or `close()`; none waits for an operator.
+Pair run (inside `Pairing`): `Idle -> Waiting` (waiting line read within 20 s; else the run is killed, `PAIR_NO_WAITING_LINE`) `-> Claimed -> Bound`; or `-> Ended` (child exit without bound, or the parent's cap reached: 7 days + 5 minutes after the run started, then killed; the pair child itself also ends when the server reports expired or rejected). A second P3 start while `Waiting` returns the same waiting line; after `Ended` or `Bound` it starts a new run. Every state leaves by a child exit, a bounded wait or `close()`; none waits for an operator.
 
-How each refusal is left: not the body's Bot, a fork seat, or no package: refused with a closed code, nothing started. A pair child that cannot start: `PAIR_FAILED`, state back to `NotPaired`, the daemon untouched.
+How each refusal is left: the status tool refuses a caller that is not the body's Bot or is a fork seat with a closed code, nothing run. A pair child that cannot start: `PAIR_FAILED`, state back to `NotPaired`, the daemon untouched.
 
 ## Seats on the hosted daemon (a514m, 2026-11-22)
 
@@ -112,7 +112,7 @@ stateDiagram-v2
   Door --> NoDoor: close() (the socket file is removed)
 ```
 
-Sitting order (Tronie / Nayuta): (1) the body with this door is swapped in; (2) `approval_box_daemon_status` shows `seats.listening: true`; (3) the Owner's pairing (a490p) until the hosted daemon says `mode: pc`; (4) a seat installs the pc.2 runtime into `~/.approval-box` and runs `approval-box use-hosted --socket /srv/bellteam/state/approval-box-hosted.sock` (prints `approval-box.use-hosted.v1`; stops the running seat daemon, the next tool call restarts it in relay mode) and one harness registration pass; (5) `PC_OFFER` on. Never switch before (3): before the pairing the hosted daemon answers `503 not_paired` and every seat's request tool would fail. Roll back: `approval-box use-hosted --off` (the seat returns to its token path until the /v1 close).
+Sitting order (Tronie / Nayuta): (1) the body with this door is swapped in; (2) `approval_box_daemon_status` shows `seats.listening: true`; (3) the Owner's one pairing through P3 in the app (module) until the hosted daemon says `mode: pc`; (4) a seat installs the pc.2 runtime into `~/.approval-box` and runs `approval-box use-hosted --socket /srv/bellteam/state/approval-box-hosted.sock` (prints `approval-box.use-hosted.v1`; stops the running seat daemon, the next tool call restarts it in relay mode) and one harness registration pass; (5) `PC_OFFER` on. Never switch before (3): before the pairing the hosted daemon answers `503 not_paired` and every seat's request tool would fail. Roll back: `approval-box use-hosted --off` (the seat returns to its token path until the /v1 close).
 
 How each state is left: the door never waits for an operator: it is created at start and removed at close; a failed listen leaves the seats untouched and visible in status.
 
