@@ -1,12 +1,12 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-26T02:29:09Z",
-  "expiresAt": "2026-12-03T02:29:09Z",
+  "publishedAt": "2026-11-26T11:05:08Z",
+  "expiresAt": "2026-12-03T11:05:08Z",
   "releases": [
     {
       "componentId": "usage",
-      "sourceCommit": "a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2",
-      "versionId": "884cbc82c05095b39a2c2cc8f1c8333fde1add3d801a140c8e36abdd37f1ce39",
+      "sourceCommit": "e6eca195de7a09b913ded939217c34f4dada23cb",
+      "versionId": "1d69338bc0bff75d27f078fafe1a8244bd43670749fd1059a8d08777df2a45ea",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -14,16 +14,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T022827Z/usage-a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2-linux-amd64.tar.gz",
-          "bytes": 92690,
-          "sha256": "884cbc82c05095b39a2c2cc8f1c8333fde1add3d801a140c8e36abdd37f1ce39"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110346Z/usage-e6eca195de7a09b913ded939217c34f4dada23cb-linux-amd64.tar.gz",
+          "bytes": 92713,
+          "sha256": "1d69338bc0bff75d27f078fafe1a8244bd43670749fd1059a8d08777df2a45ea"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T022827Z/usage-a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10917,
-          "sha256": "690f4b2123b25644f78b9b0e85ed24227b9a6735721d96895193d60b494fe349"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110346Z/usage-e6eca195de7a09b913ded939217c34f4dada23cb-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11058,
+          "sha256": "7833097864cec1902df75fcd5f438e13c3cb0645cca5fdf71225b6cb12c37f0d"
         },
-        "signerCommit": "a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2"
+        "signerCommit": "e6eca195de7a09b913ded939217c34f4dada23cb"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -48,13 +48,13 @@
         }
       },
       "changes": [
-        "会話の履歴の参照を新しい形に合わせます（表に出る動作は変わりません）。"
+        "認証仲介のための秘密の置き場の範囲を足します。"
       ]
     },
     {
       "componentId": "usage",
-      "sourceCommit": "a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2",
-      "versionId": "366932a04cdd14a51a6ce8c309f7fc7fe641dbdbde586f5f3303aa2989675a6e",
+      "sourceCommit": "e6eca195de7a09b913ded939217c34f4dada23cb",
+      "versionId": "4274f16837c86d9b1b53889c1c70916387ce6b40ce2b6c2315f15420db38ea50",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -62,16 +62,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T022827Z/usage-a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2-linux-arm64.tar.gz",
-          "bytes": 92690,
-          "sha256": "366932a04cdd14a51a6ce8c309f7fc7fe641dbdbde586f5f3303aa2989675a6e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110346Z/usage-e6eca195de7a09b913ded939217c34f4dada23cb-linux-arm64.tar.gz",
+          "bytes": 92713,
+          "sha256": "4274f16837c86d9b1b53889c1c70916387ce6b40ce2b6c2315f15420db38ea50"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T022827Z/usage-a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11058,
-          "sha256": "af52416df974fdefd00252ab9e6dc5b5ca8854ea9c6e98ba909a9b605c3a7b9c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110346Z/usage-e6eca195de7a09b913ded939217c34f4dada23cb-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11046,
+          "sha256": "c10947aa9af6cd0d622c2fedff1f624c3c712f9e811e7542007c81ead821f442"
         },
-        "signerCommit": "a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2"
+        "signerCommit": "e6eca195de7a09b913ded939217c34f4dada23cb"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -96,7 +96,7 @@
         }
       },
       "changes": [
-        "会話の履歴の参照を新しい形に合わせます（表に出る動作は変わりません）。"
+        "認証仲介のための秘密の置き場の範囲を足します。"
       ]
     },
     {
@@ -183,8 +183,8 @@
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2",
-      "versionId": "61a276e2ad5caac4397328ff75fc26b10fa966e83adb799027f91e27f0fa507d",
+      "sourceCommit": "e6eca195de7a09b913ded939217c34f4dada23cb",
+      "versionId": "9a8e130e004cddedef7eb7d4a6ff7087a948c5ad706be5c7c2ba43866d2e33e7",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -192,16 +192,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T022821Z/conversation-a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2-linux-amd64.tar.gz",
-          "bytes": 3798623,
-          "sha256": "61a276e2ad5caac4397328ff75fc26b10fa966e83adb799027f91e27f0fa507d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110406Z/conversation-e6eca195de7a09b913ded939217c34f4dada23cb-linux-amd64.tar.gz",
+          "bytes": 3799307,
+          "sha256": "9a8e130e004cddedef7eb7d4a6ff7087a948c5ad706be5c7c2ba43866d2e33e7"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T022821Z/conversation-a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11037,
-          "sha256": "2a336e7be401d9837806a6f768596e1e2eea2b6199c19465da417c38bc4f2759"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110406Z/conversation-e6eca195de7a09b913ded939217c34f4dada23cb-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11186,
+          "sha256": "f1cf8a049ffb09227cf1d804d0a2c00c0b0397ac13d10637502abc7789959c2f"
         },
-        "signerCommit": "a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2"
+        "signerCommit": "e6eca195de7a09b913ded939217c34f4dada23cb"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -232,13 +232,13 @@
         }
       },
       "changes": [
-        "会話の履歴を、全件をメモリに載せず、1件ごとの小さな参照だけを持って必要な時にログから読む形にします。会話モジュールのメモリ使用量が下がります。"
+        "席のコマンドの口に、秘密の環境変数を渡す選択肢が増えます（表に出る動作は変わりません）。"
       ]
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2",
-      "versionId": "8daad028d3ba43001f897fac4d633f712a2cd4a8d25e85286cc2354a9451f7a2",
+      "sourceCommit": "e6eca195de7a09b913ded939217c34f4dada23cb",
+      "versionId": "ae07a3dd9ec39dd0c27aa682b9a9d30053e83e60ea6b3a3315dce171e9ac5241",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -246,16 +246,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T022821Z/conversation-a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2-linux-arm64.tar.gz",
-          "bytes": 3798623,
-          "sha256": "8daad028d3ba43001f897fac4d633f712a2cd4a8d25e85286cc2354a9451f7a2"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110406Z/conversation-e6eca195de7a09b913ded939217c34f4dada23cb-linux-arm64.tar.gz",
+          "bytes": 3799307,
+          "sha256": "ae07a3dd9ec39dd0c27aa682b9a9d30053e83e60ea6b3a3315dce171e9ac5241"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T022821Z/conversation-a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11037,
-          "sha256": "2c19ad5fca59bccfbf44f6f379da6e2822a1bb6a1851fb5afc59994618bdcc60"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110406Z/conversation-e6eca195de7a09b913ded939217c34f4dada23cb-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11033,
+          "sha256": "b221c428e3c3c831765391b51b43819858f4c049387273e11d32b5f45087dde3"
         },
-        "signerCommit": "a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2"
+        "signerCommit": "e6eca195de7a09b913ded939217c34f4dada23cb"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -286,7 +286,7 @@
         }
       },
       "changes": [
-        "会話の履歴を、全件をメモリに載せず、1件ごとの小さな参照だけを持って必要な時にログから読む形にします。会話モジュールのメモリ使用量が下がります。"
+        "席のコマンドの口に、秘密の環境変数を渡す選択肢が増えます（表に出る動作は変わりません）。"
       ]
     },
     {
@@ -427,8 +427,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2",
-      "versionId": "4b7bacc250a33947a51a7199f6bc4a34f61ffe332862a46c54c775a0e1eea3cd",
+      "sourceCommit": "e6eca195de7a09b913ded939217c34f4dada23cb",
+      "versionId": "a70e0412d7843cee1c86387f8753eb1dadfc1b97b09cd7127912eeb4604fa0c9",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -436,16 +436,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T022833Z/web-gateway-a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2-linux-amd64.tar.gz",
-          "bytes": 4564504,
-          "sha256": "4b7bacc250a33947a51a7199f6bc4a34f61ffe332862a46c54c775a0e1eea3cd"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110351Z/web-gateway-e6eca195de7a09b913ded939217c34f4dada23cb-linux-amd64.tar.gz",
+          "bytes": 4578432,
+          "sha256": "a70e0412d7843cee1c86387f8753eb1dadfc1b97b09cd7127912eeb4604fa0c9"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T022833Z/web-gateway-a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11068,
-          "sha256": "0ec69171b20ee31776bc3fdf3e88746f28c5a56580ef5277c51987391798e44a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110351Z/web-gateway-e6eca195de7a09b913ded939217c34f4dada23cb-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11103,
+          "sha256": "b5ba0b6acab06ae9c7044afd1c22ba6197e4b1ad167de113f4b68918803ca221"
         },
-        "signerCommit": "a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2"
+        "signerCommit": "e6eca195de7a09b913ded939217c34f4dada23cb"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -454,13 +454,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "会話の履歴の参照を新しい形に合わせます（表に出る動作は変わりません）。"
+        "決裁箱のペアリングの経路（/api/approvals/seat-link）が、新しい窓口の形になります。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2",
-      "versionId": "ad4f1b4168d1360e42c8f70cf2fd407af80e0469a5f49fc9343784d48cf6d563",
+      "sourceCommit": "e6eca195de7a09b913ded939217c34f4dada23cb",
+      "versionId": "506f9b3a510307299658835660dae7e5b2ca78e109995f3b67af01185dc54ecd",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -468,16 +468,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T022833Z/web-gateway-a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2-linux-arm64.tar.gz",
-          "bytes": 4564505,
-          "sha256": "ad4f1b4168d1360e42c8f70cf2fd407af80e0469a5f49fc9343784d48cf6d563"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110351Z/web-gateway-e6eca195de7a09b913ded939217c34f4dada23cb-linux-arm64.tar.gz",
+          "bytes": 4578432,
+          "sha256": "506f9b3a510307299658835660dae7e5b2ca78e109995f3b67af01185dc54ecd"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T022833Z/web-gateway-a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11021,
-          "sha256": "2eb4e6db7311870faab9200f3c992dde9511983b466a87f73190d8b3030add93"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110351Z/web-gateway-e6eca195de7a09b913ded939217c34f4dada23cb-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11017,
+          "sha256": "905645a62f99a99b2a5ea03a359a8df04d941294a9cd3eb7e89cd582ff84e136"
         },
-        "signerCommit": "a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2"
+        "signerCommit": "e6eca195de7a09b913ded939217c34f4dada23cb"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -486,13 +486,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "会話の履歴の参照を新しい形に合わせます（表に出る動作は変わりません）。"
+        "決裁箱のペアリングの経路（/api/approvals/seat-link）が、新しい窓口の形になります。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "c50de56e2fe6bd132f77802616be514cb3e41b9a",
-      "versionId": "5bac0ed0e28d6bc8849b30ebc0f294690e8a462b0e51a06e1a110ad839c4f6cf",
+      "sourceCommit": "e6eca195de7a09b913ded939217c34f4dada23cb",
+      "versionId": "66a4dcb703b3387611854b12063500ed7982948016ef67874fd26ca5b0b933b8",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T015244Z/execution-c50de56e2fe6bd132f77802616be514cb3e41b9a-linux-amd64.tar.gz",
-          "bytes": 3878531,
-          "sha256": "5bac0ed0e28d6bc8849b30ebc0f294690e8a462b0e51a06e1a110ad839c4f6cf"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110329Z/execution-e6eca195de7a09b913ded939217c34f4dada23cb-linux-amd64.tar.gz",
+          "bytes": 3879620,
+          "sha256": "66a4dcb703b3387611854b12063500ed7982948016ef67874fd26ca5b0b933b8"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T015244Z/execution-c50de56e2fe6bd132f77802616be514cb3e41b9a-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11130,
-          "sha256": "3b9292ef7d0b9080b1497da5638a4eb5a9bde418779fca2b072655c0877c0631"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110329Z/execution-e6eca195de7a09b913ded939217c34f4dada23cb-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10977,
+          "sha256": "495a675e0d3c16c2196c6a6d285916fcfc195924a9607b36889e6c3358e67255"
         },
-        "signerCommit": "c50de56e2fe6bd132f77802616be514cb3e41b9a"
+        "signerCommit": "e6eca195de7a09b913ded939217c34f4dada23cb"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +519,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "端末の席（Windows・Mac・Linux）で、コミットの作者とコミッターをオーナーの noreply の身元に固定します。"
+        "席の画面が、席の一覧から turn・own_work・unread を読むようになります。席の承認カードと実行中の除外は、決裁箱の新しい窓口（P1）から出します。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "c50de56e2fe6bd132f77802616be514cb3e41b9a",
-      "versionId": "c29c2a6bcfb77b4b320c2989c9988e8bfd86130c62593df8a58c15e1d4e6939c",
+      "sourceCommit": "e6eca195de7a09b913ded939217c34f4dada23cb",
+      "versionId": "7c9c29d3082cf29105efb0c22e1f6d1ad31075b0169d24b7b68c317f71a281b1",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +533,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T015244Z/execution-c50de56e2fe6bd132f77802616be514cb3e41b9a-linux-arm64.tar.gz",
-          "bytes": 3878531,
-          "sha256": "c29c2a6bcfb77b4b320c2989c9988e8bfd86130c62593df8a58c15e1d4e6939c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110329Z/execution-e6eca195de7a09b913ded939217c34f4dada23cb-linux-arm64.tar.gz",
+          "bytes": 3879620,
+          "sha256": "7c9c29d3082cf29105efb0c22e1f6d1ad31075b0169d24b7b68c317f71a281b1"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T015244Z/execution-c50de56e2fe6bd132f77802616be514cb3e41b9a-linux-arm64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110329Z/execution-e6eca195de7a09b913ded939217c34f4dada23cb-linux-arm64.tar.gz.sigstore.json",
           "bytes": 11083,
-          "sha256": "5455ee207fbc839c666280e9d4b7ee2d4f8b2cd3650d2dadd5158e08e6ad96df"
+          "sha256": "b2c67e750b9317f264f2e948505f034df8cb0244ba10bb58872f25aacbd15f60"
         },
-        "signerCommit": "c50de56e2fe6bd132f77802616be514cb3e41b9a"
+        "signerCommit": "e6eca195de7a09b913ded939217c34f4dada23cb"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,13 +552,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "端末の席（Windows・Mac・Linux）で、コミットの作者とコミッターをオーナーの noreply の身元に固定します。"
+        "席の画面が、席の一覧から turn・own_work・unread を読むようになります。席の承認カードと実行中の除外は、決裁箱の新しい窓口（P1）から出します。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "c50de56e2fe6bd132f77802616be514cb3e41b9a",
-      "versionId": "8eb638424686da70d1423ce98028cf36185f6738341c54ee29d8c561934553c0",
+      "sourceCommit": "e6eca195de7a09b913ded939217c34f4dada23cb",
+      "versionId": "03198ccff77f853e7e4f19856c53a3de11da7c97eb3e3f5c8d9a51739bf41ceb",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -566,16 +566,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T015252Z/members-c50de56e2fe6bd132f77802616be514cb3e41b9a-linux-amd64.tar.gz",
-          "bytes": 4568671,
-          "sha256": "8eb638424686da70d1423ce98028cf36185f6738341c54ee29d8c561934553c0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110413Z/members-e6eca195de7a09b913ded939217c34f4dada23cb-linux-amd64.tar.gz",
+          "bytes": 4585966,
+          "sha256": "03198ccff77f853e7e4f19856c53a3de11da7c97eb3e3f5c8d9a51739bf41ceb"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T015252Z/members-c50de56e2fe6bd132f77802616be514cb3e41b9a-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11043,
-          "sha256": "c47680cba78d80241f1a56754b7ef930e0bb96ed42db8ebd67006cdaf9170a99"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110413Z/members-e6eca195de7a09b913ded939217c34f4dada23cb-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11090,
+          "sha256": "08aa4529de1054503215c52f02ebb1fe0603d9a2ca839eec414cdc70e3fa3413"
         },
-        "signerCommit": "c50de56e2fe6bd132f77802616be514cb3e41b9a"
+        "signerCommit": "e6eca195de7a09b913ded939217c34f4dada23cb"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -592,13 +592,13 @@
         }
       },
       "changes": [
-        "席の環境に、コミットの作者とコミッターを noreply の身元にする設定を加えます。"
+        "席のコマンドの口に、秘密の環境変数を渡す選択肢が増えます（表に出る動作は変わりません）。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "c50de56e2fe6bd132f77802616be514cb3e41b9a",
-      "versionId": "c926b2acc8e02c3db82adc7f56f2281550aaa0c7c5aa55fa933214046a1d4240",
+      "sourceCommit": "e6eca195de7a09b913ded939217c34f4dada23cb",
+      "versionId": "3084ba5926a0e19e1a4dded0f561c9f25ffa4e7320e41504950c4d28943f9cb9",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -606,16 +606,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T015252Z/members-c50de56e2fe6bd132f77802616be514cb3e41b9a-linux-arm64.tar.gz",
-          "bytes": 4568671,
-          "sha256": "c926b2acc8e02c3db82adc7f56f2281550aaa0c7c5aa55fa933214046a1d4240"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110413Z/members-e6eca195de7a09b913ded939217c34f4dada23cb-linux-arm64.tar.gz",
+          "bytes": 4585966,
+          "sha256": "3084ba5926a0e19e1a4dded0f561c9f25ffa4e7320e41504950c4d28943f9cb9"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T015252Z/members-c50de56e2fe6bd132f77802616be514cb3e41b9a-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11137,
-          "sha256": "9fa6e9459a7fee244a8582df6886bb7489ff2402785421efffcd6990949f0af0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110413Z/members-e6eca195de7a09b913ded939217c34f4dada23cb-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11043,
+          "sha256": "4af69b52c654574ef7ac332b493d150058309f74fcef8342a88faccbbabebfbd"
         },
-        "signerCommit": "c50de56e2fe6bd132f77802616be514cb3e41b9a"
+        "signerCommit": "e6eca195de7a09b913ded939217c34f4dada23cb"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -632,7 +632,7 @@
         }
       },
       "changes": [
-        "席の環境に、コミットの作者とコミッターを noreply の身元にする設定を加えます。"
+        "席のコマンドの口に、秘密の環境変数を渡す選択肢が増えます（表に出る動作は変わりません）。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2",
-      "versionId": "sha256:ecc0f6a3930c030f9ba4fb02a6f4c60cfa2f00a034ddce77c5dd2ed84f39fdd0",
+      "sourceCommit": "ecd87e2c2e735d6ce3ff564667018fdf245abc7e",
+      "versionId": "sha256:3121c6a37c9e2ba16a4011a14077fc06757fa0f7ec1bf2db201c98ebd0e3ed4f",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ecc0f6a3930c030f9ba4fb02a6f4c60cfa2f00a034ddce77c5dd2ed84f39fdd0"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3121c6a37c9e2ba16a4011a14077fc06757fa0f7ec1bf2db201c98ebd0e3ed4f"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,24 @@
         "containerUpdate": 1
       },
       "changes": [
-        "会話の履歴を、全件をメモリに載せず、1件ごとの小さな参照だけを持って必要な時にログから読む形にします。本体のメモリ使用量が下がります。"
+        "席の画面が、席の一覧（pty_list の sessions）から turn・own_work・unread を読むようになります。",
+        "決裁箱への窓口を1つにします（依頼を出して読む窓口 P1 と、ペアリングの管理 P3 を、決裁箱拡張の本体側に置きます）。席の承認カードと実行中の除外は、その窓口から出します。古い承認のつなぎは消えます。",
+        "Windows のドアが、席の認証情報を別人に取られた名前付きパイプへ渡さなくなります。ドアの証明は、ドアの自分のアドレスに結び付きます。",
+        "工程表の書き込みを、プロジェクトごとの列にします。lattice の子が、読み出し v2 から次の工程を取ります。",
+        "席のコマンドへ、秘密の環境変数を標準入力の1行だけで渡す口を足します（引数にもファイルにも出ません）。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "a92b6ea8f32ae0362ec91cf32e0c8092a6adeed2",
-      "versionId": "sha256:ecc0f6a3930c030f9ba4fb02a6f4c60cfa2f00a034ddce77c5dd2ed84f39fdd0",
+      "sourceCommit": "ecd87e2c2e735d6ce3ff564667018fdf245abc7e",
+      "versionId": "sha256:3121c6a37c9e2ba16a4011a14077fc06757fa0f7ec1bf2db201c98ebd0e3ed4f",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ecc0f6a3930c030f9ba4fb02a6f4c60cfa2f00a034ddce77c5dd2ed84f39fdd0"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3121c6a37c9e2ba16a4011a14077fc06757fa0f7ec1bf2db201c98ebd0e3ed4f"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,13 +750,17 @@
         "containerUpdate": 1
       },
       "changes": [
-        "会話の履歴を、全件をメモリに載せず、1件ごとの小さな参照だけを持って必要な時にログから読む形にします。本体のメモリ使用量が下がります。"
+        "席の画面が、席の一覧（pty_list の sessions）から turn・own_work・unread を読むようになります。",
+        "決裁箱への窓口を1つにします（依頼を出して読む窓口 P1 と、ペアリングの管理 P3 を、決裁箱拡張の本体側に置きます）。席の承認カードと実行中の除外は、その窓口から出します。古い承認のつなぎは消えます。",
+        "Windows のドアが、席の認証情報を別人に取られた名前付きパイプへ渡さなくなります。ドアの証明は、ドアの自分のアドレスに結び付きます。",
+        "工程表の書き込みを、プロジェクトごとの列にします。lattice の子が、読み出し v2 から次の工程を取ります。",
+        "席のコマンドへ、秘密の環境変数を標準入力の1行だけで渡す口を足します（引数にもファイルにも出ません）。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "40dc2318e5872487e0d973c66420309996ed5a1e",
-      "versionId": "bf8cd2fa1fe19e9a6cc02896a46034610e6015d14148f11dd70b657a34cdc36f",
+      "sourceCommit": "e6eca195de7a09b913ded939217c34f4dada23cb",
+      "versionId": "c40f168747770016a04921f23405be98d50ad0bab15c70ac46dd1f5bdff85e6c",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -760,16 +768,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T004115Z/lattice-40dc2318e5872487e0d973c66420309996ed5a1e-linux-amd64.tar.gz",
-          "bytes": 15349434,
-          "sha256": "bf8cd2fa1fe19e9a6cc02896a46034610e6015d14148f11dd70b657a34cdc36f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110338Z/lattice-e6eca195de7a09b913ded939217c34f4dada23cb-linux-amd64.tar.gz",
+          "bytes": 15367527,
+          "sha256": "c40f168747770016a04921f23405be98d50ad0bab15c70ac46dd1f5bdff85e6c"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T004115Z/lattice-40dc2318e5872487e0d973c66420309996ed5a1e-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11027,
-          "sha256": "e0b5e8bb125911477c9b185fd1c28b91badb054197ba115578246488b0bb2232"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110338Z/lattice-e6eca195de7a09b913ded939217c34f4dada23cb-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10914,
+          "sha256": "9dd96f339ceba35c38a34f96232b52279e922863b72b10b8d16e277dec10ef5b"
         },
-        "signerCommit": "40dc2318e5872487e0d973c66420309996ed5a1e"
+        "signerCommit": "e6eca195de7a09b913ded939217c34f4dada23cb"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -781,13 +789,13 @@
         }
       },
       "changes": [
-        "外したチャートとつながりのあるチャートの印が毎回空になって、チャート一覧の読み直しがくり返されていたのを直します。外した外部チャートは、印の中で変わらない部分として扱います。"
+        "工程表の書き込みを、プロジェクトごとの列にします。lattice の子が、読み出し v2 から次の工程を取ります。Lattice CLI の固定を 0.114.3 に上げます。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "40dc2318e5872487e0d973c66420309996ed5a1e",
-      "versionId": "a5e860832b05e1666fb26dfb6ab05bd576ab975a2cf750488669acc821e3366b",
+      "sourceCommit": "e6eca195de7a09b913ded939217c34f4dada23cb",
+      "versionId": "7e5184faaafddcb08a65bc920c3691e3f0ce52fe828e776548f652c5524e8f94",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -795,16 +803,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T004115Z/lattice-40dc2318e5872487e0d973c66420309996ed5a1e-linux-arm64.tar.gz",
-          "bytes": 15349435,
-          "sha256": "a5e860832b05e1666fb26dfb6ab05bd576ab975a2cf750488669acc821e3366b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110338Z/lattice-e6eca195de7a09b913ded939217c34f4dada23cb-linux-arm64.tar.gz",
+          "bytes": 15367527,
+          "sha256": "7e5184faaafddcb08a65bc920c3691e3f0ce52fe828e776548f652c5524e8f94"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T004115Z/lattice-40dc2318e5872487e0d973c66420309996ed5a1e-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11137,
-          "sha256": "5f097eba486e06b8f9bcd83f0f84051f7c59c03bcc569061885f2af872d633f7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110338Z/lattice-e6eca195de7a09b913ded939217c34f4dada23cb-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10996,
+          "sha256": "e91b60f0d8aa450c7b7049cc125b6090ba9ac1162fb8de3f63d8f0e6216d77cb"
         },
-        "signerCommit": "40dc2318e5872487e0d973c66420309996ed5a1e"
+        "signerCommit": "e6eca195de7a09b913ded939217c34f4dada23cb"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -816,13 +824,13 @@
         }
       },
       "changes": [
-        "外したチャートとつながりのあるチャートの印が毎回空になって、チャート一覧の読み直しがくり返されていたのを直します。外した外部チャートは、印の中で変わらない部分として扱います。"
+        "工程表の書き込みを、プロジェクトごとの列にします。lattice の子が、読み出し v2 から次の工程を取ります。Lattice CLI の固定を 0.114.3 に上げます。"
       ]
     },
     {
       "componentId": "approval-box-extension",
-      "sourceCommit": "8904aff73ad75a5bcb79b00002ad8d44fdb01666",
-      "versionId": "888932292ec67681b9b517c56c55f41e300bf58f60c6ae6f85f448bae1b88638",
+      "sourceCommit": "e6eca195de7a09b913ded939217c34f4dada23cb",
+      "versionId": "d9d5092867a0ce250c81bc9902c2c6e0b6bf33a65f68d15790c7fc2a9e4d31f7",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -830,16 +838,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T114641Z/approval-box-extension-8904aff73ad75a5bcb79b00002ad8d44fdb01666-linux-amd64.tar.gz",
-          "bytes": 3717908,
-          "sha256": "888932292ec67681b9b517c56c55f41e300bf58f60c6ae6f85f448bae1b88638"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110358Z/approval-box-extension-e6eca195de7a09b913ded939217c34f4dada23cb-linux-amd64.tar.gz",
+          "bytes": 3715595,
+          "sha256": "d9d5092867a0ce250c81bc9902c2c6e0b6bf33a65f68d15790c7fc2a9e4d31f7"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T114641Z/approval-box-extension-8904aff73ad75a5bcb79b00002ad8d44fdb01666-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11233,
-          "sha256": "47ac6bb66711a9d9f215e9ec8306e8f7e626e157bc31505cd4e1f76a9465cdb8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110358Z/approval-box-extension-e6eca195de7a09b913ded939217c34f4dada23cb-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11237,
+          "sha256": "e6148201751d4e67f05b1f7496858a87d9f403df2e946fd342982d61db6fb458"
         },
-        "signerCommit": "8904aff73ad75a5bcb79b00002ad8d44fdb01666"
+        "signerCommit": "e6eca195de7a09b913ded939217c34f4dada23cb"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -851,13 +859,13 @@
         }
       },
       "changes": [
-        "決裁箱の画面が、デーモンが持つ決裁も読めるようになります。"
+        "決裁箱への窓口を1つにします。決裁の窓口 P1 とペアリング P3 を、この拡張の本体側が持ちます。"
       ]
     },
     {
       "componentId": "approval-box-extension",
-      "sourceCommit": "8904aff73ad75a5bcb79b00002ad8d44fdb01666",
-      "versionId": "764830de80775285d23e36839aac8f9dc21adc8c94078d0d02ba0fb7b9876907",
+      "sourceCommit": "e6eca195de7a09b913ded939217c34f4dada23cb",
+      "versionId": "eccc80d5975d6b35cd06409516fcf4b3e6dfdd35466817e937cfed26339d88a0",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -865,16 +873,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T114641Z/approval-box-extension-8904aff73ad75a5bcb79b00002ad8d44fdb01666-linux-arm64.tar.gz",
-          "bytes": 3717908,
-          "sha256": "764830de80775285d23e36839aac8f9dc21adc8c94078d0d02ba0fb7b9876907"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110358Z/approval-box-extension-e6eca195de7a09b913ded939217c34f4dada23cb-linux-arm64.tar.gz",
+          "bytes": 3715595,
+          "sha256": "eccc80d5975d6b35cd06409516fcf4b3e6dfdd35466817e937cfed26339d88a0"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261122T114641Z/approval-box-extension-8904aff73ad75a5bcb79b00002ad8d44fdb01666-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11374,
-          "sha256": "563874c58fa2bfe7e41b58f47895c58a202059de4f0e664c52c27a544f643568"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110358Z/approval-box-extension-e6eca195de7a09b913ded939217c34f4dada23cb-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11186,
+          "sha256": "629b36cdc2248f8cccb58677b02239938efc166b01772aa9076b3bfa3d3518a5"
         },
-        "signerCommit": "8904aff73ad75a5bcb79b00002ad8d44fdb01666"
+        "signerCommit": "e6eca195de7a09b913ded939217c34f4dada23cb"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -886,7 +894,7 @@
         }
       },
       "changes": [
-        "決裁箱の画面が、デーモンが持つ決裁も読めるようになります。"
+        "決裁箱への窓口を1つにします。決裁の窓口 P1 とペアリング P3 を、この拡張の本体側が持ちます。"
       ]
     }
   ],
