@@ -48,7 +48,8 @@ export function loadKey(file = keyPath()) {
   if (!key) throw new Error('the door key file is not readable')
   return key
 }
-const proofOf = (key, nonce) => crypto.createHmac('sha256', key).update(nonce).digest('hex')
+// Bound to the address the door listens on, so a stranger relaying the hello to the real door cannot lend its proof to another address.
+const proofOf = (key, nonce, address) => crypto.createHmac('sha256', key).update(`${nonce}\n${address}`).digest('hex')
 
 // 'proved' = a door of this user answered with the right proof; 'absent' = nothing listens; 'stranger' = something else
 // (another account's pipe, an older door without hello, a hang, a refused open). Sends the hello only, never a secret.
@@ -66,7 +67,7 @@ export const proveDoor = (address, key, timeoutMs = HELLO_MS) => new Promise(res
     if (!reply.includes('\n')) { if (reply.length > 4096) finish('stranger'); return }
     let proof = null
     try { proof = JSON.parse(reply).proof } catch {}
-    const want = Buffer.from(proofOf(key, nonce)), got = Buffer.from(typeof proof === 'string' ? proof : '')
+    const want = Buffer.from(proofOf(key, nonce, address)), got = Buffer.from(typeof proof === 'string' ? proof : '')
     finish(want.length === got.length && crypto.timingSafeEqual(want, got) ? 'proved' : 'stranger')
   })
   socket.once('end', () => finish('stranger'))
@@ -144,7 +145,7 @@ export class Door {
     try {
       const message = JSON.parse(line)
       if (message.bellteam_door === 'hello') {
-        return this.key && typeof message.nonce === 'string' && /^[0-9a-f]{32}$/.test(message.nonce) ? JSON.stringify({ ok: true, proof: proofOf(this.key, message.nonce) }) : invalid()
+        return this.key && this.address && typeof message.nonce === 'string' && /^[0-9a-f]{32}$/.test(message.nonce) ? JSON.stringify({ ok: true, proof: proofOf(this.key, message.nonce, this.address) }) : invalid()
       }
       if (message.bellteam_door !== 'register' || typeof message.session !== 'string' || !message.session || message.session.length > 128
         || !Number.isInteger(message.port) || message.port < 1 || message.port > 65535
@@ -212,6 +213,7 @@ export async function serveDoor(door, address = doorAddress(), onEmpty = () => {
       await listen(server, address)
     }
   }
+  door.address = bound
   const ownAddr = () => { try { return fs.readFileSync(addrFile, 'utf8').trim() === bound } catch { return false } }
   if (guarded && bound === address) fs.rmSync(addrFile, { force: true }) // a stale pointer to a door that is gone
   // The listening server keeps the door process alive; the sweep must not keep a test process alive.
