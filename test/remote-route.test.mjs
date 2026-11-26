@@ -3,6 +3,9 @@ import assert from 'node:assert/strict'
 import { RemoteSeats } from '../src/remote-seats.mjs'
 import { RemoteRoutes, viewRows } from '../src/remote-route.mjs'
 
+import { BOT_GIT_IDENTITY } from '../src/bot-environment.mjs'
+const GIT_NAMES = ['GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL'] // SEC-111
+
 const bot = { id: 'bot-aaaa1111', terminalId: 'mac-1', projectRoot: '/Users/quo/work/app', fastMode: false }
 const terminal = { ref: 'owner-macbook', target: { host: 'mac', user: 'quo', port: 22 }, trustRevision: 't1', credentialRevision: 'c1' }
 const remote = { host: 'mac', user: 'quo', port: 22, ssh: { known_hosts_file: '/tmp/k.known_hosts', host_key_alias: 'mac', identity_agent: '/tmp/a.sock', strict_host_key: true } }
@@ -30,8 +33,8 @@ test('prepare on a switched terminal ensures the forward first, names P in the s
   assert.equal('terminal' in prepared.args, false)
   assert.equal(prepared.args.mcp_config.mcpServers.bellteam.url, 'http://127.0.0.1:41999/api/seat-mcp')
   assert.equal(prepared.args.mcp_config.mcpServers['call-bridge'].url, 'http://127.0.0.1:41999/api/seat-mcp/call-bridge')
-  assert.deepEqual(prepared.privateEnv.names, ['BELLTEAM_MCP_TOKEN', 'AITERM_SEAT_FORWARD_PORT'])
-  assert.deepEqual(await prepared.privateEnv.resolve(), { BELLTEAM_MCP_TOKEN: 'tok', AITERM_SEAT_FORWARD_PORT: '41999' })
+  assert.deepEqual(prepared.privateEnv.names, ['BELLTEAM_MCP_TOKEN', 'AITERM_SEAT_FORWARD_PORT', ...GIT_NAMES])
+  assert.deepEqual(await prepared.privateEnv.resolve(), { BELLTEAM_MCP_TOKEN: 'tok', AITERM_SEAT_FORWARD_PORT: '41999', GIT_AUTHOR_NAME: BOT_GIT_IDENTITY.name, GIT_AUTHOR_EMAIL: BOT_GIT_IDENTITY.email, GIT_COMMITTER_NAME: BOT_GIT_IDENTITY.name, GIT_COMMITTER_EMAIL: BOT_GIT_IDENTITY.email })
 })
 
 test('ensure_forward failing, or a terminal not switched, launches on terminal exactly as before', async () => {
@@ -40,7 +43,7 @@ test('ensure_forward failing, or a terminal not switched, launches on terminal e
     assert.deepEqual(prepared.args.terminal, terminal)
     assert.equal('remote' in prepared.args, false)
     assert.equal(prepared.args.mcp_config.mcpServers.bellteam.url, 'http://127.0.0.1:4183/api/seat-mcp')
-    assert.deepEqual(prepared.privateEnv.names, ['BELLTEAM_MCP_TOKEN'])
+    assert.deepEqual(prepared.privateEnv.names, ['BELLTEAM_MCP_TOKEN', ...GIT_NAMES])
   }
 })
 
