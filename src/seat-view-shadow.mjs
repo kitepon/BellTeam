@@ -36,7 +36,9 @@ export function seatViewDifferences({ rows, unread = [], sessions }) {
 // The seat view from the generic rows (a532b2 stage 3, seat-view-shadow.md): the seats of this call are the `sessions[]` rows (harness,
 // launch_id, turn, own_work); a row whose turn is null joins unread. Aiterm's seat_turns meta supplies only what a generic row cannot yet:
 // route_since of a terminal-bound seat and, until Aiterm >= 0.70.118 puts wait_process on the generic turn, a running Codex turn (its
-// watch/wait contract needs event_cursor and wait_process). An Aiterm without the generic fields (< 0.70.108) leaves data as it is.
+// watch/wait contract needs event_cursor and wait_process). A seat the meta lists but `sessions[]` does not (a seat bound to a terminal on the
+// old `terminal` input: Aiterm relays its row in the meta only) keeps its meta row: the generic list cannot see it yet (the shadow counts these as
+// `listed`; 0 = nothing depends on the meta). An Aiterm without the generic fields (< 0.70.108) leaves data as it is.
 export function genericSeatData(data, sessions) {
   const readable = Array.isArray(sessions) ? sessions.filter(row => row && Object.hasOwn(row, 'turn')) : []
   if (!readable.length) return data
@@ -48,6 +50,7 @@ export function genericSeatData(data, sessions) {
     const turn = !codex ? row.turn : raw.get(row.session_id).turn?.wait_process ? raw.get(row.session_id).turn : before?.turn ?? row.turn
     return { ...before, session_id: row.session_id, harness: row.harness, launch_id: row.launch_id, turn, own_work: row.own_work ?? before?.own_work }
   })
+  for (const [id, seat] of old) if (id && !raw.has(id)) seats.push(seat)
   const unread = new Set([...(Array.isArray(data?.unread) ? data.unread : []), ...generic.unread])
   return { schema: 'aiterm.seat-turns.v1', ...data, seats, unread: [...unread] }
 }
