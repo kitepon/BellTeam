@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-26T01:08:58Z",
-  "expiresAt": "2026-12-03T01:08:58Z",
+  "publishedAt": "2026-11-26T02:01:09Z",
+  "expiresAt": "2026-12-03T02:01:09Z",
   "releases": [
     {
       "componentId": "usage",
@@ -427,8 +427,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "83ca59adf03fd3d2a7ab62a3ce3a46466d7c435a",
-      "versionId": "dc959ac27cabc6cf7c73db14ac26d1e64170d247861e8ba96e92e6c01fa52f19",
+      "sourceCommit": "c50de56e2fe6bd132f77802616be514cb3e41b9a",
+      "versionId": "1b46823dfb1dc14847fc7ee081b7ce6a18ff455a1d178425aae72d22dbe1d394",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -436,16 +436,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T010055Z/web-gateway-83ca59adf03fd3d2a7ab62a3ce3a46466d7c435a-linux-amd64.tar.gz",
-          "bytes": 4561518,
-          "sha256": "dc959ac27cabc6cf7c73db14ac26d1e64170d247861e8ba96e92e6c01fa52f19"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T015300Z/web-gateway-c50de56e2fe6bd132f77802616be514cb3e41b9a-linux-amd64.tar.gz",
+          "bytes": 4562149,
+          "sha256": "1b46823dfb1dc14847fc7ee081b7ce6a18ff455a1d178425aae72d22dbe1d394"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T010055Z/web-gateway-83ca59adf03fd3d2a7ab62a3ce3a46466d7c435a-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11056,
-          "sha256": "5012ed5903dec44424741a98778584365f8b93818766332a32c4ce76c905455e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T015300Z/web-gateway-c50de56e2fe6bd132f77802616be514cb3e41b9a-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11158,
+          "sha256": "b5414e1b2894d85a113c3dfd4d8397bc160a284d511370ff7ea8ef20d8d63343"
         },
-        "signerCommit": "83ca59adf03fd3d2a7ab62a3ce3a46466d7c435a"
+        "signerCommit": "c50de56e2fe6bd132f77802616be514cb3e41b9a"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -454,13 +454,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "メンバーの存在確認で画像の本文を読まないようにし、名簿を毎回作り直さないようにします。"
+        "席の環境に、コミットの作者とコミッターを noreply の身元にする設定を加えます。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "83ca59adf03fd3d2a7ab62a3ce3a46466d7c435a",
-      "versionId": "68a40b9de5ba207f703f2656137eef077d8a17942692f2bb971b74fb7b2fe9a5",
+      "sourceCommit": "c50de56e2fe6bd132f77802616be514cb3e41b9a",
+      "versionId": "d0c285fa82f6cfff2c967487d0ae46c9452cde6d1d02b23a0f5439be82f62ece",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -468,16 +468,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T010055Z/web-gateway-83ca59adf03fd3d2a7ab62a3ce3a46466d7c435a-linux-arm64.tar.gz",
-          "bytes": 4561518,
-          "sha256": "68a40b9de5ba207f703f2656137eef077d8a17942692f2bb971b74fb7b2fe9a5"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T015300Z/web-gateway-c50de56e2fe6bd132f77802616be514cb3e41b9a-linux-arm64.tar.gz",
+          "bytes": 4562150,
+          "sha256": "d0c285fa82f6cfff2c967487d0ae46c9452cde6d1d02b23a0f5439be82f62ece"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T010055Z/web-gateway-83ca59adf03fd3d2a7ab62a3ce3a46466d7c435a-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11017,
-          "sha256": "a378a332a7933daafbd361ab0dacdec02b027516c10491027826b0f3f23c1ea0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T015300Z/web-gateway-c50de56e2fe6bd132f77802616be514cb3e41b9a-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10974,
+          "sha256": "7c7071f8ed84cb9b38a8512cb80d9f278b9858db850f8bfab3f9159f97017ae4"
         },
-        "signerCommit": "83ca59adf03fd3d2a7ab62a3ce3a46466d7c435a"
+        "signerCommit": "c50de56e2fe6bd132f77802616be514cb3e41b9a"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -486,13 +486,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "メンバーの存在確認で画像の本文を読まないようにし、名簿を毎回作り直さないようにします。"
+        "席の環境に、コミットの作者とコミッターを noreply の身元にする設定を加えます。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "83ca59adf03fd3d2a7ab62a3ce3a46466d7c435a",
-      "versionId": "968a7f69a63a33a93b89c62b80313efa93f7c61570bafc0e62b399c9f95a7161",
+      "sourceCommit": "c50de56e2fe6bd132f77802616be514cb3e41b9a",
+      "versionId": "5bac0ed0e28d6bc8849b30ebc0f294690e8a462b0e51a06e1a110ad839c4f6cf",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T010038Z/execution-83ca59adf03fd3d2a7ab62a3ce3a46466d7c435a-linux-amd64.tar.gz",
-          "bytes": 3877994,
-          "sha256": "968a7f69a63a33a93b89c62b80313efa93f7c61570bafc0e62b399c9f95a7161"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T015244Z/execution-c50de56e2fe6bd132f77802616be514cb3e41b9a-linux-amd64.tar.gz",
+          "bytes": 3878531,
+          "sha256": "5bac0ed0e28d6bc8849b30ebc0f294690e8a462b0e51a06e1a110ad839c4f6cf"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T010038Z/execution-83ca59adf03fd3d2a7ab62a3ce3a46466d7c435a-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10895,
-          "sha256": "2c813a0b4f412780ef191b5aab723cbd3c0bac11a068363963a965ed81a06cf6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T015244Z/execution-c50de56e2fe6bd132f77802616be514cb3e41b9a-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11130,
+          "sha256": "3b9292ef7d0b9080b1497da5638a4eb5a9bde418779fca2b072655c0877c0631"
         },
-        "signerCommit": "83ca59adf03fd3d2a7ab62a3ce3a46466d7c435a"
+        "signerCommit": "c50de56e2fe6bd132f77802616be514cb3e41b9a"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +519,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "席の起動に失敗した時の記録に、起動画面の抜粋を残すようにします。席の見張りを軽くした aiterm-mcp 0.70.117 に合わせます。"
+        "端末の席（Windows・Mac・Linux）で、コミットの作者とコミッターをオーナーの noreply の身元に固定します。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "83ca59adf03fd3d2a7ab62a3ce3a46466d7c435a",
-      "versionId": "a4005b1e75ecf72df4749a5d3eada680374bda071e69b5075aff19941c63b36a",
+      "sourceCommit": "c50de56e2fe6bd132f77802616be514cb3e41b9a",
+      "versionId": "c29c2a6bcfb77b4b320c2989c9988e8bfd86130c62593df8a58c15e1d4e6939c",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +533,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T010038Z/execution-83ca59adf03fd3d2a7ab62a3ce3a46466d7c435a-linux-arm64.tar.gz",
-          "bytes": 3877994,
-          "sha256": "a4005b1e75ecf72df4749a5d3eada680374bda071e69b5075aff19941c63b36a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T015244Z/execution-c50de56e2fe6bd132f77802616be514cb3e41b9a-linux-arm64.tar.gz",
+          "bytes": 3878531,
+          "sha256": "c29c2a6bcfb77b4b320c2989c9988e8bfd86130c62593df8a58c15e1d4e6939c"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T010038Z/execution-83ca59adf03fd3d2a7ab62a3ce3a46466d7c435a-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11040,
-          "sha256": "e51e4339da4c3de27b771804320819849edd9e3f760dcde169fdd8c20b4312c7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T015244Z/execution-c50de56e2fe6bd132f77802616be514cb3e41b9a-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11083,
+          "sha256": "5455ee207fbc839c666280e9d4b7ee2d4f8b2cd3650d2dadd5158e08e6ad96df"
         },
-        "signerCommit": "83ca59adf03fd3d2a7ab62a3ce3a46466d7c435a"
+        "signerCommit": "c50de56e2fe6bd132f77802616be514cb3e41b9a"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,13 +552,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "席の起動に失敗した時の記録に、起動画面の抜粋を残すようにします。席の見張りを軽くした aiterm-mcp 0.70.117 に合わせます。"
+        "端末の席（Windows・Mac・Linux）で、コミットの作者とコミッターをオーナーの noreply の身元に固定します。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "83ca59adf03fd3d2a7ab62a3ce3a46466d7c435a",
-      "versionId": "d9bd1d2034b8b23b98546a72677203f0bf87da1d88bd91326e9271b28b76c557",
+      "sourceCommit": "c50de56e2fe6bd132f77802616be514cb3e41b9a",
+      "versionId": "8eb638424686da70d1423ce98028cf36185f6738341c54ee29d8c561934553c0",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -566,16 +566,56 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T010047Z/members-83ca59adf03fd3d2a7ab62a3ce3a46466d7c435a-linux-amd64.tar.gz",
-          "bytes": 4568225,
-          "sha256": "d9bd1d2034b8b23b98546a72677203f0bf87da1d88bd91326e9271b28b76c557"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T015252Z/members-c50de56e2fe6bd132f77802616be514cb3e41b9a-linux-amd64.tar.gz",
+          "bytes": 4568671,
+          "sha256": "8eb638424686da70d1423ce98028cf36185f6738341c54ee29d8c561934553c0"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T010047Z/members-83ca59adf03fd3d2a7ab62a3ce3a46466d7c435a-linux-amd64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T015252Z/members-c50de56e2fe6bd132f77802616be514cb3e41b9a-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11043,
+          "sha256": "c47680cba78d80241f1a56754b7ef930e0bb96ed42db8ebd67006cdaf9170a99"
+        },
+        "signerCommit": "c50de56e2fe6bd132f77802616be514cb3e41b9a"
+      },
+      "compatibility": {
+        "nodeMajor": 26,
+        "parentProtocol": 1,
+        "stateSchema": null,
+        "containerUpdate": null,
+        "stateCompatibility": {
+          "botProfileSchema": "bellteam.bot.v8",
+          "deletionReceiptSchema": "bellteam.bot-deletion.v1",
+          "initializedMarker": ".initialized",
+          "ownerProfileSchema": "bellteam.owner-profile.v1",
+          "scheduleSchema": "bellteam.schedule.v1",
+          "userRulesEncoding": "utf8"
+        }
+      },
+      "changes": [
+        "席の環境に、コミットの作者とコミッターを noreply の身元にする設定を加えます。"
+      ]
+    },
+    {
+      "componentId": "members",
+      "sourceCommit": "c50de56e2fe6bd132f77802616be514cb3e41b9a",
+      "versionId": "c926b2acc8e02c3db82adc7f56f2281550aaa0c7c5aa55fa933214046a1d4240",
+      "platform": {
+        "os": "linux",
+        "arch": "arm64"
+      },
+      "artifact": {
+        "kind": "archive",
+        "archive": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T015252Z/members-c50de56e2fe6bd132f77802616be514cb3e41b9a-linux-arm64.tar.gz",
+          "bytes": 4568671,
+          "sha256": "c926b2acc8e02c3db82adc7f56f2281550aaa0c7c5aa55fa933214046a1d4240"
+        },
+        "bundle": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T015252Z/members-c50de56e2fe6bd132f77802616be514cb3e41b9a-linux-arm64.tar.gz.sigstore.json",
           "bytes": 11137,
-          "sha256": "fe98c044d094c2e9c5a3a1fbfeaa52c307376a601294dfeb6f79f7e50db319fe"
+          "sha256": "9fa6e9459a7fee244a8582df6886bb7489ff2402785421efffcd6990949f0af0"
         },
-        "signerCommit": "83ca59adf03fd3d2a7ab62a3ce3a46466d7c435a"
+        "signerCommit": "c50de56e2fe6bd132f77802616be514cb3e41b9a"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -592,47 +632,7 @@
         }
       },
       "changes": [
-        "メンバーが存在するかだけを確かめる読み取りで、画像の本文を返さないようにします。"
-      ]
-    },
-    {
-      "componentId": "members",
-      "sourceCommit": "83ca59adf03fd3d2a7ab62a3ce3a46466d7c435a",
-      "versionId": "5ba41156008b025a1fb83484adb2b60a1372b032a0d7e430e23c8e770fafc91f",
-      "platform": {
-        "os": "linux",
-        "arch": "arm64"
-      },
-      "artifact": {
-        "kind": "archive",
-        "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T010047Z/members-83ca59adf03fd3d2a7ab62a3ce3a46466d7c435a-linux-arm64.tar.gz",
-          "bytes": 4568225,
-          "sha256": "5ba41156008b025a1fb83484adb2b60a1372b032a0d7e430e23c8e770fafc91f"
-        },
-        "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T010047Z/members-83ca59adf03fd3d2a7ab62a3ce3a46466d7c435a-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10949,
-          "sha256": "a64ea8274d92fedadcf9a96a0af494ed8c29467c68f9e24eb5f5aa127f592fea"
-        },
-        "signerCommit": "83ca59adf03fd3d2a7ab62a3ce3a46466d7c435a"
-      },
-      "compatibility": {
-        "nodeMajor": 26,
-        "parentProtocol": 1,
-        "stateSchema": null,
-        "containerUpdate": null,
-        "stateCompatibility": {
-          "botProfileSchema": "bellteam.bot.v8",
-          "deletionReceiptSchema": "bellteam.bot-deletion.v1",
-          "initializedMarker": ".initialized",
-          "ownerProfileSchema": "bellteam.owner-profile.v1",
-          "scheduleSchema": "bellteam.schedule.v1",
-          "userRulesEncoding": "utf8"
-        }
-      },
-      "changes": [
-        "メンバーが存在するかだけを確かめる読み取りで、画像の本文を返さないようにします。"
+        "席の環境に、コミットの作者とコミッターを noreply の身元にする設定を加えます。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "83ca59adf03fd3d2a7ab62a3ce3a46466d7c435a",
-      "versionId": "sha256:97c9d98d9d88463700634d965ffeb1c09f4b71871fd008834d27ada68ba12fc5",
+      "sourceCommit": "c50de56e2fe6bd132f77802616be514cb3e41b9a",
+      "versionId": "sha256:5a9ab4beb6c66b8bb0b3a3fde31d67530f4adff1ee9eab427b352c55f3e9fb96",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:97c9d98d9d88463700634d965ffeb1c09f4b71871fd008834d27ada68ba12fc5"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:5a9ab4beb6c66b8bb0b3a3fde31d67530f4adff1ee9eab427b352c55f3e9fb96"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "メンバーの名簿を会話のたびに作り直さず、存在確認で画像の本文を読まないようにして、本体と members 部品のCPUを減らします。会話の記録の読み取り（Throughline 0.21.3）が約1.4秒から約0.15秒になります。席の見張り（aiterm-mcp 0.70.117）は、休止前の席を5分おきにだけ確認し、tmux の呼び出しも減らします。"
+        "Botがコミットする時の作者とコミッターを、オーナーの noreply の身元に固定します。席が自分の画面に見えるメールアドレスを指定しても、公開コミットに入るのは noreply になります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "83ca59adf03fd3d2a7ab62a3ce3a46466d7c435a",
-      "versionId": "sha256:97c9d98d9d88463700634d965ffeb1c09f4b71871fd008834d27ada68ba12fc5",
+      "sourceCommit": "c50de56e2fe6bd132f77802616be514cb3e41b9a",
+      "versionId": "sha256:5a9ab4beb6c66b8bb0b3a3fde31d67530f4adff1ee9eab427b352c55f3e9fb96",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:97c9d98d9d88463700634d965ffeb1c09f4b71871fd008834d27ada68ba12fc5"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:5a9ab4beb6c66b8bb0b3a3fde31d67530f4adff1ee9eab427b352c55f3e9fb96"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "メンバーの名簿を会話のたびに作り直さず、存在確認で画像の本文を読まないようにして、本体と members 部品のCPUを減らします。会話の記録の読み取り（Throughline 0.21.3）が約1.4秒から約0.15秒になります。席の見張り（aiterm-mcp 0.70.117）は、休止前の席を5分おきにだけ確認し、tmux の呼び出しも減らします。"
+        "Botがコミットする時の作者とコミッターを、オーナーの noreply の身元に固定します。席が自分の画面に見えるメールアドレスを指定しても、公開コミットに入るのは noreply になります。"
       ]
     },
     {
