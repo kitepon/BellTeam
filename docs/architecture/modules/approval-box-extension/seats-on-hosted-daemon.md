@@ -8,13 +8,27 @@ This page replaces the first drawing of the Owner's sitting (#2626/#2627). Other
 
 | Port | Published by | Caller | Operations | Notes |
 | --- | --- | --- | --- | --- |
-| **P1 Decision port** (typed, in the body, same shape as `lattice-owner-task`) | this module | Flora (Lattice decisions), Kiro (seat tool-approval cards, running exclusions) | `file(decision, origin)` -> id, `read(id)`, `cancel(id, reason)`, `capabilities()`, `connection()` -> linked / not linked | `origin` is a label (`lattice`, `seat-approval`, `running-exclusions`) that goes into the card's requester and `session_label`; no caller holds a credential, a secret card or a token |
+| **P1 Decision port** (typed, in the body, same shape as `lattice-owner-task`) | this module | Flora (Lattice decisions), Kiro (seat tool-approval cards, running exclusions) | see the contract under this table | no caller holds a credential, a secret card or a token |
 | **P2 Seat line port** (the connector's own NDJSON line protocol, one line in, one line out) | this module, at the module's seat socket | transport only: the container door and the body route (Molly), the host doors (Krust) | the lines the seat's Approval Box runtime sends after `use-hosted` (requests, uploads, `GET /deliveries`, `POST /deliveries/:id`) | the doors parse nothing and keep nothing; a door that cannot reach it answers `503 APPROVAL_BOX_DAEMON_UNAVAILABLE` |
 | **P3 Pairing port** (Owner-session HTTP, same origin as `/api/approvals`) | this module | the clients' pairing view (Rapi, Anis, Neon) | `GET` the state, `POST start`, `POST stop` (state none / waiting / linked / failed / removed, `code`, `qrText`, `expiresAt`, `reason`) | the existing `/api/approvals/seat-link` routes keep their path and shape so no client re-routes; they now mean the one pairing (the screen's heading moves to 「決裁箱につなぐ」 in screen-spec, Delta) |
 | **P4 Supervision port** | Molly (body, runtime) | this module | the body starts, stops and watches the module's child process like any module; the module supervises the connector daemon it runs | the module.json hosting contract that exists today (`approval-box-parent-*`) |
-| **P5 Seat entry contract** (`bellteam.harness-entries.v1`, E1) | this module | Molly's harness-entries (E2 item `approval-box`) | the MCP and hook entry the seats need, naming the installed runtime | content = what the connector's `harness-entries --json` prints; the E2 item points at the module's E1 once it exists; until then it keeps running the connector binary (same content) |
+| **P5 Seat entry contract** (`bellteam.harness-entries.v1`, E1) | this module | Molly's harness-entries (E2 item `approval-box`) | the MCP and hook entry the seats need, naming the installed runtime | a **file** at `/srv/bellteam/state/approval-box-extension/harness-entries.json`, written atomically (Molly: the body's boot pass runs before any module child is up, so a command is not possible); content = what the connector's `harness-entries --json` prints; Molly switches the E2 item from the binary command to this file once it exists, and until then it keeps running `~/.approval-box/bin/approval-box` (same content) |
 | **P6 Connector commands** | Nayuta (Approval Box) | this module only | `pair`, `install-runtime`, `use-hosted --socket` / `--off`, `harness-entries --json`, `connection export --json`, daemon run, `version --json` | nobody else calls them |
 | **P7 Credential custody** | Mika (usage, `secrets`) | this module | the one connection's secret is kept through the existing usage `secrets` port | usage no longer calls Approval Box itself |
+
+### P1 contract (Kiro's read of what execution calls today, 2026-11-26)
+
+| Operation | Contract |
+| --- | --- |
+| `file(decision, origin)` | `decision` = title, context, options, requester, `session_label` (the caller sets it: seat `Seat <botId> <digest16> <firstSeen>`, exclusions the stored item label). **Idempotent per `session_label`**: a request with the same label is adopted, never filed twice (a lost answer must never file twice); returns `{decisionId, existing}`. `origin` only adds to the requester, never replaces `session_label`. The module fixes urgency and client, and retries once with `check_token` when Approval Box asks for `confirm_required` |
+| `read(id)` | `{status: pending \| held \| answered \| cancelled, answer: {optionId, text}}`; reading an answered request marks it fetched (otherwise its delivery stays "waiting"). A free-text answer is the caller's to treat (seat cards treat it as deny) |
+| `cancel(id, reason)` | cancelling an answered or cancelled request is `REFUSED`, not success |
+| `capabilities()` | the `capabilities` array of the runtime the seats actually run (pc.5 after `install-runtime`), from the connector's `version --json`; execution needs one fact: it contains `bellteam-requester-wake` (an idle seat may close with an answer pending) |
+| `connection()` | linked / not linked and, for Molly's read-only `approval_box_daemon_status` diagnostic, the daemon's mode, paired, reason and version |
+| Errors | a typed `kind` on every error: `UNAVAILABLE` (not linked, 401, network, 5xx: ends the caller's tick), `REFUSED` (a 4xx: skip that one request), `GONE` (`read` of an unknown or purged id: the caller drops its record; a running-exclusions id filed before the move is such an id, so the caller re-files with the same label). Callers map the kind to their own codes |
+| Time | each call returns within about 5 s (running exclusions polls every 60 s on a shared chain) |
+
+Execution's engine runs in its own process while P1 is in the body: the engine reaches `capabilities()` through a parent effect on the body (the route execution already uses for body services); Kiro names the effect, Molly hosts it, and until it exists Kiro keeps the direct read.
 
 ## 2. Function diagram
 
@@ -120,12 +134,12 @@ Source: `node /srv/bellteam/shared/tools/assign-owner/who-owns.mjs --uses approv
 | Today | Owner | After | What the owner changes |
 | --- | --- | --- | --- |
 | approval-box-extension: client `/v1` (read, answer) + connector pairing | Delta | stays inside this module; pairing becomes P3 | Delta |
-| execution: `connector /v1` (seat cards via the seat-link token, running exclusions via their own secret pair) | Kiro | P1 `file/read/cancel` with `origin`; the seat-link token source and the secret pairs retire; no second pairing | Kiro swaps `createApprovalDecisions` for the P1 client |
-| execution: `version --json (capabilities)` | Kiro | P1 `capabilities()` | Kiro |
+| execution: `connector /v1` (seat cards via the seat-link token, running exclusions via their own secret pair) | Kiro | P1 `file/read/cancel` with `origin`; the seat-link token source and the secret pair retire; no second pairing | Kiro changes the two call sites in `application-services.mjs` plus the secret pair and the token source |
+| execution: `version --json (capabilities)` (`src/idle-sessions.mjs`) | Kiro | P1 `capabilities()` through a parent effect (see the P1 contract) | Kiro |
 | lattice: `connector /v1` (`createLatticeDecisions`, own secret pair) | Flora | P1 `file/read/cancel` with `origin: lattice`; the secret pair retires | Flora |
-| integration: `connector /v1` (`approval-box-parent-facade`) | Molly | it is the hosting of this module (P4); no direct connector call remains | Molly |
+| integration: `connector /v1` (`approval-box-parent-facade`) and the in-body daemon service | Molly | the body no longer runs the daemon in-process (`services.approvalBoxDaemon`, started and closed in `application-runtime.mjs`): Molly deletes that service, her door route and seats socket forward to the module's seat socket (P2, parse nothing), and the MCP tools `approval_box_pair` and `approval_box_pair_status` retire (the Owner pairs himself in the view, P3); `approval_box_daemon_status` stays as a read-only diagnostic over `connection()` | Molly (her own function and data-flow drawing first, then the code) |
 | runtime: `harness-entries (approval-box)` | Molly | stays a seat-registration contract, now fed by P5 | Molly points the E2 item at the module's E1 when it exists |
-| usage: `connection export --json` | Mika | the module calls the export itself and keeps the result through P7 (Nayuta confirmed 2026-11-26: it returns `{schema approval-box.connection.v1, server, token}`, the /v1 connection bearer; the module uses it for the connection's identity and server only, never to file or read decision content, because the /v1 content routes close on 2026-12-12) | Mika drops the direct call |
+| usage: `connection export --json` | Mika | **nothing calls it today** (Mika 2026-11-26: its only caller, the submitted-secret consumer, was retired in #2306); Mika removes the three leftover drawings (usage module.json port, data-flow X5, the feature-map edge). If the module needs the connection's identity it calls the export itself and keeps the result through P7 (Nayuta confirmed 2026-11-26: it returns `{schema approval-box.connection.v1, server, token}`, the /v1 connection bearer; the module uses it for the connection's identity and server only, never to file or read decision content, because the /v1 content routes close on 2026-12-12) | Mika drops the direct call |
 
 ## 6. Files, claimed by exactly one module
 
@@ -136,9 +150,20 @@ Source: `node /srv/bellteam/shared/tools/assign-owner/who-owns.mjs --uses approv
 | `src/approval-box-seats-socket.mjs`, `src/approval-box-door-route.mjs` | integration (Molly): transport to P2 | the body's side of the doors; parses nothing |
 | `src/terminals/approval-door*.mjs` | terminals (Krust): transport | the host doors |
 | `src/approval-box-parent-*.mjs` | runtime/integration (Molly): P4 | hosting of this module |
-| `src/seat-approvals.mjs`, `src/http-seat-approvals-api.mjs` | execution (Kiro) | the seat side; calls P1 only |
+| `src/seat-approvals.mjs`, `src/http-seat-approvals-api.mjs`, `src/running-exclusions.mjs`, `src/running-exclusions-mcp.mjs`, `src/http-running-exclusions-api.mjs`, `src/idle-sessions.mjs` | execution (Kiro) | they call P1 or read `capabilities()` only |
 
 The claim is made here first (diagrams first). `module.json` `source` and `provides` follow in the code step with the test that pins the list today to the `approval-box-extension*` files (`test/approval-box-extension-child.test.mjs`); Flora's `module.json` drops `src/lattice-approval.mjs` in the same step.
+
+### What the module must keep from the lab-proven daemon (Molly, #2301 and Centi's a490t-lab)
+
+- The daemon's state directory `/srv/bellteam/state/approval-box-daemon/` and the seats' socket `/srv/bellteam/state/approval-box-hosted.sock` stay **unchanged**: the seats' `hosted.json` and the doors need no change and no new mount.
+- Kill the daemon and a new one is up within about 3 s; restarts are bounded and never a permanent give-up (restart limit b1eb6df1).
+- Starting the daemon never holds the module's own start (a500).
+- The connector runtime comes from the image (the Dockerfile `install-runtime` step; `node-datachannel` sits next to that copy), not from the module's payload: the module runs it from the image path.
+
+### Release shape (Molly)
+
+The code step touches the body's import closure (`application-runtime`, `application-services`, `mcp-tools`, the door route) and this module's row, so it is a body (container) row plus an approval-box-extension row, the body first, then the module row. A body swap restarts every seat, so by the one-release rule it rides **one** train, and because the sitting has no restart step that train is live **before** the sitting. Production was never paired, so nothing is lost in between. Molly's rows `a490p-pair-on-sitting` and Nayuta's `a490p-go` have nothing left to do once P3 exists and are retired by their owners; the sitting rows of this module wait on the P3 row instead.
 
 ## 7. The sitting, in order (no restart step)
 
@@ -170,6 +195,6 @@ Protected: the seat bearer and decision content (never copied by a caller), the 
 ## 9. Open points for the owners (Delta asks, each answers in one message)
 
 - Nayuta: **confirmed 2026-11-26**. The connector's `pair` (8-character code + QR) makes the one connection the hosted daemon uses; with `PC_OFFER` on, the daemon files every decision over the peer channel, Kiro's seat cards included; no second token and no `pair --v1` link remain (`--v1` exists only for a server without peer_channel). The /v1 content routes close on 2026-12-12 (approval-box k12), so the seat-card link must be moved onto P1 before `PC_OFFER` goes on and then retired.
-- Mika: confirm the `connection export` call can sit inside this module with the result kept through the `secrets` port.
-- Kiro, Flora: confirm the P1 shape (`file(decision, origin)`, `read`, `cancel`, `capabilities`, `connection`) covers what you call today; say what is missing before it is built.
-- Molly: confirm the P4 split (body supervises the module; the module supervises the connector daemon) and the E1 hand-over.
+- Mika: **confirmed 2026-11-26**: nothing in usage needs the call and `secrets` is the only usage port the module uses.
+- Kiro: **answered 2026-11-26** with five points, all in the P1 contract above (idempotent `file`, `read` result and fetched mark, typed errors with a 5 s bound, `GONE` for old ids, `capabilities()` with the engine's route). Open with Kiro: the name of the parent effect. Flora: confirm the P1 shape covers what Lattice calls today.
+- Molly: **confirmed 2026-11-26** with the corrections in section 5 (the body ran the daemon in-process), the obligations and release shape before section 7, and the E1 file path in P5. Open with Delta: the module must read the installed seat runtime's E1 (the seats' profile is uid 1000) or publish it from the pinned version; settled at the code step.
