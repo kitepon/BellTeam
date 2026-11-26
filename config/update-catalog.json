@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-25T23:25:22Z",
-  "expiresAt": "2026-12-02T23:25:22Z",
+  "publishedAt": "2026-11-26T00:42:44Z",
+  "expiresAt": "2026-12-03T00:42:44Z",
   "releases": [
     {
       "componentId": "usage",
@@ -751,8 +751,8 @@
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "acabd657d8fd1f4331cf9792bd647981dbab87ba",
-      "versionId": "8a6366be518e68b73c96e9e579a36d12ae05c6de04705e82df7959481f136c31",
+      "sourceCommit": "40dc2318e5872487e0d973c66420309996ed5a1e",
+      "versionId": "bf8cd2fa1fe19e9a6cc02896a46034610e6015d14148f11dd70b657a34cdc36f",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -760,16 +760,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261125T231510Z/lattice-acabd657d8fd1f4331cf9792bd647981dbab87ba-linux-amd64.tar.gz",
-          "bytes": 15349257,
-          "sha256": "8a6366be518e68b73c96e9e579a36d12ae05c6de04705e82df7959481f136c31"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T004115Z/lattice-40dc2318e5872487e0d973c66420309996ed5a1e-linux-amd64.tar.gz",
+          "bytes": 15349434,
+          "sha256": "bf8cd2fa1fe19e9a6cc02896a46034610e6015d14148f11dd70b657a34cdc36f"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261125T231510Z/lattice-acabd657d8fd1f4331cf9792bd647981dbab87ba-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11137,
-          "sha256": "c2f4d3c3fa2aca2a43763af09adb574b220dbbd825cf4c20a24254538566a687"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T004115Z/lattice-40dc2318e5872487e0d973c66420309996ed5a1e-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11027,
+          "sha256": "e0b5e8bb125911477c9b185fd1c28b91badb054197ba115578246488b0bb2232"
         },
-        "signerCommit": "acabd657d8fd1f4331cf9792bd647981dbab87ba"
+        "signerCommit": "40dc2318e5872487e0d973c66420309996ed5a1e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -781,13 +781,13 @@
         }
       },
       "changes": [
-        "Latticeの席ごとの起動を遅らせ、工程表の読み直しを減らして、使うCPUとメモリを減らします。"
+        "外したチャートとつながりのあるチャートの印が毎回空になって、チャート一覧の読み直しがくり返されていたのを直します。外した外部チャートは、印の中で変わらない部分として扱います。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "acabd657d8fd1f4331cf9792bd647981dbab87ba",
-      "versionId": "efdfdd65a99b1e3d0f0d4efdaca246bf305f0ba43ac1be6fcd9f28fdced6bee4",
+      "sourceCommit": "40dc2318e5872487e0d973c66420309996ed5a1e",
+      "versionId": "a5e860832b05e1666fb26dfb6ab05bd576ab975a2cf750488669acc821e3366b",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -795,16 +795,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261125T231510Z/lattice-acabd657d8fd1f4331cf9792bd647981dbab87ba-linux-arm64.tar.gz",
-          "bytes": 15349257,
-          "sha256": "efdfdd65a99b1e3d0f0d4efdaca246bf305f0ba43ac1be6fcd9f28fdced6bee4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T004115Z/lattice-40dc2318e5872487e0d973c66420309996ed5a1e-linux-arm64.tar.gz",
+          "bytes": 15349435,
+          "sha256": "a5e860832b05e1666fb26dfb6ab05bd576ab975a2cf750488669acc821e3366b"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261125T231510Z/lattice-acabd657d8fd1f4331cf9792bd647981dbab87ba-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11043,
-          "sha256": "215f4c76b1d044ebe45812f7c7fc46d90dff047130bcf802e0f158dd8f735956"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T004115Z/lattice-40dc2318e5872487e0d973c66420309996ed5a1e-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11137,
+          "sha256": "5f097eba486e06b8f9bcd83f0f84051f7c59c03bcc569061885f2af872d633f7"
         },
-        "signerCommit": "acabd657d8fd1f4331cf9792bd647981dbab87ba"
+        "signerCommit": "40dc2318e5872487e0d973c66420309996ed5a1e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -816,7 +816,7 @@
         }
       },
       "changes": [
-        "Latticeの席ごとの起動を遅らせ、工程表の読み直しを減らして、使うCPUとメモリを減らします。"
+        "外したチャートとつながりのあるチャートの印が毎回空になって、チャート一覧の読み直しがくり返されていたのを直します。外した外部チャートは、印の中で変わらない部分として扱います。"
       ]
     },
     {
