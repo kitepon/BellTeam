@@ -168,3 +168,15 @@ test('a remote seat path image is read on its terminal through transport.readSea
   await assert.rejects(read('/etc/x.txt'), { message: 'IMAGE_PATH_NOT_ALLOWED' })
   assert.deepEqual(asked, [[bot, '/tmp/x.png', 25 * 1024 * 1024], [bot, '/etc/x.txt', 25 * 1024 * 1024]])
 })
+
+test('members.profiles.read uses readCached when the facade has it, else refresh; the result shape is unchanged', async () => {
+  const ctx = context(), used = []
+  const bots = [{ id: 'bot-a', name: 'A', role: 'R', project: '/p' }]
+  const make = services => createConversationParentEffects({ getServices: () => services, observerEffects: {}, onExecution: async () => ({}) })
+  const withCache = { bots: { readCached: async value => { used.push(['readCached', value]) }, refresh: async () => used.push(['refresh']), values: () => bots } }
+  assert.deepEqual(await make(withCache)('members.profiles.read', {}, ctx), { bots: [{ id: 'bot-a', name: 'A', role: 'R' }] })
+  assert.deepEqual(used, [['readCached', ctx.operationContext]])
+  used.length = 0
+  await make({ bots: { refresh: async value => { used.push(['refresh', value]) }, values: () => bots } })('members.profiles.read', {}, ctx)
+  assert.deepEqual(used, [['refresh', ctx.operationContext]])
+})

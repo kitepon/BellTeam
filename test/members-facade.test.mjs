@@ -169,3 +169,49 @@ test('a153: a lease carried across an exchange reads the current generation rost
   assert.deepEqual(await facade.bots.refresh({ membersLease: lease }), [bot])
   admission.finish(lease)
 })
+
+// 2026-11-26 (members-roster-per-dispatch): a cached roster read and an image-free existence read.
+function cachedFixture({ summaryRejects = null } = {}) {
+  const admission = new MembersAdmission('generation'), requests = []
+  const view = { available: true, generation: 'generation', revision: 1, profiles: [bot] }
+  const projection = { snapshot: () => ({ ...view }), get: () => bot, has: () => true, keys: () => [bot.id].values(), values: () => [bot].values() }
+  const full = { ...bot, avatar: 'data:image/png;base64,AAAA' }
+  const facade = createMembersFacade({ admission, projection, callback: async () => ({ bot }),
+    request: async (method, params, context) => {
+      requests.push({ method, params })
+      if (method === 'profiles.read') { view.available = true; view.generation = 'generation'; view.revision++; return { revision: view.revision } }
+      if (params.summary && summaryRejects) throw summaryRejects
+      return { bot: params.summary ? bot : full }
+    } })
+  return { ...facade, view, requests, full }
+}
+test('readCached returns the confirmed projection with no request, and re-snapshots when unavailable or from another generation', async () => {
+  const f = cachedFixture()
+  assert.deepEqual(await f.bots.readCached(), [bot]); assert.equal(f.requests.length, 0)
+  f.view.available = false
+  assert.deepEqual(await f.bots.readCached(), [bot]); assert.deepEqual(f.requests.map(r => r.method), ['profiles.read'])
+  assert.deepEqual(await f.bots.readCached(), [bot]); assert.equal(f.requests.length, 1)
+  f.view.generation = 'other'
+  await f.bots.readCached(); assert.equal(f.requests.length, 2)
+})
+test('readCached never returns a stale view when the re-snapshot is unconfirmed; refresh and listForClient always read', async () => {
+  const f = cachedFixture(); f.view.available = false
+  const admission = new MembersAdmission('generation')
+  const stuck = createMembersFacade({ admission, projection: { snapshot: () => ({ ...f.view }) }, request: async () => ({ revision: 9 }), callback: async () => ({}) })
+  await assert.rejects(stuck.bots.readCached(), { code: 'MEMBERS_PROJECTION_UNCONFIRMED', status: 503, outcome: 'unknown' })
+  const g = cachedFixture()
+  const reads = () => g.requests.filter(r => r.method === 'profiles.read').length
+  await g.bots.refresh(); assert.equal(reads(), 1); await g.bots.listForClient(); assert.ok(reads() >= 2)
+})
+test('readMemberSummary asks for a summary, retries once without it on MEMBERS_INPUT_INVALID, and propagates any other error', async () => {
+  const f = cachedFixture()
+  assert.equal((await f.bots.readMemberSummary(bot.id)).avatar, undefined); assert.deepEqual(f.requests[0].params, { botId: bot.id, summary: true })
+  assert.equal((await f.bots.readMember(bot.id)).avatar, f.full.avatar); assert.deepEqual(f.requests[1].params, { botId: bot.id })
+  const old = cachedFixture({ summaryRejects: Object.assign(new Error('x'), { code: 'MEMBERS_INPUT_INVALID', status: 400 }) })
+  assert.equal((await old.bots.readMemberSummary(bot.id)).avatar, old.full.avatar)
+  assert.deepEqual(old.requests.map(r => r.params), [{ botId: bot.id, summary: true }, { botId: bot.id }])
+  const missing = cachedFixture({ summaryRejects: Object.assign(new Error('x'), { code: 'BOT_NOT_FOUND', status: 404 }) })
+  await assert.rejects(missing.bots.readMemberSummary(bot.id), { code: 'BOT_NOT_FOUND' }); assert.equal(missing.requests.length, 1)
+  const listed = cachedFixture(); await listed.bots.readMemberSummary(bot.id, undefined, { includeDeleting: true })
+  assert.deepEqual(listed.requests[0].params, { botId: bot.id, includeDeleting: true, summary: true })
+})
