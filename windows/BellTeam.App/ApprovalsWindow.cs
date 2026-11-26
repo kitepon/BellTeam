@@ -222,7 +222,7 @@ internal sealed class ApprovalsPage : Grid
         DropAsk = "決裁箱とのつなぎを外します。外すと、工程表との連携が止まります。", DropFailed = "いまはつなぎを外せませんでした。少し待って、もう一度押してください。";
     internal async Task OpenLinkAsync() { linkOpen = true; connect = new("idle"); Paint(); await ReadConnectionAsync(); await ReadSeatLinkAsync(); }
 
-    // 「AIの許可待ちを決裁箱へ送る」 (seat-approval-card.md, the pairing view): read from the body's seat-link routes only, shown under 工程表との連携 in this panel. The QR is for the Owner's Approval Box app to read.
+    // 「決裁箱につなぐ」 (seat-approval-card.md, the pairing view): read from the body's seat-link routes only, shown under 工程表との連携 in this panel. The QR and the two codes are for the Owner's Approval Box app.
     private SeatLink? seatLink; private bool seatBusy; private int seatToken;
     internal async Task ReadSeatLinkAsync()
     {
@@ -510,11 +510,16 @@ internal sealed class ApprovalsPage : Grid
         if (seat.Waiting)
         {
             var qr = new QrView(seat.QrText!, 200, "決裁箱のアプリで読むQRコード") { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 14, 0, 8) }; section.Children.Add(qr);
-            if (!string.IsNullOrEmpty(seat.Code))
+            // Both codes are always shown: without the 確認コード the app claims the pairing but binds no key (seat-approval-card.md).
+            foreach (var (label, value, id) in new[] { (SeatLinkText.CodeLabel, seat.Code, "seat-link-code"), (SeatLinkText.SecretLabel, seat.TypedSecret, "seat-link-secret") })
             {
-                var typed = new TextBox { Text = seat.Code, IsReadOnly = true, FontFamily = new FontFamily("Consolas"), FontSize = 16, TextAlignment = TextAlignment.Center, BorderThickness = new Thickness(0), Background = Brushes.Transparent, HorizontalAlignment = HorizontalAlignment.Center };
-                System.Windows.Automation.AutomationProperties.SetAutomationId(typed, "seat-link-typed"); section.Children.Add(typed);
+                if (string.IsNullOrEmpty(value)) continue;
+                var caption = Text(label, 12.5, Muted); caption.TextAlignment = TextAlignment.Center; caption.Margin = new Thickness(0, 6, 0, 0); section.Children.Add(caption);
+                var typed = new TextBox { Text = value, IsReadOnly = true, FontFamily = new FontFamily("Consolas"), FontSize = 16, TextAlignment = TextAlignment.Center, BorderThickness = new Thickness(0), Background = Brushes.Transparent, HorizontalAlignment = HorizontalAlignment.Center };
+                System.Windows.Automation.AutomationProperties.SetAutomationId(typed, id); System.Windows.Automation.AutomationProperties.SetName(typed, label); section.Children.Add(typed);
             }
+            var way = Text(SeatLinkText.Type, 13, Ink, FontWeights.Normal, TextWrapping.Wrap); way.TextAlignment = TextAlignment.Center; way.Margin = new Thickness(0, 8, 0, 0);
+            System.Windows.Automation.AutomationProperties.SetAutomationId(way, "seat-link-type"); section.Children.Add(way);
             if (seat.ExpiresAt is { } until) { var expiry = Text(SeatLinkText.Until(until), 12.5, Muted); expiry.TextAlignment = TextAlignment.Center; expiry.Margin = new Thickness(0, 4, 0, 0); section.Children.Add(expiry); }
         }
         if (seatBusy) { var spin = Spinner(16); spin.Margin = new Thickness(0, 12, 0, 0); spin.HorizontalAlignment = HorizontalAlignment.Center; section.Children.Add(spin); }
