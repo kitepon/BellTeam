@@ -72,3 +72,13 @@ test('the seat list is the sessions[] rows; route_since and an older Codex row c
   assert.equal(genericSeatData(data, [{ session_id: 'a' }]), data) // an old Aiterm: data untouched
   assert.equal(genericSeatData(undefined, [{ session_id: 'a' }]), undefined)
 })
+
+test('a seat of the meta that sessions[] does not list is the difference listed (it would read as absent, i.e. idle)', () => {
+  const sessions = [{ session_id: 'a', turn: { state: 'idle' }, own_work: own }]
+  assert.deepEqual(seatViewDifferences({ rows: [row('a', { state: 'idle' }), row('b', running)], unread: ['u'], sessions }),
+    [{ session: 'u', harness: null, field: 'listed' }, { session: 'b', harness: 'claude-code', field: 'listed' }])
+  const lines = [], shadow = new SeatViewShadow({ report: line => lines.push(line), now: () => 0 })
+  shadow.compare({ seats: [row('a', { state: 'idle' }), row('b', running)], unread: [] }, { structuredContent: { sessions } })
+  assert.deepEqual(shadow.counts.listed, { compared: 2, differed: 1 })
+  assert.match(lines.find(line => line.includes('SUMMARY')), /listed=1\/2/)
+})
