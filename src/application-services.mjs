@@ -40,7 +40,7 @@ import { createDiagnosticsFacade } from './diagnostics-facade.mjs'
 import { createWorkGraphFacade, createWorkGraphEffects } from './work-graph-facade.mjs'
 import { createLatticeFacade, createLatticeEffects } from './lattice-facade.mjs'
 import { createLatticeReminders } from './lattice/reminders.mjs'
-import { createLatticeDecisions, createApprovalDecisions } from './lattice-approval.mjs'
+import { createLatticeDecisions } from './lattice-approval.mjs'
 import { createApprovalBoxPort } from './approval-box-port.mjs'
 import { createSeatApprovals } from './seat-approvals.mjs'
 import { createApprovalBoxExtensionEffects } from './approval-box-parent-effects.mjs'
@@ -517,6 +517,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   }
   // a490h: the one hosted Approval Box connector daemon (no-op when the image has no package, as in dev and tests). a490f: the decision readers below use it once it is paired.
   const approvalBoxDaemon = createApprovalBoxDaemon({ root })
+  const approvalBoxPort = createApprovalBoxPort({ daemon: approvalBoxDaemon })
   if (latticeFactory) {
     // Optional module like work-graph: the routes and the seat tool answer LATTICE_UNAVAILABLE until the child is available.
     // Each new child generation (start, restart, exchange) re-delivers unacked startable notices; the call waits until the child is ready.
@@ -534,22 +535,18 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     approvalsModule = approvalsFactory({ root, exchangeMutex, prepareRelease: prepareApprovals,
       onEffect: createApprovalBoxExtensionEffects({ lattice, bots, credentials: usageAssembly?.credentials ?? null, daemon: approvalBoxDaemon }),
       onModuleChildExit: moduleChildExitReporter.observe, onModuleRestartLimit: moduleChildExitReporter.observeRestartLimit, onState: () => updateCenter?.notify() })
-    approvals = createApprovalsFacade({ controller: approvalsModule, seatLink: approvalBoxDaemon.seatLink, pairing: approvalBoxDaemon.pairing, decisions: createApprovalBoxPort({ daemon: approvalBoxDaemon }) })
+    approvals = createApprovalsFacade({ controller: approvalsModule, seatLink: approvalBoxDaemon.seatLink, pairing: approvalBoxDaemon.pairing, decisions: approvalBoxPort })
     void approvalsModule.start().catch(() => {})
     approvals.start()
   }
   // a41 (execution current-work.md "Own work"): the only writer of the running exclusion list, on its own connector (Flora 2026-11-13).
-  const runningExclusions = createRunningExclusions({ path: join(root, 'state', 'execution-running-exclusions.json'),
-    decisions: createApprovalDecisions({ credentials: usageAssembly?.credentials ?? null, secretRequests: usageAssembly?.facade?.secretRequests ?? null,
-      scope: Object.freeze({ terminalId: 'running-exclusions', purpose: 'approval-box.connector' }),
-      secret: Object.freeze({ botId: 'bot-09e6225c', toolId: 'running-exclusions-approval-box' }), code: 'RUNNING_EXCLUSION_DECISIONS', daemon: approvalBoxDaemon }) })
-  // seat-approval-to-abx (execution/seat-approvals.md): a seat stopped on a tool approval reaches the Owner as a card (the body's own QR-paired connector, seat-approval-card.md) and as an entry.
+  const runningExclusions = createRunningExclusions({ path: join(root, 'state', 'execution-running-exclusions.json'), decisions: approvalBoxPort })
+  // seat-approval-to-abx (execution/seat-approvals.md): a seat stopped on a tool approval reaches the Owner as a card through P1 and as an entry.
   const seatApprovals = createSeatApprovals({ path: join(root, 'state', 'seat-approvals.json'), bots, transport, machineStream,
     // The push is the existing owner_question one (title = the Bot's name); tapping it opens the Bot, where the entry is.
     push: { seatApproval: item => notifications.question({ id: item.id, botId: item.botId }) },
-    // seat-approval-card.md (third version): the card uses the token of the body's own QR pairing (daemon.seatLink), no secret card and no hosted daemon.
-    // Until the Owner has paired (or after the connection is removed) nothing can be filed (UNAVAILABLE) and the entry stays in-app only.
-    decisions: createApprovalDecisions({ code: 'SEAT_APPROVAL_DECISIONS', tokenSource: () => approvalBoxDaemon.seatLink.token(), onUnauthorized: token => approvalBoxDaemon.seatLink.unauthorized(token) }) })
+    // Until the Owner has linked the one connection (or after he removes it) P1 answers UNAVAILABLE: nothing is filed and the entry stays in-app only.
+    decisions: approvalBoxPort })
   const updateClients = hostClient ? { container: hostClient, module: hostClient } : await createUpdateClients()
   const hostUpdate = createHostUpdateAdapter({ root, client: updateClients.container })
   const moduleCatalog = createModuleUpdateCatalog({ client: updateClients.module })

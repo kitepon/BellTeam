@@ -25,8 +25,8 @@ async function fixture(t, { harness = 'claude', fileFails = false } = {}) {
   const cards = { filed: [], cancelled: [], answers: new Map() }
   const decisions = {
     file: async params => { if (fileFails) throw new Error('down'); cards.filed.push(params); return { decisionId: 'card-1', existing: false } },
-    read: async ({ decisionId }) => cards.answers.get(decisionId) ?? { status: 'pending' },
-    cancel: async ({ decisionId, reason }) => { cards.cancelled.push({ decisionId, reason }); return { status: 'cancelled' } },
+    read: async decisionId => cards.answers.get(decisionId) ?? { status: 'pending' },
+    cancel: async (decisionId, reason) => { cards.cancelled.push({ decisionId, reason }); return { status: 'cancelled' } },
   }
   const pushes = []
   const make = () => createSeatApprovals({ path: join(dir, 'seat-approvals.json'), bots, transport, decisions,

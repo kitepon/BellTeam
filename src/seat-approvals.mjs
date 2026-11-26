@@ -35,8 +35,8 @@ const labelOf = record => `Seat ${record.botId} ${record.digest.slice(7, 23)} ${
 const view = (record, name) => ({ id: record.id, botId: record.botId, botName: name, harness: record.harness, tool: record.facts.tool, command: record.facts.command,
   reason: record.facts.reason, since: new Date(record.firstSeen).toISOString(), choices: CHOICES, card: record.decisionId ? 'filed' : 'none' })
 
-// bots: the Bot Map; transport: screenApproval + currentWork; machineStream.pendingApprovals(botId); decisions: createApprovalDecisions();
-// push.seatApproval(item); tick every intervalMs once start()ed. decisions = createApprovalDecisions() with the paired token as its tokenSource.
+// bots: the Bot Map; transport: screenApproval + currentWork; machineStream.pendingApprovals(botId); decisions: the 決裁箱拡張 P1 port
+// (approvals.decisions: file / read(id) / cancel(id, reason), no token held here); push.seatApproval(item); tick every intervalMs once start()ed.
 export function createSeatApprovals({ path, bots, transport, machineStream = null, decisions = null, push = null, now = Date.now, intervalMs = 10_000 }) {
   const events = new EventEmitter()
   let records = null, queue = Promise.resolve(), timer = null, ticking = null
@@ -61,7 +61,7 @@ export function createSeatApprovals({ path, bots, transport, machineStream = nul
 
   // The card is withdrawn when the prompt ended another way; an answered card answers 4xx, which is not a problem.
   const withdraw = (record, reason) => record.decisionId && decisions
-    ? decisions.cancel({ decisionId: record.decisionId, reason }).catch(() => {}) : Promise.resolve()
+    ? decisions.cancel(record.decisionId, reason).catch(() => {}) : Promise.resolve()
 
   async function close(record, status, answeredBy, reason) {
     Object.assign(record, { status, ...(answeredBy ? { answeredBy } : {}) })
@@ -96,7 +96,7 @@ export function createSeatApprovals({ path, bots, transport, machineStream = nul
     if (record.decisionId) return true
     if (!decisions) return false
     try {
-      const filed = await decisions.file({ ...cardText(record, bot.name ?? record.botId), options: OPTIONS, requester: bot.name ?? record.botId, session_label: labelOf(record) })
+      const filed = await decisions.file({ ...cardText(record, bot.name ?? record.botId), options: OPTIONS, requester: bot.name ?? record.botId, session_label: labelOf(record), origin: 'seat-approval' })
       record.decisionId = filed.decisionId
       await save()
       changed(record.botId)
@@ -118,7 +118,7 @@ export function createSeatApprovals({ path, bots, transport, machineStream = nul
   // The Owner answered the card: apply it to the same prompt, with the digest stored at filing.
   async function readCard(record) {
     if (record.status !== 'open' || !record.decisionId || !decisions) return
-    const card = await decisions.read({ decisionId: record.decisionId }).catch(() => null)
+    const card = await decisions.read(record.decisionId).catch(() => null)
     if (card?.status === 'cancelled') { record.decisionId = null; return save() }
     if (card?.status !== 'answered') return
     const decision = CHOICES.some(choice => choice.decision === card.answer?.optionId) ? card.answer.optionId : 'deny' // free text counts as deny

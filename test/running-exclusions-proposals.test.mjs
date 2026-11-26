@@ -16,7 +16,7 @@ function fakeDecisions() {
       filed.push(params); const decisionId = `K-${filed.length}`; byLabel.set(params.session_label, decisionId)
       if (self.lose) throw Object.assign(new Error('lost'), { code: 'RUNNING_EXCLUSION_DECISIONS_UNAVAILABLE' })
       return { decisionId, existing: false } },
-    read: async ({ decisionId }) => answers.get(decisionId) ?? { status: 'pending' } }
+    read: async decisionId => { if (self.gone?.has(decisionId)) throw Object.assign(new Error('gone'), { kind: 'GONE' }); return answers.get(decisionId) ?? { status: 'pending' } } }
   return self
 }
 const registry = { get: id => ({ b1: { id: 'b1', name: 'キロ' }, b2: { id: 'b2', name: 'エレグ' } })[id] ?? null }
@@ -135,7 +135,7 @@ test('full list: pending duplicate first, approved add waits unapplied until a r
     assert.equal((await list.list()).pending[0].approved, true)
     decisions.read = async () => { throw new Error('approved items are not read again') }
     assert.equal(await list.poll(), 0)
-    decisions.read = async ({ decisionId }) => decisions.answers.get(decisionId) ?? { status: 'pending' }
+    decisions.read = async decisionId => decisions.answers.get(decisionId) ?? { status: 'pending' }
     assert.equal((await list.propose({ action: 'remove', id: 'e0', reason: 'r', requester: 'キロ', who: 'キロ' })).decisionId, 'K-3')
     decisions.answers.set('K-3', approve)
     assert.equal(await list.poll(), 2, 'removal, then the waiting addition')
@@ -203,5 +203,20 @@ test('Owner HTTP: GET lists, DELETE removes at once and drops a pending removal;
     const seat = createRunningExclusionsApi({ runningExclusions: () => list, internal: true })
     assert.deepEqual(await http(seat, 'GET', '/api/running-exclusions'), { status: 403, body: { error: 'RUNNING_EXCLUSIONS_OWNER_REQUIRED' } })
     assert.equal(await owner({ method: 'GET' }, {}, new URL('http://x/api/bots')), false, 'other paths pass through')
+  } finally { await rm(dir, { recursive: true, force: true }) }
+})
+
+test('an id the one port does not know (filed before the move) is GONE: filed again under the same label, nothing else stops', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'rx-')), path = join(dir, 'x.json')
+  try {
+    const decisions = fakeDecisions(), list = createRunningExclusions({ path, decisions })
+    const first = await ask(list)
+    decisions.gone = new Set([first.decisionId]); decisions.byLabel.clear()
+    assert.equal(await list.poll(), 0)
+    assert.equal(decisions.filed.length, 1) // GONE cleared the id; the re-file is the next poll
+    assert.equal(await list.poll(), 0)
+    assert.equal(decisions.filed.length, 2)
+    assert.equal(decisions.filed[1].session_label, decisions.filed[0].session_label)
+    assert.equal(decisions.filed[1].origin, 'running-exclusions')
   } finally { await rm(dir, { recursive: true, force: true }) }
 })
