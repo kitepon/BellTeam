@@ -51,16 +51,19 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
   const othersOf = memo => [...new Set((memo.projection?.externals ?? []).map(item => item.projectId))].sort()
   // Own source (from K1 when the caller has it) + each external predecessor chart's source (README L4): no time ceiling.
   // byId = tokens the caller already holds (one K1 list or K2 call for the round); only an external chart missing from it costs a process.
+  // A complete byId (a K1 list) knows every chart: an id missing from it is gone. Own and missing tokens come in one K2 process.
   async function token(id, memo, known, byId) {
-    const own = known !== undefined ? known : (await sourcesOf([id])).get(id) ?? null
     const others = othersOf(memo)
+    const wanted = [...known === undefined ? [id] : [], ...others.filter(other => !byId?.has(other) && !byId?.complete)]
+    const fetched = wanted.length ? await sourcesOf(wanted) : new Map()
+    const own = known !== undefined ? known : fetched.get(id) ?? null
     if (own === null || !others.length) return own
-    const missing = byId ? others.filter(other => !byId.has(other)) : others
-    const fetched = missing.length ? await sourcesOf(missing) : new Map()
-    const sourceOf = other => (byId?.has(other) ? byId.get(other) : fetched.get(other)) ?? null
-    return others.some(other => sourceOf(other) === null) ? null : JSON.stringify([own, ...others.map(other => [other, sourceOf(other)])])
+    // A gone chart (null from a probe that answered) is a stable part of the token; only an unanswered probe (undefined) is unknown.
+    // Live Z201 2026-11-26: since login-billing was removed (11-24) every chart linked to it read null, so each list, round and sweep re-read it whole.
+    const sourceOf = other => byId?.has(other) ? byId.get(other) : byId?.complete ? null : fetched.get(other)
+    return others.some(other => sourceOf(other) === undefined) ? null : JSON.stringify([own, ...others.map(other => [other, sourceOf(other)])])
   }
-  const tokensOf = rows => new Map([...rows].map(([id, row]) => [id, row.source ?? null]))
+  const tokensOf = rows => Object.assign(new Map([...rows].map(([id, row]) => [id, row.source ?? null])), { complete: true })
   // Lattice's own answer to which tasks can start (K9 `next_ready`, a448). Only a verified store has one: for any other state no card is ready; a verified chart whose status read failed is a failed read.
   const readyOf = (read, status) => {
     if (read?.state !== 'verified') return null

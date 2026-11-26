@@ -430,6 +430,28 @@ test('core: one source process per round also answers for the external predecess
   assert.deepEqual(x.cli.calls.filter(call => call.startsWith(SOURCE)), [], 'the list already holds every token (K1)')
 })
 
+test('core: an external predecessor on a chart that is gone is a stable part of the token, not a probe failure (live Z201 2026-11-26)', async () => {
+  const x = rig()
+  x.cli.reads.alpha = readOf([planMember({ tasks: [{ task_id: 't1' }], states: [['t1', 'pending']], events: [ev('plan', 't1', 'bot-7b140b27', 1)],
+    scoped: [{ kind: 'cross_plan_dependency', event_digest: 'e1', payload: { from: { project_id: 'gone', plan_key: 'q', task_id: 'x' }, to: { project_id: 'alpha', plan_key: 'p1', task_id: 't1' } } }] })],
+    { connections: [{ plan_key: 'p1', task_id: 't1', connections: [{ kind: 'task', ref: 'gone/q/x', state: 'open', reason: 'r', since: at(1) }] }],
+      external_tasks: [] })
+  const reads = () => x.count(READ), probes = () => x.cli.calls.filter(call => call.startsWith(SOURCE) && call.includes('gone'))
+  await x.chart(); await x.chart()
+  assert.equal(reads(), 2, 'the first token had no externals yet')
+  x.cli.calls.length = 0
+  x.clock.now += 60_000; await x.core.charts({}, x.effect)
+  x.clock.now += 60_000; await x.core.refresh({ projectIds: ['alpha'] }, x.effect)
+  x.clock.now += 60_000; await x.chart()
+  assert.deepEqual([reads(), probes()], [0, [SOURCE + ' alpha,gone', SOURCE + ' alpha,gone']], 'nothing moved: no read; the list knows every chart (K1); the round and chart each ask once for both')
+  x.cli.fail.add('source'); x.clock.now += 60_000; await x.chart()
+  assert.equal(reads(), 1, 'a failed probe is unknown: read')
+  x.cli.fail.clear(); x.cli.charts.push('gone'); x.cli.tokens.gone = 1; x.clock.now += 60_000; await x.chart()
+  assert.equal(reads(), 2, 'the chart came back: its source moved the token')
+  x.clock.now += 60_000; await x.chart()
+  assert.equal(reads(), 2)
+})
+
 test('core: a live round and a list keep a chart read inside its gap, max(10 s, 4 x the read); chart and nudge reads are never held (incident 2026-11-26)', async () => {
   const x = rig({ firstNudgeMs: 0 })
   const run = x.cli.run
