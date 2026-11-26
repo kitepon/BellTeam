@@ -2161,6 +2161,8 @@ export class AitermTransport {
       }
       // Aiterm accepted the words. A receipt without follow data stays accepted; only its completion is untracked.
       const receipt = result.structuredContent ?? {}
+      // The seat took the words: a later failure (the turn's wait) is a delivery failure, not the launch or send stage set above.
+      if (executionJob) executionJob.deliveryStage = null
       const untracked = receipt.mode !== 'agent_steer'
         && (receipt.mode !== 'agent_dispatch' || !Number.isInteger(receipt.event_cursor) || !receipt.wait_process)
       if (untracked) process.stderr.write(`BellTeam Aiterm: accepted send without follow data: ${bot.id}\n`)

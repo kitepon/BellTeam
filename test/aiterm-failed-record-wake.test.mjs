@@ -352,3 +352,22 @@ test('診断へ残す理由は、Aitermが返した断りの既知の記号だ�
   assert.deepEqual(aitermFailureCause(Object.assign(new Error('aiterm: AGENT_LAUNCH_UNCONFIRMED: x native_reason=privatevalue123'), { aitermResponseReturned: true })),
     { cause: 'AGENT_LAUNCH_UNCONFIRMED', native_reason: null })
 })
+
+// chart-reminder-first-wake (lab 2026-11-25 23:31 JST): a woken seat took the words, then its turn wait ended in an outcome Aiterm did not
+// name; the delivery was recorded with the launch stage code although the launch and the send had succeeded.
+test('起こした席が文を受けた後の待ちの失敗は、起動の失敗ではなく配送の失敗として残す', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-failed-record-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const { client, calls } = scripted({ sends: [notReady, null], observed: observation('agent_failed') })
+  const statuses = []
+  const transport = new AitermTransport({ client, handoffContext: async () => '', waitProcess: async () => ({ outcome: 'superseded' }) })
+  t.mock.method(process.stderr, 'write', () => true)
+  await transport.notify({ id: 'bot-a', session: 'bot-a', harness: 'codex', project: root }, '本文', { onStatus: (...args) => { statuses.push(args) } })
+  await transport.idle('bot-a').catch(() => {})
+  for (let i = 0; i < 40 && !statuses.some(([status]) => status === 'failed'); i++) await new Promise(resolve => setTimeout(resolve, 25))
+  assert.equal(calls.some(([name]) => name === 'agent_launch'), true)
+  const failed = statuses.find(([status]) => status === 'failed')
+  assert.ok(failed, JSON.stringify(statuses))
+  assert.equal(failed[1].code, 'BOT_DELIVERY_FAILED')
+  assert.deepEqual(failed[2], { schema: 'bellteam.delivery-tracking.v1', admission: 'accepted', completion: 'unknown' })
+})
