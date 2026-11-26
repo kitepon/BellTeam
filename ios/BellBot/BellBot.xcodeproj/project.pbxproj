@@ -1831,7 +1831,7 @@
 			repositoryURL = "https://github.com/kitepon/login-billing.git";
 			requirement = {
 				kind = exactVersion;
-				version = 0.22.4;
+				version = 0.24.1;
 			};
 		};
 		95DA1D5A1953054EF7D3C094 /* XCRemoteSwiftPackageReference "ChatLayout" */ = {
@@ -1855,7 +1855,7 @@
 			repositoryURL = "https://github.com/kitepon/approval-box-apps.git";
 			requirement = {
 				kind = revision;
-				revision = a81b700fab5a06a929ef2b7979ee3b8dd70e3586;
+				revision = ab5343f002a169c31688114b37dcd814b5862367;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
