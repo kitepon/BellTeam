@@ -41,6 +41,7 @@ import { createWorkGraphFacade, createWorkGraphEffects } from './work-graph-faca
 import { createLatticeFacade, createLatticeEffects } from './lattice-facade.mjs'
 import { createLatticeReminders } from './lattice/reminders.mjs'
 import { createLatticeDecisions, createApprovalDecisions } from './lattice-approval.mjs'
+import { createApprovalBoxPort } from './approval-box-port.mjs'
 import { createSeatApprovals } from './seat-approvals.mjs'
 import { createApprovalBoxExtensionEffects } from './approval-box-parent-effects.mjs'
 import { createApprovalsFacade } from './approval-box-parent-facade.mjs'
@@ -533,7 +534,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     approvalsModule = approvalsFactory({ root, exchangeMutex, prepareRelease: prepareApprovals,
       onEffect: createApprovalBoxExtensionEffects({ lattice, bots, credentials: usageAssembly?.credentials ?? null, daemon: approvalBoxDaemon }),
       onModuleChildExit: moduleChildExitReporter.observe, onModuleRestartLimit: moduleChildExitReporter.observeRestartLimit, onState: () => updateCenter?.notify() })
-    approvals = createApprovalsFacade({ controller: approvalsModule, seatLink: approvalBoxDaemon.seatLink })
+    approvals = createApprovalsFacade({ controller: approvalsModule, seatLink: approvalBoxDaemon.seatLink, pairing: approvalBoxDaemon.pairing, decisions: createApprovalBoxPort({ daemon: approvalBoxDaemon }) })
     void approvalsModule.start().catch(() => {})
     approvals.start()
   }

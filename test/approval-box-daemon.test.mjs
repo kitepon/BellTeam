@@ -20,7 +20,7 @@ if (command === 'daemon') {
   const path = join(home, 'state', 'pc', 'daemon.sock'); rmSync(path, { force: true })
   net.createServer(socket => { let t = ''; socket.setEncoding('utf8'); socket.on('data', c => { t += c; if (!t.includes('\\n')) return
     const { method, path: route } = JSON.parse(t.split('\\n')[0])
-    socket.end(JSON.stringify(route === '/status' ? { ok: true, result: { schema: 'x', mode: 'not_paired', paired: false, reason: 'not_paired', version: '0.2.0-pc.4', pid: process.pid } }
+    socket.end(JSON.stringify(route === '/status' ? { ok: true, result: (() => { const paired = (() => { try { readFileSync(join(home, 'paired.flag')); return true } catch { return false } })(); return { schema: 'x', mode: paired ? 'pc' : 'not_paired', paired, reason: paired ? null : 'not_paired', version: '0.2.0-pc.4', pid: process.pid } })() }
       : route === '/decisions' ? { ok: true, result: { items: [] } } : route === '/confirm' ? { ok: false, status: 409, code: 'confirm_required', message: 'x', body: { check_token: 'ct', decisions: [] } } : { ok: false, status: 404, code: 'not_found', message: 'x' }) + '\\n') }) }).listen(path)
   process.stderr.write('daemon up secret-looking-text-should-be-masked-' + 'x'.repeat(50) + '\\n')
   setInterval(() => {}, 1000)
@@ -38,7 +38,7 @@ if (command === 'daemon') {
   const out = line => process.stdout.write(JSON.stringify(line) + '\\n')
   out({ type: 'waiting', code: 'ABCD-EFGH-IJKL-MNOP', typed_secret: 'TYPED-SECRET', qr_text: 'QR-TEXT-SECRET', expires_at: '2026-11-29T00:00:00Z', rebind: rest.includes('--rebind') })
   setTimeout(() => out({ type: 'claimed', claimed_at: '2026-11-22T10:00:00Z' }), 300)
-  setTimeout(() => { out({ type: 'bound', connection_id: 'conn-1' }); process.exit(0) }, 600)
+  setTimeout(() => { writeFileSync(join(home, 'paired.flag'), '1'); out({ type: 'bound', connection_id: 'conn-1' }); process.exit(0) }, 600)
 }
 `
 async function setup(t, { missing = false } = {}) {
@@ -257,4 +257,25 @@ test('seat link: no waiting line is killed at the bound and fails', async t => {
   fire()
   assert.deepEqual(await started, { state: 'failed', reason: 'no_waiting_line' })
   assert.deepEqual(await daemon.seatLink.get(), { state: 'failed', reason: 'no_waiting_line' })
+})
+
+test('P3 pairing: none, then waiting with the typed code and the QR, then linked once the daemon is paired; removed when the pairing goes; stop leaves it none', async t => {
+  const { daemon, root } = await setup(t)
+  daemon.start()
+  await until(async () => (await daemon.status()).reachable)
+  assert.deepEqual(await daemon.pairing.get(), { state: 'none' })
+  const waiting = await daemon.pairing.start()
+  assert.deepEqual(waiting, { state: 'waiting', code: 'TYPED-SECRET', qrText: 'QR-TEXT-SECRET', expiresAt: '2026-11-29T00:00:00Z' })
+  assert.deepEqual(await daemon.pairing.start(), waiting) // a second start returns the same waiting view
+  assert.deepEqual(await until(async () => { const v = await daemon.pairing.get(); return v.state === 'linked' ? v : null }), { state: 'linked' })
+  assert.deepEqual(await daemon.pairing.start(), { state: 'linked' }) // already linked: no new run
+  await rm(join(daemon.home, 'paired.flag'))
+  assert.deepEqual(await daemon.pairing.get(), { state: 'removed' })
+  assert.equal((await daemon.pairing.start()).state, 'waiting') // removed -> waiting again (rebind)
+  assert.deepEqual(await daemon.pairing.stop(), { state: 'none' })
+})
+
+test('P3 pairing: no package in the image is failed (unavailable), never a throw', async t => {
+  const { daemon } = await setup(t, { missing: true })
+  assert.deepEqual(await daemon.pairing.start(), { state: 'failed', reason: 'unavailable' })
 })
