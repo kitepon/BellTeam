@@ -11,6 +11,10 @@ const exec = promisify(execFile)
 const root = process.env.BELLTEAM_ROOT ?? '/srv/bellteam'
 // GitHubの認証とgit設定は全Botで共有する（オーナー裁定 2026-09-25）。HOMEは再設置で作り直すので永続領域を指す。
 const github = join(root, 'shared/tools/github')
+// The author and committer of every Bot commit are the Owner's noreply identity (same as shared/tools/github/gitconfig).
+// Environment variables win over `git -c user.email=...`, which seats wrote from the userEmail line their CLI shows them (SEC-111: 15 public commits carried the Owner's own address).
+// shortcut: duplicated from the gitconfig, not read from it; change both when the identity changes.
+export const BOT_GIT_IDENTITY = Object.freeze({ name: 'quolu', email: '226230081+quolu@users.noreply.github.com' })
 
 export function baseBotEnvironment(project, inherited = process.env) {
   return {
@@ -22,6 +26,8 @@ export function baseBotEnvironment(project, inherited = process.env) {
     PIP_CACHE_DIR: join(project, '.cache/pip'),
     GH_CONFIG_DIR: join(github, 'gh'),
     GIT_CONFIG_GLOBAL: join(github, 'gitconfig'),
+    GIT_AUTHOR_NAME: BOT_GIT_IDENTITY.name, GIT_AUTHOR_EMAIL: BOT_GIT_IDENTITY.email,
+    GIT_COMMITTER_NAME: BOT_GIT_IDENTITY.name, GIT_COMMITTER_EMAIL: BOT_GIT_IDENTITY.email,
     // Claude Codeは自分を更新する時に `npm install -g` を流す。席のnpmの導入先は席の `.local` なので、
     // 席ごとに写しが出来て、席はコンテナの物ではなく写しを使い続ける（2026-10-06、18席に4つの版）。
     // 席では更新させず、全席がコンテナの物を使う。版は、ほかのCLIと同じく反映の時に変わる（オーナーの指摘 2026-10-06）。

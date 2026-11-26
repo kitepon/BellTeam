@@ -6,6 +6,8 @@
 
 GitHubの認証情報はコンテナイメージに含めない。全Botが共有の`/srv/bellteam/shared/tools/github/`を使う（オーナー裁定 2026-09-25）。BellTeamは全Botの環境で`GH_CONFIG_DIR`を`gh/`へ、`GIT_CONFIG_GLOBAL`を`gitconfig`へ向けるので、`gh auth login`と`git config --global`の結果はコンテナ更新や再設置で消えない。認証が切れた時は、どのBotの席からでも`gh auth login`を一度実行すれば全員に効く。
 
+gitの作者とコミッターは、全Botの環境で`GIT_AUTHOR_NAME`・`GIT_AUTHOR_EMAIL`・`GIT_COMMITTER_NAME`・`GIT_COMMITTER_EMAIL`により、オーナーのnoreplyの身元（`quolu` / `226230081+quolu@users.noreply.github.com`）に固定する（SEC-111、2026-11-26）。環境変数は`git -c user.email=...`より強いので、席が自分のCLIに見えるメールアドレスを`-c`で渡しても、公開コミットに入るのはnoreplyになる。値は`gitconfig`と同じものを`src/bot-environment.mjs`の`BOT_GIT_IDENTITY`に置く。CodexとCursorの席へは`src/harness-config.mjs`の変数名の一覧で渡す。過去のコミットは書き換えない（SEC-009）。
+
 ## 構築と復元
 
 `environment/setup.sh` を作り、プロジェクトのルートで `bash -e environment/setup.sh` を実行する。BellTeamもコンテナ起動時、会話受付と予定の開始前に、同じスクリプトをBotごとに順番に一度実行する。実行権限の付与は不要。
