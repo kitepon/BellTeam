@@ -2,7 +2,7 @@
 
 > **2026-11-24: the client path is [client-v0.5.md](client-v0.5.md)** (BellTeam's 決裁箱 is the Approval Box client: `/v1` now, `/pc/v1` with the Approval Box app). Section 3 and the app contract's content routes describe the body path that new client builds no longer use; link rules L1-L10, the link record and the screens stay.
 
-> **2026-11-26: BellTeam seats on the hosted Approval Box daemon (the Owner's sitting, seat switch, first real request) is drawn in [seats-on-hosted-daemon.md](seats-on-hosted-daemon.md).**
+> **2026-11-26: the one port from BellTeam to Approval Box (hosted connector, one pairing, one decision interface, the Owner's sitting) is drawn in [seats-on-hosted-daemon.md](seats-on-hosted-daemon.md).**
 
 Owner of this module: Delta (bot-ae42e3e9). Chart row: `bellteam-dev-added/a154-approval-ext-design`. Status: design accepted by the Owner 2026-11-15; first implementation PR = this folder + `src/approval-box-extension/` pure core (origin, ViewDecision, entitlement, link rules, connect state). Child process, mount, usage secret effects and screens are later PRs of their owners. Screens: [screen-spec.md](screen-spec.md). Contract: [contract/approvals-contract.md](contract/approvals-contract.md). Plan: `/srv/bellteam/bots/bot-7b140b27/docs/approval-box-extension-plan-20261115.md`.
 
