@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createApprovalDecisions, createLatticeDecisions, LATTICE_APPROVAL_SCOPE } from '../src/lattice-approval.mjs'
+import { createApprovalDecisions } from '../src/lattice-approval.mjs'
 import { createLatticeEffects } from '../src/lattice-facade.mjs'
 
+// The connector client is the extension's now; these tests keep pinning it with the Lattice scope and secret card the body used until f24 (src/lattice-decisions.mjs).
+const LATTICE_APPROVAL_SCOPE = Object.freeze({ terminalId: 'lattice', purpose: 'approval-box.connector' })
+const createLatticeDecisions = options => createApprovalDecisions({ ...options, scope: LATTICE_APPROVAL_SCOPE, secret: Object.freeze({ botId: 'bot-7e777fe5', toolId: 'lattice-approval-box' }), code: 'LATTICE_DECISIONS' })
 const params = { title: 'Alpha: Task t1', context: 'c', options: [{ id: 'done', label: '済んだ' }, { id: 'not-yet', label: 'まだ' }], requester: 'Cee', session_label: 'alpha / p1/t1' }
 
 function rig({ current = null, rows = [], responses = [] }) {
