@@ -516,7 +516,8 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     void workGraphModule.start().catch(() => {})
   }
   // a490h: the one hosted Approval Box connector daemon (no-op when the image has no package, as in dev and tests). a490f: the decision readers below use it once it is paired.
-  const seatRun = createSeatProcessRunner(root, { environment: 'base' }) // the seats' Approval Box binary is the seat user's: run it as the seat user (seat-process.mjs)
+  // The seats' Approval Box binary is the seat user's (the body is uid 1001, ~/.approval-box is 0700): run it as the seat user (seat-process.mjs). No seat runtime (dev, tests): no runner, nothing published.
+  const seatRun = seatRuntime ? createSeatProcessRunner(root, { environment: 'base' }) : null
   const approvalBoxDaemon = createApprovalBoxDaemon({ root, seatRun })
   const approvalBoxPort = createApprovalBoxPort({ daemon: approvalBoxDaemon, seatRun })
   if (latticeFactory) {
