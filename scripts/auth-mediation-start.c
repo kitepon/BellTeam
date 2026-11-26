@@ -1,0 +1,5 @@
+#define MODULE_NAME "auth-mediation"
+#define MODULE_ENTRY "auth-mediation-entry"
+#define MODULE_ERROR "AUTH_MEDIATION_ADMISSION_FAILED"
+#define MODULE_STATE_ENV "AUTH_MEDIATION_STATE"
+#include "module-start.c"

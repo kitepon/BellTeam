@@ -39,7 +39,7 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
     'distribution/server/install-resume-state.sh', 'distribution/server/emergency-body.sh', 'scripts/emergency-body.py',
     'distribution/lattice/package.json', 'distribution/lattice/package-lock.json', 'distribution/approval-box/package.json', 'distribution/approval-box/package-lock.json',
     'config/work-graph-verification.json', 'config/lattice-verification.json', 'config/approval-box-extension-verification.json', 'config/execution-verification.json',
-    'scripts/work-graph-start.c', 'scripts/lattice-start.c', 'scripts/approval-box-extension-start.c', 'scripts/verify-work-graph.py', 'scripts/verify-lattice.py', 'scripts/verify-approval-box-extension.py', 'scripts/verify-execution.py',
+    'scripts/work-graph-start.c', 'scripts/lattice-start.c', 'scripts/approval-box-extension-start.c', 'scripts/auth-mediation-start.c', 'scripts/auth-mediation/relay.py', 'scripts/verify-work-graph.py', 'scripts/verify-lattice.py', 'scripts/verify-approval-box-extension.py', 'scripts/verify-execution.py',
     'scripts/install-work-graph-release.py', 'scripts/install-lattice-release.py', 'scripts/install-approval-box-extension-release.py', 'scripts/install-execution-release.py',
     'scripts/module-worker-termination.py', 'scripts/body-preflight.mjs', 'scripts/container-update-service.py', 'scripts/container-update-compose.mjs', 'scripts/read-container-update-normal.mjs',
     'runtime/home/auth.json', '.env', 'config/bots.json', 'services/subscriptions/keys/private.p8',
