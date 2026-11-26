@@ -64,7 +64,7 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     return others.some(other => sourceOf(other) === undefined) ? null : JSON.stringify([own, ...others.map(other => [other, sourceOf(other)])])
   }
   const tokensOf = rows => Object.assign(new Map([...rows].map(([id, row]) => [id, row.source ?? null])), { complete: true })
-  // Lattice's own answer to which tasks can start (K9 `next_ready`, a448). Only a verified store has one: for any other state no card is ready; a verified chart whose status read failed is a failed read.
+  // Lattice's own answer to which tasks can start (K9 `next_ready`, a448; of the open read, or of `todo status` for an older Lattice). Only a verified store has one: for any other state no card is ready; a verified chart whose status read failed is a failed read.
   const readyOf = (read, status) => {
     if (read?.state !== 'verified') return null
     if (!Array.isArray(status?.next_ready)) throw status instanceof Error ? status : Object.assign(new Error('read'), { code: 'LATTICE_CLI_BAD_JSON' })
@@ -97,9 +97,9 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     let read, meta, ready
     const began = now()
     try {
-      let status
-      ;[read, meta, status] = await Promise.all([lattice(id, ['todo', 'display', 'read', '--json', '--open']), metaOf(id, row), lattice(id, ['todo', 'status', '--json']).catch(error => error)])
-      ready = readyOf(read, status)
+      ;[read, meta] = await Promise.all([lattice(id, ['todo', 'display', 'read', '--json', '--open']), metaOf(id, row)])
+      // Open read v2 (Lattice 0.114.0) carries next_ready; a verified read without it is an older Lattice: ask `todo status` as before.
+      ready = readyOf(read, read?.state === 'verified' && !Array.isArray(read.next_ready) ? await lattice(id, ['todo', 'status', '--json']).catch(error => error) : read)
     } catch (error) {
       memo.dirty = true
       Object.assign(memo, { readAt: now(), readMs: now() - began })

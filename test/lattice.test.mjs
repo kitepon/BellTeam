@@ -535,6 +535,24 @@ test('core: a failed read keeps the snapshot, shows lattice-read, logs one code 
   assert.deepEqual(x.logs.at(-1), 'lattice-read alpha LATTICE_CLI_BAD_JSON')
 })
 
+test('s6: an open read v2 carries next_ready, so no todo status process is spawned; a verified read without it falls back; an unverified store asks nothing', async () => {
+  const x = rig()
+  const states = chart => chart.cards.map(card => card.state)
+  x.cli.reads.alpha = { ...chartRead({ status: 'done' }), schema: 'lattice.todo_display_open_result.v2', next_ready: [{ plan_key: 'p1', task_id: 't2' }] }
+  assert.deepEqual(states(await x.chart()), ['done', 'ready'], "the read's own next_ready makes it ready")
+  assert.equal(x.cli.calls.includes('todo status --json'), false, 'no second process per chart read')
+  // A failed status read cannot matter when the read answered: it is not called.
+  x.cli.fail.add('status'); x.cli.tokens.alpha = 2
+  x.cli.reads.alpha = { ...x.cli.reads.alpha, next_ready: [] }
+  const empty = await x.chart()
+  assert.deepEqual([empty.degraded, states(empty)], [[], ['done', 'pending']], 'an empty next_ready is an answer: nothing is ready')
+  // An older Lattice (no next_ready on a verified read) is asked with todo status, as before s6.
+  x.cli.fail.clear(); x.cli.ready.alpha = ['t2']; x.cli.tokens.alpha = 3
+  x.cli.reads.alpha = chartRead({ status: 'done' })
+  assert.deepEqual(states(await x.chart()), ['done', 'ready'])
+  assert.equal(x.cli.calls.includes('todo status --json'), true, 'the fallback asks todo status')
+})
+
 test("core: a card is ready only when Lattice's status lists it (K9, a448); a failed status read of a verified chart is a failed read", async () => {
   const x = rig()
   const states = chart => chart.cards.map(card => card.state)
