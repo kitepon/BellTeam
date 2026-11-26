@@ -30,21 +30,23 @@ export function seatViewDifferences({ rows, unread = [], sessions }) {
   return found
 }
 
-// The switch: the seats of this call take turn, own_work and unread from `sessions[]`; route_since and every other field stay
-// Aiterm's until step 2. A Codex row keeps Aiterm's turn (its watch/wait contract needs wait_process and event_cursor, which the
-// generic turn does not carry), and an Aiterm without the generic fields (< 0.70.108) leaves data as it is.
+// The seat view from the generic rows (a532b2 stage 3, seat-view-shadow.md): the seats of this call are the `sessions[]` rows (harness,
+// launch_id, turn, own_work); a row whose turn is null joins unread. Aiterm's seat_turns meta supplies only what a generic row cannot yet:
+// route_since of a terminal-bound seat and, until Aiterm >= 0.70.118 puts wait_process on the generic turn, a running Codex turn (its
+// watch/wait contract needs event_cursor and wait_process). An Aiterm without the generic fields (< 0.70.108) leaves data as it is.
 export function genericSeatData(data, sessions) {
   const readable = Array.isArray(sessions) ? sessions.filter(row => row && Object.hasOwn(row, 'turn')) : []
-  if (!Array.isArray(data?.seats) || !readable.length) return data
-  const generic = viewRows(readable), turns = new Map(generic.rows.map(row => [row.session_id, row])), lost = new Set(generic.unread)
-  const unread = new Set(Array.isArray(data.unread) ? data.unread : [])
-  const seats = data.seats.flatMap(seat => {
-    if (seat?.harness === 'codex-cli') return [seat]
-    if (lost.has(seat?.session_id)) { unread.add(seat.session_id); return [] }
-    const row = turns.get(seat?.session_id)
-    return [row ? { ...seat, turn: row.turn, own_work: row.own_work ?? seat.own_work } : seat]
+  if (!readable.length) return data
+  const generic = viewRows(readable), raw = new Map(readable.map(row => [row.session_id, row]))
+  const old = new Map((Array.isArray(data?.seats) ? data.seats : []).map(seat => [seat?.session_id, seat]))
+  const seats = generic.rows.map(row => {
+    const before = old.get(row.session_id), codex = row.harness === 'codex-cli'
+    // A Codex turn keeps its own fields once the generic one carries wait_process; before that Aiterm's row is the only source.
+    const turn = !codex ? row.turn : raw.get(row.session_id).turn?.wait_process ? raw.get(row.session_id).turn : before?.turn ?? row.turn
+    return { ...before, session_id: row.session_id, harness: row.harness, launch_id: row.launch_id, turn, own_work: row.own_work ?? before?.own_work }
   })
-  return { ...data, seats, unread: [...unread] }
+  const unread = new Set([...(Array.isArray(data?.unread) ? data.unread : []), ...generic.unread])
+  return { schema: 'aiterm.seat-turns.v1', ...data, seats, unread: [...unread] }
 }
 
 export class SeatViewShadow {
