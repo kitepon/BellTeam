@@ -20,12 +20,8 @@
       "port": "messages"
     },
     {
-      "module": "usage",
-      "port": "secrets"
-    },
-    {
-      "module": "approval-box",
-      "port": "connector /v1 (HTTP)"
+      "module": "approval-box-extension",
+      "port": "P1 decision port approvals.decisions (read, cancel, file; seats-on-hosted-daemon.md; src/lattice-decisions.mjs)"
     },
     {
       "module": "lattice-product",
