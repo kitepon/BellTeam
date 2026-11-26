@@ -21,7 +21,7 @@
     },
     {
       "module": "aiterm",
-      "port": "bin: aiterm-remote-terminal; agent_launch post-launch hook"
+      "port": "bin: aiterm-remote-terminal"
     }
   ],
   "source": [
