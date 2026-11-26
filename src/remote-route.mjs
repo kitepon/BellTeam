@@ -38,6 +38,7 @@ export class RemoteRoutes {
     this.resolving = new Map() // terminalId -> promise (overlapping remoteFor calls share one)
     this.kept = new Map() // terminalId -> ms of the last ensure_forward
     this.viewing = new Map() // terminalId -> promise of the pty_list in flight (one reader per machine)
+    this.readyAt = new Map() // terminalId -> ready_at of the forward keeper, from the last ensure_forward answer (stage 3 step 2: route_since)
     this.reported = new Set()
   }
 
@@ -45,6 +46,7 @@ export class RemoteRoutes {
     this.routes.set(terminalId, { remote: route.remote, forward: route.forward, revision: route.revision ?? null })
     this.sessions.set(session, terminalId)
     this.kept.set(terminalId, this.now())
+    if (route.readyAt) this.readyAt.set(terminalId, route.readyAt)
   }
 
   remove(session) { this.sessions.delete(session) }
@@ -116,7 +118,9 @@ export class RemoteRoutes {
       this.kept.set(terminalId, this.now())
       try {
         const fresh = await this.resolve(terminalId)
-        await this.client.call('ensure_forward', { id: fresh.forward.id, to: { host: '127.0.0.1', port: this.port() } })
+        const answer = await this.client.call('ensure_forward', { id: fresh.forward.id, to: { host: '127.0.0.1', port: this.port() } })
+        const ready = answer?.structuredContent?.ready_at
+        if (typeof ready === 'string' && ready) this.readyAt.set(terminalId, ready); else this.readyAt.delete(terminalId)
         this.reported.delete(terminalId)
       } catch (error) {
         if (this.reported.has(terminalId)) return
@@ -143,7 +147,9 @@ export class RemoteRoutes {
           // A valid answer without a session: the seat is gone from that machine, so it leaves the table (no turn can run).
           const listed = new Set([...seen.rows.map(row => row.session_id), ...seen.unread])
           for (const session of sessions) if (!listed.has(session)) this.remove(session)
-          return { rows: seen.rows.filter(row => sessions.includes(row.session_id)), unread: seen.unread.filter(id => sessions.includes(id)) }
+          // route_since = the keeper's ready_at (null/absent while not ready): the lost-route resume (remote-seat.md) reads it from the row.
+          const since = this.readyAt.get(terminalId)
+          return { rows: seen.rows.filter(row => sessions.includes(row.session_id)).map(row => since ? { ...row, route_since: since } : row), unread: seen.unread.filter(id => sessions.includes(id)) }
         } catch { return { rows: [], unread: sessions } }
       })().finally(() => this.viewing.delete(terminalId))
       this.viewing.set(terminalId, run)
