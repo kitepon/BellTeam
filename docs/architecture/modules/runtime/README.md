@@ -15,6 +15,7 @@ bootstrap、席側短命処理、CLI登録、状態移行、backup/restore、設
 - [work-graph（相関図）の独立更新子moduleの親側](work-graph-child.md)
 - [lattice（Lattice工程表）の独立更新子moduleの親側](lattice-child.md)
 - [approval-box-extension（決裁箱拡張）の独立更新子moduleの親側（R5、2026-11-15）](approval-box-extension-child.md)
+- [auth-mediation（認証仲介）の独立更新子moduleの親側（O2: 席の処理へ秘密の環境を渡す口、2026-11-26）](auth-mediation-child.md)
 - [固有channelを載せる共通child世代controller](module-process.md)
 - [業務moduleのinstalled readerと固定wrapper](module-release.md)
 - [executionの固定host factory読込](execution-loader.md)
