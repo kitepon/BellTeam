@@ -46,8 +46,8 @@ export function createApprovalsApi({ facade, internal, heartbeatMs = 15000 }) {
     if (first === 'summary' && !second) return method === 'GET' ? run(() => facade.summary()) : wrongMethod()
     if (first === 'seat-link' && (!second || second === 'start' || second === 'stop')) { // seat-approval-card.md: the body's own pairing; the parent's daemon holds it, this module keeps nothing
       if (method !== (second ? 'POST' : 'GET')) return wrongMethod()
-      if (!facade.seatLink) return error(response, 503, 'unavailable')
-      return run(() => facade.seatLink[second ?? 'get']()).catch(() => error(response, 503, 'unavailable'))
+      if (!facade.pairing) return error(response, 503, 'unavailable')
+      return run(() => facade.pairing[second ?? 'get']()).catch(() => error(response, 503, 'unavailable'))
     }
     if (first === 'connection' && !second) {
       if (method === 'GET') return run(() => facade.connection())

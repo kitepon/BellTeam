@@ -299,5 +299,37 @@ export function createApprovalBoxDaemon({ root, entry = DAEMON_ENTRY, node = pro
       await stderrLog.flush()
     },
   }
+  // P3 Pairing port (docs/architecture/modules/approval-box-extension/seats-on-hosted-daemon.md): the one pairing of the hosted connector, over the same `pair --json` run as pair().
+  // none / waiting / linked / failed / removed. linked = the daemon says paired (mode 'pc'; the run's own 'bound' counts only while the daemon cannot be asked).
+  // The waiting view carries the Owner's secrets and leaves only through the Owner's route. Nayuta 2026-11-26 (iOS claimPairing): the app wants both, in order: code (8 characters, shown ABCD-EFGH) in 接続 > AIをつなぐ > コードを確認, then typed_secret (16 characters) in the confirm sheet's field; without typed_secret there is no key binding and the daemon never reaches pc. The QR (qr_text) does both at once when it is on another screen.
+  let wasLinked = false
+  const pairingReason = () => { for (const line of run?.lines ?? []) { const reason = reasonOf(line); if (reason) return reason } return null }
+  async function pairingView() {
+    const reply = await statusOnce().catch(() => null)
+    const linked = reply?.ok === true ? closedStatus(reply.result).mode === 'pc' : run?.state === 'bound'
+    if (linked) { wasLinked = true; return { state: 'linked' } }
+    if (run && ['starting', 'waiting', 'claimed'].includes(run.state)) {
+      const line = run.waiting
+      return line ? { state: 'waiting', code: String(line.code ?? '').slice(0, 64), typedSecret: String(line.typed_secret ?? '').slice(0, 64), qrText: String(line.qr_text ?? '').slice(0, 512),
+        expiresAt: typeof line.expires_at === 'string' ? line.expires_at.slice(0, 40) : null } : { state: 'none' }
+    }
+    if (run?.stopped) return { state: 'none' }
+    if (run && ['failed', 'ended'].includes(run.state)) return { state: 'failed', reason: pairingReason() ?? (run.state === 'failed' ? 'unavailable' : 'ended') }
+    return wasLinked ? { state: 'removed' } : { state: 'none' }
+  }
+  controller.pairing = {
+    get: pairingView,
+    async start() {
+      const view = await pairingView()
+      if (view.state === 'linked' || view.state === 'waiting') return view
+      try { await controller.pair({ rebind: view.state === 'removed' }) }
+      catch (error) { return { state: 'failed', reason: error?.code === 'PAIR_NO_WAITING_LINE' ? 'no_waiting_line' : 'unavailable' } }
+      return pairingView()
+    },
+    async stop() {
+      if (run && ['starting', 'waiting'].includes(run.state)) { run.stopped = true; await stopChild(run.process) }
+      return pairingView()
+    },
+  }
   return controller
 }
