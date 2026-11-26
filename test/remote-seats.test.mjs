@@ -5,6 +5,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { RemoteSeats, pieces, remoteSeatNotStarted } from '../src/remote-seats.mjs'
 import { AitermTransport } from '../src/aiterm-transport.mjs'
+import { BOT_GIT_IDENTITY } from '../src/bot-environment.mjs'
+
+// SEC-111: a terminal seat gets the same noreply commit identity as a container seat, by name through the private env.
+const GIT_NAMES = ['GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL']
+const GIT_VALUES = { GIT_AUTHOR_NAME: BOT_GIT_IDENTITY.name, GIT_AUTHOR_EMAIL: BOT_GIT_IDENTITY.email,
+  GIT_COMMITTER_NAME: BOT_GIT_IDENTITY.name, GIT_COMMITTER_EMAIL: BOT_GIT_IDENTITY.email }
 
 const bot = { id: 'bot-aaaa1111', terminalId: 'mac-1', projectRoot: '/Users/quo/work/app', fastMode: false }
 const code = value => Object.assign(new Error(value), { code: value })
@@ -45,15 +51,15 @@ test('prepare: the same agent_launch args plus terminal target, folder, context 
   assert.equal(prepared.args.mcp_config.mcpServers.bellteam.headers.Authorization, 'Bearer ${BELLTEAM_MCP_TOKEN}')
   assert.equal(JSON.stringify(prepared.args).includes('secret-token'), false)
   assert.equal(prepared.claudeLogin, '2nd')
-  assert.deepEqual(prepared.privateEnv.names, ['BELLTEAM_MCP_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN'])
+  assert.deepEqual(prepared.privateEnv.names, ['BELLTEAM_MCP_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN', ...GIT_NAMES])
   assert.equal(log.some(entry => entry.op === 'reveal'), false, 'the value is read only inside the launch call')
-  assert.deepEqual(await prepared.privateEnv.resolve(), { BELLTEAM_MCP_TOKEN: 'secret-token' })
+  assert.deepEqual(await prepared.privateEnv.resolve(), { BELLTEAM_MCP_TOKEN: 'secret-token', ...GIT_VALUES })
   assert.deepEqual(log.find(entry => entry.op === 'context').request, { sessionName: launchArgs.session_name, shortTermMemory: 'prev' })
 
   const other = fixture({ accountOwner: 'user-b' })
   const theirs = await other.seats.prepare(bot, launchArgs, { slot: '2nd', harness: 'claude-code' })
   assert.equal(theirs.claudeLogin, null)
-  assert.deepEqual(theirs.privateEnv.names, ['BELLTEAM_MCP_TOKEN'])
+  assert.deepEqual(theirs.privateEnv.names, ['BELLTEAM_MCP_TOKEN', ...GIT_NAMES])
 })
 
 test('a532b1: the door hook of the terminal target rides on a main seat\'s launch unchanged and never on a fork', async () => {
@@ -188,7 +194,7 @@ test('one launch path: the same agent_launch with terminal + cwd; the checkpoint
     assert.equal(session, 'bot-aaaa1111')
     assert.deepEqual(launch.args.terminal, terminal)
     assert.equal(launch.args.cwd, bot.projectRoot)
-    assert.deepEqual(launch.options.privateEnv.names, ['BELLTEAM_MCP_TOKEN'])
+    assert.deepEqual(launch.options.privateEnv.names, ['BELLTEAM_MCP_TOKEN', ...GIT_NAMES])
     assert.equal(remote.log.some(entry => entry.op === 'revoke'), false)
     assert.equal(remote.seats.seats.get('bot-aaaa1111').launchId, 'd'.repeat(32))
   } finally { await rm(root, { recursive: true, force: true }) }

@@ -6,6 +6,8 @@ import { join } from 'node:path'
 import { AitermTransport } from '../src/aiterm-transport.mjs'
 import { RemoteSeats } from '../src/remote-seats.mjs'
 
+const GIT_NAMES = ['GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL'] // SEC-111
+
 const banned = { session_id: 'bot-aaaa1111', vendor_session_id: 'v1', write_ban: { path: '/p', method: 'landlock' } }
 const receiptOf = (args, extra = {}) => ({ schema: 'aiterm.agent-launch-result.v1', session_id: args.session_name, launch_id: 'b'.repeat(32), input_id: 'a'.repeat(32),
   event_cursor: 1, wait_process: { command: 'wait', args: ['--session', args.session_name] }, initial_prompt: { status: 'started' }, fork_of: banned, ...extra })
@@ -144,7 +146,7 @@ test('remote fork: credential kind fork, same MCP config shape, no launch notice
     assert.equal(log[0][1].sessionName, launch.args.session_name)
     assert.ok(launch.args.mcp_config.mcpServers.bellteam)
     assert.equal(launch.args.cwd, '/Users/q/app')
-    assert.deepEqual(launch.options.privateEnv.names, ['BELLTEAM_MCP_TOKEN'])
+    assert.deepEqual(launch.options.privateEnv.names, ['BELLTEAM_MCP_TOKEN', ...GIT_NAMES])
     // C7: the fork transcript goes once as `--fork` with labels from the receipt, before close and revoke.
     const ingest = log.find(entry => entry[0] === 'ingest')
     assert.deepEqual(ingest[1], ['remote-ingest', '--fork', '--json'])

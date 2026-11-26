@@ -5,6 +5,14 @@
 import { authenticationPreflightCodes, authenticationPreflightFailure, launchRefusal } from './agent-launch-error.mjs'
 import { mcpRequestContext } from './mcp-request-context.mjs'
 import { RemoteRoutes } from './remote-route.mjs'
+import * as botEnvironment from './bot-environment.mjs'
+
+// SEC-111: a terminal seat commits as the same noreply identity as a container seat (env beats `git -c user.email`).
+// shortcut: a body without BOT_GIT_IDENTITY (older than #2607) gives {} and the seat keeps its old behaviour; drop the guard once every body has it.
+const gitIdentityEnv = () => {
+  const id = botEnvironment.BOT_GIT_IDENTITY
+  return id ? { GIT_AUTHOR_NAME: id.name, GIT_AUTHOR_EMAIL: id.email, GIT_COMMITTER_NAME: id.name, GIT_COMMITTER_EMAIL: id.email } : {}
+}
 
 // Terminal and credential unavailability keeps the saved message queued (Owner 2026-11-09 13:38). Each code has an exit:
 // terminals' observer (connectivity) or its registry-change edge (target/trust revision). A missing folder or a too old
@@ -142,8 +150,8 @@ export class RemoteSeats {
           return fresh.terminal
         },
         // The seat launcher forwards exactly these names (Molly #793); the login value still comes only from claudeLogin.
-        privateEnv: { names: ['BELLTEAM_MCP_TOKEN', ...(route ? ['AITERM_SEAT_FORWARD_PORT'] : []), ...(claudeLogin ? ['CLAUDE_CODE_OAUTH_TOKEN'] : [])],
-          resolve: async () => ({ BELLTEAM_MCP_TOKEN: await this.ingress.seatCredential.reveal(credentialRef), ...(route ? { AITERM_SEAT_FORWARD_PORT: String(route.port) } : {}) }) },
+        privateEnv: { names: ['BELLTEAM_MCP_TOKEN', ...(route ? ['AITERM_SEAT_FORWARD_PORT'] : []), ...(claudeLogin ? ['CLAUDE_CODE_OAUTH_TOKEN'] : []), ...Object.keys(gitIdentityEnv())],
+          resolve: async () => ({ BELLTEAM_MCP_TOKEN: await this.ingress.seatCredential.reveal(credentialRef), ...(route ? { AITERM_SEAT_FORWARD_PORT: String(route.port) } : {}), ...gitIdentityEnv() }) },
         revoke: () => this.revoke(sessionName),
       }
     } catch (error) {
