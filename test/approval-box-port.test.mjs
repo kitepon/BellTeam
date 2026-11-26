@@ -93,3 +93,10 @@ test('capabilities and connection', async () => {
   assert.deepEqual(await none.capabilities(), [])
   assert.equal((await none.connection()).linked, false)
 })
+
+test('capabilities by default run the seats binary as the seat user (the seat process runner), and fall back to []', async () => {
+  const seen = []
+  const seatRun = async (command, args, options) => { seen.push([command, args, options.signal instanceof AbortSignal]); return { stdout: JSON.stringify({ capabilities: ['bellteam-requester-wake', 7] }) } }
+  assert.deepEqual(await createApprovalBoxPort({ daemon: fake(), seatRun }).capabilities(), ['bellteam-requester-wake'])
+  assert.deepEqual(seen[0], ['/home/bell/.approval-box/bin/approval-box', ['version', '--json'], true])
+})

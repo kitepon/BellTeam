@@ -4,6 +4,7 @@
 // Every error carries a typed `kind`: UNAVAILABLE (not linked, 401, timeout, network, 5xx: ends the caller's tick), REFUSED (a 4xx on a known id: skip that request),
 // GONE (read of an id the connection does not know or purged: the caller drops its record). Each call answers within 5 s or fails UNAVAILABLE.
 import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 import { join } from 'node:path'
 import { DAEMON_ENTRY } from './approval-box-daemon.mjs'
 
@@ -15,15 +16,15 @@ const fail = (kind, status) => Object.assign(new Error(`APPROVAL_BOX_PORT_${kind
 const failedBy = status => status >= 400 && status < 500 ? fail('REFUSED', 409) : fail('UNAVAILABLE', 503)
 
 // The seats' runtime, not the daemon's, decides what a seat can do: pc.5 after install-runtime. Seats' profile first, the daemon's own entry as the fallback; unreadable = no capability.
-const defaultCapabilities = ({ run = execFile, seatHome = process.env.APPROVAL_BOX_SEAT_HOME ?? '/home/bell', node = process.execPath, entry = DAEMON_ENTRY } = {}) => async () => {
-  const attempt = (file, args) => new Promise(resolve => run(file, args, { timeout: CALL_MS, env: { PATH: '/usr/local/bin:/usr/bin:/bin', LANG: 'C.UTF-8' } }, (error, stdout) => {
-    if (error) return resolve(null)
-    try { const list = JSON.parse(String(stdout)).capabilities; resolve(Array.isArray(list) ? list.filter(item => typeof item === 'string').slice(0, 64) : null) } catch { resolve(null) }
-  }))
-  return await attempt(join(seatHome, '.approval-box', 'bin', 'approval-box'), ['version', '--json']) ?? await attempt(node, [entry, 'version', '--json']) ?? []
+// seatRun: the seat process runner (createSeatProcessRunner, Molly): the body is uid 1001 and the seats' ~/.approval-box is the seat user's (0700), so the seats' binary must run as the seat user.
+const defaultCapabilities = ({ seatRun = null, seatHome = process.env.APPROVAL_BOX_SEAT_HOME ?? '/home/bell', node = process.execPath, entry = DAEMON_ENTRY } = {}) => async () => {
+  const direct = promisify(execFile)
+  const attempt = (run, file, args) => Promise.resolve().then(() => run(file, args, { signal: AbortSignal.timeout(CALL_MS), maxBuffer: 1024 * 1024 }))
+    .then(({ stdout }) => { const list = JSON.parse(String(stdout)).capabilities; return Array.isArray(list) ? list.filter(item => typeof item === 'string').slice(0, 64) : null }, () => null).catch(() => null)
+  return (seatRun ? await attempt(seatRun, join(seatHome, '.approval-box', 'bin', 'approval-box'), ['version', '--json']) : null) ?? await attempt(direct, node, [entry, 'version', '--json']) ?? []
 }
 
-export function createApprovalBoxPort({ daemon, readCapabilities = defaultCapabilities(), setTimer = setTimeout, clearTimer = clearTimeout }) {
+export function createApprovalBoxPort({ daemon, seatRun = null, readCapabilities = defaultCapabilities({ seatRun }), setTimer = setTimeout, clearTimer = clearTimeout }) {
   const linked = async () => Promise.resolve(daemon.status()).then(status => status?.daemon?.mode === 'pc', () => false)
   // {ok,status,json}: a coded daemon error keeps its status and its structured body (confirm_required carries check_token).
   async function call(method, path, body) {

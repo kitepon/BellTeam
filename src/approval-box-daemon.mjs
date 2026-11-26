@@ -97,13 +97,14 @@ const safeLine = line => {
 const isWaiting = line => (line?.type ?? line?.event ?? line?.state) === 'waiting'
 
 export function createApprovalBoxDaemon({ root, entry = DAEMON_ENTRY, node = process.execPath, server = APPROVAL_BOX_SERVER, spawn = nodeSpawn,
-  connect = createConnection, onModuleRestartLimit, now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout, exists = existsSync, egress = egressCheck, entries = null } = {}) {
+  connect = createConnection, onModuleRestartLimit, now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout, exists = existsSync, egress = egressCheck, entries = null, seatRun = null } = {}) {
   const home = join(root, 'state', 'approval-box-daemon')
   const socketPath = join(home, 'state', 'pc', 'daemon.sock')
   // a514m: the seats' door (a relay; the daemon's own directory stays 0700). `seatsReady` is shown in status so a failed listen is visible before the sitting.
   let seatsReady = false
   // P5 (approval-box-entries.mjs): the seat entry file the body's registration reads; started and closed with the connector.
-  const seatEntries = entries ?? createSeatEntryPublisher({ file: join(root, 'state', 'approval-box-extension', 'harness-entries.json') })
+  // Without a seat runner (dev, tests) nothing is published: the body cannot run the seats' binary itself (uid 1001 against the seat user's 0700 home).
+  const seatEntries = entries ?? (seatRun ? createSeatEntryPublisher({ file: join(root, 'state', 'approval-box-extension', 'harness-entries.json'), run: seatRun }) : { start() {}, close() {}, publish: async () => ({ ok: false, changed: false, reason: 'no_runner' }) })
   const seats = createSeatsSocket({ path: join(root, 'state', SEATS_SOCKET), target: socketPath, available: () => exists(entry) })
   const stderrLog = createChildStderrLog(join(root, 'state', 'approval-box-daemon-stderr.jsonl'))
   const env = () => ({ PATH: '/usr/local/bin:/usr/bin:/bin', LANG: 'C.UTF-8', HOME: home, APPROVAL_BOX_HOME: home, APPROVAL_BOX_SERVER: server })
