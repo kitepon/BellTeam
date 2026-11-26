@@ -5,8 +5,7 @@
   "scope": "認証仲介：固定のコマンド1つにだけ秘密を渡す（独立module子）。Bot用MCP道具・席のscript用socket・main-server用host socket、方針・許可・監査・1Passwordの読取トークンの使用を持つ。秘密の保管はusage、mount・配布は共通組立、item書込はサクラ",
   "external": false,
   "provides": [
-    "auth-exec (MCP auth_exec; container seat socket)",
-    "auth-host (main-server host socket)",
+    "auth-exec (MCP auth_exec; container socket; main-server host socket)",
     "auth-admin (grant, revoke, stop, resume, show, flush, token)"
   ],
   "uses": [

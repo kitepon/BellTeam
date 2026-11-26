@@ -24,7 +24,7 @@ Owner direction (2026-11-26): fully built in (no relays on rabbit, Mac or fox; s
 | Grants | Per caller identity, a list of `{command, cwd?, expires?}`. No grant, expired, or stopped means refused **before any secret read**. |
 | Fields | Label `VAR` is passed as that variable. `credential` is passed as the executable's own variable (`gh` -> `GH_TOKEN`). Other fields never leave. `file:VAR` and `ssh-key` were designed but never shipped; v1 of the module does not ship them either. |
 | Names collide vault-wide | Callers whose command text is equal but need different values make the command distinct with a no-op option they already use. |
-| Audit | One JSON line per request: time, request id, caller, item, outcome (`granted`, `denied`, `stopped`, `unknown-caller`, `not-registered`, `error`), cache hit/miss. Never values. Added fields: `via` (`mcp`, `seat-socket`, `host-socket`) and `cwd`. |
+| Audit | One JSON line per request: time, request id, caller, item, outcome (`granted`, `denied`, `stopped`, `unknown-caller`, `not-registered`, `error`), cache hit/miss. Never values. Added fields: `via` (`mcp`, `container-socket`, `host-socket`) and `cwd`. |
 | Admin | grant / revoke / stop / resume / show / flush, plus `token.set`/`token.clear` (new). `store` (writing items) stays Sakura's separate admin path and is **not** in this module (Tronie ruling 1). |
 
 ## Placement
@@ -34,7 +34,7 @@ An independent module child, like work-graph and Lattice. The module owner (Rai)
 | Piece | Where | Owner |
 | --- | --- | --- |
 | Child core: policy, authorization, item cache, env building, audit, token use | module child (Node), inside the BellTeam container | Rai |
-| Parent facade, effects, listeners' mount (seat socket, host socket), child supervision | body | Molly |
+| Parent facade, effects, listeners' mount (container socket, host socket), child supervision | body | Molly |
 | Seat MCP tool `auth_exec` (schema, description, dispatch) | `src/auth-mediation/mcp.mjs`, registered by the shared MCP list | Rai writes, Molly registers |
 | Client `auth` (container and main-server) | existing Python client `auth`, same JSON-lines protocol; only the socket path differs | Rai |
 | Admin CLI `auth-admin` (grant/revoke/stop/resume/show/flush/token) | thin client of the admin route | Rai |
@@ -42,13 +42,16 @@ An independent module child, like work-graph and Lattice. The module owner (Rai)
 
 ## Ports provided
 
+One exec contract with two transports (Tronie ruling on #2652), plus an admin port. Same grant check and same audit on every transport.
+
 | Port | Transport and identity | Behavior |
 | --- | --- | --- |
-| **auth-exec (seat)** | (a) MCP tool `auth_exec {command: string[], args?: string[], cwd?: string, timeout_sec?: number}`. Identity = the seat Bot ID that `resolveSeatBotId` yields (header from `AITERM_SESSION_ID`, or the remote-seat credential binding). Fork seats are refused. (b) Container script client `auth exec COMMAND... [-- ARGS...]` over the module's container socket. Identity = peer pid: the session name in `/proc/PID/environ` (`AITERM_SESSION_ID`, same mapping as the seat MCP) and, when the variable is absent (command schedules), the registered Bot root that equals `/proc/PID/cwd` (today's rule). Both present and different = refused. | (a) **Run and return:** the module runs the command through `runtime.seat-process` in the Bot's project (`cwd` must be inside it), returns `{outcome, exit_code, stdout, stderr, truncated}`, with the secret values **redacted** from the returned text. (b) **Env return:** returns the item's environment to the client, which runs the command itself (stdin, tty and exit code stay the script's own) — the protocol of today's broker. |
-| **auth-host (main-server)** | A unix socket in the bind-mounted shared area, `/srv/bellteam/shared/tools/auth-mediation/host.sock` (host path `/home/kite/BellTeam/runtime/data/shared/tools/auth-mediation/host.sock`), mode 0600, owner `kite`. Identity = a `unit`: the folder the client sends as `cwd`, matched exactly to a registered unit. | Env return, same JSON-lines protocol as today's broker (`{"op":"exec","command":[...],"cwd":...}` -> `{"outcome","env"|"error"}`). The host wrapper `~/.local/bin/auth` changes only `AUTH_SOCK`. |
-| **auth-admin** | The admin route on the internal HTTP; clients `auth-admin`. Allowed only when the seat Bot ID is in `admins` (Sakura, Rai). Not an MCP tool. | grant, revoke, stop, resume, show, flush, token.set, token.clear, import (one-time policy import at cut-over). |
+| **auth-exec** | **T1: MCP tool** `auth_exec {command: string[], args?: string[], cwd?: string, timeout_sec?: number}`, for Bot calls. Identity = the seat Bot ID that `resolveSeatBotId` yields (header from `AITERM_SESSION_ID`, or the remote-seat credential binding). Fork seats are refused. | **Run and return:** the module runs the command through `runtime.seat-process` in the Bot's project (`cwd` must be inside it) and returns `{outcome, exit_code, stdout, stderr, truncated}` with the secret values **redacted**. |
+| | **T2a: container socket**, for scripts that need stdin, tty or long runs. Identity = peer cwd, exactly as today: SO_PEERCRED pid -> `/proc/PID/cwd`, matched exactly to one registered Bot root, which names the Bot ID. | **Env return:** the client gets the environment for that one fixed command and execs it itself (today's client protocol, unchanged). |
+| | **T2b: host socket on main-server**, `/srv/bellteam/shared/tools/auth-mediation/host.sock` (host path `/home/kite/BellTeam/runtime/data/shared/tools/auth-mediation/host.sock`), mode 0600, owner `kite`. Identity = a `unit`: the folder the client sends as `cwd`, matched exactly to a registered unit. | Env return, same JSON-lines protocol as today (`{"op":"exec","command":[...],"cwd":...}` -> `{"outcome","env"|"error"}`). The host wrapper `~/.local/bin/auth` changes only `AUTH_SOCK`. |
+| **auth-admin** | The admin route on the internal HTTP; client `auth-admin`. Allowed only when the seat Bot ID is in `admins` (Sakura, Rai). Not an MCP tool. | grant, revoke, stop, resume, show, flush, token.set, token.clear, import (one-time policy import at cut-over). |
 
-The two contracted ports Tronie named are the MCP tool and the host endpoint. The container script socket is the second transport of the first port: six of the 42 current grants are container scripts that need stdin/tty and a long-running process, which run-and-return cannot give. **Ruling needed from Tronie: accept this transport inside port 1, or move those scripts to the MCP tool.**
+**Why the host identity is no weaker than today.** Today the broker reads `/proc/PID/cwd` of the peer, but any process of `kite` can `cd` into any registered folder and ask. The client-sent folder behind a 0600 `kite`-only socket admits exactly the same set of processes, so the check is equivalent, not weaker. (Tronie accepted this on #2652.)
 
 ## Function map
 
@@ -62,7 +65,7 @@ flowchart LR
   end
   subgraph Body["body (stable, Molly)"]
     MCP["seat MCP + resolveSeatBotId"]
-    SeatSock["seat socket (container)"]
+    SeatSock["container socket"]
     HostSock["host.sock (bind-mounted shared)"]
     Facade["auth-mediation facade + effects"]
     Runner["runtime.seat-process"]
@@ -97,7 +100,7 @@ flowchart LR
 
 | ID | Function | Input | Output and failure |
 | --- | --- | --- | --- |
-| F1 | Identify | Transport identity (seat Bot ID; peer-derived Bot ID; unit folder) | A caller key `bot:<id>` or `unit:<folder>`. Unknown or contradictory = `unknown-caller`, no secret read. |
+| F1 | Identify | Transport identity (seat Bot ID; peer-derived Bot ID; unit folder) | A caller key `bot:<id>` or `unit:<folder>`. Unknown caller = `unknown-caller`, no secret read. |
 | F2 | Split command | Words before the first `--` (item name) and ARGS | Item name = words joined by one space. ARGS never reach F3. |
 | F3 | Authorize | `policy.json` re-read on every request; `stopped`; grant `{command, cwd?, expires?}` | `denied` / `stopped` before any read. `cwd` restricts a grant to a folder (used to keep today's folder-bound container grants exactly as narrow as before). |
 | F4 | Resolve item | Item name; vault; in-memory cache | Cache hit: no 1Password call. Miss: one `op item get` with the read token; kept `cache_seconds` (3600). Missing item or error = `not-registered` / `error`; nothing starts. |
@@ -119,7 +122,7 @@ flowchart LR
 | A5 | child -> parent effect | `seat.run {botId, cwd, argv, env}` (MCP path) | Env travels over the IPC channel only. Open item O2: the runner must take env without argv or files. |
 | A6 | child -> state | `policy.json` (child writes, atomic), `audit.jsonl` (append) | `state/auth-mediation/`, 0600. No other module reads these files. |
 | A7 | child -> diagnostics | State transitions only (token missing/replaced, `op` failing, child restart); no values | Through `integration.diagnostics`. |
-| A8 | members -> child | Registered Bot roots (for the script-socket cwd fallback) | `members.registry` read; nothing written. |
+| A8 | members -> child | Registered Bot roots (for the container socket's peer-cwd match) | `members.registry` read; nothing written. |
 
 Secret values appear only in: the `op` process (during one `op item get`), the child's memory (cache and one request), the socket reply to a granted caller, and the run request to the seat runner. Never in files, argv, DTOs, logs, audit lines or diagnostics.
 
@@ -203,11 +206,10 @@ Unit tests with a stand-in `op`, no real 1Password: command/ARGS split; grant/ex
 
 | To | Needed | Why |
 | --- | --- | --- |
-| Mika (usage) | Add scope `{terminalId:'auth-mediation', purpose:'auth-mediation.op-read'}` to `MODULE_SCOPES` for `credentials.put/erase` and `withResolved` | Token custody (Tronie ruling 4). Today the allowlist has only the Approval Box extension |
-| Molly (runtime/integration) | Facade and effects (`secrets.*`, `seat.run`, `members.roots`), mount of the seat and host sockets, start/supervision, packaging, seat MCP registration through harness-entries | Parent side of an independent child |
+| Mika (usage), task on bellteam-dev-added | Add scope `{terminalId:'auth-mediation', purpose:'auth-mediation.op-read'}` to `MODULE_SCOPES` for `credentials.put/erase` and `withResolved` | Token custody (Tronie ruling 4). Today the allowlist has only the Approval Box extension |
+| Molly (runtime/integration), task on bellteam-dev-added | Facade and effects (`secrets.*`, `seat.run`, `members.roots`), mount of the seat and host sockets, start/supervision, packaging, seat MCP registration through harness-entries | Parent side of an independent child |
 | Molly | **O2:** can `runtime.seat-process` pass an environment to the command without argv or files? If not, add it to the port | MCP run-and-return |
-| Sakura | Create the read-only service account on `開発工場・認証仲介`; export the two policies at S1; keep `store` and call `flush` after it | Tronie ruling 1, switch-over |
-| Tronie | Ruling on the container script socket as a transport of port 1 | See Ports |
+| Sakura (asked directly, no chart task: Owner) | Create the read-only service account on `開発工場・認証仲介`; export the two policies at S1; keep `store` and call `flush` after it | Tronie ruling 1, switch-over |
 | Centi | Product test at S1/S2 | Test owner |
 
 ## Not in this module
