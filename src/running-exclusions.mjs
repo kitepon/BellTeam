@@ -98,7 +98,7 @@ export function createRunningExclusions({ path, decisions, now = () => new Date(
   }
   // The stored proposal is filed with its own label; an unknown outcome leaves decisionId null and the same label is filed again later.
   async function fileStored(state, item) {
-    const filed = await decisions.file({ ...item.decision, options: OPTIONS, session_label: item.label })
+    const filed = await decisions.file({ ...item.decision, options: OPTIONS, session_label: item.label, origin: 'running-exclusions' })
     item.decisionId = filed.decisionId
     await save(state)
     return { status: 'filed', decisionId: filed.decisionId }
@@ -142,8 +142,12 @@ export function createRunningExclusions({ path, decisions, now = () => new Date(
           let result
           try {
             if (!item.decisionId) { await fileStored(state, item); keep.push(item); continue }
-            result = await decisions.read({ decisionId: item.decisionId })
-          } catch { keep.push(...ordered.slice(index)); break }
+            result = await decisions.read(item.decisionId)
+          } catch (error) {
+            // GONE = an id the module's connection never held (filed before the one-port move): file it again under the same label.
+            if (error?.kind === 'GONE') { item.decisionId = null; changed = true; keep.push(item); continue }
+            keep.push(...ordered.slice(index)); break
+          }
           if (result.status !== 'answered' && result.status !== 'cancelled') { keep.push(item); continue }
           if (result.status !== 'answered' || result.answer?.optionId !== 'approve') continue
         }
