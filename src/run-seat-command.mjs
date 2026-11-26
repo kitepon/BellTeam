@@ -1,9 +1,26 @@
 // Runs only after seat-exec has dropped all identity slots to the seat UID.
 import { spawn } from 'node:child_process'
-import { writeFileSync } from 'node:fs'
+import { readSync, writeFileSync } from 'node:fs'
 import { isAbsolute } from 'node:path'
 import { baseBotEnvironment, loadBotEnvironment } from './bot-environment.mjs'
 import { RESUME_STATE_BASE } from './resume-policy.mjs'
+import { validateSecretEnv } from './seat-command.mjs'
+
+// O2: exactly one line from fd 0, byte by byte, so nothing after the newline is consumed (the command inherits the rest as its stdin).
+function readEnvLine(limit = 128 * 1024) {
+  const bytes = [], one = Buffer.alloc(1)
+  for (;;) {
+    let n
+    try { n = readSync(0, one, 0, 1, null) } catch (error) {
+      if (error.code === 'EAGAIN') { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5); continue }
+      throw error
+    }
+    if (n === 0) throw Error('ENV_LINE_EOF')
+    if (one[0] === 10) return Buffer.from(bytes).toString('utf8')
+    if (bytes.length >= limit) throw Error('ENV_LINE_TOO_LONG')
+    bytes.push(one[0])
+  }
+}
 
 let active, stopping = false, stopSignal
 function signalGroup(signal, child) {
@@ -60,6 +77,8 @@ try {
   if (baseOnly) parameters.shift()
   const resume = parameters[0] === '--resume-state-base'
   if (resume) parameters.shift()
+  const envStdin = parameters[0] === '--env-stdin'
+  if (envStdin) parameters.shift()
   const [separator, command, ...args] = parameters
   if (process.getuid() !== 1000 || process.geteuid() !== 1000 || process.getgid() !== 1000
     || !isAbsolute(project ?? '') || separator !== '--' || !command) throw Error('IDENTITY_OR_ARGUMENTS')
@@ -69,6 +88,9 @@ try {
     run: (command, args, options) => run(command, args, options, true),
   })
   if (stopping) throw Error('STOPPED')
+  // The line is read and validated before the command starts; a bad line starts nothing. Names the base environment already sets are refused.
+  const secret = envStdin ? validateSecretEnv(JSON.parse(readEnvLine()), env) : null
+  if (secret) Object.assign(env, secret)
   // execution.md "Body-side Aiterm keeps the kernel default": the parent's own Aiterm marks its launch with this env
   // assignment (an older wrapper just passes it on); seat-exec set 1000 and a seat UID may lower it. Best effort.
   let marked = 0

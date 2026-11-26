@@ -21,6 +21,7 @@ Today `createSeatProcessRunner` refuses `options.env` (`SEAT_DYNAMIC_ENV_UNWIRED
 
 - Runner option `secretEnv: { NAME: 'value' }` (the only way an environment enters). Validation in the parent **and again** in `run-seat-command` (the privileged side does not trust the parent): names `^[A-Z][A-Z0-9_]{0,63}$`, string values, at most 32 names, at most 64 KiB of values in total; refused names: `PATH`, `HOME`, `LD_*`, `NODE_OPTIONS` and `BELLTEAM_*`, and any name the base environment already sets. A violation is `SEAT_SECRET_ENV_INVALID`; the command is **not started**.
 - Transport: run-seat-command gets a new flag `--env-stdin` (a flag only, never a value, in argv). The parent writes one JSON line `{"NAME":"value",...}` first on the child's stdin. run-seat-command reads exactly that line byte by byte from fd 0 (it consumes nothing after the newline), validates it, merges it over the base environment for the command only, and starts the command. What follows on stdin is the command's own stdin; `input` of the runner after the line is passed through. For the MCP path Rai closes stdin after the line (EOF).
+- Implemented in `validateSecretEnv` (`src/seat-command.mjs`, shared by the parent and run-seat-command); an environment already holding a name refuses it (`existing`); an unreadable, non-JSON, too long (128 KiB) or EOF line starts nothing and prints only `BELLTEAM_SEAT_COMMAND_FAILED` (never the line).
 - Nothing else changes: group cancellation, the 250 ms KILL escalation, output caps and AbortSignal are as today; the runner adds no default time limit (Rai enforces 600 s default and 3600 s maximum, 64 KiB output caps and redaction).
 - Known limit (stated, not removed here): the value is in the command's environment, so any process of the seat uid can read `/proc/<pid>/environ` while it runs (all seats are uid 1000). The Owner put that bypass on hold.
 
@@ -104,7 +105,7 @@ Every state leaves by a child exit, the shared backoff or `close()`; none waits 
 | Slice | Files | Carrier |
 | --- | --- | --- |
 | 1 (this page) | docs only | main |
-| 2 O2 | `src/seat-process.mjs`, `src/run-seat-command.mjs`, `test/seat-process.test.mjs`, runtime user-cli-place doc row | body |
+| 2 O2 (in code, abx PR "O2 runner") | `src/seat-command.mjs` (`validateSecretEnv`, spec flag `--env-stdin`), `src/seat-process.mjs` (option `secretEnv`), `src/run-seat-command.mjs` (reads exactly one stdin line, validates again, merges for the command only), `test/seat-process.test.mjs` | body |
 | 3 facade, effects, process | `src/auth-mediation-facade.mjs`, `src/auth-mediation-effects.mjs`, `src/auth-mediation-process.mjs`, assembly in `application-services.mjs`, update adapters, `module.json` rows | body |
 | 4 sockets | container socket and host socket mount | body |
 | 5 MCP and registration | registration of Rai's `auth_exec` in the shared list; E2 item only if Rai publishes a separate entry | body (+ members row if the E2 list or common rules change) |
