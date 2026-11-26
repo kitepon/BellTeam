@@ -282,3 +282,40 @@ test('corruption: 診断callbackのthrow・reject・未終端を履歴へ伝播�
   assert(logged.every(value => value.code === 'MESSAGE_LOG_INVALID'))
   assert(!JSON.stringify(logged).includes('private-'))
 })
+
+test('the log is indexed in chunks and a row is read from the file when it is drawn (history-store.md)', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-conversation-lazy-'))
+  const logPath = join(root, 'direct.jsonl')
+  const long = '長'.repeat(3000)
+  const rows = [
+    { schema: 'bellteam.direct-message.v1', delivery_id: '1', at: '2026-11-01T01:00:00.000Z', from: 'user', target: 'a', message: long, delivery: 'queued', durable_receipt: true },
+    { schema: 'bellteam.interim-word.v1', id: 'w1', at: '2026-11-01T01:00:01.000Z', bot: 'a', group_id: '1', text: 'しばらく', seat: { kind: 'fork' } },
+    { schema: 'bellteam.direct-message.v1', delivery_id: '2', at: '2026-11-01T01:00:02.000Z', from: 'a', target: 'b', message: 'こんにちは', delivery: 'delivered', in_reply_to: '1' },
+    { schema: 'bellteam.delivery-status.v1', delivery_id: '1', at: '2026-11-01T01:00:03.000Z', delivery: 'running' },
+    { schema: 'bellteam.direct-message.v1', delivery_id: '3', at: '2026-11-01T01:00:04.000Z', from: 'a', target: 'user', message: '終わり', delivery: 'delivered' },
+  ]
+  await writeFile(logPath, rows.map(row => JSON.stringify(row) + '\n').join(''))
+  const small = new ConversationStore({ logPath, chunkBytes: 100 }), whole = new ConversationStore({ logPath })
+  // A 100-byte chunk is shorter than most lines: the read grows the chunk to the line, and the result is the same as one read.
+  assert.deepEqual(await small.entries(), await whole.entries())
+  assert.deepEqual(await small.timeline('a'), await whole.timeline('a'))
+  // Only the index is resident; the bodies are not.
+  await small.snapshot()
+  assert(small.read.entries.every(ref => !('message' in ref) && !('text' in ref)))
+  assert.equal(small.read.entries.length, 4)
+  const view = await small.timelineView('a')
+  assert.equal(view.at(0).message, long)
+  assert.equal(view.at(0).delivery, 'running')
+  // A saved status changes a row that was already drawn.
+  await appendFile(logPath, JSON.stringify({ schema: 'bellteam.delivery-status.v1', delivery_id: '1', at: '2026-11-01T01:00:05.000Z', delivery: 'delivered' }) + '\n')
+  assert.equal((await small.timelineView('a')).at(0).delivery, 'delivered')
+  // The narrow reads load only what they name.
+  assert.deepEqual((await small.byId('1')).map(row => row.delivery), ['delivered'])
+  assert.deepEqual((await small.byId('none')), [])
+  assert.deepEqual((await small.durableQueued()), [])
+  assert.deepEqual((await small.durableOf('1')).map(row => row.delivery_id), ['1'])
+  assert.deepEqual((await small.turnEntries('a', '2026-11-01T01:00:01.000Z', '2026-11-01T01:00:02.000Z')).map(row => row.id ?? row.delivery_id), ['w1', '2'])
+  assert.deepEqual((await small.forkEntries()).map(row => row.id ?? row.delivery_id), ['w1', '2'])
+  assert.equal((await small.quoteSource('a', '1')).text, long)
+  assert.equal((await small.quoteSource('a', 'w1')).text, 'しばらく')
+})

@@ -1,8 +1,13 @@
 // 表示行の索引はプロセス内にだけ持ち、ページは返す行だけを配列へ写す。
 // 旧APIが返す全行の配列は、返した後に書き換えない。
+// load(key) を渡すと遅延の索引になる: 行は key・時刻・IDだけを持ち、表示する行（item）は読んだ時に作る。
+// 作った行は直近 RECENT 件だけ残し、状態が変わった行は touch(key) で捨てる（history-store.md）。
+const RECENT = 256
 export class TimelineIndex {
-  constructor(items = [], keys = items.map(() => Symbol())) {
-    this.nodes = items.map((item, n) => ({ key: keys[n], item, order: n })).sort((a, b) => compareTime(a.item, b.item))
+  constructor(items = [], keys = items.map(() => Symbol()), load = null) {
+    this.load = load
+    this.recent = new Set()
+    this.nodes = items.map((item, n) => ({ key: keys[n], item: load ? null : item, at: item.at, id: item.id, order: n })).sort(compareTime)
     this.positions = new Map()
     this.ids = new Map()
     this.nextOrder = items.length
@@ -10,36 +15,53 @@ export class TimelineIndex {
     this.cached = null
     this.nodes.forEach((node, index) => {
       this.positions.set(node.key, index)
-      if (!this.ids.has(node.item.id)) this.ids.set(node.item.id, index)
+      if (!this.ids.has(node.id)) this.ids.set(node.id, index)
     })
   }
   get length() { return this.nodes.length }
-  get(key) { const index = this.positions.get(key); return index === undefined ? undefined : this.nodes[index].item }
-  at(index) { return this.nodes.at(index)?.item }
+  value(node) {
+    if (node && !node.item && this.load) {
+      node.item = this.load(node.key)
+      this.recent.add(node)
+      if (this.recent.size > RECENT) { const old = this.recent.values().next().value; this.recent.delete(old); old.item = null }
+    }
+    return node?.item
+  }
+  get(key) { const index = this.positions.get(key); return index === undefined ? undefined : this.value(this.nodes[index]) }
+  at(index) { return this.value(this.nodes.at(index)) }
   indexOfId(id) { return this.ids.get(id) ?? -1 }
+  // A lazy row whose saved status changed: the next read draws it again.
+  touch(key) {
+    const node = this.nodes[this.positions.get(key)]
+    if (!node) return
+    node.item = null; this.recent.delete(node)
+    this.revision++
+    this.cached = null
+  }
   set(key, item) {
     const previous = this.positions.get(key)
     if (previous !== undefined) {
       const node = this.nodes[previous]
+      if (this.load) return this.touch(key)
       if (node.item === item) return
-      if (node.item.id !== item.id || compareTime(node.item, item)) {
-        node.item = item
-        this.nodes.sort((a, b) => compareTime(a.item, b.item) || a.order - b.order)
+      if (node.id !== item.id || compareTime(node, item)) {
+        Object.assign(node, { item, at: item.at, id: item.id })
+        this.nodes.sort((a, b) => compareTime(a, b) || a.order - b.order)
         this.positions.clear(); this.ids.clear()
         this.nodes.forEach((value, index) => {
           this.positions.set(value.key, index)
-          if (!this.ids.has(value.item.id)) this.ids.set(value.item.id, index)
+          if (!this.ids.has(value.id)) this.ids.set(value.id, index)
         })
       } else node.item = item
     } else {
-      const node = { key, item, order: this.nextOrder++ }
+      const node = { key, item: this.load ? null : item, at: item.at, id: item.id, order: this.nextOrder++ }
       // 同時刻の行は追記順を保ち、安定ソートする従来のArray.sortと揃える。
       let index = this.length
-      if (index && compareTime(this.at(-1), item) > 0) {
+      if (index && compareTime(this.nodes.at(-1), node) > 0) {
         let low = 0, high = index
         while (low < high) {
           const mid = (low + high) >>> 1
-          if (compareTime(this.at(mid), item) <= 0) low = mid + 1
+          if (compareTime(this.nodes[mid], node) <= 0) low = mid + 1
           else high = mid
         }
         index = low
@@ -48,25 +70,26 @@ export class TimelineIndex {
       for (let i = index; i < this.length; i++) this.positions.set(this.nodes[i].key, i)
       // 通常の末尾追記は1つのIDだけを追加する。時刻順の途中へ挿す場合はID位置も更新する。
       if (index === this.length - 1) {
-        if (!this.ids.has(item.id)) this.ids.set(item.id, index)
+        if (!this.ids.has(node.id)) this.ids.set(node.id, index)
       } else {
         this.ids.clear()
-        for (let i = 0; i < this.length; i++) if (!this.ids.has(this.at(i).id)) this.ids.set(this.at(i).id, i)
+        for (let i = 0; i < this.length; i++) if (!this.ids.has(this.nodes[i].id)) this.ids.set(this.nodes[i].id, i)
       }
     }
     this.revision++
     this.cached = null
   }
-  snapshot() { return this.cached ??= this.nodes.map(node => node.item) }
+  // A lazy index does not keep the list: each call draws every row it returns.
+  snapshot() { return this.load ? this.nodes.map(node => this.value(node)) : this.cached ??= this.nodes.map(node => node.item) }
   // Keep only the rows `keep` accepts (a window that moves up: heap-oom-n102-machine-stream-window).
   retain(keep) {
-    const nodes = this.nodes.filter(node => keep(node.item))
+    const nodes = this.nodes.filter(node => keep(this.value(node)))
     if (nodes.length === this.nodes.length) return
     this.nodes = nodes
     this.positions.clear(); this.ids.clear()
     nodes.forEach((node, index) => {
       this.positions.set(node.key, index)
-      if (!this.ids.has(node.item.id)) this.ids.set(node.item.id, index)
+      if (!this.ids.has(node.id)) this.ids.set(node.id, index)
     })
     this.revision++
     this.cached = null

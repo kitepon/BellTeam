@@ -130,7 +130,7 @@ export class DurableMessageReceipts extends BellTeamMessenger {
   }
 
   async pending() {
-    return (await this.store.durableReceipts()).filter(record => record.delivery === 'queued')
+    return this.store.durableQueued()
   }
 
   dispatchSaved(deliveryId) {
@@ -144,10 +144,8 @@ export class DurableMessageReceipts extends BellTeamMessenger {
   }
 
   async runSaved(deliveryId) {
-    const durable = await this.store.durableReceipts()
-    const records = await this.store.records()
-    const matches = durable.filter(record => record.delivery_id === deliveryId)
-    const originals = records.filter(record => record.delivery_id === deliveryId)
+    const matches = await this.store.durableOf(deliveryId)
+    const originals = await this.store.byId(deliveryId)
     if (originals.length !== 1) fail('DURABLE_RECEIPT_NOT_FOUND')
     if (matches.length !== 1 || matches[0].durable_receipt !== true) fail('DURABLE_RECEIPT_NOT_FOUND')
     const record = matches[0]
@@ -182,7 +180,7 @@ export class DurableMessageReceipts extends BellTeamMessenger {
       result = await this.dispatch(options)
       if (!['running', 'steered', 'delivered'].includes(result?.delivery)) fail('DISPATCH_RESULT_INVALID')
     } catch (error) {
-      const latest = (await this.store.durableReceipts()).find(row => row.delivery_id === deliveryId)
+      const latest = (await this.store.durableOf(deliveryId))[0]
       const saved = latest?.delivery
       // A saved failed status stays failed only when Aiterm's typed frame proves the input never started, so the
       // history shows undelivered; an unproven failure after invocation stays unknown and is never replayed.
@@ -199,7 +197,7 @@ export class DurableMessageReceipts extends BellTeamMessenger {
       return { delivery_id: deliveryId, delivery, dispatched: false }
     }
     // A synchronous completion callback may already have saved a terminal status.
-    const latest = (await this.store.records()).find(row => row.delivery_id === deliveryId)
+    const latest = (await this.store.byId(deliveryId))[0]
     if (latest.delivery === 'dispatching') await this.appendDeliveryStatus(deliveryId, result.delivery)
     this.executionSources.delete(deliveryId)
     return { delivery_id: deliveryId, delivery: result.delivery, dispatched: true }

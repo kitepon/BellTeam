@@ -35,7 +35,7 @@ function reports({ records, judge }) {
   const reported = []
   const service = new TurnReports({
     bots,
-    store: { entries: async () => records },
+    store: { turnEntries: async () => records },
     transport: { notify: async (bot, message, options) => { notified.push({ bot: bot.id, message, options }); return { delivery: 'running' } } },
     appendInterimWords: async (...args) => appended.push(args),
     judge,
