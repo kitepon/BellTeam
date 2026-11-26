@@ -164,7 +164,6 @@ flowchart LR
   m_runtime -->|"harness-entries.json"| m_rtk
   m_terminals -->|"bin: aiterm-remote-terminal"| m_aiterm
   m_usage -->|"MCP tools (stdio)"| m_aiterm
-  m_usage -->|"connection export (approval-box connection export --json)"| m_approval_box
   m_usage -->|"connection export (call-bridge.connection.v1)"| m_bridge
   m_windows -->|"HTTP/SSE"| m_integration
 ```

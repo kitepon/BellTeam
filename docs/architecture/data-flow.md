@@ -87,7 +87,6 @@ flowchart LR
   RT -->|"X3 setup-node, setup-integrations, execution-parent-worker, execution-native-setup/server, state-compat.json, resume-state-cli"| A3
   CONV -->|"X3 child-result preface"| A3
   RT -->|"X4 hook entries, aiterm.hook-entries.v1"| A4
-  USE -->|"X5 connection stdout: schema, server, token"| B1
   EXE -->|"X6 capability bellteam-requester-wake"| B2
   RT -->|"X7 MCP and hook entries"| B3
   INT -->|"X8 decisions, connection"| B4
@@ -115,7 +114,7 @@ flowchart LR
 | X2 | Aiterm bins `aiterm-wait`, `aiterm-transcript-read`, `aiterm-remote-terminal` (same document) | execution: wait receipt JSON, remote-seat transcript; terminals: remote terminal status/credential-load/serve | existing contract |
 | X3 | Aiterm `package.json` `exports`: `setup-node`, `setup-integrations`, `execution-parent-worker`, `execution-native-setup`, `execution-native-server`, `native-entry` (0.70.109+; replaces the three execution entries, a532b2), `child-result`, `resume-state-cli`, `state-compat.json`. The path is read from the selected package root's `exports`, never a `dist/` path. **Not promised:** `model-handoff-*`, the state layout, the package file inventory | runtime: hook/registration helpers, state-compat declaration, resume-state CLI; conversation: the child-result preface string | bd05 (execution/conversation), bd06 (runtime) |
 | X4 | `aiterm-setup hook-entries --json` (schema `aiterm.hook-entries.v1`, the same E1 document; Aiterm 0.70.109+, a532b2 stage 5; `harness-entries` v1 stays accepted until Aiterm drops it) | runtime: Aiterm's hook items for the single CLI-file writer | bd14 |
-| X5 | `approval-box connection export --json`, `approval-box.connection.v1` ([connection-export.md](https://github.com/kitepon/approval-box/blob/main/docs/architecture/connection-export.md)) | usage: secrets approval owner validates schema and server; replaces reading the private config | bd02 |
+| X5 | `approval-box connection export --json`, `approval-box.connection.v1` ([connection-export.md](https://github.com/kitepon/approval-box/blob/main/docs/architecture/connection-export.md)) | none from usage: the submitted-secret consumer was retired (a508, #2306). The 決裁箱拡張 module calls it, drawn in [seats-on-hosted-daemon.md](modules/approval-box-extension/seats-on-hosted-daemon.md) | (retired) |
 | X6 | `approval-box version --json`, capability `bellteam-requester-wake` (same document) | execution: idle-close policy for every harness; replaces inferring from the hook process tree | bd03 |
 | X7 | `approval-box harness-entries --json` ([harness-entries.md](https://github.com/kitepon/approval-box/blob/main/docs/architecture/harness-entries.md)) | runtime: MCP and hook entries written by BellTeam only | bd14 |
 | X8 | HTTP connector `/connector/v1` (Approval Box `docs/api.md`) | integration: connection and decision reads; execution: running-exclusion decisions; lattice: Owner-lane decisions. Separate tokens per use | existing contract |
@@ -129,7 +128,7 @@ flowchart LR
 | X16 | testgate registration entry v1 ([registration-contract.md](https://github.com/kitepon/testgate/blob/main/docs/registration-contract.md), 0.3.32): one PreToolUse item `node <R>/current/bin/testgate.mjs hook <H>`, carried in RTK's `harness-entries.json` | runtime: writes the item as part of the single CLI-file writer; no probing of the testgate path from the body | bd13 |
 | X17 | Lattice CLI K1-K8 ([dfd-charts-read.md](https://github.com/kitepon/Lattice/blob/main/docs/architecture/dfd-charts-read.md), a101) | lattice: one read of all charts (name, creator, counts, trees, change token), chart naming, code-chart sync, seat commands. Detail: [lattice module](modules/lattice/README.md#bellteam---lattice-connection-target-task-a102) and P11 below | a102 |
 
-Switch tasks that implement these arrows against the diagram: bd02 (usage, X5), bd03 (execution, X6), bd05 (execution/conversation, X1-X3 `child-result`, `model-handoff-*` removal), bd06 (runtime, X3), bd08 (runtime, X12), bd10 (runtime, X13), bd11 (usage, X13), bd13 (runtime, X16), bd14 (runtime, X4/X7). Until a task lands, its arrow is the target and the code keeps today's access.
+Switch tasks that implement these arrows against the diagram: bd03 (execution, X6), bd05 (execution/conversation, X1-X3 `child-result`, `model-handoff-*` removal), bd06 (runtime, X3), bd08 (runtime, X12), bd10 (runtime, X13), bd11 (usage, X13), bd13 (runtime, X16), bd14 (runtime, X4/X7). Until a task lands, its arrow is the target and the code keeps today's access.
 
 ## Processes, public contracts and failure ownership
 
