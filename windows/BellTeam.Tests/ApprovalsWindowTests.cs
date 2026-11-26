@@ -248,16 +248,17 @@ public sealed class ApprovalsWindowTests
         Press(Find(rig.Window, "connect:back")); Assert.Contains("決裁箱拡張の月額を、決裁箱と同じ請求にしてよいですか？", Texts(rig.Window));
     });
 
-    // 「AIの許可待ちを決裁箱へ送る」 (seat-approval-card.md, the pairing view): in the same panel, under 工程表との連携, from the body's three seat-link routes only.
+    // 「決裁箱につなぐ」 (seat-approval-card.md, the pairing view): in the same panel, under 工程表との連携, from the body's three seat-link routes only.
     [Fact]
-    public void TheSeatLinkViewStartsOnceShowsTheQrTheTypedCodeTheStepsAndTheExpiry_ThenSaysLinked() => RunSta(() =>
+    public void TheSeatLinkViewStartsOnceShowsTheQrBothCodesBothWaysAndTheExpiry_ThenSaysLinked() => RunSta(() =>
     {
         using var rig = Open("main"); Until(() => rig.Page.Settled);
         Press(Find(rig.Window, "link")); Until(() => Texts(rig.Window).Contains(SeatLinkText.None));
         Assert.Contains(SeatLinkText.Title, Texts(rig.Window)); Assert.Empty(LogicalTree.Find<QrView>(rig.Window.Content));
         Press(Find(rig.Window, "seat-link:go"));
         Until(() => Texts(rig.Window).Contains(SeatLinkText.Scan));
-        Assert.Single(LogicalTree.Find<QrView>(rig.Window.Content)); Assert.Contains("WXYZ-1234-QRST-5678", Texts(rig.Window));
+        Assert.Single(LogicalTree.Find<QrView>(rig.Window.Content)); Assert.Contains("WXYZ-1234", Texts(rig.Window)); Assert.Contains("QRST5678ABCD1234", Texts(rig.Window));
+        Assert.Contains(SeatLinkText.CodeLabel, Texts(rig.Window)); Assert.Contains(SeatLinkText.SecretLabel, Texts(rig.Window)); Assert.Contains(SeatLinkText.Type, Texts(rig.Window));   // both values with their labels, both ways written
         Assert.Contains(Texts(rig.Window), text => text.EndsWith("まで（JST）", StringComparison.Ordinal));
         Assert.Contains(rig.Server.Sent, call => call.Method == "POST" && call.Path == "/api/approvals/seat-link/start");
         Assert.Contains(LogicalTree.Find<Button>(rig.Window.Content), button => button.Content as string == SeatLinkText.Cancel);   // 「やめる」 while it waits
