@@ -100,14 +100,15 @@ test('the MCP tools are the body\'s own Bot only, never a fork, and run through 
   daemon.start()
   await until(async () => (await daemon.status()).reachable)
   for (const tool of approvalBoxDaemonTools) assert.ok(bellTeamTools.some(item => item.name === tool.name))
-  await assert.rejects(callApprovalBoxDaemonTool({ name: 'approval_box_pair', from: 'bot-someone-else', approvalBoxDaemon: daemon }), { code: 'APPROVAL_BOX_DAEMON_NOT_ALLOWED' })
-  await assert.rejects(callApprovalBoxDaemonTool({ name: 'approval_box_pair', from: APPROVAL_BOX_PAIRING_BOT, fork: true, approvalBoxDaemon: daemon }), { code: 'APPROVAL_BOX_DAEMON_NOT_ALLOWED' })
-  await assert.rejects(callApprovalBoxDaemonTool({ name: 'approval_box_pair', from: APPROVAL_BOX_PAIRING_BOT, approvalBoxDaemon: null }), { code: 'APPROVAL_BOX_DAEMON_UNAVAILABLE' })
+  await assert.rejects(callApprovalBoxDaemonTool({ name: 'approval_box_daemon_status', from: 'bot-someone-else', approvalBoxDaemon: daemon }), { code: 'APPROVAL_BOX_DAEMON_NOT_ALLOWED' })
+  await assert.rejects(callApprovalBoxDaemonTool({ name: 'approval_box_daemon_status', from: APPROVAL_BOX_PAIRING_BOT, fork: true, approvalBoxDaemon: daemon }), { code: 'APPROVAL_BOX_DAEMON_NOT_ALLOWED' })
+  await assert.rejects(callApprovalBoxDaemonTool({ name: 'approval_box_daemon_status', from: APPROVAL_BOX_PAIRING_BOT, approvalBoxDaemon: null }), { code: 'APPROVAL_BOX_DAEMON_UNAVAILABLE' })
   const status = await callApprovalBoxDaemonTool({ name: 'approval_box_daemon_status', args: {}, from: APPROVAL_BOX_PAIRING_BOT, approvalBoxDaemon: daemon })
   assert.equal(status.daemon.mode, 'not_paired')
-  const { waiting } = await callApprovalBoxDaemonTool({ name: 'approval_box_pair', args: { rebind: true }, from: APPROVAL_BOX_PAIRING_BOT, approvalBoxDaemon: daemon })
-  assert.equal(waiting.rebind, true)
-  await assert.rejects(callApprovalBoxDaemonTool({ name: 'approval_box_pair', args: { extra: 1 }, from: APPROVAL_BOX_PAIRING_BOT, approvalBoxDaemon: daemon }))
+  // the pairing tools are retired: P3 is the pairing, and a retired name is not a tool
+  assert.ok(!bellTeamTools.some(item => /^approval_box_pair/u.test(item.name)))
+  await assert.rejects(callApprovalBoxDaemonTool({ name: 'approval_box_pair', args: {}, from: APPROVAL_BOX_PAIRING_BOT, approvalBoxDaemon: daemon }), /TOOL_NOT_FOUND/u)
+  await assert.rejects(callApprovalBoxDaemonTool({ name: 'approval_box_daemon_status', args: { extra: 1 }, from: APPROVAL_BOX_PAIRING_BOT, approvalBoxDaemon: daemon }))
 })
 
 test('the egress probe answers ok only for a STUN reply with the same transaction id, and times out otherwise', async () => {
