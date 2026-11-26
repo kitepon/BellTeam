@@ -113,7 +113,8 @@ Every state leaves by a command this module runs (`--off`), never by waiting for
 | 2 | Molly | pairing reports **Bound** (the Owner's iPhone steps above) |
 | 3a | Delta | container seats: `install-runtime` pc.5, `use-hosted --socket /srv/bellteam/state/approval-box-hosted.sock` |
 | 3b | Molly | one registration pass on the entry named in section 6 (Delta tells her; she adds it) |
-| 3c | Delta | rabbit, Mac, fox: `use-hosted --socket <host door>` (a door exists only while a seat runs there; on fox use runtime pc.5) |
+| 3c | Delta | rabbit, Mac: `use-hosted --socket <host door>` (a door exists only while a seat runs there) |
+| 3d | Delta | fox and any Windows seat: the same on the pipe, runtime pc.5, only after Krust's `door-pipe-owner-check` is done (Tronie 2026-11-26: a Windows door could hand the seat bearer to a pipe squatted by another local account); chart `a516e-use-hosted-fox-delta` |
 | 4 | Delta | first real request: a BellTeam seat files one request; the card is on the Owner's iPhone; his answer returns to the seat; `list_my_decisions` reads it answered |
 | 5 | Delta | one result to Tronie, with what was checked and what was not |
 
@@ -129,7 +130,8 @@ The entry is the one the runtime itself names: E2's `approval-box` item already 
 | --- | --- | --- |
 | Daemon not paired when a seat is switched | 503 `not_paired` on every request tool of that host | `use-hosted --off` (Delta); the switch is not run before Bound |
 | No host door (no seat running on that host) | the connector answers `door_unavailable` and retries (10 s in its tools, 2 s by its daemon) | the next launch or resume registers the door (Krust) |
-| Another local user opens the fox pipe | Windows lets Everyone open a pipe read-only; a read-only client cannot write a request line, and the door closes a client that does not finish one, so nothing is filed or read through it (Tronie ruling 2026-11-26: no DACL change, the fox step does not wait; task `a516e-fox-door-dacl` retired) | Krust's door closes it at 30 s |
+| Another local user opens the fox pipe | Windows lets Everyone open a pipe read-only; a read-only client cannot write a request line, and the door closes a client that does not finish one, so nothing is filed or read through it (Tronie ruling 2026-11-26: no DACL change; task `a516e-fox-door-dacl` retired) | Krust's door closes it at 30 s |
+| Another local account owns the pipe name first (squatting) | the Windows door must not hand the seat bearer to a pipe it does not own; until Krust's `door-pipe-owner-check` is done the fox step does not run (rabbit, Mac and the container are unaffected) | Krust |
 | Request filed, no card on the iPhone | the check fails; the seat is switched back with `--off`; the cause goes to the owner of the failing box | Delta reports, owner repairs |
 
 Protected by these steps: the seat bearer and decision content (never copied by this module), the wrong target (a seat is switched only to the door named for its host class). No other guard is added.
