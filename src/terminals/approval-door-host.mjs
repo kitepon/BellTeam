@@ -2,6 +2,7 @@
 // Runs only as `node approval-box-door.mjs serve|register`, on the host, as the seat's user. Node built-ins only: this whole
 // text travels to the host inside the launch's post_launch hook (approval-door.mjs), so it imports nothing of BellTeam.
 import net from 'node:net'
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -18,11 +19,58 @@ const SWEEP_MS = 30_000
 // A client that has not finished its request line in this time is closed (Windows: Everyone may open a pipe read-only).
 const IDLE_MS = 30_000
 const CONTROL = '{"bellteam_door":'
+// How long a peer has to prove itself before it counts as a stranger (a local pipe answers in milliseconds).
+const HELLO_MS = 1000
 // What the detached door keeps of the hook's environment: never the seat's private values.
 const KEEP_ENV = ['HOME', 'USERPROFILE', 'USER', 'USERNAME', 'LOGNAME', 'PATH', 'Path', 'PATHEXT', 'SystemRoot', 'SYSTEMROOT', 'windir', 'ComSpec', 'COMSPEC', 'TEMP', 'TMP', 'TMPDIR', 'LANG', 'LC_ALL']
 
 export const doorAddress = (platform = process.platform, home = os.homedir(), user = os.userInfo().username) =>
   platform === 'win32' ? `\\\\.\\pipe\\bellteam-approval-box-door-${user.replace(/[^A-Za-z0-9_.-]/g, '_')}` : path.posix.join(home, '.bellteam', 'approval-box-door.sock')
+
+const privateFile = name => path.join(os.homedir(), '.bellteam', name)
+export const keyPath = () => privateFile('approval-box-door.key')
+export const addrPath = () => privateFile('approval-box-door.addr')
+const KEY = /^[0-9a-f]{64}$/
+
+// The host user's private key that proves a door (Windows pipe names are predictable and any local account may create one).
+// Written to a temp file and linked into place, so two starters agree on one key and a reader never sees half of it.
+export function loadKey(file = keyPath()) {
+  const read = () => { try { const key = fs.readFileSync(file, 'utf8').trim(); return KEY.test(key) ? key : null } catch { return null } }
+  const known = read()
+  if (known) return known
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 })
+  const temp = `${file}.${process.pid}.${crypto.randomBytes(4).toString('hex')}`
+  try {
+    fs.writeFileSync(temp, crypto.randomBytes(32).toString('hex'), { mode: 0o600 })
+    try { fs.linkSync(temp, file) } catch (error) { if (error.code !== 'EEXIST') throw error }
+  } finally { fs.rmSync(temp, { force: true }) }
+  const key = read()
+  if (!key) throw new Error('the door key file is not readable')
+  return key
+}
+const proofOf = (key, nonce) => crypto.createHmac('sha256', key).update(nonce).digest('hex')
+
+// 'proved' = a door of this user answered with the right proof; 'absent' = nothing listens; 'stranger' = something else
+// (another account's pipe, an older door without hello, a hang, a refused open). Sends the hello only, never a secret.
+export const proveDoor = (address, key, timeoutMs = HELLO_MS) => new Promise(resolve => {
+  const nonce = crypto.randomBytes(16).toString('hex')
+  let reply = '', done = false
+  const socket = net.connect(address)
+  const finish = result => { if (done) return; done = true; clearTimeout(timer); socket.destroy(); resolve(result) }
+  const timer = setTimeout(() => finish('stranger'), timeoutMs)
+  socket.setEncoding('utf8')
+  socket.once('error', error => finish(error.code === 'ENOENT' || error.code === 'ECONNREFUSED' ? 'absent' : 'stranger'))
+  socket.once('connect', () => socket.write(`{"bellteam_door":"hello","nonce":"${nonce}"}\n`))
+  socket.on('data', chunk => {
+    reply += chunk
+    if (!reply.includes('\n')) { if (reply.length > 4096) finish('stranger'); return }
+    let proof = null
+    try { proof = JSON.parse(reply).proof } catch {}
+    const want = Buffer.from(proofOf(key, nonce)), got = Buffer.from(typeof proof === 'string' ? proof : '')
+    finish(want.length === got.length && crypto.timingSafeEqual(want, got) ? 'proved' : 'stranger')
+  })
+  socket.once('end', () => finish('stranger'))
+})
 
 // A small non-secret record next to the program (session names, ports, exit codes, reasons; never a bearer), because a detached
 // door and an exit-0 hook have no other way to say why a seat got no door (fox 2026-11-23). Capped; never throws.
@@ -49,7 +97,7 @@ export const runAlive = (alive, env) => new Promise(resolve => {
 
 export class Door {
   seats = new Map()
-  constructor(check = runAlive, send = fetch, log = () => {}) { this.check = check; this.send = send; this.log = log }
+  constructor(check = runAlive, send = fetch, log = () => {}, key = null) { this.check = check; this.send = send; this.log = log; this.key = key }
 
   // A new registration replaces the session's old bearer at once (one token per session name, RS02); the newest is tried first.
   register(session, port, bearer, alive, env) {
@@ -95,6 +143,9 @@ export class Door {
     const invalid = () => errorLine(400, 'APPROVAL_DOOR_REGISTER_INVALID', 'not a valid registration')
     try {
       const message = JSON.parse(line)
+      if (message.bellteam_door === 'hello') {
+        return this.key && typeof message.nonce === 'string' && /^[0-9a-f]{32}$/.test(message.nonce) ? JSON.stringify({ ok: true, proof: proofOf(this.key, message.nonce) }) : invalid()
+      }
       if (message.bellteam_door !== 'register' || typeof message.session !== 'string' || !message.session || message.session.length > 128
         || !Number.isInteger(message.port) || message.port < 1 || message.port > 65535
         || typeof message.authorization !== 'string' || !BEARER.test(message.authorization) || !validAlive(message.alive)) return invalid()
@@ -133,29 +184,42 @@ function listen(server, address) {
   })
 }
 
-// Whether something already answers at the address (another door, or a stale file when it does not).
-const answers = address => new Promise(resolve => {
-  const probe = net.connect(address)
-  probe.once('connect', () => { probe.destroy(); resolve(true) })
-  probe.once('error', () => resolve(false))
-})
-
 // Starts serving; resolves to null when another door already holds the address. Closes and calls onEmpty when no seat counts.
-export async function serveDoor(door, address = doorAddress(), onEmpty = () => {}, sweepMs = SWEEP_MS, idleMs = IDLE_MS) {
+// guarded (Windows): a peer on the default name that gives no proof is a stranger, never a door; this door then serves on a fresh
+// unpredictable name and records it in the private address file (the self-exit of that guard: the seat keeps working).
+export async function serveDoor(door, address = doorAddress(), onEmpty = () => {}, sweepMs = SWEEP_MS, idleMs = IDLE_MS, guarded = process.platform === 'win32', addrFile = addrPath()) {
   door.log(`serve start address=${address}`)
   if (process.platform !== 'win32') fs.mkdirSync(path.dirname(address), { recursive: true, mode: 0o700 })
   const server = net.createServer({ allowHalfOpen: true }, socket => serveConnection(door, socket, idleMs))
+  let bound = address
   try { await listen(server, address) } catch (error) {
     if (error.code !== 'EADDRINUSE') throw error
-    if (await answers(address)) return null
-    if (process.platform !== 'win32') fs.rmSync(address, { force: true }) // a stale file from a door that died
-    await listen(server, address)
+    const held = guarded ? await proveDoor(address, door.key) : await new Promise(resolve => {
+      const probe = net.connect(address)
+      probe.once('connect', () => { probe.destroy(); resolve('proved') })
+      probe.once('error', () => resolve('absent'))
+    })
+    if (held === 'proved') return null
+    if (held === 'stranger') {
+      bound = `${address}-${crypto.randomBytes(8).toString('hex')}`
+      door.log('the default address is held by a peer that did not prove itself; serving on a fresh address')
+      await listen(server, bound)
+      const temp = `${addrFile}.${process.pid}`
+      fs.writeFileSync(temp, bound, { mode: 0o600 })
+      fs.renameSync(temp, addrFile)
+    } else {
+      if (process.platform !== 'win32') fs.rmSync(address, { force: true }) // a stale file from a door that died
+      await listen(server, address)
+    }
   }
+  const ownAddr = () => { try { return fs.readFileSync(addrFile, 'utf8').trim() === bound } catch { return false } }
+  if (guarded && bound === address) fs.rmSync(addrFile, { force: true }) // a stale pointer to a door that is gone
   // The listening server keeps the door process alive; the sweep must not keep a test process alive.
   const timer = setInterval(async () => {
     if (await door.sweep() !== 0) return
     door.log('exit: no registered seat counts'); clearInterval(timer); server.close()
     if (process.platform !== 'win32') fs.rmSync(address, { force: true })
+    if (bound !== address && ownAddr()) fs.rmSync(addrFile, { force: true })
     onEmpty()
   }, sweepMs)
   timer.unref()
@@ -210,7 +274,8 @@ export function bearerOf(env) {
 
 // The post_launch hook of a launch or resume. A seat with no bearer, no forward port or no alive check has no door and still works,
 // so this reports and never throws (Aiterm never fails a launch for the hook either).
-export async function registerFromEnv(env = process.env, address = doorAddress(), tries = 24, log = () => {}) {
+// guarded (Windows): the register line goes only to an address whose door proved itself with the user's key (address file first, then the default name).
+export async function registerFromEnv(env = process.env, address = doorAddress(), tries = 24, log = () => {}, { guarded = process.platform === 'win32', key, addrFile = addrPath(), start = startDoor } = {}) {
   const port = Number(env.AITERM_SEAT_FORWARD_PORT)
   let alive = null
   try { alive = JSON.parse(env.AITERM_SESSION_ALIVE ?? 'null') } catch {}
@@ -225,9 +290,18 @@ export async function registerFromEnv(env = process.env, address = doorAddress()
   const begun = Date.now()
   let started = false, last = null
   for (let attempt = 0; attempt < tries && Date.now() - begun < 6500; attempt++) {
-    try { await sendControl(address, line); log(`register sent (${env.AITERM_HOOK_EVENT ?? 'event unknown'}) session=${env.AITERM_SESSION_ID} port=${port}`); return true } catch (error) {
+    try {
+      let target = address
+      if (guarded) {
+        const mine = key ?? loadKey()
+        let alt = null
+        try { alt = fs.readFileSync(addrFile, 'utf8').trim() } catch {}
+        target = alt && await proveDoor(alt, mine) === 'proved' ? alt : await proveDoor(address, mine) === 'proved' ? address : null
+        if (!target) throw new Error('no door at the default or the recorded address proved itself')
+      }
+      await sendControl(target, line); log(`register sent (${env.AITERM_HOOK_EVENT ?? 'event unknown'}) session=${env.AITERM_SESSION_ID} port=${port}`); return true } catch (error) {
       last = error
-      if (!started) { startDoor(); started = true }
+      if (!started) { start(); started = true }
       await new Promise(resolve => setTimeout(resolve, 250))
     }
   }
@@ -239,7 +313,7 @@ export async function registerFromEnv(env = process.env, address = doorAddress()
 const here = fileURLToPath(import.meta.url)
 if (process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(here)) {
   if (process.argv[2] === 'serve') {
-    serveDoor(new Door(runAlive, fetch, writeLog), doorAddress(), () => process.exit(0)).then(server => { if (!server) process.exit(0) }, error => {
+    serveDoor(new Door(runAlive, fetch, writeLog, process.platform === 'win32' ? loadKey() : null), doorAddress(), () => process.exit(0)).then(server => { if (!server) process.exit(0) }, error => {
       process.stderr.write(`bellteam approval door: ${error instanceof Error ? error.message : String(error)}\n`); process.exit(1)
     })
   } else if (process.argv[2] === 'register') {

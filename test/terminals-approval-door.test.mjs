@@ -2,13 +2,13 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import http from 'node:http'
 import net from 'node:net'
-import { mkdtemp, rm, readFile } from 'node:fs/promises'
+import { mkdtemp, rm, readFile, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFile, spawn } from 'node:child_process'
 import { promisify } from 'node:util'
 import { atLeast, doorHook, DOOR_MIN_AITERM } from '../src/terminals/approval-door.mjs'
-import { Door, bearerOf, registerFromEnv, serveDoor, doorAddress, writeLog, windowsStart } from '../src/terminals/approval-door-host.mjs'
+import { Door, bearerOf, registerFromEnv, serveDoor, doorAddress, writeLog, windowsStart, loadKey, proveDoor } from '../src/terminals/approval-door-host.mjs'
 import { createTerminalConnection } from '../src/terminals/connection.mjs'
 import { fakeNative, fakeSecrets } from './helpers/terminals-native-double.mjs'
 
@@ -185,4 +185,93 @@ test('the alive check runs with the environment the hook registered (a door star
   assert.deepEqual(seen[0], { TEMP: 'C:\\Temp', TMP: 'C:\\Temp' })
   await door.handle(JSON.stringify({ ...base, env: { TEMP: 5 } })); await door.sweep()
   assert.equal(seen[1], undefined, 'a malformed env is ignored, not trusted')
+})
+
+// Windows pipe squatting: the pipe name is predictable and any local account may create it first. These run on unix sockets with guarded:true.
+const squatter = async (address, answer = null) => {
+  const received = []
+  const server = net.createServer(socket => { socket.setEncoding('utf8').on('data', chunk => { received.push(chunk); if (answer) socket.write(answer) }).on('error', () => {}) })
+  await new Promise(resolve => server.listen(address, resolve))
+  return { received, server }
+}
+const guardedEnv = port => ({ AITERM_SESSION_ID: 'bot-x-1', AITERM_SEAT_FORWARD_PORT: String(port), AITERM_SESSION_ALIVE: JSON.stringify(['x']), BELLTEAM_MCP_TOKEN: 'A'.repeat(43) })
+
+test('loadKey: one private key per host user, the same for every starter', async t => {
+  const home = await mkdtemp(join(tmpdir(), 'door-key-'))
+  t.after(() => rm(home, { recursive: true, force: true }))
+  const file = join(home, '.bellteam', 'approval-box-door.key')
+  const keys = await Promise.all([1, 2, 3, 4].map(async () => loadKey(file)))
+  assert.match(keys[0], /^[0-9a-f]{64}$/)
+  assert.deepEqual(new Set(keys).size, 1)
+  assert.equal(loadKey(file), keys[0])
+  assert.equal(((await stat(file)).mode & 0o777).toString(8), '600')
+})
+
+test('proveDoor: a door with the key proves itself; silence, garbage, a wrong key and an older door are strangers; nothing listening is absent', async t => {
+  const home = await mkdtemp(join(tmpdir(), 'door-prove-'))
+  t.after(() => rm(home, { recursive: true, force: true }))
+  const key = 'a'.repeat(64), address = join(home, 'door.sock')
+  assert.equal(await proveDoor(address, key, 200), 'absent')
+  const real = await serveDoor(new Door(async () => 0, fetch, () => {}, key), address, () => {}, 60_000, 2000, true, join(home, 'addr'))
+  t.after(() => real.close())
+  assert.equal(await proveDoor(address, key, 500), 'proved')
+  assert.equal(await proveDoor(address, 'b'.repeat(64), 500), 'stranger', 'a different key does not prove')
+  const old = join(home, 'old.sock')
+  const older = await serveDoor(new Door(async () => 0), old, () => {}, 60_000, 2000, false)
+  t.after(() => older.close())
+  assert.equal(await proveDoor(old, key, 500), 'stranger', 'a door without hello is not trusted')
+  const mute = join(home, 'mute.sock'), s1 = await squatter(mute)
+  t.after(() => s1.server.close())
+  assert.equal(await proveDoor(mute, key, 200), 'stranger')
+  assert.deepEqual(s1.received.join('').trim().split('\n').length, 1, 'only the hello line reached it')
+  const liar = join(home, 'liar.sock'), s2 = await squatter(liar, '{"ok":true,"proof":"' + '0'.repeat(64) + '"}\n')
+  t.after(() => s2.server.close())
+  assert.equal(await proveDoor(liar, key, 500), 'stranger')
+})
+
+test('guarded registration: a stranger on the default name gets only the hello; the door serves on a fresh address and the seat registers there', async t => {
+  const home = await mkdtemp(join(tmpdir(), 'door-squat-'))
+  const route = http.createServer((request, response) => { request.resume().on('end', () => response.end('{"ok":true}\n')) })
+  await new Promise(resolve => route.listen(0, '127.0.0.1', resolve))
+  t.after(async () => { route.close(); await rm(home, { recursive: true, force: true }) })
+  const key = 'c'.repeat(64), address = join(home, 'door.sock'), addrFile = join(home, 'door.addr')
+  const stranger = await squatter(address)
+  t.after(() => stranger.server.close())
+  const door = new Door(async () => 1, fetch, () => {}, key)
+  const log = []
+  // the hook finds only the stranger: it must send nothing but the hello, then ask for a door to be started
+  let started = 0
+  assert.equal(await registerFromEnv(guardedEnv(route.address().port), address, 1, line => log.push(line), { guarded: true, key, addrFile, start: () => { started++ } }), false)
+  assert.equal(started, 1)
+  assert.equal(stranger.received.join('').includes('authorization'), false, 'the bearer never reached the stranger')
+  assert.equal(stranger.received.join('').includes('A'.repeat(43)), false)
+  // the door that start() would have launched
+  let emptied = false
+  const server = await serveDoor(door, address, () => { emptied = true }, 20, 2000, true, addrFile)
+  t.after(() => server.close())
+  const fresh = (await readFile(addrFile, 'utf8')).trim()
+  assert.notEqual(fresh, address)
+  assert.match(fresh, /-[0-9a-f]{16}$/)
+  assert.equal(((await stat(addrFile)).mode & 0o777).toString(8), '600')
+  assert.equal(await registerFromEnv(guardedEnv(route.address().port), address, 3, () => {}, { guarded: true, key, addrFile, start: () => assert.fail('a door answers; none is started') }), true)
+  assert.equal(door.size, 1)
+  assert.equal(stranger.received.join('').includes('authorization'), false, 'still nothing but hellos at the stranger')
+  // the door's seats die: it exits and removes its pointer, so nothing stale is left
+  for (let i = 0; i < 50 && !emptied; i++) await new Promise(resolve => setTimeout(resolve, 20))
+  assert.equal(emptied, true)
+  await assert.rejects(readFile(addrFile), { code: 'ENOENT' })
+})
+
+test('guarded door: a stale address file is replaced when the default name is free; a door that proves itself is joined, not duplicated', async t => {
+  const home = await mkdtemp(join(tmpdir(), 'door-stale-'))
+  t.after(() => rm(home, { recursive: true, force: true }))
+  const key = 'd'.repeat(64), address = join(home, 'door.sock'), addrFile = join(home, 'door.addr')
+  await writeFile(addrFile, join(home, 'gone.sock'))
+  const door = new Door(async () => 0, fetch, () => {}, key)
+  const server = await serveDoor(door, address, () => {}, 60_000, 2000, true, addrFile)
+  t.after(() => server.close())
+  await assert.rejects(readFile(addrFile), { code: 'ENOENT' })
+  assert.equal(await serveDoor(new Door(async () => 0, fetch, () => {}, key), address, () => {}, 60_000, 2000, true, addrFile), null, 'a second door finds the first and steps aside')
+  assert.equal(await registerFromEnv(guardedEnv(1), address, 3, () => {}, { guarded: true, key, addrFile, start: () => assert.fail('the door answers') }), true)
+  assert.equal(door.size, 1)
 })
