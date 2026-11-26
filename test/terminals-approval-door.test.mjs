@@ -224,6 +224,12 @@ test('proveDoor: a door with the key proves itself; silence, garbage, a wrong ke
   t.after(() => s1.server.close())
   assert.equal(await proveDoor(mute, key, 200), 'stranger')
   assert.deepEqual(s1.received.join('').trim().split('\n').length, 1, 'only the hello line reached it')
+  // a stranger on another name that relays the hello to the real door gets that door's proof, which is bound to the real address
+  const relayAddress = join(home, 'relay.sock')
+  const relay = net.createServer(client => { const upstream = net.connect(address); client.pipe(upstream); upstream.pipe(client); client.on('error', () => upstream.destroy()); upstream.on('error', () => client.destroy()) })
+  await new Promise(resolve => relay.listen(relayAddress, resolve))
+  t.after(() => relay.close())
+  assert.equal(await proveDoor(relayAddress, key, 500), 'stranger', 'a relayed proof is for the real address, not the relay')
   const liar = join(home, 'liar.sock'), s2 = await squatter(liar, '{"ok":true,"proof":"' + '0'.repeat(64) + '"}\n')
   t.after(() => s2.server.close())
   assert.equal(await proveDoor(liar, key, 500), 'stranger')
