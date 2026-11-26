@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+"""Administer the authentication module (operators listed in policy.admins). Container socket only; store stays Sakura's tool."""
+import argparse, json, os, socket, sys
+
+SOCK = os.environ.get("AUTH_SOCK") or "/srv/bellteam/shared/tools/auth-mediation/container.sock"
+
+
+def ask(verb, args=None):
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    s.settimeout(60)
+    try:
+        s.connect(SOCK)
+    except OSError:
+        sys.exit("The authentication module is not running.")
+    s.sendall((json.dumps({"op": "admin", "verb": verb, "args": args or {}}) + "\n").encode())
+    resp = json.loads(s.makefile().readline())
+    if resp.get("outcome") != "ok":
+        sys.exit(resp.get("error", "Refused."))
+    return resp
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__)
+    sub = p.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("show")
+    for name in ("grant", "revoke"):
+        s = sub.add_parser(name)
+        who = s.add_mutually_exclusive_group(required=True)
+        who.add_argument("--bot", help="seat Bot ID (container)")
+        who.add_argument("--unit", help="folder of a main-server unit")
+        s.add_argument("command", help='the item name = the command as typed, one quoted string, e.g. "gh release list -R a/b"')
+        s.add_argument("--cwd", help="restrict the grant to this folder")
+        if name == "grant":
+            s.add_argument("--until", help="ISO 8601 with offset")
+    for name in ("stop", "resume", "flush"):
+        s = sub.add_parser(name)
+        s.add_argument("command", nargs="?" if name == "flush" else None)
+    sub.add_parser("token-set", help="read the 1Password read token from stdin")
+    sub.add_parser("token-clear")
+    s = sub.add_parser("import", help="import an old broker policy.json (v1)")
+    s.add_argument("--host", required=True, choices=["container", "main-server"])
+    s.add_argument("file")
+    a = p.parse_args()
+    if a.cmd == "show":
+        policy = ask("show")["policy"]
+        for kind, key in (("bot", "bots"), ("unit", "units")):
+            for who, entry in policy[key].items():
+                for g in entry["grants"]:
+                    print(json.dumps({kind: who, "grant": g}))
+        for c in policy["stopped"]:
+            print(json.dumps({"stopped": c}))
+    elif a.cmd in ("grant", "revoke"):
+        args = {"command": a.command, **({"bot": a.bot} if a.bot else {"unit": a.unit}), **({"cwd": a.cwd} if a.cwd else {})}
+        if a.cmd == "grant" and a.until:
+            args["expires"] = a.until
+        ask(a.cmd, args)
+        print(json.dumps({"change": a.cmd, "command": a.command}))
+    elif a.cmd in ("stop", "resume", "flush"):
+        ask(a.cmd, {"command": a.command} if a.command else {})
+        print(json.dumps({"change": a.cmd, "command": a.command}))
+    elif a.cmd == "token-set":
+        value = sys.stdin.read().strip()
+        if not value:
+            sys.exit("No token on stdin.")
+        ask("token.set", {"value": value})
+        print(json.dumps({"change": "token.set"}))
+    elif a.cmd == "token-clear":
+        ask("token.clear")
+        print(json.dumps({"change": "token.clear"}))
+    else:
+        with open(a.file) as f:
+            print(json.dumps({"change": "import", "count": ask("import", {"policy": json.load(f), "host": "container" if a.host == "container" else "host"})["count"]}))
+
+
+if __name__ == "__main__":
+    main()

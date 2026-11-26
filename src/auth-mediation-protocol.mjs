@@ -28,7 +28,8 @@ export function validateAuthMediationRequest(method, params, context) {
     && (params.args === undefined || words(params.args, 256, 8192)) && (params.botId === undefined || botId(params.botId))
     && (params.unit === undefined || path(params.unit)) && (params.timeoutSec === undefined || Number.isInteger(params.timeoutSec) && params.timeoutSec >= 1 && params.timeoutSec <= 3600)
     && (params.via === 'mcp' ? params.botId !== undefined : true))
-  else if (method === 'admin') check(authMediationObject(params, ['botId', 'verb'], ['args']) && botId(params.botId) && VERBS.includes(params.verb)
+  else if (method === 'admin') check(authMediationObject(params, ['verb'], ['args', 'botId', 'cwd']) && (params.botId === undefined) !== (params.cwd === undefined)
+    && (params.botId === undefined || botId(params.botId)) && (params.cwd === undefined || path(params.cwd)) && VERBS.includes(params.verb)
     && (params.args === undefined || params.args && typeof params.args === 'object' && !Array.isArray(params.args)))
   else check(authMediationObject(params, []))
 }

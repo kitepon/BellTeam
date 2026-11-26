@@ -23,7 +23,7 @@ async function fixture({ token = true } = {}) {
     realpath: async p => p,
     runOp: async args => { assert.equal(args[2], 'node app.mjs'); return ok } })
   const effect = async (method, params) => {
-    if (method === 'members.roots') return { roots: { 'bot-a': '/srv/bellteam/bots/bot-a' } }
+    if (method === 'members.roots') return { roots: { 'bot-a': '/srv/bellteam/bots/bot-a', 'bot-admin': '/srv/bellteam/bots/bot-admin' } }
     if (method === 'secret.get') return stored === null ? { unavailable: true } : { value: stored }
     if (method === 'secret.put') { stored = params.value; return { stored: true } }
     if (method === 'secret.erase') { stored = null; return { erased: true } }
@@ -81,4 +81,13 @@ test('MCP tool: one fixed command, the seat Bot ID comes from the seat, not the 
   let seen
   await authMediationToolHandlers.auth_exec({ args: { command: ['a'], botId: 'bot-evil', timeout_sec: 5 }, from: 'bot-a', authExec: input => { seen = input } })
   assert.deepEqual(seen, { botId: 'bot-a', command: ['a'], args: [], cwd: undefined, timeoutSec: 5 })
+})
+
+test('admin by peer cwd: the Bot is the registered root that contains it', async () => {
+  const f = await fixture()
+  assert.equal((await f.call('admin', { cwd: '/srv/bellteam/bots/bot-admin/tools', verb: 'show' })).outcome, 'ok')
+  assert.equal((await f.call('admin', { cwd: '/srv/bellteam/bots/bot-a', verb: 'show' })).outcome, 'denied')
+  assert.equal((await f.call('admin', { cwd: '/tmp', verb: 'show' })).outcome, 'denied')
+  bad(() => validateAuthMediationRequest('admin', { verb: 'show', cwd: '/x', botId: 'bot-a' }, { generation }))
+  bad(() => validateAuthMediationRequest('admin', { verb: 'show' }, { generation }))
 })

@@ -1,6 +1,7 @@
 import { appendFile } from 'node:fs/promises'
 import { createAuthCore } from './core.mjs'
 import { createItemCache, opRunner } from './items.mjs'
+import { botForCwd } from './identity.mjs'
 import { createPolicyStore } from './policy.mjs'
 import { redact } from './redact.mjs'
 
@@ -29,7 +30,10 @@ export function createAuthMediationService({ policyPath, auditPath, opExe, appen
       const out = clip(redact(run.stdout, result.env)), err = clip(redact(run.stderr, result.env))
       return { outcome: 'granted', exit_code: run.exitCode, stdout: out.text, stderr: err.text, truncated: run.truncated || out.cut || err.cut || run.timedOut, cache: result.cache }
     }),
-    admin: (params, effect) => within(effect, async () => {
+    admin: (input, effect) => within(effect, async () => {
+      // The container socket sends the peer cwd; the Bot is the registered root that contains it (same rule as a script caller).
+      const params = { ...input, botId: input.botId ?? botForCwd((await effect('members.roots', {})).roots, input.cwd) }
+      if (!params.botId) return { outcome: 'denied', error: 'The caller is not registered.' }
       if (params.verb === 'token.set' || params.verb === 'token.clear') {
         if (!(await core.admin(params.botId, 'show')).policy) return { outcome: 'denied', error: 'Not an administrator.' }
         const value = params.args?.value

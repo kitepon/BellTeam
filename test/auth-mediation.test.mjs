@@ -76,8 +76,8 @@ test('v1 import keeps every grant exactly as narrow (decision equivalence with t
   assert.throws(() => importV1(emptyPolicy(), { bots: [{ root: '/etc', grants: [] }] }, 'container'), /AUTH_IMPORT_ROOT/u)
 })
 
-test('env rules: env return keeps labels, run path is strict; redaction', async () => {
-  assert.deepEqual(envReturn({ A_B: '1', credential: ' t ', lower: 'x', 'file:F': 'p', 'ssh-key': 'k' }, 'gh'), { A_B: '1', GH_TOKEN: 't', 'file:F': 'p', 'ssh-key': 'k' })
+test('env rules: only VAR labels and credential leave, run path is strict; redaction', async () => {
+  assert.deepEqual(envReturn({ A_B: '1', credential: ' t ', lower: 'x', 'file:F': 'p', 'ssh-key': 'k' }, 'gh'), { A_B: '1', GH_TOKEN: 't' })
   assert.deepEqual(runEnv({ API_KEY: SECRET }, 'node'), { API_KEY: SECRET })
   assert.equal(runEnv({ PATH: '/x' }, 'node'), null); assert.equal(runEnv({ BELLTEAM_X: '1' }, 'node'), null)
   assert.equal(runEnv({ 'file:F': 'p' }, 'node'), null); assert.equal(runEnv({}, 'node'), null)
