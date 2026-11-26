@@ -256,7 +256,7 @@ public sealed class ApprovalsWindowTests
         Press(Find(rig.Window, "link")); Until(() => Texts(rig.Window).Contains(SeatLinkText.None));
         Assert.Contains(SeatLinkText.Title, Texts(rig.Window)); Assert.Empty(LogicalTree.Find<QrView>(rig.Window.Content));
         Press(Find(rig.Window, "seat-link:go"));
-        Until(() => Texts(rig.Window).Contains(SeatLinkText.Steps));
+        Until(() => Texts(rig.Window).Contains(SeatLinkText.Scan));
         Assert.Single(LogicalTree.Find<QrView>(rig.Window.Content)); Assert.Contains("WXYZ-1234-QRST-5678", Texts(rig.Window));
         Assert.Contains(Texts(rig.Window), text => text.EndsWith("まで（JST）", StringComparison.Ordinal));
         Assert.Contains(rig.Server.Sent, call => call.Method == "POST" && call.Path == "/api/approvals/seat-link/start");
@@ -280,7 +280,7 @@ public sealed class ApprovalsWindowTests
         Press(Find(rig.Window, "link")); Until(() => Texts(rig.Window).Contains(line));
         Assert.Contains(state == "removed" ? "つなぎが外れています" : "つなげませんでした", Texts(rig.Window));   // gray for removed, red for failed
         Press(Find(rig.Window, "seat-link:go"));   // もう一度つなぐ starts again
-        Until(() => Texts(rig.Window).Contains(SeatLinkText.Steps));
+        Until(() => Texts(rig.Window).Contains(SeatLinkText.Scan));
     });
 
     [Fact]
