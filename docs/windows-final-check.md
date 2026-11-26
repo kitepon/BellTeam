@@ -400,3 +400,9 @@ AI CLIの導入画面（a451、#1942）をMacの実装に合わせた0.6.2（#19
 - スモーク（`--smoke-test` 本番）: 成功。ok=true、bots=144、rooms=9、SSE接続あり。
 - 画面の確認: 実際のWPF窓を模擬サーバー上で動かすテスト（Lattice関連48件、新規5件）と、`--render-lattice reminders|reminders-on|reminders-save-fails|reminders-old` の描画（歯車・オフ/オン・保存失敗の行・旧サーバーの行）。
 - 確認できていない: 本番サーバーへの実際の読み書き。本番の工程表設定は書いておらず、読みもしていない（オーナー設定を動かさないため）。
+
+## Windows 0.9.3 の導入（login-billing 0.24.1 のa540実機セッション向けビルド、2026-11-26 14:1x JST、アニス）
+
+- 導入元: main `8003708b`（#2616。ピンは #2613）。`scripts/install-windows.ps1 -NoLaunch -SkipShareTarget -GoogleDesktopOAuthRef op://…`（foxの対話ユーザーfox\kite_で実行）。導入したexeの版は `0.9.3+8003708b07d9901608aed8791ebc6fc8f88080ea`。導入したDLLは Kitepon.ApprovalBox.Client 0.5.4（`1E161842E2B0`）、Kitepon.LoginBilling.Desktop 0.24.1（`1E5DFA4FF135`）。`BellTeam.dll`にGoogle Desktopクライアントの秘密が35文字（値は表示していない）。試験導入のみで、公開はしていない。
+- スモーク（`--smoke-test` 本番）: 成功。ok=true、bots=144、rooms=9、SSE接続あり。
+- 確認できていない: 0.24.1での実サインイン（a540の実機セッションで行う）。
