@@ -2,14 +2,16 @@ using System.Net;
 
 namespace BellTeam.Core;
 
-// 「AIの許可待ちを決裁箱へ送る」: the body pairs once as a connector of the Owner's Approval Box account, by the Owner's QR scan (docs/architecture/modules/approval-box-extension/seat-approval-card.md, "The pairing view").
+// 「決裁箱につなぐ」: the body's one pairing with the Owner's Approval Box account, by the Owner's QR scan or the two typed codes (docs/architecture/modules/approval-box-extension/seat-approval-card.md, "The pairing view", fourth version).
 // Drawn only from the body routes GET /api/approvals/seat-link, POST …/start, POST …/stop; the same view and words on every client. Never a token, never a path to Approval Box.
 public sealed record SeatLink
 {
     /// <summary>none | waiting | linked | removed | failed | unavailable (the client's: the route could not be read) | absent (the client's: the body has no such route, 404; the view is not drawn).</summary>
     public string State { get; init; } = "unavailable";
-    /// <summary>The typed code shown beside the QR (Delta #2544: the route has no typedSecret; the released pair --json --v1 waiting line carries none).</summary>
+    /// <summary>「コード」 shown beside the QR: 8 characters, e.g. ABCD-EFGH.</summary>
     public string? Code { get; init; }
+    /// <summary>「確認コード」 shown beside the QR: 16 characters. Without it the app claims the pairing but binds no key, so the view always shows it with the code.</summary>
+    public string? TypedSecret { get; init; }
     /// <summary>The text the QR draws.</summary>
     public string? QrText { get; init; }
     public DateTimeOffset? ExpiresAt { get; init; }
@@ -21,10 +23,12 @@ public sealed record SeatLink
 
 public static class SeatLinkText
 {
-    public const string Title = "AIの許可待ちを決裁箱へ送る", Connect = "つなぐ", Again = "もう一度つなぐ", Cancel = "やめる";
-    public const string None = "AIが許可を待って止まった時、決裁箱のアプリに届きます。つなぐのは1回だけです。",
-        Steps = "決裁箱のアプリで、接続 → 「AIをつなぐ」 → 「QRコードを読む」を開き、このQRコードを読んで、許可してください。",
-        Linked = "つながっています。AIが許可待ちで止まると、決裁箱に届きます。",
+    public const string Title = "決裁箱につなぐ", Connect = "つなぐ", Again = "もう一度つなぐ", Cancel = "やめる", CodeLabel = "コード", SecretLabel = "確認コード";
+    public const string None = "BellTeamのAIが決裁箱に出す申請と、AIが許可待ちで止まった時の連絡が、決裁箱のアプリに届きます。つなぐのは1回だけです。",
+        // waiting shows both ways: Scan is Line(waiting); Type goes under it (QR cannot be read on the screen it is shown on)
+        Scan = "このQRコードが別の画面に出ている時は、決裁箱のアプリで、接続 → 「AIをつなぐ」 → 「QRコードを読む」を開いて読み、許可してください。",
+        Type = "QRコードを読めない時は、「AIをつなぐ」の「コードを確認」にコードを入れ、次の画面の16文字のコードの欄に確認コードを入れて、「つなぐ」を押してください。",
+        Linked = "つながっています。AIの申請と、許可待ちの連絡が、決裁箱に届きます。",
         Removed = "決裁箱でつなぎが外されています。もう一度つないでください。",
         Rejected = "決裁箱のアプリで「心当たりがない」が押されました。",
         Expired = "許可の待ち時間が過ぎました。もう一度つないでください。",
@@ -33,7 +37,7 @@ public static class SeatLinkText
     /// <summary>The plain line of a state (the contract's table). Only failed and unavailable are for a red line (<see cref="IsFailure"/>).</summary>
     public static string Line(SeatLink link) => link.State switch
     {
-        "none" => None, "waiting" => Steps, "linked" => Linked, "removed" => Removed,
+        "none" => None, "waiting" => Scan, "linked" => Linked, "removed" => Removed,
         "failed" => link.Reason switch { "rejected" => Rejected, "expired" => Expired, _ => Unavailable },
         _ => Unavailable,
     };
