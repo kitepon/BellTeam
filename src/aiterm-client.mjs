@@ -12,7 +12,7 @@ import { ListToolsResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { runtimeEnvironment, runtimeEnvironmentKeys, runtimeHome } from './runtime-home.mjs'
 import { returnedExecutionError, ERROR_META } from './execution-error.mjs'
-import { ERROR_CODE_META, errorCode, LAUNCH_ERROR_META, authenticationPreflightFailure, launchRefusal, resumeUnavailable } from './agent-launch-error.mjs'
+import { ERROR_CODE_META, errorCode, LAUNCH_ERROR_META, authenticationPreflightFailure, launchRefusal, resumeUnavailable, startupScreenExcerpt } from './agent-launch-error.mjs'
 import { captureMcpRequest } from './mcp-request-context.mjs'
 import { captureMcpError } from './returned-mcp-error.mjs'
 import { configurationConnection, configurationError, markConfigurationNotIssued, CONFIGURATION_SCHEMA } from './configuration-request.mjs'
@@ -278,6 +278,8 @@ export class AitermClient {
       if (['agent_launch', 'claude_agent'].includes(name)) {
         const refusal = launchRefusal(result._meta?.[LAUNCH_ERROR_META])
         if (refusal) Object.assign(error, { code: refusal.code, launchRefusal: refusal })
+        const excerpt = startupScreenExcerpt(result._meta?.[LAUNCH_ERROR_META]?.startup_screen_excerpt)
+        if (excerpt) error.startupScreenExcerpt = excerpt
         // Aiterm < 0.70.0 put the auth refusal in structuredContent; >= 0.70.0 puts it in _meta.
         const preflight = authenticationPreflightFailure(result.structuredContent) ?? authenticationPreflightFailure(refusal)
         if (preflight) {

@@ -4,7 +4,7 @@ import { pathToFileURL } from 'node:url'
 import test from 'node:test'
 import { diagnosticRequestContext } from '../src/diagnostic-request-context.mjs'
 import { captureMcpError } from '../src/returned-mcp-error.mjs'
-import { launchRefusal } from '../src/agent-launch-error.mjs'
+import { launchRefusal, startupScreenExcerpt } from '../src/agent-launch-error.mjs'
 
 const secret = 'synthetic-private-value'
 const launch = { cwd: '/synthetic-seat', prompt: secret }
@@ -71,4 +71,13 @@ test('seat launch fields: validated launchRefusal survives the fixed boundary, i
   assert.deepEqual(launchRefusal(value.launchRefusal), refusal)
   const invalid = await crossBoundary(Object.assign(new Error('synthetic refusal'), { launchRefusal: { ...refusal, session_created: true } }))
   assert.equal(invalid.launchRefusal, undefined)
+})
+
+test('seat launch fields: the startup screen excerpt survives the boundary as plain capped text only', async () => {
+  const screen = 'Select login method\n1. Claude account'
+  const value = await crossBoundary(Object.assign(new Error('synthetic refusal'), { startupScreenExcerpt: screen + '\u001b\u0000' }))
+  assert.equal(value.startupScreenExcerpt, screen)
+  assert.equal((await crossBoundary(Object.assign(new Error('synthetic refusal'), { startupScreenExcerpt: { text: secret } }))).startupScreenExcerpt, undefined)
+  assert.equal(startupScreenExcerpt('x'.repeat(4000)).length, 3000)
+  assert.equal(startupScreenExcerpt(' \u0000 '), null)
 })
