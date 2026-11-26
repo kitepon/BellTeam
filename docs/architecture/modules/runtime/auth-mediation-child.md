@@ -106,7 +106,8 @@ Every state leaves by a child exit, the shared backoff or `close()`; none waits 
 | --- | --- | --- |
 | 1 (this page) | docs only | main |
 | 2 O2 (in code, abx PR "O2 runner") | `src/seat-command.mjs` (`validateSecretEnv`, spec flag `--env-stdin`), `src/seat-process.mjs` (option `secretEnv`), `src/run-seat-command.mjs` (reads exactly one stdin line, validates again, merges for the command only), `test/seat-process.test.mjs` | body |
-| 3 facade, effects, process | `src/auth-mediation-facade.mjs`, `src/auth-mediation-effects.mjs`, `src/auth-mediation-process.mjs`, assembly in `application-services.mjs`, update adapters, `module.json` rows | body |
+| 3a facade and effects (in code, inert until 3b wires them) | `src/auth-mediation-facade.mjs` (roots `resolve` / `admin` / `status`; fills the seat's project root as cwd; a dead child answers `outcome: error`, never a direct 1Password read), `src/auth-mediation-effects.mjs` (`members.roots`, `secret.get/put/erase` on the fixed scope, `seat.run` through the O2 runner with the Bot root as project and `env --chdir` below it, outputs cut at 64 KiB, `timedOut` on abort), `test/auth-mediation-parent.test.mjs` | body |
+| 3b process and framework | `src/auth-mediation-process.mjs`, the component name in `module-process.mjs` / `module-release.mjs` / `web-gateway-release.mjs`, the fixed start binary (`scripts/auth-mediation-start.c`, Dockerfile), install / package / verify scripts, artifact file list, update adapters and assembly in `application-services.mjs`, catalog row | body + module row (Rai's signed asset) |
 | 4 sockets | container socket and host socket mount | body |
 | 5 MCP and registration | registration of Rai's `auth_exec` in the shared list; E2 item only if Rai publishes a separate entry | body (+ members row if the E2 list or common rules change) |
 
