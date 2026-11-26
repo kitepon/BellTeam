@@ -69,6 +69,13 @@ int main(int argc, char **argv) {
         || !same(&info, &linked)) return fail();
     if (dup2(writer, 5) != 5) return fail();
     close(writer);
+#ifdef MODULE_STATE_ENV
+    /* The child's own folder under the state root, created 0700 here (the child reads its path from MODULE_STATE_ENV and writes only there). */
+    if (mkdirat(state, MODULE_NAME, 0700) && errno != EEXIST) return fail();
+    int folder = openat(state, MODULE_NAME, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    if (folder < 0 || fstat(folder, &info) || info.st_uid != SERVER_UID || info.st_gid != SERVER_UID || (info.st_mode & 07777) != 0700) return fail();
+    close(folder);
+#endif
     char root[512], entry[560];
     int size = builtin ? snprintf(root, sizeof(root), "%s", BUILTIN_ROOT)
         : snprintf(root, sizeof(root), "%s/" MODULE_NAME "/releases/%s/payload", PRIVATE_ROOT, argv[1]);
@@ -77,6 +84,9 @@ int main(int argc, char **argv) {
     if (clearenv() || setenv("PATH", "/usr/local/bin:/usr/bin:/bin", 1)
         || setenv("HOME", "/run/bellteam-server", 1) || setenv("NODE_CHANNEL_FD", "3", 1)
         || setenv("NODE_CHANNEL_SERIALIZATION_MODE", "advanced", 1)) return fail();
+#ifdef MODULE_STATE_ENV
+    if (setenv(MODULE_STATE_ENV, STATE_ROOT "/" MODULE_NAME, 1)) return fail();
+#endif
 #ifdef MODULE_PRESERVE_NOTES
     if (notes && setenv("BELLTEAM_DIAGNOSTIC_INVESTIGATIONS", notes, 1)) return fail();
     free(notes);

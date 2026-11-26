@@ -4,6 +4,7 @@ import { createAuthMediationEffects, AUTH_MEDIATION_TOKEN_SCOPE, SEAT_RUN_OUTPUT
 import { createAuthMediationFacade } from '../src/auth-mediation-facade.mjs'
 import { createSeatProcessRunner } from '../src/seat-process.mjs'
 import { validateAuthMediationEffect, validateAuthMediationEffectResult } from '../src/auth-mediation-protocol.mjs'
+import { bellTeamTools, callBellTeamTool } from '../src/mcp-tools.mjs'
 
 const bots = { listForClient: async () => [{ id: 'bot-aaa' }, { id: 'Bad Id' }, { id: 'bot-bbb' }], projectPath: id => `/srv/bellteam/bots/${id}` }
 const credentialsFake = (state = {}) => ({
@@ -92,4 +93,17 @@ test('seat.run through the real runner and sudo: value arrives in the environmen
   assert.deepEqual([out.exitCode, out.stdout, out.timedOut], [0, 'real-path-value|/tmp', false])
   const slow = await effect('seat.run', { botId: 'bot-aaa', cwd: '/tmp', argv: ['sleep', '30'], env: {}, timeoutMs: 1000 })
   assert.equal(slow.timedOut, true)
+})
+
+test('auth_exec is a seat MCP tool: listed, the Bot ID is the caller (never an argument), fork seats are refused, a module that is not serving answers outcome error', async () => {
+  assert.ok(bellTeamTools.some(tool => tool.name === 'auth_exec'))
+  const registry = { refresh: async () => {}, get: id => ({ id }) }
+  const seen = []
+  const facade = createAuthMediationFacade({ controller: { request: async (method, params) => (seen.push([method, params]), { outcome: 'granted', exit_code: 0, stdout: 'ok', stderr: '', truncated: false }) }, bots })
+  const out = await callBellTeamTool({ registry, name: 'auth_exec', arguments: { command: ['gh', 'release', 'list'], args: ['-R', 'o/r'], timeout_sec: 30 }, from: 'bot-aaa', fork: false, authMediation: () => facade })
+  assert.equal(out.outcome, 'granted')
+  assert.deepEqual(seen[0], ['resolve', { command: ['gh', 'release', 'list'], args: ['-R', 'o/r'], cwd: '/srv/bellteam/bots/bot-aaa', via: 'mcp', botId: 'bot-aaa', timeoutSec: 30 }])
+  await assert.rejects(callBellTeamTool({ registry, name: 'auth_exec', arguments: { command: ['gh'] }, from: 'bot-aaa', fork: true, authMediation: () => facade }), { code: 'AUTH_MEDIATION_NOT_ALLOWED' })
+  assert.equal(seen.length, 1)
+  assert.deepEqual(await callBellTeamTool({ registry, name: 'auth_exec', arguments: { command: ['gh'] }, from: 'bot-aaa', fork: false }), { outcome: 'error', error: 'the authentication module is not running' })
 })

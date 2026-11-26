@@ -106,7 +106,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     // SK01: engines without the registry have no fork seats.
     forkSeat: name => typeof transport.forkSeat === 'function' ? transport.forkSeat(name) : null,
     assertWorkAllowed: () => aiControl.assertEnabled(),
-    tools: { registry: bots, botView: bot => administration.view(bot), messenger, store, rooms, roomMessenger, memory, ownerProfile, userRules, bugHubSecurity: createBugHubSecurity({ root }), terminals: () => services.terminals, terminalKeys: () => services.terminalKeys, runningExclusions: () => services.runningExclusions, approvalBoxDaemon: () => services.approvalBoxDaemon, internalUrl: `http://127.0.0.1:${internalPort}`, lattice: services.lattice, ...internalApi(internalPort) },
+    tools: { registry: bots, botView: bot => administration.view(bot), messenger, store, rooms, roomMessenger, memory, ownerProfile, userRules, bugHubSecurity: createBugHubSecurity({ root }), terminals: () => services.terminals, terminalKeys: () => services.terminalKeys, runningExclusions: () => services.runningExclusions, approvalBoxDaemon: () => services.approvalBoxDaemon, authMediation: () => services.authMediation, internalUrl: `http://127.0.0.1:${internalPort}`, lattice: services.lattice, ...internalApi(internalPort) },
     callBridge: () => {
       const config = settings.configuration('callBridge')
       return config.enabled ? { url: config.url, headersFile: callBridgeHeaders } : null

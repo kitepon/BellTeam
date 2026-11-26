@@ -17,7 +17,8 @@ export function createAuthMediationFacade({ controller, bots }) {
     // T2a / T2b: the sockets. The socket code supplies the peer's cwd (container) or the client's folder (host); the child matches it exactly to a registered root or unit.
     containerSocket: ({ command, args = [], cwd }) => resolve({ command, args, cwd, via: 'container-socket' }),
     hostSocket: ({ command, args = [], cwd, unit }) => resolve({ command, args, cwd, via: 'host-socket', unit: unit ?? cwd }),
-    admin: ({ botId, verb, args }) => call('admin', clean({ botId, verb, args })).catch(() => ({ outcome: 'error', error: NOT_RUNNING })),
+    // The container socket sends the peer cwd (the child finds the Bot from the registered roots); the MCP-side callers send a Bot ID. Exactly one of the two.
+    admin: ({ botId, cwd, verb, args }) => call('admin', clean({ botId, cwd, verb, args })).catch(() => ({ outcome: 'error', error: NOT_RUNNING })),
     status: () => call('status', {}).catch(() => ({ state: 'unavailable' })),
   }
 }
