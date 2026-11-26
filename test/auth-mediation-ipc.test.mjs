@@ -42,7 +42,8 @@ test('protocol shapes are exact', () => {
   bad(() => validateAuthMediationRequest('resolve', { command: [], cwd: '/x', via: 'host-socket' }, { generation }))
   bad(() => validateAuthMediationRequest('resolve', { command: ['a'], cwd: 'x', via: 'host-socket' }, { generation }))
   bad(() => validateAuthMediationRequest('resolve', { command: ['a'], cwd: '/x', via: 'host-socket', extra: 1 }, { generation }))
-  bad(() => validateAuthMediationRequest('admin', { botId: 'bot-a', verb: 'drop' }, { generation }))
+  validateAuthMediationRequest('admin', { botId: 'bot-a', verb: 'drop' }, { generation }) // an unknown verb is answered by the child, not rejected as unavailable
+  bad(() => validateAuthMediationRequest('admin', { botId: 'bot-a', verb: 'Drop;' }, { generation }))
   validateAuthMediationEffect('seat.run', { botId: 'bot-a', cwd: '/x', argv: ['a'], env: { A: '1' }, timeoutMs: 1000 })
   bad(() => validateAuthMediationEffect('seat.run', { botId: 'bot-a', cwd: '/x', argv: ['a'], env: { A: '1' }, timeoutMs: 5 }))
   bad(() => validateAuthMediationEffect('secret.put', { value: '' }))
@@ -90,4 +91,10 @@ test('admin by peer cwd: the Bot is the registered root that contains it', async
   assert.equal((await f.call('admin', { cwd: '/tmp', verb: 'show' })).outcome, 'denied')
   bad(() => validateAuthMediationRequest('admin', { verb: 'show', cwd: '/x', botId: 'bot-a' }, { generation }))
   bad(() => validateAuthMediationRequest('admin', { verb: 'show' }, { generation }))
+})
+
+test('unknown admin verb: denied for a non-admin, a plain error for an admin', async () => {
+  const f = await fixture()
+  assert.equal((await f.call('admin', { botId: 'bot-a', verb: 'drop' })).outcome, 'denied')
+  assert.deepEqual(await f.call('admin', { botId: 'bot-admin', verb: 'drop' }), { outcome: 'error', error: 'Unknown verb.' })
 })
