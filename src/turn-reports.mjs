@@ -31,7 +31,7 @@ export class TurnReports {
   async check({ botId, context, startedAt, endedAt }) {
     const bot = this.bots.get(botId)
     if (!bot) return null
-    const { ownerView, memberMessages } = turnView(await this.store.entries(), { botId, startedAt, endedAt, names: id => this.bots.get(id)?.name ?? id, rows: this.streamRows(botId) })
+    const { ownerView, memberMessages } = turnView(await this.store.turnEntries(botId, startedAt, endedAt), { botId, startedAt, endedAt, names: id => this.bots.get(id)?.name ?? id, rows: this.streamRows(botId) })
     const shown = ownerView.progress_notes.length || ownerView.messages_to_owner.length || ownerView.final_message
     // ルームの発言はオーナーもルームで読める。黙る指示に従ったターンも漏れではない。
     if (!shown && context !== 'room') return this.requestReport(bot, 'missing', [])

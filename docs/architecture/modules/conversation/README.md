@@ -10,6 +10,7 @@
 
 - [独立processの業務境界と状態互換](process.md)（固定契約v1に沿って実装中）
 - [クラッシュ後の直接JSONL追記境界](log-append.md)
+- [直接会話ログの読取り: 常駐は索引だけ、本文はfileから読む history-store](history-store.md)（mem-conversation-store、2026-11-26）
 
 - [会話・履歴・SSEの流れ](flow.md)
 - [受付と回答所有、保存画像、部屋の配送](delivery.md)
