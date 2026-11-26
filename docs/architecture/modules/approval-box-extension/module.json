@@ -45,6 +45,7 @@
   "parentSource": [
     "src/approval-box-daemon.mjs",
     "src/approval-box-seats-socket.mjs",
-    "src/approval-box-port.mjs"
+    "src/approval-box-port.mjs",
+    "src/approval-box-entries.mjs"
   ]
 }

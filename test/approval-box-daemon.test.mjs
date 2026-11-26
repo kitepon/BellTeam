@@ -45,7 +45,7 @@ async function setup(t, { missing = false } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'abd-'))
   const entry = join(root, 'cli.mjs')
   if (!missing) await writeFile(entry, FAKE)
-  const daemon = createApprovalBoxDaemon({ root, entry })
+  const daemon = createApprovalBoxDaemon({ root, entry, entries: { start() {}, close() {}, publish: async () => ({ ok: false }) } })
   t.after(async () => { await daemon.close(); await rm(root, { recursive: true, force: true }) })
   return { root, entry, daemon }
 }

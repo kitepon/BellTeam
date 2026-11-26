@@ -6,6 +6,7 @@ import { chmod, mkdir, readFile } from 'node:fs/promises'
 import { connect as netConnect, createConnection } from 'node:net'
 import { join } from 'node:path'
 import { createSeatsSocket } from './approval-box-seats-socket.mjs'
+import { createSeatEntryPublisher } from './approval-box-entries.mjs'
 import { createChildStderrLog, createModuleChildRestart } from './module-child-restart.mjs'
 
 // Hosted Approval Box connector daemon (docs/architecture/modules/runtime/approval-box-daemon.md, a490h).
@@ -96,11 +97,13 @@ const safeLine = line => {
 const isWaiting = line => (line?.type ?? line?.event ?? line?.state) === 'waiting'
 
 export function createApprovalBoxDaemon({ root, entry = DAEMON_ENTRY, node = process.execPath, server = APPROVAL_BOX_SERVER, spawn = nodeSpawn,
-  connect = createConnection, onModuleRestartLimit, now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout, exists = existsSync, egress = egressCheck } = {}) {
+  connect = createConnection, onModuleRestartLimit, now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout, exists = existsSync, egress = egressCheck, entries = null } = {}) {
   const home = join(root, 'state', 'approval-box-daemon')
   const socketPath = join(home, 'state', 'pc', 'daemon.sock')
   // a514m: the seats' door (a relay; the daemon's own directory stays 0700). `seatsReady` is shown in status so a failed listen is visible before the sitting.
   let seatsReady = false
+  // P5 (approval-box-entries.mjs): the seat entry file the body's registration reads; started and closed with the connector.
+  const seatEntries = entries ?? createSeatEntryPublisher({ file: join(root, 'state', 'approval-box-extension', 'harness-entries.json') })
   const seats = createSeatsSocket({ path: join(root, 'state', SEATS_SOCKET), target: socketPath, available: () => exists(entry) })
   const stderrLog = createChildStderrLog(join(root, 'state', 'approval-box-daemon-stderr.jsonl'))
   const env = () => ({ PATH: '/usr/local/bin:/usr/bin:/bin', LANG: 'C.UTF-8', HOME: home, APPROVAL_BOX_HOME: home, APPROVAL_BOX_SERVER: server })
@@ -225,6 +228,7 @@ export function createApprovalBoxDaemon({ root, entry = DAEMON_ENTRY, node = pro
       if (started || closed || !exists(entry)) return
       started = true
       seats.start().then(() => { seatsReady = !closed }, () => {})
+      seatEntries.start()
       launch().catch(() => { if (!closed) recovery.lost() })
     },
     async status({ withEgress = false } = {}) {
@@ -293,6 +297,7 @@ export function createApprovalBoxDaemon({ root, entry = DAEMON_ENTRY, node = pro
       if (closed) return
       closed = true
       recovery.close()
+      seatEntries.close()
       seatsReady = false
       clearTimer(run?.timer)
       await Promise.all([stopChild(child), stopChild(run?.process), stopChild(linkRun?.process), seats.close()])
@@ -317,6 +322,7 @@ export function createApprovalBoxDaemon({ root, entry = DAEMON_ENTRY, node = pro
     if (run && ['failed', 'ended'].includes(run.state)) return { state: 'failed', reason: pairingReason() ?? (run.state === 'failed' ? 'unavailable' : 'ended') }
     return wasLinked ? { state: 'removed' } : { state: 'none' }
   }
+  controller.entries = seatEntries
   controller.pairing = {
     get: pairingView,
     async start() {
