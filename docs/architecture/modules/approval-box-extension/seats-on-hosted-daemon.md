@@ -125,7 +125,7 @@ Source: `node /srv/bellteam/shared/tools/assign-owner/who-owns.mjs --uses approv
 | lattice: `connector /v1` (`createLatticeDecisions`, own secret pair) | Flora | P1 `file/read/cancel` with `origin: lattice`; the secret pair retires | Flora |
 | integration: `connector /v1` (`approval-box-parent-facade`) | Molly | it is the hosting of this module (P4); no direct connector call remains | Molly |
 | runtime: `harness-entries (approval-box)` | Molly | stays a seat-registration contract, now fed by P5 | Molly points the E2 item at the module's E1 when it exists |
-| usage: `connection export --json` | Mika | the module calls the export itself and keeps the result through P7 | Mika drops the direct call |
+| usage: `connection export --json` | Mika | the module calls the export itself and keeps the result through P7 (Nayuta confirmed 2026-11-26: it returns `{schema approval-box.connection.v1, server, token}`, the /v1 connection bearer; the module uses it for the connection's identity and server only, never to file or read decision content, because the /v1 content routes close on 2026-12-12) | Mika drops the direct call |
 
 ## 6. Files, claimed by exactly one module
 
@@ -144,8 +144,8 @@ The claim is made here first (diagrams first). `module.json` `source` and `provi
 
 | Step | Who | Done when |
 | --- | --- | --- |
-| 0 | Delta, Molly, Kiro, Flora, Mika | the module takes the daemon files and publishes P1, P2, P3, P5; each owner moves only their own side (section 5) |
-| 1 | Nayuta | open /v1 decisions cleared, `PC_OFFER` on |
+| 0 | Delta, Molly, Kiro, Flora, Mika | the module takes the daemon files and publishes P1, P2, P3, P5; each owner moves only their own side (section 5). **Kiro's seat cards are on P1 and the `pair --json --v1` link (#2545) is retired before step 1**: once `PC_OFFER` is on the apps stop showing /v1 decisions, so a card filed through the old link would not be seen (Nayuta) |
+| 1 | Nayuta | open /v1 decisions cleared, `PC_OFFER` on (never before step 0 is done for the seat cards) |
 | 2 | Owner | one QR on his iPhone through P3 (the pairing view) until the state reads **Linked** |
 | 3 | Delta | container seats: `install-runtime` pc.5, `use-hosted --socket /srv/bellteam/state/approval-box-hosted.sock`; then rabbit and Mac on each host's door (a door exists only while a seat runs there) |
 | 4 | Molly | after Delta's message "install done": one on-demand registration pass (her script backs up the seat files first; only approval-box lines are expected) |
@@ -169,7 +169,7 @@ Protected: the seat bearer and decision content (never copied by a caller), the 
 
 ## 9. Open points for the owners (Delta asks, each answers in one message)
 
-- Nayuta: the one pairing is the connector's `pair` that hosts the daemon; confirm it also lets the module file decisions (the card Kiro files) through the hosted daemon's peer channel, so no second token and no `pair --v1` link remain.
+- Nayuta: **confirmed 2026-11-26**. The connector's `pair` (8-character code + QR) makes the one connection the hosted daemon uses; with `PC_OFFER` on, the daemon files every decision over the peer channel, Kiro's seat cards included; no second token and no `pair --v1` link remain (`--v1` exists only for a server without peer_channel). The /v1 content routes close on 2026-12-12 (approval-box k12), so the seat-card link must be moved onto P1 before `PC_OFFER` goes on and then retired.
 - Mika: confirm the `connection export` call can sit inside this module with the result kept through the `secrets` port.
 - Kiro, Flora: confirm the P1 shape (`file(decision, origin)`, `read`, `cancel`, `capabilities`, `connection`) covers what you call today; say what is missing before it is built.
 - Molly: confirm the P4 split (body supervises the module; the module supervises the connector daemon) and the E1 hand-over.
