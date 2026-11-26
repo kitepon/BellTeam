@@ -1,10 +1,13 @@
 import Foundation
 
-/// 「AIの許可待ちを決裁箱へ送る」 (seat-approval-card.md, the pairing view). Drawn only from the body's three routes GET /api/approvals/seat-link, POST …/start, POST …/stop; the same view and words on every client. Never a token, never a path to Approval Box.
+/// 「決裁箱につなぐ」 (seat-approval-card.md fourth version, the pairing view). Drawn only from the body's three routes GET /api/approvals/seat-link, POST …/start, POST …/stop; the same view and words on every client. Never a token, never a path to Approval Box.
 struct SeatLink: Decodable, Equatable {
     /// none | waiting | linked | removed | failed, plus the client's own: unavailable (the route could not say) and absent (the body has no such route, 404: nothing is drawn).
     var state: String
+    /// 8 characters (ABCD-EFGH), typed into 「コードを確認」.
     var code: String?
+    /// 16 characters, typed into the next screen: without it the pairing makes no key binding.
+    var typedSecret: String?
     var qrText: String?
     var expiresAt: Date?
     /// failed: rejected | expired | other.
@@ -14,16 +17,17 @@ struct SeatLink: Decodable, Equatable {
     static let unavailable = SeatLink(state: "unavailable")
     var waiting: Bool { state == "waiting" && !(qrText ?? "").isEmpty }
 
-    init(state: String, code: String? = nil, qrText: String? = nil, expiresAt: Date? = nil, reason: String? = nil) {
-        self.state = state; self.code = code; self.qrText = qrText; self.expiresAt = expiresAt; self.reason = reason
+    init(state: String, code: String? = nil, typedSecret: String? = nil, qrText: String? = nil, expiresAt: Date? = nil, reason: String? = nil) {
+        self.state = state; self.code = code; self.typedSecret = typedSecret; self.qrText = qrText; self.expiresAt = expiresAt; self.reason = reason
     }
 
-    private enum Keys: String, CodingKey { case state, code, qrText, expiresAt, reason }
+    private enum Keys: String, CodingKey { case state, code, typedSecret, qrText, expiresAt, reason }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: Keys.self)
         state = try c.decode(String.self, forKey: .state)
         code = try c.decodeIfPresent(String.self, forKey: .code)
+        typedSecret = try c.decodeIfPresent(String.self, forKey: .typedSecret)
         qrText = try c.decodeIfPresent(String.self, forKey: .qrText)
         reason = try c.decodeIfPresent(String.self, forKey: .reason)
         expiresAt = try c.decodeIfPresent(String.self, forKey: .expiresAt).flatMap(Self.date)
@@ -37,10 +41,13 @@ struct SeatLink: Decodable, Equatable {
 
 /// The contract's table, word for word (the same on every client).
 enum SeatLinkWords {
-    static let title = "AIの許可待ちを決裁箱へ送る"
-    static let none = "AIが許可を待って止まった時、決裁箱のアプリに届きます。つなぐのは1回だけです。"
-    static let steps = "決裁箱のアプリで、接続 → 「AIをつなぐ」 → 「QRコードを読む」を開き、このQRコードを読んで、許可してください。"
-    static let linked = "つながっています。AIが許可待ちで止まると、決裁箱に届きます。"
+    static let title = "決裁箱につなぐ"
+    static let none = "BellTeamのAIが決裁箱に出す申請と、AIが許可待ちで止まった時の連絡が、決裁箱のアプリに届きます。つなぐのは1回だけです。"
+    static let stepsQR = "このQRコードが別の画面に出ている時は、決裁箱のアプリで、接続 → 「AIをつなぐ」 → 「QRコードを読む」を開いて読み、許可してください。"
+    static let stepsTyped = "QRコードを読めない時は、「AIをつなぐ」の「コードを確認」にコードを入れ、次の画面の16文字のコードの欄に確認コードを入れて、「つなぐ」を押してください。"
+    static let codeLabel = "コード"
+    static let secretLabel = "確認コード"
+    static let linked = "つながっています。AIの申請と、許可待ちの連絡が、決裁箱に届きます。"
     static let removed = "決裁箱でつなぎが外されています。もう一度つないでください。"
     static let rejected = "決裁箱のアプリで「心当たりがない」が押されました。"
     static let expired = "許可の待ち時間が過ぎました。もう一度つないでください。"
@@ -60,7 +67,7 @@ enum SeatLinkWords {
     static func line(_ link: SeatLink) -> String {
         switch link.state {
         case "none": none
-        case "waiting": steps
+        case "waiting": stepsQR + "\n" + stepsTyped
         case "linked": linked
         case "removed": removed
         case "failed": link.reason == "rejected" ? rejected : link.reason == "expired" ? expired : unavailable
