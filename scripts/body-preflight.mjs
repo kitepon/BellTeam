@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url'
 
 const control = '/run/bellteam-maintenance'
 // usage/diagnostics/conversation/work-graph/lattice/approval-box-extension fall back to builtin on a state-format mismatch (module-process, #822).
-const FALLBACK = new Set(['usage', 'diagnostics', 'conversation', 'work-graph', 'lattice', 'approval-box-extension'])
+const FALLBACK = new Set(['usage', 'diagnostics', 'conversation', 'work-graph', 'lattice', 'approval-box-extension', 'auth-mediation'])
 const COMPONENTS = ['members', 'memory', 'notifications', 'web-gateway', 'execution', ...FALLBACK]
 
 export function classifyRelease(component, role, code) {
