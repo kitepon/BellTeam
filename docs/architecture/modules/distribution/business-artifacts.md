@@ -1,4 +1,4 @@
-# usage・diagnostics・work-graph・lattice・approval-box-extensionの固定配布
+# usage・diagnostics・work-graph・lattice・approval-box-extension・auth-mediationの固定配布
 
 配布センチ。業務はMika/Signal、reader・固定C・controllerは[Epi](../runtime/module-release.md)、親assemblyと通常mainはMolly。既archive/公式OIDC/root設置/catalogの閉集合へusage・diagnostics・work-graph（相関図、業務Black、親Molly）・lattice（Lattice工程表、業務Flora、親Molly）・approval-box-extension（決裁箱拡張、業務Delta、親Molly）だけを追加する。
 
@@ -10,7 +10,7 @@ flowchart LR
   Atomic --> Pack
   Pack --> Archive[完全inventory / P1 / 本人実互換]
   Archive --> Probe[無作用又は人工状態 / 固定C1001 / OS終端]
-  Probe --> Sign[component専用main OIDC / publish-usage・publish-diagnostics・publish-work-graph・publish-lattice・publish-approval-box-extension]
+  Probe --> Sign[component専用main OIDC / publish-usage・publish-diagnostics・publish-work-graph・publish-lattice・publish-approval-box-extension・publish-auth-mediation]
   Sign --> Root[既検証 / private SHとcomponent EX / NOREPLACE]
   Root --> Reader[Epi完全inventory reader]
   Reader --> Generation[本人wrapper / 共通controller / 親assembly]
@@ -25,6 +25,7 @@ work-graphはBUSINESS_FILES['work-graph']の固定closure（entryから到達す
 latticeはBUSINESS_FILES['lattice']の固定closure（entryから到達する全src: entry/dispatcher/ipc/locks/protocol/lattice/core・cli・projectionと共通module-ipc/locks/streams、package/lock）で、state fileを持たない（stateCompatibility {state:'none'}）。body専用のlattice/http-api・mcpは収録しない。package/lockだけは本体rootのものではなく、同source commitの`distribution/lattice/package.json`・`package-lock.json`で置き換えてから同じ`npm ci --omit=dev`を実行し、`@quolu/lattice`とその依存（tree-sitter-wasms・web-tree-sitterの`.wasm`を含む）だけを収録する。本体rootの依存へは足さない。`@quolu/lattice`の版は`todo display source/read`入りの最小版0.85.5に固定する。署名前probeはscripts/probe-lattice-runtime.mjsで、人工state/logsだけを準備し、親probeの補助srcはwork-graphと同じ一時親directoryに置く。
 
 approval-box-extensionはBUSINESS_FILES['approval-box-extension']の固定closure（entryから到達する全src: entry/dispatcher/ipc/locks/protocol/approval-box-extension/client・connect-state・core・entitlement・link-plan・origin-viewと共通module-ipc/locks/streams、本体rootのpackage/lock）で、state fileは子自身のlinks.jsonだけ（stateCompatibility {state:'none'}）。親側のparent-process/effects/facadeと、body常駐のapproval-box-extension/http-api.mjsは収録しない。npm依存は使わない（node組込のみ）が、既componentと同じくpackage/lockの`npm ci --omit=dev`を通す。署名前probeはscripts/probe-approval-box-extension-runtime.mjsで、effectは常に拒否する人工親だけを置き、本人の無引数probeでready/initialize/resume/quiesce/exit/OScloseを確認する（ネットワークも決裁箱の資格も使わない）。実互換はapproval-box-extension-protocol.mjsのAPPROVAL_BOX_EXTENSION_STATE_COMPATIBILITYへ一致させる。catalogの行と更新一覧(/api/updates)のcomponentIdは`approval-box-extension`。親assemblyは[runtime/approval-box-extension-child.md](../runtime/approval-box-extension-child.md)の第4・5弾。
+auth-mediation（認証仲介、Rai）はBUSINESS_FILES['auth-mediation']の固定closure（entryから到達する全src: entry/dispatcher/ipc/protocol/auth-mediation/{core,env,identity,items,policy,redact,service}とmodule-ipc/module-streams、package/lockは本体のroot）。座席のMCP道具 `src/auth-mediation/mcp.mjs` と待ち受け `scripts/auth-mediation/relay.py` は本体側（親）の部品で、署名付きarchiveに入れない（親は本体imageに持つ）。stateCompatibilityは `{state:'policy-v2'}`（`AUTH_MEDIATION_STATE_COMPATIBILITY`）。固定C入口は `bellteam-auth-mediation-start`（module-start.cの `MODULE_STATE_ENV` で `state/auth-mediation` を0700で作り `AUTH_MEDIATION_STATE` を渡す）。
 
 実互換はusage/state-compatibility.mjs、work-graph-protocol.mjs、lattice-protocol.mjs、approval-box-extension-protocol.mjs又はdiagnostics-protocol.mjsの本人exportへ一致させ、Node26/P1、catalog stateSchemaとcontainerUpdateはnull。別のstate番号は作らない。署名policyは各専用workflowのrefs/heads/main、repositoryId1404510084、source/signer/archiveを固定。検証前のarchive JavaScript実行は禁止し、信頼済imageのexportと比較する。
 
@@ -113,7 +114,7 @@ Data flow after this change (install side only):
 
 | Step | Reads state from | Contract |
 |---|---|---|
-| `module_artifact_verifier.authenticate` (memory/usage/diagnostics/execution/work-graph/lattice/approval-box-extension) | trusted image `/app/src/<module>.mjs` export, read **before** the archive | `check_archive(..., state=export)`; the manifest's `runtime.stateCompatibility` must equal it exactly; mismatch or bad form -> `<COMPONENT>_IMAGE_STATE_INCOMPATIBLE` |
+| `module_artifact_verifier.authenticate` (memory/usage/diagnostics/execution/work-graph/lattice/approval-box-extension/auth-mediation) | trusted image `/app/src/<module>.mjs` export, read **before** the archive | `check_archive(..., state=export)`; the manifest's `runtime.stateCompatibility` must equal it exactly; mismatch or bad form -> `<COMPONENT>_IMAGE_STATE_INCOMPATIBLE` |
 | `install-web-gateway-release.extract` (same six) | the verifier receipt's manifest state (already matched to the export) | `validate_manifest(..., state=verified)`; never the Python literal |
 | `container-update-host.execute_module_installer` | installer exit + last stderr line | non-zero exit -> `Failure(<installer code>)` (e.g. `USAGE_INSTALL_FAILED`), else `HOST_MODULE_INSTALL_FAILED`; no longer the generic HOST_UPDATE_EXECUTION_FAILED |
 

@@ -207,6 +207,8 @@
     "scripts/install-lattice-release.py",
     "scripts/verify-lattice.py",
     "scripts/install-approval-box-extension-release.py",
-    "scripts/verify-approval-box-extension.py"
+    "scripts/verify-approval-box-extension.py",
+    "scripts/install-auth-mediation-release.py",
+    "scripts/verify-auth-mediation.py"
   ]
 }

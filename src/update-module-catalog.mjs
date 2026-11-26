@@ -6,15 +6,16 @@ import { DIAGNOSTICS_STATE_COMPATIBILITY } from './diagnostics-protocol.mjs'
 import { WORK_GRAPH_STATE_COMPATIBILITY } from './work-graph-protocol.mjs'
 import { LATTICE_STATE_COMPATIBILITY } from './lattice-protocol.mjs'
 import { APPROVAL_BOX_EXTENSION_STATE_COMPATIBILITY } from './approval-box-extension-protocol.mjs'
+import { AUTH_MEDIATION_STATE_COMPATIBILITY } from './auth-mediation-protocol.mjs'
 import { MEMORY_STATE_COMPATIBILITY } from './memory/state-compatibility.mjs'
 import { MEMBERS_STATE_COMPATIBILITY } from './members/state-compatibility.mjs'
 import { runtimeComponentIds } from './update-center-contract.mjs'
 import { loadSourceHistory } from './source-history.mjs'
 
-const ids = ['web-gateway', 'notifications', 'members', 'memory', 'diagnostics', 'usage', 'execution', 'conversation', 'work-graph', 'lattice', 'approval-box-extension']
-const stateIds = ['members', 'memory', 'diagnostics', 'usage', 'execution', 'conversation', 'work-graph', 'lattice', 'approval-box-extension']
+const ids = ['web-gateway', 'notifications', 'members', 'memory', 'diagnostics', 'usage', 'execution', 'conversation', 'work-graph', 'lattice', 'approval-box-extension', 'auth-mediation']
+const stateIds = ['members', 'memory', 'diagnostics', 'usage', 'execution', 'conversation', 'work-graph', 'lattice', 'approval-box-extension', 'auth-mediation']
 const stateCompatibility = id => ({ members: MEMBERS_STATE_COMPATIBILITY, memory: MEMORY_STATE_COMPATIBILITY, diagnostics: DIAGNOSTICS_STATE_COMPATIBILITY,
-  'work-graph': WORK_GRAPH_STATE_COMPATIBILITY, lattice: LATTICE_STATE_COMPATIBILITY, 'approval-box-extension': APPROVAL_BOX_EXTENSION_STATE_COMPATIBILITY, usage: USAGE_STATE_COMPATIBILITY, conversation: CONVERSATION_STATE_COMPATIBILITY, execution: EXECUTION_STATE_COMPATIBILITY })[id]
+  'work-graph': WORK_GRAPH_STATE_COMPATIBILITY, lattice: LATTICE_STATE_COMPATIBILITY, 'approval-box-extension': APPROVAL_BOX_EXTENSION_STATE_COMPATIBILITY, 'auth-mediation': AUTH_MEDIATION_STATE_COMPATIBILITY, usage: USAGE_STATE_COMPATIBILITY, conversation: CONVERSATION_STATE_COMPATIBILITY, execution: EXECUTION_STATE_COMPATIBILITY })[id]
 const hex = (value, length) => typeof value === 'string' && new RegExp(`^[a-f0-9]{${length}}$`).test(value)
 const date = value => typeof value === 'string' && Number.isFinite(Date.parse(value))
 const exact = (value, keys) => value && typeof value === 'object' && !Array.isArray(value)

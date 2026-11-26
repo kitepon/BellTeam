@@ -15,7 +15,8 @@
     "runtime-artifact",
     "work-graph-artifact",
     "lattice-artifact",
-    "approval-box-extension-artifact"
+    "approval-box-extension-artifact",
+    "auth-mediation-artifact"
   ],
   "uses": [
     {
@@ -83,6 +84,10 @@
     ".github/workflows/publish-approval-box-extension.yml",
     "scripts/package-approval-box-extension.py",
     "scripts/probe-approval-box-extension-runtime.mjs",
-    "config/approval-box-extension-verification.json"
+    "config/approval-box-extension-verification.json",
+    ".github/workflows/publish-auth-mediation.yml",
+    "scripts/package-auth-mediation.py",
+    "scripts/probe-auth-mediation-runtime.mjs",
+    "config/auth-mediation-verification.json"
   ]
 }
