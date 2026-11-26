@@ -1,0 +1,29 @@
+packages/server/src/dev-approve.ts | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+Changes:
+
+packages/server/src/dev-approve.ts
+@@ -152,6 +152,21 @@ export async function labAdmit(o: LabAdmitOptions): Promise<{ admitted: true; ke
+   } finally { device.close(); }
+ }
+ 
++export type LabRemoveOptions = { url?: string; dataDir?: string; subject?: string; keyId: string };
++/** scratch (Anis, abx-peer-proof-windows): the lab device signs registry n+1 without one device and with its tombstone. */
++export async function labRemove(o: LabRemoveOptions): Promise<{ removed: true; registry_version: number }> {
++  assertLoopback(o.url ?? "http://127.0.0.1:8788");
++  const { call, need, pass, sign, head, headBody, saved, save } = await labSession(o);
++  if (!headBody.devices.some((d) => d.key_id === o.keyId)) throw new LabError("device_unknown", "the registry head holds no such device");
++  const at = Date.now();
++  const body: SnapshotBody = { ...headBody, version: headBody.version + 1, prev: [b64url(snapshotHash(head))], created_at: at,
++    devices: headBody.devices.filter((d) => d.key_id !== o.keyId), removed: [...headBody.removed, { key_id: o.keyId, removed_at: at, removed_by: b64url(sign.id) }] };
++  const snap = toJson(signSnapshot(body, sign));
++  await need("registry", call("PUT", "/pc/v1/registry", snap, pass), [204]);
++  save({ ...saved, snapshot: snap });
++  return { removed: true, registry_version: body.version };
++}
++
+ export type LabAnswerOptions = { url?: string; dataDir?: string; subject?: string; option?: string; waitMs?: number };
+ 
+ /**
+  +15 -0
