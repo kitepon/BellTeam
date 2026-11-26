@@ -11,8 +11,9 @@ export function normalizeCredentialScope(value) {
   if (!credentialScopeValid(value)) throw error('SECRET_CREDENTIAL_INVALID')
   return { terminalId: value.terminalId, purpose: ({ 'ssh-key': 'terminal.ssh', 'sudo-key': 'terminal.sudo' })[value.purpose] ?? value.purpose }
 }
-// shortcut: one fixed scope for module-written values; add an entry when another module needs put/erase (R7).
-export const MODULE_SCOPES = Object.freeze([{ terminalId: 'approval-box-extension', purpose: 'approval-box.session' }])
+// shortcut: fixed scopes for module-written values; add an entry when another module needs put/erase (R7).
+export const MODULE_SCOPES = Object.freeze([{ terminalId: 'approval-box-extension', purpose: 'approval-box.session' },
+  { terminalId: 'auth-mediation', purpose: 'auth-mediation.op-read' }])
 const moduleScope = scope => MODULE_SCOPES.some(row => row.terminalId === scope.terminalId && row.purpose === scope.purpose)
 export const credentialScopeValid = value => value && Object.keys(value).sort().join(',') === 'purpose,terminalId'
   && id(value.terminalId) && id(value.purpose)

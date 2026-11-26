@@ -369,6 +369,19 @@ test('module-written secret (R7): put persists privately, revises in place, surv
   assert.notEqual(fresh.handle, dto.handle); assert.equal(again.credentials.current(moduleScope).handle, fresh.handle)
 })
 
+test('module-written secret (R7): the auth-mediation scope has its own handle and erase leaves the other scope alone', async t => {
+  const { service } = await fixture(t)
+  const authScope = { terminalId: 'auth-mediation', purpose: 'auth-mediation.op-read' }
+  const authContext = { ...authScope, memberId: null }
+  const a = await service.putCredential(moduleScope, session)
+  const b = await service.putCredential(authScope, 'synthetic-op-read-token')
+  assert.notEqual(a.handle, b.handle)
+  assert.equal(await service.withResolved(b.handle, authContext, value => value), 'synthetic-op-read-token')
+  assert.equal(await service.eraseCredential(authScope), null)
+  assert.equal(service.credentials.current(authScope), null)
+  assert.equal(await service.withResolved(a.handle, moduleContext, value => value), session)
+})
+
 test('module-written secret (R7) refuses other scopes and bad values before writing, and an erase retry finishes a leftover value', async t => {
   const { root, service } = await fixture(t)
   for (const other of [scope, { terminalId: 'lattice', purpose: 'approval-box.connector' }])
