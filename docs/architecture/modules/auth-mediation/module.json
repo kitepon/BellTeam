@@ -45,7 +45,7 @@
     "src/auth-mediation/env.mjs",
     "src/auth-mediation/redact.mjs",
     "src/auth-mediation/identity.mjs",
-    "src/auth-mediation/http-api.mjs",
+    "src/auth-mediation/service.mjs",
     "src/auth-mediation/mcp.mjs",
     "src/auth-mediation-protocol.mjs",
     "src/auth-mediation-ipc.mjs",
