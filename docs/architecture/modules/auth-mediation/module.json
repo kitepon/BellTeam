@@ -50,6 +50,7 @@
     "src/auth-mediation-protocol.mjs",
     "src/auth-mediation-ipc.mjs",
     "src/auth-mediation-dispatcher.mjs",
-    "src/auth-mediation-entry.mjs"
+    "src/auth-mediation-entry.mjs",
+    "scripts/auth-mediation/relay.py"
   ]
 }
