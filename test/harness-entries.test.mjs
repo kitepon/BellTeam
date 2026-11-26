@@ -478,6 +478,7 @@ test('a {name} without a value makes that product E1 unusable: reported, the pro
 // bd14 fifth switch: Approval Box's E1 (0.1.37) and what the real `mcp-lazy wrap-entry` (0.4.0) printed for each raw entry are frozen in the fixture.
 const AB = JSON.parse(await readFile(new URL('./fixtures/approval-box-switch.json', import.meta.url), 'utf8'))
 const E2_AB = JSON.parse(await readFile(new URL('../config/harness-products.json', import.meta.url), 'utf8')).find(item => item.product === 'approval-box')
+const abItem = dir => ({ product: 'approval-box', file: join(dir, 'ab-e1.json'), wrap: E2_AB.wrap })
 const RAW = AB.e1.mcpServers['approval-box']
 const ALLOW = AB.e1.permissions.cursor.allow
 const at = (value, home) => JSON.parse(JSON.stringify(value).replaceAll('@HOME@', home))
@@ -496,7 +497,9 @@ async function abSeat({ relay = AB.relay, claude = RAW.claude, cursorConfig = { 
   await writeFile(join(home, '.cursor/hooks.json'), json({ version: 1, hooks: AB.e1.hooks.cursor }))
   await writeFile(join(home, '.cursor/mcp.json'), json({ mcpServers: { 'approval-box': wrapped.cursor } }))
   if (cursorConfig) await writeFile(join(home, '.cursor/cli-config.json'), json(cursorConfig))
-  await writeFile(join(dir, 'registry.json'), JSON.stringify([E2_AB]))
+  // The production E2 item reads the module's published file (a parent-side publisher, 決裁箱拡張 P5); the test points the same item shape at a file of its own.
+  await writeFile(join(dir, 'ab-e1.json'), JSON.stringify(product))
+  await writeFile(join(dir, 'registry.json'), JSON.stringify([abItem(dir)]))
   const calls = [], requests = [], reports = [], inputs = []
   const run = async (program, args, options) => {
     calls.push([program, ...args])
@@ -532,7 +535,8 @@ test('Approval Box: a production seat changes only the claude entry (raw to wrap
   assert.deepEqual(await f.bytes(), before)
   assert.deepEqual(await inodes(), ino)
   assert.deepEqual(f.requests.map(([method]) => method), ['config/read'])
-  assert.deepEqual(f.calls.filter(call => call[0] === join(f.home, '.approval-box/bin/approval-box')), [[join(f.home, '.approval-box/bin/approval-box'), 'harness-entries', '--json']])
+  // the E1 now comes from the published file, so the seats' own binary is never run by the registration pass
+  assert.deepEqual(f.calls.filter(call => call[0] === join(f.home, '.approval-box/bin/approval-box')), [])
   // each raw entry goes to the relay on stdin; argv names the relay and the per-client cache dir only
   assert.deepEqual(f.inputs.map(([harness, input]) => [harness, JSON.parse(input)]), ['claude', 'codex', 'cursor', 'grok'].map(harness => [harness, RAW[harness]]))
   assert.deepEqual(f.calls.find(call => call[0] === AB.relay), [AB.relay, 'wrap-entry', '--json', '--relay', AB.relay, '--env', `MCP_LAZY_CACHE_DIR=${f.home}/.cache/mcp-lazy/approval-box-claude`, '--env', 'MCP_LAZY_IDLE_STOP=0'])
@@ -601,11 +605,11 @@ test('Approval Box: without an executable relay the raw E1 entry is written, no 
 
 test('an E2 idleStop reaches the relay as MCP_LAZY_IDLE_STOP; a value that is not a duration makes that product E1 unusable (incident 2026-11-26)', async () => {
   const f = await abSeat()
-  await writeFile(join(f.home, '../registry.json'), JSON.stringify([{ ...E2_AB, idleStop: '10m' }]))
+  await writeFile(join(f.home, '../registry.json'), JSON.stringify([{ ...abItem(join(f.home, '..')), idleStop: '10m' }]))
   await f.apply()
   assert.deepEqual(f.calls.find(call => call[0] === AB.relay), [AB.relay, 'wrap-entry', '--json', '--relay', AB.relay, '--env', `MCP_LAZY_CACHE_DIR=${f.home}/.cache/mcp-lazy/approval-box-claude`, '--env', 'MCP_LAZY_IDLE_STOP=10m'])
   const g = await abSeat()
-  await writeFile(join(g.home, '../registry.json'), JSON.stringify([{ ...E2_AB, idleStop: 'soon' }]))
+  await writeFile(join(g.home, '../registry.json'), JSON.stringify([{ ...abItem(join(g.home, '..')), idleStop: 'soon' }]))
   const before = await g.bytes()
   await g.apply()
   assert.match(g.reports[0], /approval-box.*E1を使えない.*idleStop "soon" は時間の書式ではありません/u)
@@ -614,7 +618,7 @@ test('an E2 idleStop reaches the relay as MCP_LAZY_IDLE_STOP; a value that is no
 
 test('an E2 wrap value other than mcp-lazy makes that product E1 unusable', async () => {
   const f = await abSeat()
-  await writeFile(join(f.home, '../registry.json'), JSON.stringify([{ ...E2_AB, wrap: 'other' }]))
+  await writeFile(join(f.home, '../registry.json'), JSON.stringify([{ ...abItem(join(f.home, '..')), wrap: 'other' }]))
   const before = await f.bytes()
   await f.apply()
   assert.match(f.reports[0], /approval-box.*E1を使えない.*wrap "other" は未対応です/u)
@@ -735,4 +739,8 @@ test('Codexが無い家では、codexの手順を「省いた」と報告し、�
   assert.deepEqual(f.reports, ['BellTeam hook aiterm: Codex が入っていないため、codex のhookの信頼の設定を省きました'])
   assert.deepEqual(await f.bytes(), oldBytes('empty', f.home))
   assert.ok(JSON.parse(await f.read('.bellteam-cli-registration/applied.json')).aiterm.entries.includes('codex:hooks:Stop'))
+})
+
+test('production E2 item for approval-box reads the published seat entry of the module (a parent-side file in a folder the seat uid can read) and wraps it with mcp-lazy', () => {
+  assert.deepEqual(E2_AB, { product: 'approval-box', file: '/srv/bellteam/state/approval-box-entries/harness-entries.json', wrap: 'mcp-lazy' })
 })
