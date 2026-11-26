@@ -205,3 +205,16 @@ test('P3 pairing: no package in the image is failed (unavailable), never a throw
   const { daemon } = await setup(t, { missing: true })
   assert.deepEqual(await daemon.pairing.start(), { state: 'failed', reason: 'unavailable' })
 })
+
+test('P5: the seat entry file is published in its own 0755 folder, not in the 0700 folder of the module child', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'abd-'))
+  const entry = join(root, 'cli.mjs'); await writeFile(entry, FAKE)
+  const e1 = { schema: 'bellteam.harness-entries.v1', product: 'approval-box', version: '0.2.0-pc.5', mcpServers: { 'approval-box': {} } }
+  const daemon = createApprovalBoxDaemon({ root, entry, seatRun: async () => ({ stdout: JSON.stringify(e1) }) })
+  t.after(async () => { await daemon.close(); await rm(root, { recursive: true, force: true }) })
+  daemon.start()
+  const file = join(root, 'state', 'approval-box-entries', 'harness-entries.json')
+  await until(async () => readFile(file, 'utf8').catch(() => null))
+  assert.equal(JSON.parse(await readFile(file, 'utf8')).version, '0.2.0-pc.5')
+  assert.equal((await stat(join(root, 'state', 'approval-box-entries'))).mode & 0o755, 0o755)
+})
