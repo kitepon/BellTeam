@@ -47,7 +47,7 @@ One exec contract with two transports (Tronie ruling on #2652), plus an admin po
 | Port | Transport and identity | Behavior |
 | --- | --- | --- |
 | **auth-exec** | **T1: MCP tool** `auth_exec {command: string[], args?: string[], cwd?: string, timeout_sec?: number}`, for Bot calls. Identity = the seat Bot ID that `resolveSeatBotId` yields (header from `AITERM_SESSION_ID`, or the remote-seat credential binding). Fork seats are refused. | **Run and return:** the module runs the command through `runtime.seat-process` in the Bot's project (`cwd` must be inside it) and returns `{outcome, exit_code, stdout, stderr, truncated}` with the secret values **redacted**. |
-| | **T2a: container socket**, for scripts that need stdin, tty or long runs. Identity = peer cwd, exactly as today: SO_PEERCRED pid -> `/proc/PID/cwd`, matched exactly to one registered Bot root, which names the Bot ID. | **Env return:** the client gets the environment for that one fixed command and execs it itself (today's client protocol, unchanged). |
+| | **T2a: container socket**, for scripts that need stdin, tty or long runs. Identity = peer cwd, exactly as today: SO_PEERCRED pid -> `/proc/PID/cwd`, matched to the registered Bot root that contains it (the longest one; two equal matches are refused), which names the Bot ID. Narrowness is kept by the grant's own `cwd`, which must equal the peer cwd. | **Env return:** the client gets the environment for that one fixed command and execs it itself (today's client protocol, unchanged). |
 | | **T2b: host socket on main-server**, `/srv/bellteam/shared/tools/auth-mediation/host.sock` (host path `/home/kite/BellTeam/runtime/data/shared/tools/auth-mediation/host.sock`), mode 0600, owner `kite`. Identity = a `unit`: the folder the client sends as `cwd`, matched exactly to a registered unit. | Env return, same JSON-lines protocol as today (`{"op":"exec","command":[...],"cwd":...}` -> `{"outcome","env"|"error"}`). The host wrapper `~/.local/bin/auth` changes only `AUTH_SOCK`. |
 | **auth-admin** | The admin route on the internal HTTP; client `auth-admin`. Allowed only when the seat Bot ID is in `admins` (Sakura, Rai). Not an MCP tool. | grant, revoke, stop, resume, show, flush, token.set, token.clear, import (one-time policy import at cut-over). |
 
@@ -126,6 +126,12 @@ flowchart LR
 
 Secret values appear only in: the `op` process (during one `op item get`), the child's memory (cache and one request), the socket reply to a granted caller, and the run request to the seat runner. Never in files, argv, DTOs, logs, audit lines or diagnostics.
 
+## Child protocol (protocol v1, `src/auth-mediation-protocol.mjs`)
+
+Root requests (one at a time per channel, like work-graph): `resolve {command[], cwd, via, args?, botId?, unit?, timeoutSec?}` (`mcp` requires `botId`) -> `{outcome, error?, env?, cache?, exit_code?, stdout?, stderr?, truncated?}` (`env` only for the two socket transports; the MCP path returns redacted run output); `admin {botId, verb, args?}` (verbs grant, revoke, stop, resume, show, flush, import, token.set, token.clear) -> `{outcome, error?, count?, policy?}`; `status {}` -> `{state: 'ready'|'no-token'}`.
+
+Effects (valid only inside a pending root call): `members.roots {}` -> `{roots:{botId: absolute root}}`; `secret.get {}` -> `{value}` or `{unavailable:true}`; `secret.put {value}` -> `{stored:true}`; `secret.erase {}` -> `{erased:true}`; `seat.run {botId, cwd, argv, env, timeoutMs}` -> `{exitCode, stdout, stderr, truncated, timedOut}` (the parent starts the command through `runtime.seat-process` with the env on the runner's stdin line, never argv or files). State compatibility `{state:'policy-v2'}`; controls initialize/quiesce/resume/exit; ready carries `versionId`, protocol version and state compatibility.
+
 ## State and secrets
 
 | State | Location | Writer | Notes |
@@ -193,7 +199,7 @@ Sakura's brokers keep running until the module is live (task `authmed-module-liv
 | Step | State | Check |
 | --- | --- | --- |
 | S0 | Old brokers only (container, main-server) | today |
-| S1 | Module deployed. **Owner step (Approval Box):** the Owner creates the read-only service account on `開発工場・認証仲介` (1Password needs his web sign-in or his approval in the Mac app; neither Sakura nor a Bot can do it). Sakura then files the secret input card and the token goes in through `token.set`. Sakura sends each host's `policy.json` as it is (v1: `bots[].root`, `bots[].grants[[command, expires?]]`, `stopped[]`, `vault`, `cache_seconds`; no secrets inside); Rai runs `import`, mapping container folders to `bots.<id>` (a sub-folder becomes the grant's `cwd`, so a grant stays as narrow as before) and host folders to `units` | Decision equivalence: all 42 grants and the old audit logs replayed through the new authorizer give the same outcomes (no secret read) |
+| S1 | Module deployed. **Owner step (Approval Box):** the Owner creates the read-only service account on `開発工場・認証仲介` (1Password needs his web sign-in or his approval in the Mac app; neither Sakura nor a Bot can do it). Sakura then files the secret input card and the token goes in through `token.set`. Sakura sends each host's `policy.json` as it is (v1: `bots[].root`, `bots[].grants[[command, expires?]]`, `stopped[]`, `vault`, `cache_seconds`; no secrets inside); Rai runs `import`, mapping container folders to `bots.<id>` (every imported container grant keeps its registered folder as `cwd`, because the old broker matched the folder exactly; so no grant gets wider) and host folders to `units` | Decision equivalence: all 42 grants and the old audit logs replayed through the new authorizer give the same outcomes (no secret read) |
 | S2 | Canary: one container script, then one main-server unit, moved by changing only the client's socket path (container `auth` default, host `~/.local/bin/auth` `AUTH_SOCK`). Command text does not change. Then the rest | Per caller: sha256 of each delivered value equals the old broker's (as Sakura did when moving servers) |
 | S3 | Every grant served by the module. Old brokers stopped (`bellteam-auth-broker.service`, the hourly keep-alive schedule). The host `op-token` file is deleted and the container one is left with Sakura (her migration token). Rai then **asks Sakura directly** to archive the originals that are no longer read (per her ledger `auth-mediation-ledger.tsv`) | No old-socket traffic for a full day |
 | Rollback | Until S3: point the client back at the old socket (the old brokers still run) | n/a |
@@ -217,6 +223,6 @@ Unit tests with a stand-in `op`, no real 1Password: command/ARGS split; grant/ex
 
 About 90 開発工場 items still read directly by Bot scripts and shared tools (`op read`/`op run`) have no fixed command; the Owner's decision on retiring them is pending (Sakura). The MCP tool could later serve them. Main-server callers still on the old path (kikoeru telemetry, kitepon.dev metrics, ServerManager sm-parent, auction-bot, approval-box admin env, 7 env files) are moved by their owners with Sakura, as today. `file:VAR` and `ssh-key` hand-over are not built.
 
-## Implementation files (planned, none exist yet)
+## Implementation files (built; parent side is Molly's `authmed-parent-side`)
 
-`src/auth-mediation/{core,policy,items,env,redact,identity,http-api,mcp}.mjs`, `src/auth-mediation-{protocol,ipc,dispatcher,entry}.mjs`, the existing Python client and `auth-admin`, `test/auth-mediation-*.test.mjs`.
+`src/auth-mediation/{core,policy,items,env,redact,identity,service,mcp}.mjs`, `src/auth-mediation-{protocol,ipc,dispatcher,entry}.mjs`, the existing Python client and `auth-admin`, `test/auth-mediation-*.test.mjs`.
