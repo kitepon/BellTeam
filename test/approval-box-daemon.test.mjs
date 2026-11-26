@@ -259,13 +259,13 @@ test('seat link: no waiting line is killed at the bound and fails', async t => {
   assert.deepEqual(await daemon.seatLink.get(), { state: 'failed', reason: 'no_waiting_line' })
 })
 
-test('P3 pairing: none, then waiting with the typed code and the QR, then linked once the daemon is paired; removed when the pairing goes; stop leaves it none', async t => {
+test('P3 pairing: none, then waiting with the short code, the typed secret and the QR, then linked once the daemon is paired; removed when the pairing goes; stop leaves it none', async t => {
   const { daemon, root } = await setup(t)
   daemon.start()
   await until(async () => (await daemon.status()).reachable)
   assert.deepEqual(await daemon.pairing.get(), { state: 'none' })
   const waiting = await daemon.pairing.start()
-  assert.deepEqual(waiting, { state: 'waiting', code: 'TYPED-SECRET', qrText: 'QR-TEXT-SECRET', expiresAt: '2026-11-29T00:00:00Z' })
+  assert.deepEqual(waiting, { state: 'waiting', code: 'ABCD-EFGH-IJKL-MNOP', typedSecret: 'TYPED-SECRET', qrText: 'QR-TEXT-SECRET', expiresAt: '2026-11-29T00:00:00Z' })
   assert.deepEqual(await daemon.pairing.start(), waiting) // a second start returns the same waiting view
   assert.deepEqual(await until(async () => { const v = await daemon.pairing.get(); return v.state === 'linked' ? v : null }), { state: 'linked' })
   assert.deepEqual(await daemon.pairing.start(), { state: 'linked' }) // already linked: no new run
