@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-26T11:05:08Z",
-  "expiresAt": "2026-12-03T11:05:08Z",
+  "publishedAt": "2026-11-26T12:11:56Z",
+  "expiresAt": "2026-12-03T12:11:56Z",
   "releases": [
     {
       "componentId": "usage",
@@ -427,8 +427,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "e6eca195de7a09b913ded939217c34f4dada23cb",
-      "versionId": "a70e0412d7843cee1c86387f8753eb1dadfc1b97b09cd7127912eeb4604fa0c9",
+      "sourceCommit": "3a43067e4d471e8f120a661df7d43049f1d14657",
+      "versionId": "ec094018e1dfc3844c35e5f1cf614c817a483bb718dfce08046e1c0008e689c0",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -436,16 +436,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110351Z/web-gateway-e6eca195de7a09b913ded939217c34f4dada23cb-linux-amd64.tar.gz",
-          "bytes": 4578432,
-          "sha256": "a70e0412d7843cee1c86387f8753eb1dadfc1b97b09cd7127912eeb4604fa0c9"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T121118Z/web-gateway-3a43067e4d471e8f120a661df7d43049f1d14657-linux-amd64.tar.gz",
+          "bytes": 4584204,
+          "sha256": "ec094018e1dfc3844c35e5f1cf614c817a483bb718dfce08046e1c0008e689c0"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110351Z/web-gateway-e6eca195de7a09b913ded939217c34f4dada23cb-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11103,
-          "sha256": "b5ba0b6acab06ae9c7044afd1c22ba6197e4b1ad167de113f4b68918803ca221"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T121118Z/web-gateway-3a43067e4d471e8f120a661df7d43049f1d14657-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10923,
+          "sha256": "d56202b41182ea3cf965aea6445518a0987c4fb75edb524bd0f78dea7fb52a7c"
         },
-        "signerCommit": "e6eca195de7a09b913ded939217c34f4dada23cb"
+        "signerCommit": "3a43067e4d471e8f120a661df7d43049f1d14657"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -454,13 +454,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "決裁箱のペアリングの経路（/api/approvals/seat-link）が、新しい窓口の形になります。"
+        "席のMCPの道具に auth_exec が増えます（認証仲介が動くまでは、動いていないと答えます）。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "e6eca195de7a09b913ded939217c34f4dada23cb",
-      "versionId": "506f9b3a510307299658835660dae7e5b2ca78e109995f3b67af01185dc54ecd",
+      "sourceCommit": "3a43067e4d471e8f120a661df7d43049f1d14657",
+      "versionId": "9b702d8efad50ce3d76bacc6716a1a8272964221355627147a304b3df2e00296",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -468,16 +468,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110351Z/web-gateway-e6eca195de7a09b913ded939217c34f4dada23cb-linux-arm64.tar.gz",
-          "bytes": 4578432,
-          "sha256": "506f9b3a510307299658835660dae7e5b2ca78e109995f3b67af01185dc54ecd"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T121118Z/web-gateway-3a43067e4d471e8f120a661df7d43049f1d14657-linux-arm64.tar.gz",
+          "bytes": 4584204,
+          "sha256": "9b702d8efad50ce3d76bacc6716a1a8272964221355627147a304b3df2e00296"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110351Z/web-gateway-e6eca195de7a09b913ded939217c34f4dada23cb-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11017,
-          "sha256": "905645a62f99a99b2a5ea03a359a8df04d941294a9cd3eb7e89cd582ff84e136"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T121118Z/web-gateway-3a43067e4d471e8f120a661df7d43049f1d14657-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11205,
+          "sha256": "d65a82399cd307c00d997d2dab064caea96b99d76cd69ac98375c3c9c0c4d531"
         },
-        "signerCommit": "e6eca195de7a09b913ded939217c34f4dada23cb"
+        "signerCommit": "3a43067e4d471e8f120a661df7d43049f1d14657"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -486,13 +486,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "決裁箱のペアリングの経路（/api/approvals/seat-link）が、新しい窓口の形になります。"
+        "席のMCPの道具に auth_exec が増えます（認証仲介が動くまでは、動いていないと答えます）。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "e6eca195de7a09b913ded939217c34f4dada23cb",
-      "versionId": "66a4dcb703b3387611854b12063500ed7982948016ef67874fd26ca5b0b933b8",
+      "sourceCommit": "3a43067e4d471e8f120a661df7d43049f1d14657",
+      "versionId": "12dda6ac01f6f67dc1329f6e5343ee3916363928466817f1211307cae877c161",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110329Z/execution-e6eca195de7a09b913ded939217c34f4dada23cb-linux-amd64.tar.gz",
-          "bytes": 3879620,
-          "sha256": "66a4dcb703b3387611854b12063500ed7982948016ef67874fd26ca5b0b933b8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T121103Z/execution-3a43067e4d471e8f120a661df7d43049f1d14657-linux-amd64.tar.gz",
+          "bytes": 3879813,
+          "sha256": "12dda6ac01f6f67dc1329f6e5343ee3916363928466817f1211307cae877c161"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110329Z/execution-e6eca195de7a09b913ded939217c34f4dada23cb-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10977,
-          "sha256": "495a675e0d3c16c2196c6a6d285916fcfc195924a9607b36889e6c3358e67255"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T121103Z/execution-3a43067e4d471e8f120a661df7d43049f1d14657-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11208,
+          "sha256": "6ea1df8b538b55225d9e07ea9f956a7e1faf33783bcaec7bda2d87f32890dba8"
         },
-        "signerCommit": "e6eca195de7a09b913ded939217c34f4dada23cb"
+        "signerCommit": "3a43067e4d471e8f120a661df7d43049f1d14657"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +519,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "席の画面が、席の一覧から turn・own_work・unread を読むようになります。席の承認カードと実行中の除外は、決裁箱の新しい窓口（P1）から出します。"
+        "遠隔の席の route_since を、keeper の ready_at から決めます。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "e6eca195de7a09b913ded939217c34f4dada23cb",
-      "versionId": "7c9c29d3082cf29105efb0c22e1f6d1ad31075b0169d24b7b68c317f71a281b1",
+      "sourceCommit": "3a43067e4d471e8f120a661df7d43049f1d14657",
+      "versionId": "dbc3938074a279af0ac3c16e6d4c90489383d79c15706e25161ea17c00914b67",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +533,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110329Z/execution-e6eca195de7a09b913ded939217c34f4dada23cb-linux-arm64.tar.gz",
-          "bytes": 3879620,
-          "sha256": "7c9c29d3082cf29105efb0c22e1f6d1ad31075b0169d24b7b68c317f71a281b1"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T121103Z/execution-3a43067e4d471e8f120a661df7d43049f1d14657-linux-arm64.tar.gz",
+          "bytes": 3879813,
+          "sha256": "dbc3938074a279af0ac3c16e6d4c90489383d79c15706e25161ea17c00914b67"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110329Z/execution-e6eca195de7a09b913ded939217c34f4dada23cb-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11083,
-          "sha256": "b2c67e750b9317f264f2e948505f034df8cb0244ba10bb58872f25aacbd15f60"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T121103Z/execution-3a43067e4d471e8f120a661df7d43049f1d14657-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10848,
+          "sha256": "9e1ef4aed5c251a9be528afb167a75151e80be29207545c0b74c327b90c2b254"
         },
-        "signerCommit": "e6eca195de7a09b913ded939217c34f4dada23cb"
+        "signerCommit": "3a43067e4d471e8f120a661df7d43049f1d14657"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,7 +552,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "席の画面が、席の一覧から turn・own_work・unread を読むようになります。席の承認カードと実行中の除外は、決裁箱の新しい窓口（P1）から出します。"
+        "遠隔の席の route_since を、keeper の ready_at から決めます。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "ecd87e2c2e735d6ce3ff564667018fdf245abc7e",
-      "versionId": "sha256:3121c6a37c9e2ba16a4011a14077fc06757fa0f7ec1bf2db201c98ebd0e3ed4f",
+      "sourceCommit": "3a43067e4d471e8f120a661df7d43049f1d14657",
+      "versionId": "sha256:b3e5cefe287c9352f2601400169ceffce183a9d3a6a683fea8bcfa229dc719db",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3121c6a37c9e2ba16a4011a14077fc06757fa0f7ec1bf2db201c98ebd0e3ed4f"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b3e5cefe287c9352f2601400169ceffce183a9d3a6a683fea8bcfa229dc719db"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,24 +724,22 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席の画面が、席の一覧（pty_list の sessions）から turn・own_work・unread を読むようになります。",
-        "決裁箱への窓口を1つにします（依頼を出して読む窓口 P1 と、ペアリングの管理 P3 を、決裁箱拡張の本体側に置きます）。席の承認カードと実行中の除外は、その窓口から出します。古い承認のつなぎは消えます。",
-        "Windows のドアが、席の認証情報を別人に取られた名前付きパイプへ渡さなくなります。ドアの証明は、ドアの自分のアドレスに結び付きます。",
-        "工程表の書き込みを、プロジェクトごとの列にします。lattice の子が、読み出し v2 から次の工程を取ります。",
-        "席のコマンドへ、秘密の環境変数を標準入力の1行だけで渡す口を足します（引数にもファイルにも出ません）。"
+        "席の登録ファイル（決裁箱の席の設定）を、席のユーザーが読める専用のフォルダへ置き、席の登録がそのファイルを読むようになります。",
+        "認証仲介の本体側（モジュールの起動、席のユーザーで動く待ち受けの受け口と監視、auth_exec の道具）を足します。規則が空の間は、すべて断ります。",
+        "遠隔の席の route_since を、keeper の ready_at から決めます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "ecd87e2c2e735d6ce3ff564667018fdf245abc7e",
-      "versionId": "sha256:3121c6a37c9e2ba16a4011a14077fc06757fa0f7ec1bf2db201c98ebd0e3ed4f",
+      "sourceCommit": "3a43067e4d471e8f120a661df7d43049f1d14657",
+      "versionId": "sha256:b3e5cefe287c9352f2601400169ceffce183a9d3a6a683fea8bcfa229dc719db",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3121c6a37c9e2ba16a4011a14077fc06757fa0f7ec1bf2db201c98ebd0e3ed4f"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b3e5cefe287c9352f2601400169ceffce183a9d3a6a683fea8bcfa229dc719db"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -750,11 +748,9 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席の画面が、席の一覧（pty_list の sessions）から turn・own_work・unread を読むようになります。",
-        "決裁箱への窓口を1つにします（依頼を出して読む窓口 P1 と、ペアリングの管理 P3 を、決裁箱拡張の本体側に置きます）。席の承認カードと実行中の除外は、その窓口から出します。古い承認のつなぎは消えます。",
-        "Windows のドアが、席の認証情報を別人に取られた名前付きパイプへ渡さなくなります。ドアの証明は、ドアの自分のアドレスに結び付きます。",
-        "工程表の書き込みを、プロジェクトごとの列にします。lattice の子が、読み出し v2 から次の工程を取ります。",
-        "席のコマンドへ、秘密の環境変数を標準入力の1行だけで渡す口を足します（引数にもファイルにも出ません）。"
+        "席の登録ファイル（決裁箱の席の設定）を、席のユーザーが読める専用のフォルダへ置き、席の登録がそのファイルを読むようになります。",
+        "認証仲介の本体側（モジュールの起動、席のユーザーで動く待ち受けの受け口と監視、auth_exec の道具）を足します。規則が空の間は、すべて断ります。",
+        "遠隔の席の route_since を、keeper の ready_at から決めます。"
       ]
     },
     {
