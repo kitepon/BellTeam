@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-27T12:53:10Z",
-  "expiresAt": "2026-12-04T12:53:10Z",
+  "publishedAt": "2026-11-27T13:18:51Z",
+  "expiresAt": "2026-12-04T13:18:51Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "be8e7704152f27af624dab1897a7a631b857512e",
-      "versionId": "sha256:c691660fce575b216824c30f7a9a74c6351d7cfc67725471fc7270242f5d86af",
+      "sourceCommit": "fd51808a39ec7b3ed19cdfd85f088a07ac837f62",
+      "versionId": "sha256:245316c76d6eafcdb50cf8285dc2aeb9b6bf05bae2bb537d715f1cf4e169b5cb",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c691660fce575b216824c30f7a9a74c6351d7cfc67725471fc7270242f5d86af"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:245316c76d6eafcdb50cf8285dc2aeb9b6bf05bae2bb537d715f1cf4e169b5cb"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,21 +724,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "端末の SSH 鍵は、親（本体）が持たず、認証仲介の読み込みプログラムが席の権限で読み込むようになります。",
-        "端末の鍵の取得元に、認証仲介を使う方式（mediated）が加わります。"
+        "本体のイメージの Aiterm が 0.70.119 になります（Aiterm 側の、BellTeam 向けだった部品の削除が反映されます）。",
+        "席の起動の数え方の修正（#2755）が、本体の予備の経路にも入ります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "be8e7704152f27af624dab1897a7a631b857512e",
-      "versionId": "sha256:c691660fce575b216824c30f7a9a74c6351d7cfc67725471fc7270242f5d86af",
+      "sourceCommit": "fd51808a39ec7b3ed19cdfd85f088a07ac837f62",
+      "versionId": "sha256:245316c76d6eafcdb50cf8285dc2aeb9b6bf05bae2bb537d715f1cf4e169b5cb",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c691660fce575b216824c30f7a9a74c6351d7cfc67725471fc7270242f5d86af"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:245316c76d6eafcdb50cf8285dc2aeb9b6bf05bae2bb537d715f1cf4e169b5cb"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -747,8 +747,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "端末の SSH 鍵は、親（本体）が持たず、認証仲介の読み込みプログラムが席の権限で読み込むようになります。",
-        "端末の鍵の取得元に、認証仲介を使う方式（mediated）が加わります。"
+        "本体のイメージの Aiterm が 0.70.119 になります（Aiterm 側の、BellTeam 向けだった部品の削除が反映されます）。",
+        "席の起動の数え方の修正（#2755）が、本体の予備の経路にも入ります。"
       ]
     },
     {
