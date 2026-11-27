@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-27T04:07:29Z",
-  "expiresAt": "2026-12-04T04:07:29Z",
+  "publishedAt": "2026-11-27T05:18:41Z",
+  "expiresAt": "2026-12-04T05:18:41Z",
   "releases": [
     {
       "componentId": "usage",
@@ -891,8 +891,8 @@
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "6e17e2b4602a985ebf18d40c56e26e6c88eeafe3",
-      "versionId": "9e0a084425581bf0111a28567699e93fcd85a2f485a2cd5efebd897e4f875016",
+      "sourceCommit": "448c89451500af66e169f9042b146604ac67008c",
+      "versionId": "86c4db7830d861ed016cca632600d7dd22450b9b7faa466c8444e470f9b871a5",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -900,16 +900,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T040510Z/auth-mediation-6e17e2b4602a985ebf18d40c56e26e6c88eeafe3-linux-amd64.tar.gz",
-          "bytes": 3705707,
-          "sha256": "9e0a084425581bf0111a28567699e93fcd85a2f485a2cd5efebd897e4f875016"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T051233Z/auth-mediation-448c89451500af66e169f9042b146604ac67008c-linux-amd64.tar.gz",
+          "bytes": 3705798,
+          "sha256": "86c4db7830d861ed016cca632600d7dd22450b9b7faa466c8444e470f9b871a5"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T040510Z/auth-mediation-6e17e2b4602a985ebf18d40c56e26e6c88eeafe3-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11230,
-          "sha256": "81a2dab16d458a4d7db2188c17970b4c6205a62e6ba1ee006f9ab8eef84b4758"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T051233Z/auth-mediation-448c89451500af66e169f9042b146604ac67008c-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11414,
+          "sha256": "217e05c8fc71ab55caf5631643ab35ac994bbadde165c8c030196a286ccf0f1b"
         },
-        "signerCommit": "6e17e2b4602a985ebf18d40c56e26e6c88eeafe3"
+        "signerCommit": "448c89451500af66e169f9042b146604ac67008c"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -921,13 +921,13 @@
         }
       },
       "changes": [
-        "管理者が、認証仲介モジュール自身の運用記録（値は含まない）の末尾を、audit 動詞で読めるようになります。"
+        "認証仲介が、ファイルへの受け渡し（file:VAR）と ssh 鍵の受け渡しを、ソケット経由でできるようになります。"
       ]
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "6e17e2b4602a985ebf18d40c56e26e6c88eeafe3",
-      "versionId": "f4e7ffe76568ea4a2f556c08307331663f486c336c0d2dbc85fcc8b91125fc31",
+      "sourceCommit": "448c89451500af66e169f9042b146604ac67008c",
+      "versionId": "4a42f3a30e3856e79634f931f2812133483f4edb2560766858194c06a07f545c",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -935,16 +935,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T040510Z/auth-mediation-6e17e2b4602a985ebf18d40c56e26e6c88eeafe3-linux-arm64.tar.gz",
-          "bytes": 3705707,
-          "sha256": "f4e7ffe76568ea4a2f556c08307331663f486c336c0d2dbc85fcc8b91125fc31"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T051233Z/auth-mediation-448c89451500af66e169f9042b146604ac67008c-linux-arm64.tar.gz",
+          "bytes": 3705798,
+          "sha256": "4a42f3a30e3856e79634f931f2812133483f4edb2560766858194c06a07f545c"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T040510Z/auth-mediation-6e17e2b4602a985ebf18d40c56e26e6c88eeafe3-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11324,
-          "sha256": "62a819a9bdc2054d17f0c1bc4789b09ecd18eeab07e598f0103453a168ec99ec"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T051233Z/auth-mediation-448c89451500af66e169f9042b146604ac67008c-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11359,
+          "sha256": "b99b7de608343a2d97b86144a125563d381f9ebf3f0666f30b676cf5c029a47c"
         },
-        "signerCommit": "6e17e2b4602a985ebf18d40c56e26e6c88eeafe3"
+        "signerCommit": "448c89451500af66e169f9042b146604ac67008c"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -956,7 +956,7 @@
         }
       },
       "changes": [
-        "管理者が、認証仲介モジュール自身の運用記録（値は含まない）の末尾を、audit 動詞で読めるようになります。"
+        "認証仲介が、ファイルへの受け渡し（file:VAR）と ssh 鍵の受け渡しを、ソケット経由でできるようになります。"
       ]
     }
   ],
