@@ -69,11 +69,34 @@ public sealed class ApprovalsWindowTests
         var until = DateTimeOffset.UtcNow.AddMinutes(5);
         var join = new ApprovalsFixture.Join { Phase = ChildJoinPhase.Waiting, QrLink = "https://login-billing.kitepon.dev/join/dev.kitepon.approvalbox#lbq4:abc", ExpiresAt = until };
         using var rig = Open(join: join); Until(() => rig.Page.Settled);
+        Assert.DoesNotContain(LogicalTree.Find<System.Windows.Controls.TextBox>(rig.Window.Content), box => System.Windows.Automation.AutomationProperties.GetAutomationId(box) == "child-join-code");   // a library that gives no code: no code block
         var texts = Texts(rig.Window);
         Assert.Contains(ChildJoinText.WaitingTitle, texts); Assert.Single(LogicalTree.Find<QrView>(rig.Window.Content));
         Assert.Contains(LocalFormText.ValidUntil(until), texts); Assert.Contains(LocalFormText.Qr, texts);
         Assert.DoesNotContain(LocalFormText.FirstSignInChildOnly, texts);
         Press(FindId(rig.Window, "child-join-cancel")); Assert.Equal(1, join.Cancels);
+    });
+
+    [Fact]
+    public void TheJoinCodeIsShownBesideTheQrAndCopiedByItsButton() => RunSta(() =>
+    {
+        const string code = "https://login-billing.kitepon.dev/join/dev.kitepon.approvalbox#lbc1:abc";
+        var join = new ApprovalsFixture.Join { Phase = ChildJoinPhase.Waiting, QrLink = "https://login-billing.kitepon.dev/join/dev.kitepon.approvalbox#lbq4:abc", ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(5), Code = code };
+        using var rig = Open(join: join); Until(() => rig.Page.Settled);
+        Assert.Single(LogicalTree.Find<QrView>(rig.Window.Content));
+        var box = LogicalTree.Find<System.Windows.Controls.TextBox>(rig.Window.Content).Single(b => System.Windows.Automation.AutomationProperties.GetAutomationId(b) == "child-join-code"); Assert.Equal(code, box.Text); Assert.True(box.IsReadOnly);
+        Assert.Contains(ChildJoinText.CodeLead, Texts(rig.Window));
+        System.Windows.Clipboard.Clear(); Press(FindId(rig.Window, "child-join-code-copy"));
+        Assert.Equal(code, System.Windows.Clipboard.GetText());
+    });
+
+    [Fact]
+    public void ALocalNetworkFailureShowsTheLibrarysOwnWordsNeverTheCode() => RunSta(() =>
+    {
+        const string words = "同じネットワークにはつながっていますが、QRを出している端末が応答しません。";
+        var join = new ApprovalsFixture.Join { Phase = ChildJoinPhase.Failed, FailedCode = "not_answering", Words = words }; using var rig = Open(join: join); Until(() => rig.Page.Settled);
+        var texts = Texts(rig.Window); Assert.Contains(words, texts); Assert.DoesNotContain(ChildJoinText.Failed, texts); Assert.DoesNotContain(texts, text => text.Contains("not_answering", StringComparison.Ordinal));
+        Assert.Equal(ChildJoinText.Failed, ChildJoinText.FailedLine("not_answering")); Assert.Equal(ChildJoinText.OtherAccount, ChildJoinText.FailedLine("other_account", words));
     });
 
     [Theory]
