@@ -6,6 +6,7 @@ import test from 'node:test'
 import { createAuthMediationService } from '../src/auth-mediation/service.mjs'
 import { authMediationTools, authMediationToolHandlers } from '../src/auth-mediation/mcp.mjs'
 import { createAuthMediationDispatcher } from '../src/auth-mediation-dispatcher.mjs'
+import { authMediationEffectTimeout, authMediationRootTimeout } from '../src/auth-mediation-ipc.mjs'
 import { validateAuthMediationRequest, validateAuthMediationEffect, validateAuthMediationEffectResult, validateAuthMediationControl,
   validateAuthMediationReady, AUTH_MEDIATION_STATE_COMPATIBILITY } from '../src/auth-mediation-protocol.mjs'
 
@@ -120,4 +121,31 @@ test('audit verb: admins read the last lines, a non-admin is denied, nothing but
   assert.ok(!JSON.stringify(out).includes(SECRET))
   assert.equal((await f.call('admin', { botId: 'bot-a', verb: 'audit' })).outcome, 'denied')
   assert.equal((await f.call('admin', { botId: 'bot-admin', verb: 'audit' })).lines.length, 3) // two requests and the non-admin's denied attempt
+})
+
+test('timeouts follow the asked run time: root = timeoutSec + 30 s, seat.run effect = timeoutMs + 20 s, the rest stay short', () => {
+  assert.equal(authMediationRootTimeout('resolve', { via: 'mcp', timeoutSec: 1800 }), 1830000)
+  assert.equal(authMediationRootTimeout('resolve', { via: 'mcp' }), 630000)
+  assert.equal(authMediationRootTimeout('resolve', { via: 'container-socket' }), 60000)
+  assert.equal(authMediationRootTimeout('admin', { verb: 'show' }), 60000)
+  assert.equal(authMediationEffectTimeout('seat.run', { timeoutMs: 1800000 }), 1820000)
+  assert.equal(authMediationEffectTimeout('secret.get', {}), 30000)
+})
+
+test('a long MCP run does not block a socket caller, and each call keeps its own effect', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'auth-par-'))
+  await writeFile(join(dir, 'policy.json'), JSON.stringify({ version: 2, vault: 'v', admins: [], bots: { 'bot-a': { grants: [{ command: 'node app.mjs' }] } }, units: {}, stopped: [] }))
+  const service = createAuthMediationService({ policyPath: join(dir, 'policy.json'), auditPath: join(dir, 'a.jsonl'), realpath: async p => p, runOp: async () => ok })
+  const dispatcher = createAuthMediationDispatcher({ core: service })
+  await dispatcher.control('initialize', { generation, mode: 'bootstrap' }); await dispatcher.control('resume', {})
+  let release
+  const slow = async method => method === 'members.roots' ? { roots: { 'bot-a': '/srv/bellteam/bots/bot-a' } }
+    : method === 'seat.run' ? new Promise(resolve => { release = () => resolve({ exitCode: 0, stdout: 'done', stderr: '', truncated: false, timedOut: false }) })
+      : { value: 'tok' }
+  const fast = async method => method === 'members.roots' ? { roots: { 'bot-a': '/srv/bellteam/bots/bot-a' } } : { value: 'tok' }
+  const run = dispatcher.dispatch('resolve', { command: ['node', 'app.mjs'], cwd: '/srv/bellteam/bots/bot-a', via: 'mcp', botId: 'bot-a', timeoutSec: 1800 }, { generation }, slow)
+  await new Promise(r => setTimeout(r, 30))
+  const quick = await dispatcher.dispatch('resolve', { command: ['node', 'app.mjs'], cwd: '/srv/bellteam/bots/bot-a', via: 'container-socket' }, { generation }, fast)
+  assert.equal(quick.outcome, 'granted'); assert.deepEqual(quick.env, { API_KEY: SECRET })
+  release(); assert.equal((await run).stdout, 'done')
 })

@@ -12,6 +12,11 @@ const deferred = () => {
 }
 const acknowledged = value => authMediationObject(value, ['acknowledged']) && value.acknowledged === true
 
+// A root call may legitimately last as long as the MCP run it carries (timeoutSec) plus the runner's own start and stop; every other call stays short.
+export const authMediationRootTimeout = (method, params) => method === 'resolve' && params?.via === 'mcp' ? ((params.timeoutSec ?? 600) * 1000) + 30000 : 60000
+// The only effect that waits on a command is seat.run, which already carries its own deadline (timeoutMs).
+export const authMediationEffectTimeout = (method, params) => method === 'seat.run' ? params.timeoutMs + 20000 : 30000
+
 export function createAuthMediationParentChannel(child, { generation, onEffect }) {
   check(validAuthMediationGeneration(generation) && typeof onEffect === 'function')
   const ready = deferred()
@@ -48,7 +53,7 @@ export function createAuthMediationParentChannel(child, { generation, onEffect }
     request: (method, params) => {
       try {
         validateAuthMediationRequest(method, params, { generation })
-        return channel.call('root', method, params, { generation })
+        return channel.call('root', method, params, { generation }, { timeout: authMediationRootTimeout(method, params) })
       } catch (error) {
         const rejected = Promise.reject(error); rejected.catch(() => {})
         Object.defineProperty(rejected, 'completion', { value: rejected })
@@ -67,7 +72,7 @@ export function createAuthMediationParentChannel(child, { generation, onEffect }
 }
 
 export function createAuthMediationChildChannel({ dispatcher, event = process, versionId = process.argv[2] === 'builtin' ? null : process.argv[2] }) {
-  let generation = null, accepting = false, quiesced = false, epoch = 0, orphaned = false, readySent = false, chain = Promise.resolve(), channel
+  let generation = null, accepting = false, quiesced = false, epoch = 0, orphaned = false, readySent = false, channel
   const active = new Set()
   const drain = async () => { while (active.size) await Promise.allSettled([...active]) }
   const close = () => channel.close()
@@ -112,16 +117,17 @@ export function createAuthMediationChildChannel({ dispatcher, event = process, v
       if (!accepting || active.size >= 8) throw failure('AUTH_MEDIATION_NOT_ACCEPTED', 'not_accepted')
       dispatcher.validateRequest(message.method, message.params, message.context)
       quiesced = false
-      const done = deferred(), before = chain; chain = done.promise; active.add(done.promise)
-      // Root calls run one at a time; each may call the parent's providers only through this bound effect.
+      const done = deferred(); active.add(done.promise)
+      // Root calls run side by side (at most 8): a long MCP run must not hold up the socket callers. Each may call the parent's providers only through this bound effect.
+      // shortcut: concurrent admin verbs are serialized inside the service, other calls share only the item cache and the append-only audit.
+
       const effect = async (method, params) => {
-        const value = await channel.call('effect', method, params, { operation: message.id }, { timeout: 30000 })
+        const value = await channel.call('effect', method, params, { operation: message.id }, { timeout: authMediationEffectTimeout(method, params) })
         validateAuthMediationEffectResult(method, value)
         return value
       }
       const run = async () => {
         try {
-          await before
           return await dispatcher.dispatch(message.method, message.params, message.context, effect)
         } catch (error) { throw Object.assign(new Error('AUTH_MEDIATION_OPERATION_FAILED'), authMediationWireError(error, 'unknown')) }
       }

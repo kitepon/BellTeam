@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { appendFile, readFile } from 'node:fs/promises'
 import { createAuthCore } from './core.mjs'
 import { createItemCache, opRunner } from './items.mjs'
@@ -8,9 +9,10 @@ import { redact } from './redact.mjs'
 const CAP = 65536
 const clip = text => text.length > CAP ? { text: text.slice(0, CAP), cut: true } : { text, cut: false }
 
-// A request runs one at a time (the channel serializes root calls), so `current` is the effect of the call in progress.
+// Requests run side by side; each call's effect travels with it (AsyncLocalStorage), so a long run never blocks or mixes up another request.
 export function createAuthMediationService({ policyPath, auditPath, opExe, firstAdmins = [], appendLine = (path, line) => appendFile(path, line, { mode: 0o600 }), runOp = null, realpath = undefined }) {
-  let current = null
+  const calls = new AsyncLocalStorage(), current = (method, params) => calls.getStore()(method, params)
+  let adminTail = Promise.resolve()
   const withToken = async consume => {
     const got = await current('secret.get', {})
     if (got.unavailable) throw new Error('AUTH_NO_TOKEN')
@@ -19,7 +21,9 @@ export function createAuthMediationService({ policyPath, auditPath, opExe, first
   const items = createItemCache({ runOp: args => (runOp ?? opRunner({ exe: opExe, withToken }))(args) })
   const core = createAuthCore({ realpath, store: createPolicyStore(policyPath, firstAdmins), items, roots: async () => (await current('members.roots', {})).roots,
     audit: line => appendLine(auditPath, JSON.stringify(line) + '\n') })
-  const within = async (effect, work) => { current = effect; try { return await work() } finally { current = null } }
+  const within = (effect, work) => calls.run(effect, work)
+  // Admin verbs read, change and rewrite policy.json, so they run one after another.
+  const serial = work => { const next = adminTail.then(work, work); adminTail = next.catch(() => {}); return next }
   return {
     resolve: (params, effect) => within(effect, async () => {
       const result = await core.resolve(params)
@@ -30,7 +34,7 @@ export function createAuthMediationService({ policyPath, auditPath, opExe, first
       const out = clip(redact(run.stdout, result.env)), err = clip(redact(run.stderr, result.env))
       return { outcome: 'granted', exit_code: run.exitCode, stdout: out.text, stderr: err.text, truncated: run.truncated || out.cut || err.cut || run.timedOut, cache: result.cache }
     }),
-    admin: (input, effect) => within(effect, async () => {
+    admin: (input, effect) => within(effect, () => serial(async () => {
       // The container socket sends the peer cwd; the Bot is the registered root that contains it (same rule as a script caller).
       const params = { ...input, botId: input.botId ?? botForCwd((await effect('members.roots', {})).roots, input.cwd) }
       if (!params.botId) return { outcome: 'denied', error: 'The caller is not registered.' }
@@ -50,7 +54,7 @@ export function createAuthMediationService({ policyPath, auditPath, opExe, first
         return { outcome: 'ok', lines: text.split('\n').filter(Boolean).slice(-last) }
       }
       return core.admin(params.botId, params.verb, params.args ?? {})
-    }),
+    })),
     status: (params, effect) => within(effect, async () => ({ state: (await effect('secret.get', {})).unavailable ? 'no-token' : 'ready' })),
   }
 }
