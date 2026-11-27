@@ -31,7 +31,7 @@
     <PackageReference Include="Tmds.DBus.Protocol" Version="0.94.1" />
   </ItemGroup>
   <!-- a540 (Tronie): Google's Desktop client wants its secret at the token exchange (contract 1.37). It is never in git (GitHub push protection refuses it): a release build reads the vault's JSON from the environment
-       (scripts/package-linux-app.sh runs under dotagents-op-run with scripts/linux-google-desktop.env) and only the secret goes into the assembly. Without it the build runs and Google's sign-in answers signin_failed. -->
+       (scripts/package-linux-app.sh fetches it from the authentication module on main-server over ssh) and only the secret goes into the assembly. Without it the build runs and Google's sign-in answers signin_failed. -->
   <PropertyGroup Condition="'$(BELLTEAM_GOOGLE_DESKTOP_JSON)' != ''">
     <GoogleDesktopClientSecret>$([System.Text.RegularExpressions.Regex]::Match($(BELLTEAM_GOOGLE_DESKTOP_JSON), '"client_secret"\s*:\s*"([^"]+)"').Groups[1].Value)</GoogleDesktopClientSecret>
   </PropertyGroup>
