@@ -59,7 +59,10 @@ internal sealed class AndroidChildJoinForm : IChildJoinForm
         {
             try
             {
-                await ChildJoinAccept.RunAsync(() => request.AwaitPaidAsync().WaitAsync(ct), () => request.Add, add => keys.SendAddAsync(add).WaitAsync(ct), (LoginBillingException error) => new ChildJoinException(error.Code, error));
+                // 1.63: joined is the library's outcome; a refused store proof is outcome.Refused, never a throw.
+                var outcome = await request.AwaitOutcomeAsync().WaitAsync(ct);
+                if (outcome is not { Joined: true, Add: { } add }) throw new ChildJoinException(outcome.Refused ?? "add_missing", null);
+                await keys.SendAddAsync(add).WaitAsync(ct);
             }
             catch (LoginBillingException error) { throw new ChildJoinException(error.Code, error); }
         }
