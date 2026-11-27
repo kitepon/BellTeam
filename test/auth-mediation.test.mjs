@@ -37,7 +37,7 @@ test('no 1Password read before a refusal; cache hit, ttl, flush', async () => {
   assert.equal((await t.core.resolve({ ...a, command: ['node', 'app.mjs'] })).outcome, 'stopped'); assert.equal(t.calls(), 0)
   await t.core.resolve({ ...a, command: gh.command.split(' ') }); const hit = await t.core.resolve({ ...a, command: gh.command.split(' ') })
   assert.equal(hit.cache, 'hit'); assert.equal(t.calls(), 1)
-  t.tick(3_600_001); assert.equal((await t.core.resolve({ ...a, command: gh.command.split(' ') })).cache, 'miss')
+  t.tick(86_400_001); assert.equal((await t.core.resolve({ ...a, command: gh.command.split(' ') })).cache, 'miss')
   assert.equal(t.calls(), 2)
   assert.equal((await t.core.admin('bot-admin', 'flush', { command: gh.command })).outcome, 'ok')
   assert.equal((await t.core.resolve({ ...a, command: gh.command.split(' ') })).cache, 'miss')
@@ -107,6 +107,15 @@ test('MCP path: cwd must be clean and inside the Bot project, symlinks resolved'
   for (const bad of ['/srv/bellteam/bots/bot-a/../bot-b', '/srv/bellteam/bots/bot-a/', '/srv/bellteam/bots//bot-a', '/srv/bellteam/bots/bot-ab', '/srv/bellteam/bots/bot-a/link', '/tmp'])
     assert.equal(await ask(bad), 'denied', bad)
   assert.equal(t.calls(), 1)
+})
+
+test('cache age is judged against the current cache_seconds: raising it extends an entry already cached; the default is 24 h', async () => {
+  let clock = 0, calls = 0
+  const cache = createItemCache({ now: () => clock, runOp: async () => { calls++; return itemJson({ A: '1' }) } })
+  await cache.get('x', 'v', 3600); clock = 3_600_001
+  assert.equal((await cache.get('x', 'v', 86400)).hit, true); assert.equal(calls, 1) // read under 3600 s, still served after the setting became 86400
+  clock = 86_400_001; assert.equal((await cache.get('x', 'v', 86400)).hit, false)
+  assert.equal(emptyPolicy().cache_seconds, 86400)
 })
 
 test('item reads are coalesced: simultaneous first requests for one item cost one op call; a flush during the read drops its result', async () => {
