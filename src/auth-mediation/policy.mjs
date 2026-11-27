@@ -1,6 +1,6 @@
 import { readFile, writeFile, rename } from 'node:fs/promises'
 
-export const emptyPolicy = () => ({ version: 2, vault: '', cache_seconds: 86400, admins: [], bots: {}, units: {}, stopped: [] })
+export const emptyPolicy = () => ({ version: 2, vault: '', cache_seconds: 3600, admins: [], bots: {}, units: {}, stopped: [] })
 
 const live = (grant, now) => !grant.expires || now < Date.parse(grant.expires)
 
