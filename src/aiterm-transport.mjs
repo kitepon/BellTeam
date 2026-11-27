@@ -1584,8 +1584,19 @@ export class AitermTransport {
     })
   }
 
+  // one-running-judgment (current-work.md "One judgment"): the one place that decides "is this seat working". The Lattice nudge (turns.read),
+  // the member list, the 相関図 and the apps all read it; a schedule is never an input (a71). a485: a turn BellTeam runs or follows counts at once.
+  runningState(botId) {
+    const state = this.workState.turn(botId).state
+    if (state === 'working' || (state === 'idle' && this.workState.own(botId))) return 'working'
+    // A stop or a new session resets the observation to unknown on purpose; only a read taken after that lets the running turn override it.
+    return !this.isIdle(botId) && this.workState.readAfterReset(botId) ? 'working' : state
+  }
+
   currentWork(bot) {
-    const snapshot = this.workState.snapshot(bot.id, this.session(bot), !this.sessionChanges.has(bot.id))
+    const native = this.workState.snapshot(bot.id, this.session(bot), !this.sessionChanges.has(bot.id))
+    // The DTO's working/idle is the judgment's; the native observation only fills the time and the summary around it.
+    const snapshot = native.state !== 'working' && this.runningState(bot.id) === 'working' ? { ...native, state: 'working', observedAt: native.observedAt ?? this.now() } : native
     return this.backgroundSummary ? this.backgroundSummary.snapshot(bot.id, this.session(bot), snapshot)
       : { ...snapshot, summary: null, summaryStatus: 'missing', summaryUpdatedAt: null, source: null }
   }

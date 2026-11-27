@@ -147,6 +147,8 @@ export class CurrentWork {
     if (this.pending.has(record.botId)) this.finish(this.pending.get(record.botId), failure('UNAVAILABLE', 503))
     if (changed) this.changed(record)
   }
+  // True once a read newer than the last invalidation (stop, new session) was taken, even an unread one: the unknown is then "not read", not a leftover of the reset.
+  readAfterReset(botId) { const record = this.records.get(botId); return Boolean(record) && record.lastRead > record.barrier }
   invalidate(botId) { this.finishedActivity(botId, this.restartActivity.get(botId)); this.unknown(this.record(botId)); this.schedule() }
   sync(botId, sessionId, available = true) {
     const record = this.record(botId)

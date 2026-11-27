@@ -203,3 +203,22 @@ flowchart LR
 | Owner-answer waits | No special handling (Owner 11/13: 「稼働中判定が本番に入るまでこのまま」). After go-live Kiro reports how such a seat reads. |
 | idle close / nightly restart | Read the same facade fact in a later step (they read their own sources today). |
 | Self-exit | No guard is added: the process exits or the result arrives and the next tick (5-30 s) reads 0. |
+
+## One judgment of "is this seat working" (one-running-judgment, 2026-11-27, Owner via Tronie)
+
+The Lattice nudge read `runningState` (turn, own work, or a turn BellTeam itself runs or follows) while the member list and the 相関図 read `currentWork`, whose working/idle came from the native observation alone. For a remote-route seat the native read is slow or unread (it sat at unknown with `observedAt` null while the seat worked), so the two disagreed. The judgment the nudge uses is the right one; `currentWork` now takes its state from it and the second formula is gone.
+
+```mermaid
+flowchart LR
+  Native["workState.turn(botId): native observation<br/>working / idle / unknown (absent = idle)"] --> Judge
+  Own["workState.own(botId): own work of an idle seat"] --> Judge
+  Busy["isIdle(botId) false: a job or watch BellTeam runs or follows (a485)"] --> Judge
+  Judge["AitermTransport.runningState(botId)<br/>the one judgment: working / idle / unknown"] --> Nudge["Lattice nudge: turns.read"]
+  Judge --> Work["AitermTransport.currentWork(bot)<br/>DTO state from the judgment; summary and observedAt as before"]
+  Work --> List["member list, 相関図, apps: GET /api/bots currentWork"]
+  Work --> Approvals["seat-approvals watched"]
+  Schedule["a schedule"] -. "never an input (a71)" .-> Judge
+  Native --> Turn["currentTurn: native only, for after_turn (unchanged)"]
+```
+
+Data flow: the three inputs are read in place (no copy, no new state). `currentWork` keeps `observedAt` of the last native observation, or the time of the judgment when the seat works only because BellTeam runs the turn and the native read has none. The DTO shape is unchanged (six keys + optional reason), so the integration contract needs no change. The body facade (execution-facade.mjs) still composes the same formula for `transport.runningState` and the reason for `currentWork`; it can delegate to `transport.runningState` and drop its copy (Molly), with no change of result.

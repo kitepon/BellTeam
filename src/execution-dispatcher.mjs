@@ -45,7 +45,7 @@ const asyncMethods = {
 }
 const syncMethods = {
   transport: ['session', 'currentWork', 'currentWorkBinding', 'shownInSelfTurn', 'consumeShownWords',
-    'isIdle', 'deliveryBots', 'queueItems', 'currentTurn', 'ownWork', 'seatAccount', 'seatLaunch', 'forkSeat'],
+    'isIdle', 'deliveryBots', 'queueItems', 'currentTurn', 'ownWork', 'runningState', 'seatAccount', 'seatLaunch', 'forkSeat'],
   administration: ['view'],
 }
 export const EXECUTION_METHODS = Object.freeze({
