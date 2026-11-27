@@ -220,42 +220,8 @@ internal sealed class ApprovalsPage : Grid
 
     private const string Lapsed = "許可の待ち時間が過ぎました。もう一度つないでください。", ConnectFailed = Approvals.ConnectFailed, Blocked_ = "決裁箱の画面が開かなかったようです。「もう一度開く」を押してください。",
         DropAsk = "決裁箱とのつなぎを外します。外すと、工程表との連携が止まります。", DropFailed = "いまはつなぎを外せませんでした。少し待って、もう一度押してください。";
-    internal async Task OpenLinkAsync() { linkOpen = true; connect = new("idle"); Paint(); await ReadConnectionAsync(); await ReadSeatLinkAsync(); }
+    internal async Task OpenLinkAsync() { linkOpen = true; connect = new("idle"); Paint(); await ReadConnectionAsync(); }
 
-    // 「決裁箱につなぐ」 (seat-approval-card.md, the pairing view): read from the body's seat-link routes only, shown under 工程表との連携 in this panel. The QR and the two codes are for the Owner's Approval Box app.
-    private SeatLink? seatLink; private bool seatBusy; private int seatToken;
-    internal async Task ReadSeatLinkAsync()
-    {
-        if (run is not { } source) return; var mine = ++seatToken;
-        var reply = await Api.SeatLinkAsync(source.Token);
-        if (!Running || mine != seatToken) return;
-        seatLink = reply.Absent ? null : reply; Paint(); if (reply.Waiting) _ = WatchSeatLinkAsync(mine);   // a body without the routes (404): the view is not drawn
-    }
-    // While the pairing waits (the Owner reads the QR in the Approval Box app) the body is read every 2 s; it ends with the state leaving waiting, the panel closing or a new try.
-    private async Task WatchSeatLinkAsync(int mine)
-    {
-        while (Running && mine == seatToken && linkOpen)
-        {
-            try { await Task.Delay(2000, run!.Token); } catch (OperationCanceledException) { return; }
-            var reply = await Api.SeatLinkAsync(run!.Token);
-            if (!Running || mine != seatToken) return;
-            seatLink = reply; Paint(); if (!reply.Waiting) return;
-        }
-    }
-    internal async Task StartSeatLinkAsync()
-    {
-        if (run is not { } source || seatBusy) return; var mine = ++seatToken; seatBusy = true; Paint();
-        var reply = await Api.StartSeatLinkAsync(source.Token);
-        seatBusy = false; if (!Running || mine != seatToken) return;
-        seatLink = reply; Paint(); if (reply.Waiting) _ = WatchSeatLinkAsync(mine);
-    }
-    internal async Task StopSeatLinkAsync()
-    {
-        if (run is not { } source || seatBusy) return; var mine = ++seatToken; seatBusy = true; Paint();
-        var reply = await Api.StopSeatLinkAsync(source.Token);
-        seatBusy = false; if (!Running || mine != seatToken) return;
-        seatLink = reply; Paint();
-    }
     internal async Task ReadConnectionAsync()
     {
         if (run is not { } source) return; var mine = ++connectToken;
@@ -467,9 +433,8 @@ internal sealed class ApprovalsPage : Grid
         if (phase != "opening" && drop is not { Step: "busy" }) acts.Children.Add(Act("戻る", () => { linkOpen = false; drop = null; connect = new("idle"); Paint(); }, key: "connect:back"));
         stack.Children.Add(acts);
         if (Join is { Phase: ChildJoinPhase.Joined } joined) stack.Children.Add(JoinBlock(joined));
-        if (seatLink is { } seat) stack.Children.Add(SeatLinkSection(seat));
         if (connect.Note.Length > 0) { var note = Text(connect.Note, 13, Red, FontWeights.SemiBold, TextWrapping.Wrap); note.Margin = new Thickness(0, 12, 0, 0); note.TextAlignment = TextAlignment.Center; System.Windows.Automation.AutomationProperties.SetAutomationId(note, "approvals-connect-note"); stack.Children.Add(note); }
-        return Scroll(stack, new Thickness(0));   // the seat-link view (QR, code, steps, expiry) makes the panel tall: it scrolls
+        return Scroll(stack, new Thickness(0));
     }
 
     // This device's join state (child-join.md): 「決裁箱につながっています」 and the two-step 「つなぎを外す」 (外す / やめる). Leaving removes this device from the account and never touches BellTeam's own sign-in.
@@ -492,44 +457,6 @@ internal sealed class ApprovalsPage : Grid
     {
         leaveStep = "busy"; Paint();
         try { await join.LeaveAsync(); } finally { leaveStep = null; if (Running) Paint(); }
-    }
-
-    private FrameworkElement SeatLinkSection(SeatLink seat)
-    {
-        var section = new StackPanel { Margin = new Thickness(0, 30, 0, 0), HorizontalAlignment = HorizontalAlignment.Center, MaxWidth = 480 };
-        section.Children.Add(new Border { Height = 1, Background = Brush(Muted, 0x33), Margin = new Thickness(0, 0, 0, 20) });
-        var head = Text(SeatLinkText.Title, 16, Ink, FontWeights.Bold); head.TextAlignment = TextAlignment.Center; section.Children.Add(head);
-        if (SeatLinkText.Badge(seat) is { } badge)
-        {
-            var tint = badge.Tone switch { "ok" => Color.FromRgb(0x2E, 0xB3, 0x9E), "err" => Color.FromRgb(0xFF, 0x3B, 0x30), _ => Muted };   // the same chip as 「ライブ」: a dot and a word
-            var chip = Pill(Row(new System.Windows.Shapes.Ellipse { Width = 8, Height = 8, Fill = Brush(tint) }, Spaced(Text(badge.Text, 12, tint, FontWeights.SemiBold), 6)), tint, 0x1F);
-            chip.HorizontalAlignment = HorizontalAlignment.Center; chip.Margin = new Thickness(0, 10, 0, 0); System.Windows.Automation.AutomationProperties.SetAutomationId(chip, "seat-link-badge"); section.Children.Add(chip);
-        }
-        var line = Text(SeatLinkText.Line(seat), 14, SeatLinkText.IsFailure(seat) ? Red : Ink, FontWeights.SemiBold, TextWrapping.Wrap); line.TextAlignment = TextAlignment.Center; line.Margin = new Thickness(0, 8, 0, 0);
-        System.Windows.Automation.AutomationProperties.SetAutomationId(line, "seat-link-text"); section.Children.Add(line);
-        if (seat.Waiting)
-        {
-            var qr = new QrView(seat.QrText!, 200, "決裁箱のアプリで読むQRコード") { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 14, 0, 8) }; section.Children.Add(qr);
-            // Both codes are always shown: without the 確認コード the app claims the pairing but binds no key (seat-approval-card.md).
-            foreach (var (label, value, id) in new[] { (SeatLinkText.CodeLabel, seat.Code, "seat-link-code"), (SeatLinkText.SecretLabel, seat.TypedSecret, "seat-link-secret") })
-            {
-                if (string.IsNullOrEmpty(value)) continue;
-                var caption = Text(label, 12.5, Muted); caption.TextAlignment = TextAlignment.Center; caption.Margin = new Thickness(0, 6, 0, 0); section.Children.Add(caption);
-                var typed = new TextBox { Text = value, IsReadOnly = true, FontFamily = new FontFamily("Consolas"), FontSize = 16, TextAlignment = TextAlignment.Center, BorderThickness = new Thickness(0), Background = Brushes.Transparent, HorizontalAlignment = HorizontalAlignment.Center };
-                System.Windows.Automation.AutomationProperties.SetAutomationId(typed, id); System.Windows.Automation.AutomationProperties.SetName(typed, label); section.Children.Add(typed);
-            }
-            var way = Text(SeatLinkText.Type, 13, Ink, FontWeights.Normal, TextWrapping.Wrap); way.TextAlignment = TextAlignment.Center; way.Margin = new Thickness(0, 8, 0, 0);
-            System.Windows.Automation.AutomationProperties.SetAutomationId(way, "seat-link-type"); section.Children.Add(way);
-            if (seat.ExpiresAt is { } until) { var expiry = Text(SeatLinkText.Until(until), 12.5, Muted); expiry.TextAlignment = TextAlignment.Center; expiry.Margin = new Thickness(0, 4, 0, 0); section.Children.Add(expiry); }
-        }
-        if (seatBusy) { var spin = Spinner(16); spin.Margin = new Thickness(0, 12, 0, 0); spin.HorizontalAlignment = HorizontalAlignment.Center; section.Children.Add(spin); }
-        else if (SeatLinkText.Action(seat) is { } label)
-        {
-            var button = Action(label, "", seat.State == "none" || seat.State == "removed" || seat.State == "failed" || seat.State == "unavailable");
-            button.Click += (_, _) => { if (seat.State == "waiting") _ = StopSeatLinkAsync(); else _ = StartSeatLinkAsync(); };
-            button.HorizontalAlignment = HorizontalAlignment.Center; button.Margin = new Thickness(0, 14, 0, 0); section.Children.Add(Key(button, "seat-link:" + (seat.State == "waiting" ? "cancel" : "go")));
-        }
-        return section;
     }
 
     private Grid Columns(bool dim)

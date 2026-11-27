@@ -368,26 +368,9 @@ flowchart LR
 - **見える所**: メンバー一覧のそのBotの行に「承認待ち」の札、そのBotの画面の上に承認の項目（そのBotの分を古い順に全部）。決裁箱のカード（`card: "filed"`）があっても、アプリの項目は残る。
 - **言葉の置き場**: Coreの`SeatApprovalText`（Linux・Androidと同じ）。Macが見た目の基準。Windowsの見え方は[windows-seat-approvals.png](windows-seat-approvals.png)（`BellTeam.exe --render-preview`の人工データ。左の行に「承認待ち」、会話の上に項目）。
 
-## 「決裁箱につなぐ」（seat-link。[seat-approval-card.md](architecture/modules/approval-box-extension/seat-approval-card.md)の「The pairing view」第4版、オーナー2026-11-26：BellTeamと決裁箱のつなぎは1回だけ。QRか、2つのコードで承認）
+## 「決裁箱につなぐ」の区画（seat-link）は廃止した
 
-決裁箱の窓の「工程表との連携」パネル（つなぎを外すがある所）の下に1つの区画を足す。データはbodyの`GET /api/approvals/seat-link`・`POST …/start`・`POST …/stop`だけ（Coreの`SeatLinkApi`。形は`{state, code?, typedSecret?, qrText?, expiresAt?, reason?}`。「コード」は`code`（8文字）、「確認コード」は`typedSecret`（16文字）。確認コードが無いとアプリは接続を名乗るだけで鍵が結ばれないので、2つは必ず並べる）。言葉と状態はCoreの`SeatLinkText`（契約の表を一字も変えず、Linux・Androidと同じ）。
-
-```mermaid
-stateDiagram-v2
-  [*] --> none: パネルを開く（GET）
-  none --> waiting: 「つなぐ」（POST start）
-  waiting --> waiting: 2秒ごとにGET（QR・コード・確認コード・2つのつなぎ方・期限JST・「やめる」）
-  waiting --> linked: 決裁箱のアプリでQRを読んで許可
-  waiting --> failed: rejected | expired | その他
-  waiting --> none: 「やめる」（POST stop）
-  linked --> removed: 決裁箱でつなぎが外された
-  failed --> waiting: 「もう一度つなぐ」
-  removed --> waiting: 「もう一度つなぐ」
-```
-
-- 見え方：[waiting](windows-seat-link-waiting.png)（QR・「コード」と「確認コード」の2つの値（選べる文字）・QRで読む方法（`Scan`）と打ち込む方法（`Type`）の2文・期限・やめる）（`BellTeam.exe --render-approvals link-seat-waiting <PNG>`で出す）。linked・removed・failedはUiChecksの試験が言葉と札を確かめる。文の上に、窓の「ライブ」と同じ形の状態の札（点＋言葉。トロニー2026-11-24）：linked＝緑「つながっています」、removed＝灰「つなぎが外れています」、failed（と読めない時）＝赤「つなげませんでした」（Coreの`SeatLinkText.Badge`）。noneとwaitingに札は無い。linkedにボタンは無い。
-- 読めない時：503・403・失敗は「いまはつなげません。少し待って、もう一度押してください。」と「もう一度つなぐ」。**routeの無い古いbody（404）は区画を出さない**（routeが入る前のビルドで、オーナーに紛らわしい行を見せないため）。
-- 答え（start・stop）は1回ずつで、送っている間はスピナー。パネルは縦に長くなるのでスクロールする。
+オーナー2026-11-27（Deltaの図の改め、seat-link-qr-in-chat）：BellTeamと決裁箱のつなぎは1回だけで、QRはオーナーの会話に出る。つながった後の窓に、同じ名前のつなぎを2つ並べる区画（QR・「コード」・「確認コード」・つなぎ方の2文・期限・「やめる」）は置かない。Windowsは `ApprovalsWindow` の区画と、本体の `/api/approvals/seat-link*` の読み書き（`OpenLinkAsync` の読み、`StartSeatLinkAsync`・`StopSeatLinkAsync`・2秒ごとの見張り）、描画の場面 `link-seat-waiting`、窓の試験3本を外した。窓の「工程表との連携」パネル（つなぎを外す・決裁箱につなぐ〔同意ページ〕）と、「決裁箱につながっています」の行は今まで通り。Coreの `SeatLink.cs`（`SeatLinkText`・`SeatLinkApi`）はLinuxがまだ使うので、Linuxの区画を外す時にネオンが一緒に外す。
 
 ## peer-channel（決裁箱の端末部品。a498）
 
