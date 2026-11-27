@@ -447,3 +447,13 @@ Deltaの図の改め（seat-link-qr-in-chat）で廃止した区画（QR・コ�
 - 確認（本番の読み取り）: `--smoke-test http://192.168.1.2:18891/` は成功（認証済み、SSE接続あり）。
 - 確認（画面）: `--render-approvals join-block`・`link-connected` は終了コード0。工程表との連携のパネルに「決裁箱につながっています」と「つなぎを外す」があり、廃止した区画は出ていない。
 - 確認できていない: 本物の親のスマホでの通し。
+
+## Windows 0.9.9 の公開（GitHubの公開版 windows-app、2026-11-28 00:1x JST、アニス）
+
+トロニーの裁定（2026-11-28）：Linuxの`linux-app`と同じ形で、公開版`windows-app`に置く。鍵は認証仲介だけから受け、未署名のまま。PR #2774（package-windows-app.ps1・publish-windows-app.ps1・公開版の導入・docs/windows-app.md）、main `bfb74845`から、エピネルが`auth exec windows-install-with-oauth.sh -- --package`でfoxにx64とarm64の配布物を作り（終了コード0）、アニスが`publish-windows-app.ps1`で上げた。
+
+- 公開: https://github.com/kitepon/BellTeam/releases/tag/windows-app（題名「BellTeam Windows app 0.9.9」、タグは`bfb74845`、Latestではない）。
+- 確認: 配布物のSHA256SUMSが3つのファイルと合う。x64・arm64のzipの`BellTeam.dll`の`GoogleDesktopSecret`はどちらも35文字（値は表示していない）。x64は`datachannel.dll`入り。
+- 確認（利用者の道）: 公開のURLから`install-windows.ps1`を取って実行し（-NoLaunch）、終了コード0。導入したexeの版は`0.9.9+bfb748451236ce8cdc68427c6e556be256d82d26`、登録の表示は0.9.9、`--smoke-test`は成功（認証済み、SSE接続あり）。
+- 公開の途中で見つけた欠陥: `publish-windows-app.ps1`の`"$taskSha:windows/..."`が変数`$taskSha:windows`と読まれてcsprojの版を読めず、`gh`の前で止まった（何も公開されていない）。波括弧で直した（PR は別）。
+- 確認できていない: arm64の導入と起動、SmartScreenの警告の実際の出方（未署名）、本物の親のスマホでの通し。
