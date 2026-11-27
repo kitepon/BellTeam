@@ -64,6 +64,8 @@ public sealed class AccountCard : StackPanel
         Render();
     }
 
+    private Func<string, Task<bool>>? taker;   // 1.60: this request's return link (lbr1) opened in this app or pasted
+
     private async Task RunAsync(Func<Kitepon.LoginBilling.LocalForm, Task> action)
     {
         if (busy || Local is not { } local) return;
@@ -71,8 +73,8 @@ public sealed class AccountCard : StackPanel
         try { await action(local); }
         catch (OperationCanceledException) { }   // the person pressed やめる, or the screen closed
         catch (LoginBillingException error) when (error.Code == "signin_cancelled") { }   // the person's own choice says nothing
-        catch (LoginBillingException error) { failure = LocalFormText.Failure(error.Code, error.Reason, error.Detail); }
-        request?.Dispose(); request = null; attempt?.Dispose(); attempt = null; busy = false;
+        catch (LoginBillingException error) { failure = LocalWords.Ja(error.Code) ?? LocalFormText.Failure(error.Code, error.Reason, error.Detail); }
+        if (taker is not null) { JoinLink.Takers.Remove(taker); taker = null; } request?.Dispose(); request = null; attempt?.Dispose(); attempt = null; busy = false;
         if (!token.IsCancellationRequested) await ReloadAsync();
     }
 
@@ -81,7 +83,7 @@ public sealed class AccountCard : StackPanel
     {
         attempt = CancellationTokenSource.CreateLinkedTokenSource(token); Render();
         if (provider == "google") await local.SignInLocalAsync(MainActivity.Current).WaitAsync(attempt.Token);
-        request = await local.MakeRequestAsync(MainActivity.Current, provider).WaitAsync(attempt.Token); expiry = DateTimeOffset.Now.AddMinutes(BellTeam.Core.LocalForm.ListenMinutes); Render();
+        request = await local.MakeRequestAsync(MainActivity.Current, provider, parentAppId: "dev.kitepon.bellbot").WaitAsync(attempt.Token); JoinLink.Takers.Add(taker = JoinLink.Taker(link => local.TakeAsync(link))); expiry = DateTimeOffset.Now.AddMinutes(BellTeam.Core.LocalForm.ListenMinutes); Render();
         paid = await request.AwaitPaidAsync().WaitAsync(attempt.Token); notice = LocalFormText.PaidOk;
     });
 
@@ -96,7 +98,7 @@ public sealed class AccountCard : StackPanel
     // The first screen while this phone is not yet approved: before sign-in the name, the one line and the Owner's sentence with the two ways in (and the purchase, which only a phone can make); once a request is open the screen that waits for the parent device.
     private void RenderFirstScreen()
     {
-        if ((request?.Qr ?? (preview is { Length: > 0 } ? preview : null)) is { } qr) { Children.Add(QrScreen(qr)); return; }
+        if ((request?.Qr ?? (preview is { Length: > 0 } ? preview : null)) is { } qr) { Children.Add(QrScreen(qr, request?.Code ?? (preview is { Length: > 0 } ? "https://login-billing.kitepon.dev/join/dev.kitepon.bellbot#lbj1:render-only-sample-not-a-real-code" : null))); return; }   // preview: render scenes only
         // The app's own portrait above the name, 88 px with rounded corners (Windows' first screen has the same tile).
         var icon = Round.Clip(new Image { Source = EmbeddedAsset.Portrait(176), Stretch = Stretch.UniformToFill, Width = 88, Height = 88 }, 22); icon.HorizontalAlignment = HorizontalAlignment.Center; icon.Margin = new Thickness(0, 16, 0, 0);
         var name = Text(LocalFormText.AppName, 34, Ink, FontWeight.Bold, new Thickness(0, 14, 0, 0)); name.HorizontalAlignment = HorizontalAlignment.Center;
@@ -125,7 +127,7 @@ public sealed class AccountCard : StackPanel
     }
 
     // The waiting screen: the title, the QR, how long it holds, the Owner's sentence, the way out (Approval Box 0.2.2's qr-screen; BellTeam has no 「この端末を親にする」).
-    private Control QrScreen(string qr)
+    private Control QrScreen(string qr, string? joinCode = null)
     {
         var column = new StackPanel { Spacing = 6, Margin = new Thickness(0, 24, 0, 0) };
         column.Children.Add(Text(LocalFormText.WaitingTitle, 20, Ink, FontWeight.Bold));
@@ -135,6 +137,7 @@ public sealed class AccountCard : StackPanel
         waiting.Children.Add(Glyph(SettingsIcons.Waiting, 16, Muted)); var wt = Text(LocalFormText.ValidUntil(request is null ? DateTimeOffset.Now.AddMinutes(BellTeam.Core.LocalForm.ListenMinutes) : expiry), 13, Muted); wt.VerticalAlignment = VerticalAlignment.Center; waiting.Children.Add(wt);
         column.Children.Add(waiting);
         column.Children.Add(Text(LocalFormText.Qr, 14, Ink, null, new Thickness(0, 6, 0, 0)));
+        if (JoinCodeView.Create(joinCode, LocalFormText.CodeHint) is { } join) column.Children.Add(join);
         if (PurchaseButton() is { } buy) column.Children.Add(buy);
         var stop = Capsule(LocalFormText.Cancel, Fill, Ink, 12, 14, new Thickness(16, 10)); stop.HorizontalAlignment = HorizontalAlignment.Left; stop.Margin = new Thickness(0, 12, 0, 0); stop.Click += (_, _) => attempt?.Cancel();
         column.Children.Add(stop);
@@ -154,7 +157,7 @@ public sealed class AccountCard : StackPanel
         if (notice is not null && request is null) Children.Add(Text(notice, 14, Ink, FontWeight.SemiBold, new Thickness(0, 6, 0, 0)));
 
         if (owned) { Children.Add(approve ??= new ApprovePanel(token)); }   // one panel for the card's life: a rebuilt one lost the asking question and the result line
-        else if (request is { } open) Children.Add(QrBlock(open.Qr));
+        else if (request is { } open) Children.Add(QrBlock(open.Qr, open.Code));
         else if (paid is not null) Children.Add(Button(StoreAccountText.SignOut, () => { Local?.SignOutLocal(); paid = null; EntitledChanged?.Invoke(); Render(); return Task.CompletedTask; }, Look.Secondary));
         else
         {
@@ -178,7 +181,7 @@ public sealed class AccountCard : StackPanel
     }
 
     // The QR of one request: the paying phone reads it; this phone waits (10 minutes) and has one way out.
-    private Control QrBlock(string qr)
+    private Control QrBlock(string qr, string? joinCode = null)
     {
         var block = new StackPanel { Margin = new Thickness(0, 14, 0, 0), Spacing = 6 };
         block.Children.Add(Text(LocalFormText.Title, 16, Ink, FontWeight.Bold));
@@ -187,6 +190,7 @@ public sealed class AccountCard : StackPanel
         block.Children.Add(code);
         // 1.49 (11.12): the library's own sentence, word for word, directly under the QR on every client.
         var guidance = Text(LocalFormText.Qr, 14, Ink); guidance.TextAlignment = TextAlignment.Center; block.Children.Add(guidance);
+        if (JoinCodeView.Create(joinCode, LocalFormText.CodeHint) is { } join) block.Children.Add(join);
         var waiting = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 4, 0, 0) };
         waiting.Children.Add(Glyph(SettingsIcons.Waiting, 16, Muted)); var wt = Text(LocalFormText.WaitingUntil(expiry), 13, Muted); wt.VerticalAlignment = VerticalAlignment.Center; waiting.Children.Add(wt);
         block.Children.Add(waiting);

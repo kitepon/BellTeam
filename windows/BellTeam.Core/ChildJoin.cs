@@ -8,6 +8,11 @@ public static class ChildJoinText
 {
     public const string Title = "決裁箱につなぎます", Lead = "この端末を、あなたの決裁箱に子の端末として追加します。";
     public const string WaitingTitle = "決裁箱の承認を待っています", QrLabel = "決裁箱につなぐQRコード";
+    // The code beside the QR (login-billing 1.60): Approval Box's own paste field takes it, which is how a phone that is also the parent joins.
+    // CodeHint: a PC (the QR is read by the phone that has 決裁箱). CodeHintPhone: a phone, where the parent is usually this same phone, so the first action opens the code in 決裁箱; the other cases follow in the same words.
+    public const string CodeOpen = "決裁箱で開く";
+    public const string CodeHint = "決裁箱のあるスマートフォンでQRコードを読むか、このコードをコピーして、決裁箱の「ほかの端末を追加する」に貼り付けてください。";
+    public const string CodeHintPhone = "このスマートフォンに決裁箱がある時は、「決裁箱で開く」を押してください。ほかの端末で承認する時は、その端末でQRコードを読むか、このコードをコピーして決裁箱の「ほかの端末を追加する」に貼り付けてください。";
     public const string Failed = "つなげませんでした。もう一度つないでください。";
     // The join code beside the QR (login-billing 0.25, the Owner's K-A9DW3Q): for a QR that cannot be read, e.g. on the same phone. Wording is BellTeam's own until Rapi's table says otherwise.
     public const string CodeLabel = "参加コード", CopyCode = "コードをコピー";

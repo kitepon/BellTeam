@@ -24,24 +24,14 @@ internal sealed partial class ApprovalsWindow
     private Control JoinScreen(ChildJoinState join)
     {
         var column = new StackPanel { Spacing = 10 };
-        if (join.Phase == JoinPhase.Waiting && join.QrLink is { Length: > 0 } link)
-        {
-            column.Children.Add(Text(ChildJoinText.WaitingTitle, 18, Ink, FontWeight.Bold));
-            var code = new QrView(link, 280) { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 0) }; Avalonia.Automation.AutomationProperties.SetName(code, ChildJoinText.QrLabel);
-            column.Children.Add(code);
-            var valid = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Spacing = 8 };
-            valid.Children.Add(Spinner(14)); if (join.ExpiresAt is { } until) valid.Children.Add(Text(LocalFormText.ValidUntil(until), 13, Muted));
-            column.Children.Add(valid);
-            column.Children.Add(Text(LocalFormText.Qr, 14, Ink, wrap: true));
-            column.Children.Add(Wide(Action(ChildJoinText.LeaveNo, null), () => Device?.CancelJoin()));
-        }
+        if (join.Phase == JoinPhase.Waiting && join.QrLink is { Length: > 0 } link) AddWaiting(column, join, link, () => Device?.CancelJoin());
         else
         {
             column.Children.Add(new Border { Child = Icon(Globe, 26, Violet), HorizontalAlignment = HorizontalAlignment.Center });
             column.Children.Add(Text(ChildJoinText.Title, 18, Ink, FontWeight.Bold));
             column.Children.Add(Text(ChildJoinText.Lead, 14.5, Ink, wrap: true));
             if (join.Removed) column.Children.Add(Text(ChildJoinText.Removed, 14, Ink, FontWeight.SemiBold, wrap: true));
-            if (join.Phase == JoinPhase.Failed) column.Children.Add(Text(ChildJoinText.FailedLine(join.Code), 14, Red, FontWeight.SemiBold, wrap: true));
+            if (join.Phase == JoinPhase.Failed) column.Children.Add(Text(ChildJoinText.FailedLine(join.Code, join.Words), 14, Red, FontWeight.SemiBold, wrap: true));
             if (join.Phase == JoinPhase.SigningIn)
             {
                 column.Children.Add(Text(SignInText.Waiting, 14, Muted, wrap: true));
@@ -58,6 +48,21 @@ internal sealed partial class ApprovalsWindow
         }
         var card = Glass(column, 22, new Thickness(26, 24)); card.MaxWidth = 520; card.HorizontalAlignment = HorizontalAlignment.Center; card.VerticalAlignment = VerticalAlignment.Center;
         return card;
+    }
+
+    // The waiting screen: the QR, how long it holds, and the code. On a phone the parent is usually this same phone, so the first action opens the code in 決裁箱 and the hint covers both cases; a PC keeps the QR sentence.
+    internal static void AddWaiting(StackPanel column, ChildJoinState join, string link, System.Action cancel)
+    {
+        var phone = JoinCodeView.OpenOnThisPhone is not null;
+        column.Children.Add(Text(ChildJoinText.WaitingTitle, 18, Ink, FontWeight.Bold));
+        var code = new QrView(link, 280) { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 0) }; Avalonia.Automation.AutomationProperties.SetName(code, ChildJoinText.QrLabel);
+        column.Children.Add(code);
+        var valid = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Spacing = 8 };
+        valid.Children.Add(Spinner(14)); if (join.ExpiresAt is { } until) valid.Children.Add(Text(LocalFormText.ValidUntil(until), 13, Muted));
+        column.Children.Add(valid);
+        if (JoinCodeView.Create(join.JoinCode, phone ? ChildJoinText.CodeHintPhone : ChildJoinText.CodeHint, ChildJoinText.CodeOpen) is { } joinCode) column.Children.Add(joinCode);
+        else if (!phone) column.Children.Add(Text(LocalFormText.Qr, 14, Ink, wrap: true));
+        column.Children.Add(Wide(Action(ChildJoinText.LeaveNo, null), cancel));
     }
 
     private static Button Wide(Button button, System.Action click) { button.HorizontalAlignment = HorizontalAlignment.Stretch; button.HorizontalContentAlignment = HorizontalAlignment.Center; button.Click += (_, _) => click(); return button; }

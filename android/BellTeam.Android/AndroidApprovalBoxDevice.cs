@@ -34,7 +34,7 @@ internal sealed class AndroidChildJoinForm : IChildJoinForm
 
     public async Task<IChildJoinRequest> MakeRequestAsync(string provider, CancellationToken ct)
     {
-        try { return new Request(await local.MakeRequestAsync(MainActivity.Current, provider).WaitAsync(ct), keys); }   // signs in itself, also with nothing kept
+        try { var made = await local.MakeRequestAsync(MainActivity.Current, provider, parentAppId: AppId).WaitAsync(ct); return new Request(made, keys, local); }   // signs in itself, also with nothing kept
         catch (LoginBillingException error) { throw new ChildJoinException(error.Code, error); }
     }
 
@@ -47,21 +47,23 @@ internal sealed class AndroidChildJoinForm : IChildJoinForm
 
     public void Forget() { keys.DeleteKey(); local.SignOutLocal(); }
 
-    private sealed class Request(LocalRequest request, Keyholes keys) : IChildJoinRequest
+    private sealed class Request : IChildJoinRequest
     {
+        private readonly LocalRequest request; private readonly Keyholes keys; private readonly Func<string, Task<bool>> taker;
+        // 1.60: the join code (made for Approval Box's app id), and this request's return link (lbr1) from the same phone's Approval Box taken while it waits.
+        public Request(LocalRequest request, Keyholes keys, Kitepon.LoginBilling.LocalForm local) { this.request = request; this.keys = keys; JoinLink.Takers.Add(taker = JoinLink.Taker(link => local.TakeAsync(link))); }
         public string Qr => request.Qr;
+        public string? Code => request.Code;
         public DateTimeOffset ExpiresAt => request.ExpiresAt;
         public async Task AcceptAsync(CancellationToken ct)
         {
             try
             {
-                try { await request.AwaitPaidAsync().WaitAsync(ct); }
-                catch (LoginBillingException error) when (error.Code == "not_paid") { }   // the add of a parent that bought nothing still comes with the reply
-                await keys.SendAddAsync(request.Add ?? throw new ChildJoinException("add_missing")).WaitAsync(ct);
+                await ChildJoinAccept.RunAsync(() => request.AwaitPaidAsync().WaitAsync(ct), () => request.Add, add => keys.SendAddAsync(add).WaitAsync(ct), (LoginBillingException error) => new ChildJoinException(error.Code, error));
             }
             catch (LoginBillingException error) { throw new ChildJoinException(error.Code, error); }
         }
-        public void Dispose() => request.Dispose();
+        public void Dispose() { JoinLink.Takers.Remove(taker); request.Dispose(); }
     }
 }
 

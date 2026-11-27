@@ -65,6 +65,11 @@ public static class LocalFormText
     // Devices that cannot become a parent (Windows and Linux only; the Owner 2026-11-24): the lead above the sign-in buttons. iPhone, Mac and Android keep FirstSignIn.
     public const string FirstSignInChildOnly = "本アプリケーションを使用するには、iPhone、iPad、Mac、Android等の購読済みの端末で、サインイン後に表示されるQRコードを読み取る必要があります。";
     public const string Qr = "親となる端末（課金操作をするカメラのあるスマートフォンがお勧め）のカメラでQRコードを読んでください。";
+    // login-billing 1.60 (Owner 2026-11-27, K-A9DW3Q): the join code beside the QR, to see and copy (it holds an identity token, so it is pasted, not typed), and the words around the return link of a phone that could not reach this device.
+    public const string CodeLabel = "参加コード", CodeCopy = "コードをコピー", CodeCopied = "コピーしました";   // the same words as ChildJoinText.CodeLabel/CopyCode (Windows)
+    public const string CodeHint = "QRを読めない時は、このコードをコピーして、親となる端末の「コードを貼り付ける」に貼り付けてください。";
+    public const string PasteLabel = "コードを貼り付ける", PasteUse = "このコードで承認する";
+    public const string ReturnLead = "相手の端末には直接届きませんでした。次のリンクで、QRを出している端末に戻ってください。", ReturnOpen = "リンクを開く", ReturnCopy = "リンクをコピー";
     public const string OutdatedPeer = "QRが正しくないか、相手の端末のBellTeamが古い可能性があります。2台とも最新版に更新してから、相手の画面で新しいQRを出してください。";
     public const string PermissionDenied = "設定でこのアプリのローカルネットワークを許可してから、新しいQRでお試しください。";
     public const string ApproveLead = "承認したい端末に出ているQRを読み取ります。自分で始めたものだけ承認してください。2台は同じネットワーク（同じLAN）につないでください。";

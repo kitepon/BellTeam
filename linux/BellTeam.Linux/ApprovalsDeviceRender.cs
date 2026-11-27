@@ -64,7 +64,7 @@ internal static class ApprovalsDeviceRender
             source = new JoinFixtureSource(device, scene switch
             {
                 "child-signing" => new(JoinPhase.SigningIn), "child-failed" => new(JoinPhase.Failed), "child-removed" => new(JoinPhase.NotJoined, Removed: true), "child-live" => new(JoinPhase.Joined),
-                "child-waiting" => new(JoinPhase.Waiting, "https://login-billing.kitepon.dev/join/dev.kitepon.approvalbox#lbq4:render-only-sample-not-a-real-request", DateTimeOffset.Now.AddMinutes(5)),
+                "child-waiting" => new(JoinPhase.Waiting, "https://login-billing.kitepon.dev/join/dev.kitepon.approvalbox#lbq4:render-only-sample-not-a-real-request", DateTimeOffset.Now.AddMinutes(5), JoinCode: "https://login-billing.kitepon.dev/join/dev.kitepon.approvalbox#lbj1:render-only-sample-not-a-real-code"),
                 _ => new(JoinPhase.NotJoined),
             });
         }
