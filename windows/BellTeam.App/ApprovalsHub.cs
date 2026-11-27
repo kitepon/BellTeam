@@ -90,7 +90,7 @@ internal sealed class ApprovalsHub : IDisposable
     /// <summary>Asks BellTeam which of the device's decisions are linked to a chart task (a changed server forgets the answers).</summary>
     internal void ReadLinks()
     {
-        if (!autostart || !workspace.Connected || Device is null) return;
+        if (life.IsCancellationRequested || !autostart || !workspace.Connected || Device is null) return;   // not after the hub is disposed (a posted Tell can still arrive)
         if (origin != workspace.Server) { origin = workspace.Server; Links.Forget(); }
         _ = Links.ReadAsync(workspace.Management.Api, DeviceViews, Notify, life.Token);
     }
