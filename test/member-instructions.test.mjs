@@ -21,12 +21,6 @@ test('pure global rendering preserves Owner, user rules, common rules order', ()
   assert.equal(renderGlobalInstructions(owner, rules, common), `${ownerInstructions(owner)}\n\n${userRulesInstructions(rules)}\n\n${common}`)
 })
 
-test('only a 統括 position gets the assign-owner section, right after its role section', () => {
-  const profile = position => ({ id: 'bot-a', name: 'N', position, role: '役割X' })
-  const note = '# 統括の担当割り当て'
-  const coordinator = renderBotInstructions(profile('統括'))
-  assert.ok(coordinator.includes('/srv/bellteam/shared/tools/assign-owner/SKILL.md'))
-  assert.ok(coordinator.indexOf('「役割X」\n\n' + note) > 0 && coordinator.indexOf(note) < coordinator.indexOf('# 作業手順'))
-  assert.ok(renderBotInstructions(profile('開発統括')).includes(note))
-  for (const none of ['開発', '', undefined]) assert.ok(!renderBotInstructions(profile(none)).includes(note))
+test('a 統括 seat renders no coordinator-only section (the common rule roles.coordinator links the index)', () => {
+  assert.ok(!renderBotInstructions({ id: 'bot-a', name: 'N', position: '統括', role: '役割' }).includes('assign-owner'))
 })
