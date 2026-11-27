@@ -87,7 +87,7 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
     ];
     private object EmptyChart() => Summary("empty-draft", false, 0, 0, 0, 0, 0, [], 30);
     private object Summary(string id, bool coordinator, int total, int done, int working, int connections, int blocked, string[] active, double updated)
-        => new { projectId = id, name = Names.TryGetValue(id, out var known) ? known.Name : $"追加の工程表 {id[^2..]}", coordinator, createdBy = Names.TryGetValue(id, out var maker) ? maker.CreatedBy : "bot-kiro", counts = new { total, done, working, blocked, connections }, activeMembers = active, updatedAt = Ago(updated), state = "verified" };
+        => new { projectId = id, name = Names.TryGetValue(id, out var known) ? known.Name : $"追加の工程表 {id[^2..]}", coordinator, createdBy = Names.TryGetValue(id, out var maker) ? maker.CreatedBy : "bot-kiro", counts = new { total, done, working, blocked, connections }, activeMembers = active, updatedAt = Ago(updated), state = "verified", reminders = id is "lattice" or "call-bridge" };
 
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
     {

@@ -45,6 +45,23 @@ public sealed class LatticeWindowTests
         window.Close();
     });
 
+    // The list row's `reminders` shows the 催促 badge on that chart's card only; a row without the field shows none (chart-nudge-badge-linux).
+    [Fact]
+    public Task TheReminderBadgeIsOnlyOnChartsWithReminders() => Ui.Run(async () =>
+    {
+        using var workspace = new LinuxWorkspace(origin => new BellApi(origin, new LatticeFixture("list")));
+        await workspace.ConnectAsync("http://localhost", listen: false);
+        var window = new LatticeWindow(workspace, _ => Task.CompletedTask);
+        window.Show();
+        for (var wait = 0; wait < 100 && !window.ListSettled; wait++) await Task.Delay(20);
+        window.UpdateLayout();
+        var badges = Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(window).OfType<Avalonia.Controls.TextBlock>().Count(text => text.Text == "催促");
+        Assert.Equal(2, badges);
+        var list = new LatticeChartList { Charts = [new() { ProjectId = "a", Counts = new(1, 0, 0, 0, 0), Reminders = true }, new() { ProjectId = "b", Counts = new(1, 0, 0, 0, 0) }] };
+        Assert.Equal([true, false], LatticeChart.ListItems(list, _ => null).Select(item => item.Reminders));
+        window.Close();
+    });
+
     // Fractions count only the counted cards off the wire (a96): t03 is a finished tree and leaves the ring, the tree root and its phase; t02 is hidden but counts.
     [Fact]
     public Task FractionsCountOnlyCountedCards() => Ui.Run(async () =>
