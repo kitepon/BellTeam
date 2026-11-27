@@ -27,6 +27,7 @@ stateDiagram-v2
   [*] --> Open: inspect = approval_required (new digest)
   Open --> Answered: answer (app or card) and respond = submitted
   Open --> Gone: inspect = none, or another digest (answered in the chat card, seat stopped)
+  Open --> Gone: inspect = SCREEN_SEAT_ABSENT (the seat is closed; its stream may still list the request as pending)
   Open --> Gone: respond = 409 SCREEN_APPROVAL_CHANGED (stale, nothing was sent)
   Answered --> [*]
   Gone --> [*]

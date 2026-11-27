@@ -107,7 +107,8 @@ export function createSeatApprovals({ path, bots, transport, machineStream = nul
   // The prompt as Aiterm shows it now: the open record keeps its digest, a new digest is a new occurrence.
   async function watchBot(bot) {
     const current = records.find(record => record.botId === bot.id && record.status === 'open')
-    const inspected = await transport.screenApproval(bot, { action: 'inspect' }).catch(() => null)
+    // A seat that no longer exists has no prompt (live 11/28: a closed seat kept its card open, the stream still listed the request as pending); any other failure is "Aiterm did not answer".
+    const inspected = await transport.screenApproval(bot, { action: 'inspect' }).catch(error => error?.code === 'SCREEN_SEAT_ABSENT' ? { status: 'none' } : null)
     if (!inspected) return // Aiterm did not answer: the record stays as it is, the next tick looks again
     if (inspected.status !== 'approval_required') return current && close(current, 'gone', null, '席の権限の確認が、もうありません。')
     if (current?.digest === inspected.promptDigest) return fileCard(current, bot).then(() => readCard(current))
