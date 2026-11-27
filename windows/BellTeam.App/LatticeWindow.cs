@@ -188,10 +188,11 @@ public sealed class LatticeWindow : Window
         var faces = new StackPanel { Orientation = Orientation.Horizontal };
         foreach (var (member, index) in item.Members.Select((member, index) => (member, index))) faces.Children.Add(new LatticeAvatar(member, 30, Avatar) { Margin = new Thickness(index == 0 ? 0 : -8, 0, 0, 0) });
         var waiting = Pill(Row(Shape(LinkGeometry, 11, item.Connections > 0 ? Violet : Muted), Spaced(Text($"接続 {item.Connections}", 12, item.Connections > 0 ? Violet : Muted, FontWeights.SemiBold), 5)), item.Connections > 0 ? Violet : Muted, 0x1A);
-        waiting.Margin = new Thickness(12, 0, 0, 0);
-        // 催促 on for this chart (list field `reminders`): a badge beside 接続; nothing when off or the field is missing.
-        var line = Row(faces, waiting);
-        if (item.Reminders) { var nudge = Pill(Text("催促", 12, Done, FontWeights.SemiBold), Done, 0x1A); nudge.Margin = new Thickness(8, 0, 0, 0); System.Windows.Automation.AutomationProperties.SetAutomationId(nudge, "lattice-nudge-badge"); line.Children.Add(nudge); }
+        // 催促 on for this chart (list field `reminders`): a violet bell capsule LEFT of 接続, 6px gap, as on Apple (Rapi); nothing when off or the field is missing.
+        var line = Row(faces);
+        if (item.Reminders) { var nudge = Pill(Row(Shape(BellGeometry, 12, Violet), Spaced(Text("催促", 12, Violet, FontWeights.SemiBold), 4)), Violet, 0x1F, new Thickness(9, 4, 9, 4)); nudge.Margin = new Thickness(12, 0, 0, 0); System.Windows.Automation.AutomationProperties.SetAutomationId(nudge, "lattice-nudge-badge"); line.Children.Add(nudge); }
+        waiting.Margin = new Thickness(item.Reminders ? 6 : 12, 0, 0, 0);
+        line.Children.Add(waiting);
         left.Children.Add(line);
         grid.Children.Add(left);
         var ring = new LatticeRing(item.Done, item.Total, wide ? 64 : 52); Grid.SetColumn(ring, 1); ring.Margin = new Thickness(14, 0, 0, 0); grid.Children.Add(ring);
