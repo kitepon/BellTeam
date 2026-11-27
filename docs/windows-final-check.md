@@ -416,3 +416,9 @@ AI CLIの導入画面（a451、#1942）をMacの実装に合わせた0.6.2（#19
 - a540の実機相当の確認（シミュレーター／エミュレーター）: [docs/a540-sim-windows-20261127/README.md](a540-sim-windows-20261127/README.md)（0.9.3の記録。Googleサインイン、QRのAndroidエミュレーターでの承認、決裁箱の子のjoinの通過、ファイアウォール確認はfoxのESETで出ないこと）。
 - Windowsは子の端末で承認する側ではないため、a540の仕様「承認後に承認した端末が結果を1行出す」は当てはまらない。
 - 確認できていない: 0.9.4での実サインインの再実行（0.9.3で通した経路と同じコード）、WindowsのPublic/別セグメント、実機iPhoneからの承認。
+
+## Windows 0.9.4 の入れ直し：Desktop OAuthクライアントを認証仲介から受ける（o-bt-desktop-oauth-win、2026-11-27 14:2x JST、アニス）
+
+- 導入元: main `5a58eabe`（#2699）。ホストの保管庫は使わず、main-serverの `auth exec /home/kite/BellTeam/scripts/windows-install-with-oauth.sh`（項目と許可はサクラ、実行はエピネルがコンテナから1回）が、sshでfoxの `scripts/install-windows.ps1 -NoLaunch -SkipShareTarget -GoogleDesktopOAuthStdin` へクライアントJSONを標準入力で渡した。終了コード0（11秒）、出力に秘密は無い。
+- 確認（fox）: 導入したexeの版は `0.9.4+5a58eabebfa38d14b3df028b16d0c2b9e4d43682`。`BellTeam.dll` のアセンブリのメタデータ `GoogleDesktopSecret` が35文字（値は表示していない）。`Kitepon.LoginBilling.Desktop.dll` は0.24.1。BellTeamは動いていない。
+- 確認できていない: このビルドでの実サインイン（秘密も経路も0.9.4と同じ）。
