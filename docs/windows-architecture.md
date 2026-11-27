@@ -370,7 +370,7 @@ flowchart LR
 
 ## 「決裁箱につなぐ」の区画（seat-link）は廃止した
 
-オーナー2026-11-27（Deltaの図の改め、seat-link-qr-in-chat）：BellTeamと決裁箱のつなぎは1回だけで、QRはオーナーの会話に出る。つながった後の窓に、同じ名前のつなぎを2つ並べる区画（QR・「コード」・「確認コード」・つなぎ方の2文・期限・「やめる」）は置かない。Windowsは `ApprovalsWindow` の区画と、本体の `/api/approvals/seat-link*` の読み書き（`OpenLinkAsync` の読み、`StartSeatLinkAsync`・`StopSeatLinkAsync`・2秒ごとの見張り）、描画の場面 `link-seat-waiting`、窓の試験3本を外した。窓の「工程表との連携」パネル（つなぎを外す・決裁箱につなぐ〔同意ページ〕）と、「決裁箱につながっています」の行は今まで通り。Coreの `SeatLink.cs`（`SeatLinkText`・`SeatLinkApi`）はLinuxがまだ使うので、Linuxの区画を外す時にネオンが一緒に外す。
+オーナー2026-11-27（Deltaの図の改め、seat-link-qr-in-chat）：つながった後の窓に同じ名前のつなぎを置かない。2026-11-28：本体は席の接続もQRも持たない（決裁箱は単体、各ホストの決裁箱が自分でつながる）。つながった後の窓に、同じ名前のつなぎを2つ並べる区画（QR・「コード」・「確認コード」・つなぎ方の2文・期限・「やめる」）は置かない。Windowsは `ApprovalsWindow` の区画と、本体の `/api/approvals/seat-link*`（本体側は外した）の読み書き（`OpenLinkAsync` の読み、`StartSeatLinkAsync`・`StopSeatLinkAsync`・2秒ごとの見張り）、描画の場面 `link-seat-waiting`、窓の試験3本を外した。窓の「工程表との連携」パネル（つなぎを外す・決裁箱につなぐ〔同意ページ〕）と、「決裁箱につながっています」の行は今まで通り。Coreの `SeatLink.cs`（`SeatLinkText`・`SeatLinkApi`）はLinuxがまだ使うので、Linuxの区画を外す時にネオンが一緒に外す。
 
 ## peer-channel（決裁箱の端末部品。a498）
 

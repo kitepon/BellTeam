@@ -101,27 +101,6 @@ test('effects over the real usage credentials: a lost value file erases the stal
   assert.equal(await credentials.current(APPROVAL_BOX_SESSION_SCOPE), null)
 })
 
-test('effects: the hosted daemon is read through fixed, narrowed methods; not running or not paired reads as nothing, never an error', async () => {
-  const lattice = {}
-  const record = { decision_id: 'K-AAAA', title: 't', status: 'answered', version: 2, urgency: 'normal', context: 'SECRET CONTEXT', options: [{ id: 'o1', label: 'L', extra: 1 }], session_label: 's', requester: 'r', answer: { option_id: 'o1', answered_at: 'a' },
-    request_attachments: [{ id: 'x' }], created_at: 'c', updated_at: 'u' }
-  const route = async (method, path) => path === '/decisions' ? { items: [{ decision_id: 'K-AAAA' }, { decision_id: 'bad' }] } : path === '/decisions/K-AAAA' ? record : Promise.reject(Object.assign(new Error('x'), { status: 404, code: 'not_found' }))
-  const effects = createApprovalBoxExtensionEffects({ lattice, bots: {}, daemon: { route } })
-  assert.deepEqual(await effects('daemon.decisions.list', {}), [{ id: 'K-AAAA' }])
-  const read = await effects('daemon.decisions.read', { id: 'K-AAAA' })
-  validateApprovalsEffectResult('daemon.decisions.read', read)
-  assert.equal(read.context, 'SECRET CONTEXT') // the view needs the body text (a490k); attachments and history still do not cross
-  assert.ok(!JSON.stringify(read).includes('"x"'), 'no attachments cross')
-  assert.ok(!JSON.stringify(await effects('daemon.decisions.list', {})).includes('SECRET'), 'the list carries ids only')
-  assert.deepEqual(read.answer, { optionId: 'o1', text: null, answeredAt: 'a' })
-  assert.equal(await effects('daemon.decisions.read', { id: 'K-ZZZZ' }), null)
-  const down = createApprovalBoxExtensionEffects({ lattice, bots: {}, daemon: { route: async () => { throw Object.assign(new Error('x'), { status: 503, code: 'not_paired' }) } } })
-  assert.deepEqual(await down('daemon.decisions.list', {}), [])
-  assert.equal(await down('daemon.decisions.read', { id: 'K-AAAA' }), null)
-  const none = createApprovalBoxExtensionEffects({ lattice, bots: {} })
-  assert.deepEqual(await none('daemon.decisions.list', {}), [])
-})
-
 test('effects: seat.message goes through the messenger as the scheduler; a gone Bot is a permanent refusal, anything else fails the call; no messenger is unavailable', async () => {
   const seen = []
   const messenger = { sendmessage: async input => { seen.push(input); if (input.target === 'bot-gone') throw new Error('BOT_NOT_FOUND: bot-gone'); if (input.target === 'bot-down') throw new Error('transport down'); return { delivery: 'steered', delivery_id: 'd-9' } } }

@@ -21,7 +21,7 @@
     },
     {
       "module": "approval-box-extension",
-      "port": "approval-box-port (P1 approvals.decisions: file / read / cancel / capabilities / connection; P3 pairing routes /api/approvals/seat-link; seats-on-hosted-daemon.md)"
+      "port": "approval-box-port (P1 approvals.decisions: file / read / cancel; decision-port.md)"
     },
     {
       "module": "lattice-product",
