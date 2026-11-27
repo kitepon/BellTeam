@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-27T11:06:27Z",
-  "expiresAt": "2026-12-04T11:06:27Z",
+  "publishedAt": "2026-11-27T12:05:32Z",
+  "expiresAt": "2026-12-04T12:05:32Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "4858df18d6f4cf919a56cb0401bf8e43008f35ef",
-      "versionId": "sha256:93ec6a780301b8c3b8ffb183f1f8df53ee9893a97ec6606ac6903e910a258aed",
+      "sourceCommit": "be8e7704152f27af624dab1897a7a631b857512e",
+      "versionId": "sha256:c691660fce575b216824c30f7a9a74c6351d7cfc67725471fc7270242f5d86af",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:93ec6a780301b8c3b8ffb183f1f8df53ee9893a97ec6606ac6903e910a258aed"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c691660fce575b216824c30f7a9a74c6351d7cfc67725471fc7270242f5d86af"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,22 +724,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "決裁箱の答えが、聞いた席へ BellTeam のメッセージとして届くようになります（メンバーからのメッセージと同じ配達です）。",
-        "認証仲介の管理（grant/revoke/import）は、登録された入口プログラムからだけ受け付けられ、入口プログラムは座席が書き換えられない場所に入ります。",
-        "席ごとの待ちの修正（#2730、#2732）が、本体の予備の経路にも入ります。"
+        "端末の SSH 鍵は、親（本体）が持たず、認証仲介の読み込みプログラムが席の権限で読み込むようになります。",
+        "端末の鍵の取得元に、認証仲介を使う方式（mediated）が加わります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "4858df18d6f4cf919a56cb0401bf8e43008f35ef",
-      "versionId": "sha256:93ec6a780301b8c3b8ffb183f1f8df53ee9893a97ec6606ac6903e910a258aed",
+      "sourceCommit": "be8e7704152f27af624dab1897a7a631b857512e",
+      "versionId": "sha256:c691660fce575b216824c30f7a9a74c6351d7cfc67725471fc7270242f5d86af",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:93ec6a780301b8c3b8ffb183f1f8df53ee9893a97ec6606ac6903e910a258aed"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c691660fce575b216824c30f7a9a74c6351d7cfc67725471fc7270242f5d86af"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,9 +747,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "決裁箱の答えが、聞いた席へ BellTeam のメッセージとして届くようになります（メンバーからのメッセージと同じ配達です）。",
-        "認証仲介の管理（grant/revoke/import）は、登録された入口プログラムからだけ受け付けられ、入口プログラムは座席が書き換えられない場所に入ります。",
-        "席ごとの待ちの修正（#2730、#2732）が、本体の予備の経路にも入ります。"
+        "端末の SSH 鍵は、親（本体）が持たず、認証仲介の読み込みプログラムが席の権限で読み込むようになります。",
+        "端末の鍵の取得元に、認証仲介を使う方式（mediated）が加わります。"
       ]
     },
     {
