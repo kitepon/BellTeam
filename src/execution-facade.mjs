@@ -46,16 +46,28 @@ export function createExecutionFacade({ getController, client, membersAdmission,
   result.transport.currentWork = bot => {
     const value = work(bot)
     if (!bot || !value) return value
-    if (value.state === 'working') return { ...value, reason: { kind: 'turn', detail: null, since: turnSince(bot.id) } }
+    // The engine's one judgment (runningState) may say working because of own work or a followed turn, not only a native turn: name the first of turn, own work.
+    if (value.state === 'working') {
+      const native = (() => { try { return current().project({ method: 'transport.currentTurn', args: [bot.id] })?.state } catch { return null } })()
+      const owned = native === 'working' ? null : own(bot.id)
+      return { ...value, reason: owned ? { kind: owned.kind, detail: owned.detail ?? null, since: iso(owned.since) } : { kind: 'turn', detail: null, since: turnSince(bot.id) } }
+    }
+    // An older engine (no runningState) leaves own work to this wrapper.
     const owned = value.state === 'idle' ? own(bot.id) : null
     return owned ? { ...value, state: 'working', reason: { kind: owned.kind, detail: owned.detail ?? null, since: iso(owned.since) } } : value
   }
   // a485: a turn BellTeam started or follows is running at once; the native read only shows it a read cycle later (24 s at the worst seen, Mint 11/21).
   // Only `false` counts: an older engine or a failed call says nothing.
   const busy = botId => { try { return current().project({ method: 'transport.isIdle', args: [botId] }) === false } catch { return false } }
-  result.transport.runningState = botId => {
+  const legacyRunningState = botId => {
     const state = current().project({ method: 'transport.currentTurn', args: [botId] })?.state
     return state === 'working' ? state : state === 'idle' && own(botId) || busy(botId) ? 'working' : state
+  }
+  // one-running-judgment: the engine decides "is this seat working" (AitermTransport.runningState); this formula stays only for an older engine that does not supply the method.
+  result.transport.runningState = botId => {
+    let judged = null
+    try { judged = current().project({ method: 'transport.runningState', args: [botId] }) } catch { /* older engine: not supplied */ }
+    return typeof judged === 'string' ? judged : legacyRunningState(botId)
   }
   // after_turn (current-work.md): every currentTurn change per listener, over the exchange-surviving queue stream.
   result.transport.watchCurrentTurn = listener => watchCurrentTurn(watchQueue,
