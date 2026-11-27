@@ -6,6 +6,7 @@ import { envReturn, runEnv } from './env.mjs'
 import { botForCwd, callerKey } from './identity.mjs'
 
 const NOT_REGISTERED = 'This command is not registered.'
+const ENTRY_ONLY = ['grant', 'revoke', 'import'], DECISION_KEYS = ['id', 'role', 'record', 'need', 'reason']
 const REFUSALS = { stopped: 'This command is stopped by the operator.', denied: 'This command is not permitted.' }
 
 // store: {read, write}; items: createItemCache; audit: line => Promise; roots: () => {botId: absoluteRoot}.
@@ -45,22 +46,34 @@ export function createAuthCore({ store, items, audit, roots, now = () => new Dat
   }
 
   // Admin verbs run only for a Bot listed in policy.admins; the change is audited and the item cache is dropped.
-  async function admin(botId, verb, args = {}) {
+  // Once an entry program is registered (entry.set), grant, revoke and import also need the peer program to be exactly that program, and carry the decision record.
+  // program: {path, sha256, sealed} read by the relay from the peer process. The module judges nothing about the decision; it only requires and keeps it.
+  async function admin(botId, verb, args = {}, program = null) {
     const policy = await store.read()
-    if (!policy.admins.includes(botId)) { record({ time: now().toISOString(), request_id: randomUUID(), caller: `bot:${botId}`, item: args.command ?? null, via: 'admin' }, 'denied'); return { outcome: 'denied', error: 'Not an administrator.' } }
+    const base = () => ({ time: now().toISOString(), request_id: randomUUID(), caller: `bot:${botId}`, item: args.command ?? null, via: 'admin' })
+    if (!policy.admins.includes(botId)) { record(base(), 'denied'); return { outcome: 'denied', error: 'Not an administrator.' } }
+    const decision = args.decision && typeof args.decision === 'object' ? Object.fromEntries(DECISION_KEYS.filter(k => typeof args.decision[k] === 'string').map(k => [k, args.decision[k].slice(0, 500)])) : undefined
+    if (policy.entry && ENTRY_ONLY.includes(verb)) {
+      const fromEntry = program?.sealed && program.path === policy.entry.path && program.sha256 === policy.entry.sha256
+      if (!fromEntry || (verb !== 'import' && !(decision?.id && decision.reason))) {
+        record(base(), 'denied', { refused: fromEntry ? 'no-decision' : 'not-entry', target: args.bot ?? args.unit, decision })
+        return { outcome: 'denied', error: fromEntry ? 'A grant or revoke needs its decision record (id and reason).' : 'Grants change only through the registered grant entry program.' }
+      }
+    }
     const entry = args.unit ? (policy.units[args.unit] ??= { grants: [] }) : args.bot ? (policy.bots[args.bot] ??= { grants: [] }) : null
     let result = {}
     if (verb === 'grant') entry.grants.push({ command: args.command, ...(args.cwd ? { cwd: args.cwd } : {}), ...(args.expires ? { expires: args.expires } : {}) })
     else if (verb === 'revoke') entry.grants = entry.grants.filter(g => g.command !== args.command || (args.cwd && g.cwd !== args.cwd))
     else if (verb === 'stop') { if (!policy.stopped.includes(args.command)) policy.stopped.push(args.command) }
     else if (verb === 'resume') policy.stopped = policy.stopped.filter(c => c !== args.command)
+    else if (verb === 'entry.set') { if (!/^\/[^\0]{1,4095}$/u.test(args.path) || !/^[a-f0-9]{64}$/u.test(args.sha256)) return { outcome: 'error', error: 'entry.set needs an absolute path and a sha256.' }; policy.entry = { path: args.path, sha256: args.sha256 } }
     else if (verb === 'flush') { items.flush(args.command); return { outcome: 'ok' } }
     else if (verb === 'show') return { outcome: 'ok', policy }
     else if (verb === 'import') { const out = importV1(policy, args.policy, args.host); Object.assign(policy, out.policy); result = { count: out.count } }
     else return { outcome: 'error', error: 'Unknown verb.' }
     await store.write(policy)
     if (args.command) items.flush(args.command)
-    record({ time: now().toISOString(), request_id: randomUUID(), caller: `bot:${botId}`, item: args.command ?? null, via: 'admin' }, verb)
+    record(base(), verb, { target: args.bot ?? args.unit, expires: args.expires, grant_cwd: args.cwd, decision, entry: verb === 'entry.set' ? policy.entry : undefined })
     return { outcome: 'ok', ...result }
   }
   return { resolve, admin }

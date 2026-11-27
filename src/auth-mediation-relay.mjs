@@ -15,6 +15,7 @@ const MAX_FRAME = 128 * 1024, FRAME_MS = 5000, ANSWER_MS = 40000, READY_MS = 150
 const bad = () => ({ outcome: 'error', error: 'Bad request.' })
 const words = value => Array.isArray(value) && value.length >= 1 && value.length <= 64 && value.every(word => typeof word === 'string' && word.length >= 1 && word.length <= 1024 && !word.includes('\0'))
 const absolute = value => typeof value === 'string' && value.startsWith('/') && value.length <= 4096 && !value.includes('\0')
+const program = value => value === undefined || value === null || (typeof value === 'object' && absolute(value.path) && /^[a-f0-9]{64}$/u.test(value.sha256) && typeof value.sealed === 'boolean')
 
 // One relay frame -> one answer. Pure over the facade, so the mapping is testable without sockets.
 export async function relayAnswer(frame, facade) {
@@ -25,6 +26,7 @@ export async function relayAnswer(frame, facade) {
   if (container) {
     // The relay refuses a foreign uid itself; this is the second look, because the endpoint socket is open to the seat uid.
     if (!peer || typeof peer !== 'object' || peer.uid !== SEAT_UID || !absolute(peer.cwd)) return { outcome: 'unknown-caller', error: 'The caller is not registered.' }
+    if (!program(peer.program)) return bad()
   } else if (peer !== null && peer !== undefined) return bad()
   if (request.op === 'exec') {
     if (!words(request.command)) return bad()
@@ -36,7 +38,7 @@ export async function relayAnswer(frame, facade) {
     if (!container) return { outcome: 'error', error: 'Admin is only on the container socket.' }
     const { verb, args } = request
     if (typeof verb !== 'string' || !/^[a-z.]{2,32}$/u.test(verb) || (args !== undefined && (args === null || typeof args !== 'object' || Array.isArray(args)))) return bad()
-    return facade.admin({ cwd: peer.cwd, verb, args })
+    return facade.admin({ cwd: peer.cwd, verb, args, ...(peer.program ? { program: peer.program } : {}) }) // the relay read it from the peer process; the client's own line cannot set it
   }
   return bad()
 }

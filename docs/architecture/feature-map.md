@@ -186,7 +186,7 @@ flowchart LR
 | [Appleアプリ](modules/apple/README.md) | ベル |  |
 | [Approval Box](modules/approval-box/README.md) | ナユタ | connection export (approval-box connection export --json) / version --json (capabilities) / harness-entries (approval-box) / connector /v1 (HTTP) / bellteam client (client session on /v1: decisions, attachments GET, events, /me; connector /v1 pairing) |
 | [決裁箱拡張](modules/approval-box-extension/README.md) | デルタ | approvals-app-contract (/api/approvals/*) / decision-task-link / approval-box-port (P1 approvals.decisions: file / read / cancel / capabilities / connection; P3 pairing routes /api/approvals/seat-link; seats-on-hosted-daemon.md) |
-| [認証仲介](modules/auth-mediation/README.md) | ライ | auth-exec (MCP auth_exec; container socket; main-server host socket) / auth-admin (grant, revoke, stop, resume, show, flush, token) |
+| [認証仲介](modules/auth-mediation/README.md) | ライ | auth-exec (MCP auth_exec; container socket; main-server host socket) / auth-admin (stop, resume, show, flush, audit, token, entry-set) / grant entry (grant, revoke only from the registered entry program) |
 | [call-bridge/grokbot-bridge](modules/bridge/README.md) | リター | connection export (call-bridge.connection.v1) / MCP /mcp |
 | [BugHub](modules/bughub/README.md) | フラジャイル | public |
 | [Caveat](modules/caveat/README.md) | ノア | public |

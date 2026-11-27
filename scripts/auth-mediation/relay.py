@@ -2,7 +2,7 @@
 """Socket relay of the authentication module. Runs as the seat uid (1000), because only that uid can read a seat's cwd
 and can own the main-server user's host.sock. It frames one request line per connection, adds the peer's identity,
 asks the body over one unix socket and returns the body's one reply line unchanged. It holds no policy and no secret."""
-import json, os, signal, socket, struct, sys, threading
+import hashlib, json, os, signal, socket, struct, sys, threading
 
 DIR = os.environ.get("AUTH_RELAY_DIR", "/srv/bellteam/shared/tools/auth-mediation")
 BODY = os.environ.get("AUTH_RELAY_BODY", "/srv/bellteam/state/auth-mediation-relay.sock")
@@ -30,7 +30,30 @@ def reply(conn, obj):
 
 def peer_of(conn):
     pid, uid, _ = struct.unpack("3i", conn.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
-    return uid, os.readlink(f"/proc/{pid}/cwd")  # shortcut: pid can be reused between accept and readlink (same as the old broker); upgrade with pidfd
+    return uid, os.readlink(f"/proc/{pid}/cwd"), pid  # shortcut: pid can be reused between accept and readlink (same as the old broker); upgrade with pidfd
+
+
+def program_of(pid):
+    """The peer's program: argv[1] of 'interpreter /abs/script', its sha256, and whether no seat can edit it (the file and every folder above it are
+    owned by someone else than the seat uid and are not group/other-writable). None when the peer is not that shape.
+    shortcut: argv is the peer's own to rewrite and seats share uid 1000; upgrade with the module's own uid."""
+    try:
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            argv = f.read().split(b"\0")
+        path = os.path.realpath(argv[1].decode()) if len(argv) > 2 and argv[1].startswith(b"/") else None
+        if not path:
+            return None
+        sealed, here = True, path
+        while True:
+            st = os.stat(here)
+            sealed = sealed and st.st_uid != SEAT_UID and not st.st_mode & 0o022
+            if here == "/":
+                break
+            here = os.path.dirname(here)
+        with open(path, "rb") as f:
+            return {"path": path, "sha256": hashlib.sha256(f.read()).hexdigest(), "sealed": sealed}
+    except (OSError, UnicodeDecodeError):
+        return None
 
 
 def handle(conn, via):
@@ -44,12 +67,14 @@ def handle(conn, via):
         peer = None
         if via == "container-socket":
             try:
-                uid, cwd = peer_of(conn)
+                uid, cwd, pid = peer_of(conn)
             except OSError:
-                uid, cwd = -1, ""
+                uid, cwd, pid = -1, "", 0
             if uid != SEAT_UID or not cwd.startswith("/"):
                 return reply(conn, {"outcome": "unknown-caller", "error": "The caller is not registered."})
             peer = {"uid": uid, "cwd": cwd}
+            if request.get("op") == "admin":
+                peer["program"] = program_of(pid)
         try:
             body = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             body.settimeout(BODY_SECONDS)
