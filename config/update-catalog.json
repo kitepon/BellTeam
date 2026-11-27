@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-27T05:18:41Z",
-  "expiresAt": "2026-12-04T05:18:41Z",
+  "publishedAt": "2026-11-27T05:44:07Z",
+  "expiresAt": "2026-12-04T05:44:07Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "6e17e2b4602a985ebf18d40c56e26e6c88eeafe3",
-      "versionId": "sha256:3769bb8ac055f218db8bedd770121e3a2ef7916c4fd5ec857b2d7d62b1fdb9dc",
+      "sourceCommit": "62ee3ebd8dada4e008d72c79cb2792d2e99d2c5e",
+      "versionId": "sha256:2aadd5cced92e34f16b10614a5929bc4e2b7ff9fd544719bbf8260d6b3cbf294",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3769bb8ac055f218db8bedd770121e3a2ef7916c4fd5ec857b2d7d62b1fdb9dc"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:2aadd5cced92e34f16b10614a5929bc4e2b7ff9fd544719bbf8260d6b3cbf294"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "認証仲介の管理者が、モジュールの運用記録（audit）の末尾を読むための結果の検証を、本体側にも足します。"
+        "部品の入れ替えの検証が、認証仲介の行でも止まらないようになります。",
+        "認証仲介の長い実行が、頼んだ時間まで待つようになり、同時の実行で互いを止めなくなります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "6e17e2b4602a985ebf18d40c56e26e6c88eeafe3",
-      "versionId": "sha256:3769bb8ac055f218db8bedd770121e3a2ef7916c4fd5ec857b2d7d62b1fdb9dc",
+      "sourceCommit": "62ee3ebd8dada4e008d72c79cb2792d2e99d2c5e",
+      "versionId": "sha256:2aadd5cced92e34f16b10614a5929bc4e2b7ff9fd544719bbf8260d6b3cbf294",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3769bb8ac055f218db8bedd770121e3a2ef7916c4fd5ec857b2d7d62b1fdb9dc"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:2aadd5cced92e34f16b10614a5929bc4e2b7ff9fd544719bbf8260d6b3cbf294"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +747,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "認証仲介の管理者が、モジュールの運用記録（audit）の末尾を読むための結果の検証を、本体側にも足します。"
+        "部品の入れ替えの検証が、認証仲介の行でも止まらないようになります。",
+        "認証仲介の長い実行が、頼んだ時間まで待つようになり、同時の実行で互いを止めなくなります。"
       ]
     },
     {
@@ -891,8 +893,8 @@
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "448c89451500af66e169f9042b146604ac67008c",
-      "versionId": "86c4db7830d861ed016cca632600d7dd22450b9b7faa466c8444e470f9b871a5",
+      "sourceCommit": "62ee3ebd8dada4e008d72c79cb2792d2e99d2c5e",
+      "versionId": "a43d90e98851a4046e0b7f8b589853696240b7b60c1bffbd491f8ab2e35c3bd5",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -900,16 +902,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T051233Z/auth-mediation-448c89451500af66e169f9042b146604ac67008c-linux-amd64.tar.gz",
-          "bytes": 3705798,
-          "sha256": "86c4db7830d861ed016cca632600d7dd22450b9b7faa466c8444e470f9b871a5"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T053648Z/auth-mediation-62ee3ebd8dada4e008d72c79cb2792d2e99d2c5e-linux-amd64.tar.gz",
+          "bytes": 3706583,
+          "sha256": "a43d90e98851a4046e0b7f8b589853696240b7b60c1bffbd491f8ab2e35c3bd5"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T051233Z/auth-mediation-448c89451500af66e169f9042b146604ac67008c-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11414,
-          "sha256": "217e05c8fc71ab55caf5631643ab35ac994bbadde165c8c030196a286ccf0f1b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T053648Z/auth-mediation-62ee3ebd8dada4e008d72c79cb2792d2e99d2c5e-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11218,
+          "sha256": "9a181e6009f579348f4cf9da990d4c4492db59ab0672fe6eb19887be7219514c"
         },
-        "signerCommit": "448c89451500af66e169f9042b146604ac67008c"
+        "signerCommit": "62ee3ebd8dada4e008d72c79cb2792d2e99d2c5e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -921,13 +923,13 @@
         }
       },
       "changes": [
-        "認証仲介が、ファイルへの受け渡し（file:VAR）と ssh 鍵の受け渡しを、ソケット経由でできるようになります。"
+        "認証仲介が、ファイルへの受け渡し（file:VAR）と ssh 鍵の受け渡しをソケットで行えるようになり、長い実行が頼んだ時間まで待ち、項目の読み出しをまとめて同時実行を4つまでに抑えます。"
       ]
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "448c89451500af66e169f9042b146604ac67008c",
-      "versionId": "4a42f3a30e3856e79634f931f2812133483f4edb2560766858194c06a07f545c",
+      "sourceCommit": "62ee3ebd8dada4e008d72c79cb2792d2e99d2c5e",
+      "versionId": "1729244e76745c90d3c37cc7135f5f388516d311a8ce9118e0d499ffc5dd3ab4",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -935,16 +937,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T051233Z/auth-mediation-448c89451500af66e169f9042b146604ac67008c-linux-arm64.tar.gz",
-          "bytes": 3705798,
-          "sha256": "4a42f3a30e3856e79634f931f2812133483f4edb2560766858194c06a07f545c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T053648Z/auth-mediation-62ee3ebd8dada4e008d72c79cb2792d2e99d2c5e-linux-arm64.tar.gz",
+          "bytes": 3706583,
+          "sha256": "1729244e76745c90d3c37cc7135f5f388516d311a8ce9118e0d499ffc5dd3ab4"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T051233Z/auth-mediation-448c89451500af66e169f9042b146604ac67008c-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11359,
-          "sha256": "b99b7de608343a2d97b86144a125563d381f9ebf3f0666f30b676cf5c029a47c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T053648Z/auth-mediation-62ee3ebd8dada4e008d72c79cb2792d2e99d2c5e-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11124,
+          "sha256": "0bf17fc855d7feebf0a471357405dd40a36841f29231dce56c971069c3b6fa11"
         },
-        "signerCommit": "448c89451500af66e169f9042b146604ac67008c"
+        "signerCommit": "62ee3ebd8dada4e008d72c79cb2792d2e99d2c5e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -956,7 +958,7 @@
         }
       },
       "changes": [
-        "認証仲介が、ファイルへの受け渡し（file:VAR）と ssh 鍵の受け渡しを、ソケット経由でできるようになります。"
+        "認証仲介が、ファイルへの受け渡し（file:VAR）と ssh 鍵の受け渡しをソケットで行えるようになり、長い実行が頼んだ時間まで待ち、項目の読み出しをまとめて同時実行を4つまでに抑えます。"
       ]
     }
   ],
