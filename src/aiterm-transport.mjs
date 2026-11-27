@@ -46,6 +46,8 @@ const HARNESS = new Map([
 ])
 // 合間の言葉を取りに行く間隔。Aitermのpty_observeは画面本文を読まない軽い呼び出し。
 const INTERIM_INTERVAL_MS = 3000
+// A delivery's wait ends when the seat's own stream has said "idle, nothing pending" this long while Aiterm still reports the turn running.
+const STREAM_IDLE_SETTLE_MS = 120_000
 // remote-seat.md "Resume after the route came back": a failed resume is tried again after this, never given up.
 const RESUME_RETRY_MS = 60_000
 // pty_close {hibernate:true} answers about the seat itself (background work, no resume recipe): asking again before it works is futile.
@@ -2301,16 +2303,20 @@ export class AitermTransport {
   // The caller passes the seat it knows: a dispatch receipt or a seat_turns turn may carry no session_id, and a wait without a key skips the queue (Z213 live: launch wait + queued DM wait at once).
   async waitUntilDone(receipt, signal = null, session = receipt.session_id) {
     const release = await this.#takeSeatWait(session, signal)
-    try { return await this.#followTurn(receipt, signal) } finally { release() }
+    try { return await this.#followTurn(receipt, signal, session) } finally { release() }
   }
 
-  async #followTurn(receipt, signal) {
+  async #followTurn(receipt, signal, session) {
     while (!signal?.aborted) {
       // The session goes along: a remote seat's wait is `ssh ... '<aiterm-wait command>'` (one string, or base64 on Windows), so --session is not an argument of it.
       const result = await this.waitProcess(receipt.wait_process, signal, { session: receipt.session_id })
       const recoveryFailure = recoverableTurnFailure(receipt, result)
       if (result.outcome === 'done') { this.workState.completedTurn(result); return result }
-      if (result.outcome === 'timeout' || result.outcome === 'running') continue
+      if (result.outcome === 'timeout' || result.outcome === 'running') {
+        // anis-deliveries-stuck: Aiterm waits for a Stop that never came (its hook failed) while the seat's own stream says idle. The turn is over; the answer is unknown, the delivery stays accepted.
+        if ((this.machineStreams.idleFor(session) ?? 0) >= STREAM_IDLE_SETTLE_MS) throw Object.assign(new Error('AITERM_TURN_UNSETTLED: the seat stream says idle while Aiterm still reports the turn running'), { waitOutcome: 'unsettled' })
+        continue
+      }
       // error: harnessの記録でturnがAPIエラー等で打ち切られた（Aiterm 0.31.0）。本文を残して配送失敗にする。
       // failureCategory/limitText: the seat's own limit line for the account registry (harness-accounts.md).
       const limit = { failureCategory: result.failure?.category ?? null, limitText: result.rate_limit ?? result.error ?? null }
