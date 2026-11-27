@@ -1843,7 +1843,7 @@ export class AitermTransport {
       let turnCompleted = false
       try {
         let failure = null
-        await Promise.race([watch.ended, wordsOnly ? watch.ended : this.waitUntilDone(turn, watch.stop.signal)
+        await Promise.race([watch.ended, wordsOnly ? watch.ended : this.waitUntilDone(turn, watch.stop.signal, session)
           .then(() => { turnCompleted = true }, error => { failure = error; turnCompleted = error.turnCompleted === true })])
         const seen = await interim?.stop()
         if (!failure || watch.stop.signal.aborted) return
@@ -2296,8 +2296,9 @@ export class AitermTransport {
   }
 
   // signalは、追うのをやめた時に待ちのprocessを止める（watchTurn）。
-  async waitUntilDone(receipt, signal = null) {
-    const release = await this.#takeSeatWait(receipt.session_id, signal)
+  // A watched seat turn (seat_turns row) has no session_id of its own: the watch passes its seat, so it queues behind the deliveries' waits too.
+  async waitUntilDone(receipt, signal = null, session = receipt.session_id) {
+    const release = await this.#takeSeatWait(session, signal)
     try { return await this.#followTurn(receipt, signal) } finally { release() }
   }
 
