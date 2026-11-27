@@ -11,6 +11,10 @@
     {
       "module": "integration",
       "port": "HTTP/SSE"
+    },
+    {
+      "module": "auth-mediation",
+      "port": "auth-exec"
     }
   ],
   "source": [
