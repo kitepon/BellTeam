@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-27T07:57:35Z",
-  "expiresAt": "2026-12-04T07:57:35Z",
+  "publishedAt": "2026-11-27T08:26:13Z",
+  "expiresAt": "2026-12-04T08:26:13Z",
   "releases": [
     {
       "componentId": "usage",
@@ -491,8 +491,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "be1fd4db1426bde7daec10c0f2ad4302c9ae9cbc",
-      "versionId": "e0da60d6d61f85d10a66c71d97032c963af607bb3143f6dc041b51755069432d",
+      "sourceCommit": "a239f9009aebafa544588ab7c0deeceafb247bf6",
+      "versionId": "5a6b496a5083d89333a57c9a6e7ec77429d40753f38bc1494057452bb738c2e8",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T075029Z/execution-be1fd4db1426bde7daec10c0f2ad4302c9ae9cbc-linux-amd64.tar.gz",
-          "bytes": 3881692,
-          "sha256": "e0da60d6d61f85d10a66c71d97032c963af607bb3143f6dc041b51755069432d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T082547Z/execution-a239f9009aebafa544588ab7c0deeceafb247bf6-linux-amd64.tar.gz",
+          "bytes": 3881753,
+          "sha256": "5a6b496a5083d89333a57c9a6e7ec77429d40753f38bc1494057452bb738c2e8"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T075029Z/execution-be1fd4db1426bde7daec10c0f2ad4302c9ae9cbc-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11083,
-          "sha256": "48e7fdc1b68185c2cef22f670b5ececcb11a7ed50706f31ddeffbd78bd8d9bb5"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T082547Z/execution-a239f9009aebafa544588ab7c0deeceafb247bf6-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11036,
+          "sha256": "c52a2e19fe007775da82eff5e49f214cf9cb7aee43f529cdaf36fa4075e17104"
         },
-        "signerCommit": "be1fd4db1426bde7daec10c0f2ad4302c9ae9cbc"
+        "signerCommit": "a239f9009aebafa544588ab7c0deeceafb247bf6"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,15 +519,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "同じ席に溜まった配達が、1 つの待ちの処理を使うようになり、実行側のメモリの増え方が止まります。",
-        "「この席は作業中か」の判断が 1 か所になります。",
-        "依頼の要約の実行が、Codex のアカウントのプラグインの MCP を起こさなくなります。"
+        "席のターンを見張る待ちも、同じ席の配達の待ちと同じ列に並び、待ちの処理が席ごとに 1 つになります。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "be1fd4db1426bde7daec10c0f2ad4302c9ae9cbc",
-      "versionId": "c12d37ff54c989d0a3035d7ac34a0534c01928a7bcb269c30ff5948fb66af563",
+      "sourceCommit": "a239f9009aebafa544588ab7c0deeceafb247bf6",
+      "versionId": "32365db7a6f7d5fd69953c6794a28da8710e7a45ef1a26ffdcf6792f4aa4ad71",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -535,16 +533,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T075029Z/execution-be1fd4db1426bde7daec10c0f2ad4302c9ae9cbc-linux-arm64.tar.gz",
-          "bytes": 3881692,
-          "sha256": "c12d37ff54c989d0a3035d7ac34a0534c01928a7bcb269c30ff5948fb66af563"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T082547Z/execution-a239f9009aebafa544588ab7c0deeceafb247bf6-linux-arm64.tar.gz",
+          "bytes": 3881753,
+          "sha256": "32365db7a6f7d5fd69953c6794a28da8710e7a45ef1a26ffdcf6792f4aa4ad71"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T075029Z/execution-be1fd4db1426bde7daec10c0f2ad4302c9ae9cbc-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11083,
-          "sha256": "5de06d1841397fc464b950365af7f0b28a7be61c0d2c01606998b1c75f94f284"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T082547Z/execution-a239f9009aebafa544588ab7c0deeceafb247bf6-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11020,
+          "sha256": "355c2333b0251f437de786677c04c3e9351d049813cd802260e9a7fe1ed56765"
         },
-        "signerCommit": "be1fd4db1426bde7daec10c0f2ad4302c9ae9cbc"
+        "signerCommit": "a239f9009aebafa544588ab7c0deeceafb247bf6"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -554,9 +552,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "同じ席に溜まった配達が、1 つの待ちの処理を使うようになり、実行側のメモリの増え方が止まります。",
-        "「この席は作業中か」の判断が 1 か所になります。",
-        "依頼の要約の実行が、Codex のアカウントのプラグインの MCP を起こさなくなります。"
+        "席のターンを見張る待ちも、同じ席の配達の待ちと同じ列に並び、待ちの処理が席ごとに 1 つになります。"
       ]
     },
     {
