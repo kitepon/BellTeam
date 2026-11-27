@@ -146,9 +146,13 @@ Secret values appear only in: the `op` process (during one `op item get`), the c
 
 ## Child protocol (protocol v1, `src/auth-mediation-protocol.mjs`)
 
-Root requests (one at a time per channel, like work-graph): `resolve {command[], cwd, via, args?, botId?, unit?, timeoutSec?}` (`mcp` requires `botId`) -> `{outcome, error?, env?, cache?, exit_code?, stdout?, stderr?, truncated?}` (`env` only for the two socket transports; the MCP path returns redacted run output); `admin {botId, verb, args?}` (verbs grant, revoke, stop, resume, show, flush, import, token.set, token.clear) -> `{outcome, error?, count?, policy?}`; `status {}` -> `{state: 'ready'|'no-token'}`.
+Root requests (up to 8 side by side per channel; a long MCP run must not hold up the socket callers; admin verbs are serialized inside the child because they rewrite `policy.json`): `resolve {command[], cwd, via, args?, botId?, unit?, timeoutSec?}` (`mcp` requires `botId`) -> `{outcome, error?, env?, cache?, exit_code?, stdout?, stderr?, truncated?}` (`env` only for the two socket transports; the MCP path returns redacted run output); `admin {botId, verb, args?}` (verbs grant, revoke, stop, resume, show, flush, import, token.set, token.clear) -> `{outcome, error?, count?, policy?}`; `status {}` -> `{state: 'ready'|'no-token'}`.
 
 Effects (valid only inside a pending root call): `members.roots {}` -> `{roots:{botId: absolute root}}`; `secret.get {}` -> `{value}` or `{unavailable:true}`; `secret.put {value}` -> `{stored:true}`; `secret.erase {}` -> `{erased:true}`; `seat.run {botId, cwd, argv, env, timeoutMs}` -> `{exitCode, stdout, stderr, truncated, timedOut}` (the parent starts the command through `runtime.seat-process` with the env on the runner's stdin line, never argv or files). State compatibility `{state:'policy-v2'}`; controls initialize/quiesce/resume/exit; ready carries `versionId`, protocol version and state compatibility.
+
+## Waiting rules (timeouts)
+
+A request that carries a command has a deadline that follows what the caller asked for; everything else stays short. MCP `resolve`: the root call lasts `timeoutSec + 30 s` (default 600 s, at most 3600 s asked); the `seat.run` effect lasts `timeoutMs + 20 s`, and the run itself ends at `timeoutMs` (abort = `timedOut`, `truncated` true). Socket `resolve`, `admin` and `status`: 60 s; `secret.*` and `members.roots`: 30 s. A run that exceeds its own deadline answers `granted` with the run's partial output and `truncated`, never "not running". (Found 2026-11-27 from a 1800 s `auth_exec` that ended after 30 s: the fixed 30 s effect timeout and the 60 s root timeout ended the call, and the parent turned that into "not running". Long runs belong on the socket client, which runs the command itself and has no deadline of its own.) A SIGKILL of the socket client leaves its temp folder and agent behind, since nothing can run then.
 
 ## State and secrets
 
