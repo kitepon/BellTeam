@@ -1,6 +1,6 @@
 # 決裁箱（Approval Box拡張）の描画
 
-[全体図](overview.md) / [機能索引](function-index.md)。この窓は、オーナーの決裁箱（Approval Box）の**子の端末**として、埋め込みの部品 ApprovalBoxClient 0.8.0 で決裁を読み、答える（abx-child-join-apple。契約は [child-join.md](../approval-box-extension/child-join.md)・部品の面は client-component.md 0.5 の9章）。サインイン・端末の承認・決裁の読み書き・SSE・再接続は部品が持ち、この窓は部品の状態を描くだけ。BellTeam のホストは親にならない（どの席も、ほかの端末のつなぎを始めない）。BellTeam のサーバーは、決裁の中身・子の鍵・パスを見ない（工程表とのつながりの口 [/api/approvals/by-*](../approval-box-extension/contract/approvals-contract.md) は ID と状態だけ）。画面・導線・失敗の表示・文言は [screen-spec](../approval-box-extension/screen-spec.md) が正本で、ここでは Apple 側の部品と状態の持ち主だけを書く。部品は login-billing 0.26.0 のローカルの形（LocalForm・KeyholeClient、appId dev.kitepon.approvalbox）の上で子の鍵を持ち、運営のパスは使わない。IDは通信にだけ使い、画面に出さない。
+[全体図](overview.md) / [機能索引](function-index.md)。この窓は、オーナーの決裁箱（Approval Box）の**子の端末**として、埋め込みの部品 ApprovalBoxClient 0.8.1 で決裁を読み、答える（abx-child-join-apple。契約は [child-join.md](../approval-box-extension/child-join.md)・部品の面は client-component.md 0.5 の9章）。サインイン・端末の承認・決裁の読み書き・SSE・再接続は部品が持ち、この窓は部品の状態を描くだけ。BellTeam のホストは親にならない（どの席も、ほかの端末のつなぎを始めない）。BellTeam のサーバーは、決裁の中身・子の鍵・パスを見ない（工程表とのつながりの口 [/api/approvals/by-*](../approval-box-extension/contract/approvals-contract.md) は ID と状態だけ）。画面・導線・失敗の表示・文言は [screen-spec](../approval-box-extension/screen-spec.md) が正本で、ここでは Apple 側の部品と状態の持ち主だけを書く。部品は login-billing 0.26.0 のローカルの形（LocalForm・KeyholeClient、appId dev.kitepon.approvalbox）の上で子の鍵を持ち、運営のパスは使わない。IDは通信にだけ使い、画面に出さない。
 
 ## 入口と置き場所（Owner 2026-11-16：MacとiPhoneで決裁箱が見つからない）
 
@@ -21,7 +21,7 @@ flowchart LR
   Model["Core/Approvals.swift ApprovalsModel（AppStore.approvals）<br/>gate（loading・ready・reconnecting・join・notEntitled・updateRequired）・summary・open・done・sending・notes。summary は部品が持つ決裁から数える（今日の回答・今日来た数・待ち・急ぎ・保留）"]
   Link["Core/PeerApprovals/ApprovalBoxLink.swift（ChildJoinSource を満たす）<br/>State：join・joining・live・reconnecting・notEntitled・updateRequired。部品の @Observable（join.state・client.state・open・closed）を1回追って sync、変わるたびに追い直す"]
   Link -->|"state → gate / decisions → open・done"| Model
-  Link -->|"ApprovalBoxClient（SwiftPM 0.8.0、7beb5f4。ChildJoin.make に hostAppId＝このアプリの bundle id）：requestJoin／cancelJoin／leave・take（戻りのリンク lbr1）・start／stop・retryNow・answer／hold／unhold・attachment"| Comp["埋め込みの部品 ApprovalBoxClient（ChildJoin.make：サインイン Apple／Google・子の鍵・QR・承認待ち・読み・答え・SSE・再接続）"]
+  Link -->|"ApprovalBoxClient（SwiftPM 0.8.1、9eb0755。鍵の登録 keys/accept・keys/leave は /v1 の下。ChildJoin.make に hostAppId＝このアプリの bundle id）：requestJoin／cancelJoin／leave・take（戻りのリンク lbr1）・start／stop・retryNow・answer／hold／unhold・attachment"| Comp["埋め込みの部品 ApprovalBoxClient（ChildJoin.make：サインイン Apple／Google・子の鍵・QR・承認待ち・読み・答え・SSE・再接続）"]
   Comp -->|"https://approval-box.kitepon.dev（auth/v1・/pc/v1・/v1）"| AB["Approval Box（Nayuta）"]
   Comp -.->|"login-billing 0.26.0（部品の依存）"| LB["LoginBilling 0.26.0：LocalForm・KeyholeClient・子の鍵（appId dev.kitepon.approvalbox）。購入なし"]
   Comp --> Link
