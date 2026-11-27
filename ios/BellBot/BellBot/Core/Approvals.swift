@@ -264,6 +264,7 @@ final class ApprovalsModel: ObservableObject {
     private var subscriptions: [AnyCancellable] = []
     private var records: [PeerDecisionRecord] = []
     private var linkState: ApprovalBoxLink.State = .join
+    private var previewing = false
     /// The BellTeam members the origin rule matches against (the member list the app already holds).
     private var roster: [ApprovalRosterMember] = []
     /// decision id -> the engine's answer at the time: a link, or nil for 404 (external / not linked yet).
@@ -274,8 +275,8 @@ final class ApprovalsModel: ObservableObject {
     init(link: ApprovalBoxLink? = nil) {
         let link = link ?? ApprovalBoxLink()
         self.link = link
-        link.$state.sink { [weak self] in self?.linkState = $0; self?.refreshGate() }.store(in: &subscriptions)
-        link.$decisions.sink { [weak self] in self?.apply($0) }.store(in: &subscriptions)
+        link.$state.sink { [weak self] in guard self?.previewing != true else { return }; self?.linkState = $0; self?.refreshGate() }.store(in: &subscriptions)
+        link.$decisions.sink { [weak self] in guard self?.previewing != true else { return }; self?.apply($0) }.store(in: &subscriptions)
     }
 
     var pendingCount: Int { summary?.pending ?? open.filter(\.isPending).count }
@@ -287,6 +288,20 @@ final class ApprovalsModel: ObservableObject {
         readRequest &+= 1
         if link.state != .live { link.retryNow() }
     }
+
+    #if DEBUG
+    /// `-bellbot-preview-approvals-joining`: the component holds decisions and has stepped back to joining (retryNow / pull to refresh), through the real gate and window.
+    func setPreviewJoining() {
+        previewing = true
+        let now = Date()
+        func record(_ id: String, _ title: String, urgency: String = "normal") -> PeerDecisionRecord {
+            PeerDecisionRecord(id: id, title: title, context: "背景", options: [.init(id: "a", label: "はい"), .init(id: "b", label: "いいえ")], recommendation: "a", urgency: urgency, deadline: nil,
+                               client: "claude-code", sessionLabel: "Macのレシート整理", via: "peer", status: "pending", answer: nil, cancelReason: nil, createdAt: now, updatedAt: now, version: 1)
+        }
+        linkState = .joining
+        apply([record("p1", "請求の自動更新を有効にしますか？", urgency: "high"), record("p2", "古いブランチを削除してよいですか？")])
+    }
+    #endif
 
     private func refreshGate() { gate = Self.gate(of: linkState, hasCards: !records.isEmpty) }
 
