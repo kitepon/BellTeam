@@ -16,7 +16,7 @@ async function fixture(t, { harness = 'claude', fileFails = false } = {}) {
   const transport = {
     currentWork: () => ({ state: seat.state ?? (seat.working ? 'working' : 'idle') }),
     screenApproval: async (_bot, request) => {
-      if (request.action === 'inspect') return seat.inspect
+      if (request.action === 'inspect') { if (seat.inspectError) throw seat.inspectError; return seat.inspect }
       if (seat.respondError) throw seat.respondError
       seat.responses.push(request)
       return { status: 'submitted', decision: request.decision }
@@ -116,6 +116,19 @@ test('a prompt that is gone, or another digest, closes the entry and withdraws t
   await seatApprovals.tick()
   assert.deepEqual(await seatApprovals.list(), [])
   assert.equal(cards.cancelled.length, 2)
+})
+
+test('a closed seat (inspect: SCREEN_SEAT_ABSENT) closes the entry and withdraws the card even while the stream still lists the request; another failure keeps it', async t => {
+  const { seatApprovals, seat, cards } = await fixture(t)
+  seat.inspect = prompt()
+  await seatApprovals.tick()
+  seat.inspectError = new Error('x')
+  await seatApprovals.tick()
+  assert.equal((await seatApprovals.list()).length, 1, 'Aiterm not answering changes nothing')
+  seat.inspectError = Object.assign(new Error('SCREEN_SEAT_ABSENT'), { code: 'SCREEN_SEAT_ABSENT', status: 409 })
+  await seatApprovals.tick()
+  assert.deepEqual(await seatApprovals.list(), [])
+  assert.equal(cards.cancelled.length, 1)
 })
 
 test('a restart keeps the record and files nothing twice; a Codex prompt carries its own text', async t => {
