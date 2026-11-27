@@ -430,3 +430,11 @@ AI CLIの導入画面（a451、#1942）をMacの実装に合わせた0.6.2（#19
 - 変更: 工程表の一覧の催促バッジを、鈴の付いた紫のカプセルにして「接続」の左へ（ラピのApple版の基準、トロニー承認。#2721）。部品は ApprovalBox.Client 0.6.2・LoginBilling.Desktop 0.25.2（nupkgのsha256はリリースの値と一致。ローカルネットワークの原因の文から「Wi-Fi」が消えた。オーナー2026-11-24。#2722）。
 - スモーク（`--smoke-test` 本番）: 成功。ok=true、認証済み、SSE接続あり。`--render-lattice list-nudge`・`--render-approvals join-not-answering` は終了コード0。
 - 確認できていない: 本物の親のスマホでの通し、ローカルネットワークの原因の文を画面に出した状態（文は部品に入っていることだけ確認）。
+
+## Windows 0.9.8 の導入（Approval Box部品 0.7.0 と login-billing 0.26.0＝参加の結果、2026-11-27 18:3x JST、アニス）
+
+部品 0.7.0（client-dotnet-v0.7.0）とライブラリ 0.26.0（v0.26.0）の固定（PR #2735、main `c2e1bb0c`）を、エピネルがfoxへ導入した（`auth exec windows-install-with-oauth.sh`、終了コード0、-NoLaunch）。参加できたか（`joined`）はライブラリの結果で、部品の中で読まれる。Windowsは参加の道で自前の読み替えを持っていなかったので、コードの変更は無い。
+
+- 確認（fox）: 導入したexeの版は `0.9.8+c2e1bb0c49bf5621be8ed3a0e4e79a44de3d8d65`。`Kitepon.ApprovalBox.Client.dll` は0.7.0、`Kitepon.LoginBilling.Desktop.dll` は0.26.0。`BellTeam.dll` の `GoogleDesktopSecret` が35文字（値は表示していない）。BellTeamは動いていない。
+- 確認（本番の読み取り）: `--smoke-test http://192.168.1.2:18891/` は成功（`ok: true`、認証済み、SSE接続あり）。
+- 確認できていない: 本物の親のスマホでの通し。
