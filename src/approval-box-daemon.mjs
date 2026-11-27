@@ -150,7 +150,9 @@ export function createApprovalBoxDaemon({ root, entry = DAEMON_ENTRY, node = pro
     recovery.running()
   }
 
-  const reasonOf = line => { const text = `${line?.code ?? ''} ${line?.error ?? ''} ${line?.reason ?? ''}`.toLowerCase(); return text.includes('reject') ? 'rejected' : text.includes('expire') ? 'expired' : null }
+  // A failed line's own code names the cause (e.g. server_flag_off: the server shows no peer-channel, 11/27); only a plain slug passes, never the connector's free text.
+  const reasonOf = line => { const text = `${line?.code ?? ''} ${line?.error ?? ''} ${line?.reason ?? ''}`.toLowerCase(); return text.includes('reject') ? 'rejected' : text.includes('expire') ? 'expired'
+    : (line?.state === 'failed' || line?.type === 'failed') && /^[a-z][a-z0-9_]{0,39}$/u.test(line?.code ?? '') ? line.code : null }
 
   const controller = {
     home, socketPath,
@@ -261,7 +263,7 @@ export function createApprovalBoxDaemon({ root, entry = DAEMON_ENTRY, node = pro
       const view = await pairingView()
       if (view.state === 'linked' || view.state === 'waiting') return view
       try { await controller.pair({ rebind: view.state === 'removed' }) }
-      catch (error) { return { state: 'failed', reason: error?.code === 'PAIR_NO_WAITING_LINE' ? 'no_waiting_line' : 'unavailable' } }
+      catch (error) { return { state: 'failed', reason: error?.code === 'PAIR_NO_WAITING_LINE' ? 'no_waiting_line' : pairingReason() ?? 'unavailable' } }
       return pairingView()
     },
     async stop() {
