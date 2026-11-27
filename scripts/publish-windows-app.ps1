@@ -18,7 +18,7 @@ foreach ($taskFile in $taskFiles) { if (!(Test-Path -LiteralPath $taskFile)) { t
 & git -C $taskRepository merge-base --is-ancestor $Commit origin/main
 if ($LASTEXITCODE -ne 0) { throw "$Commit は origin/main の祖先ではありません。" }
 $taskSha = (& git -C $taskRepository rev-parse $Commit).Trim()
-$taskCsproj = (& git -C $taskRepository show "$taskSha:windows/BellTeam.App/BellTeam.App.csproj") -join "`n"
+$taskCsproj = (& git -C $taskRepository show "${taskSha}:windows/BellTeam.App/BellTeam.App.csproj") -join "`n"
 $taskVersion = [regex]::Match($taskCsproj, '<Version>(.*?)</Version>').Groups[1].Value
 if (!$taskVersion) { throw 'csprojの版を読めませんでした。' }
 $taskRepo = 'kitepon/BellTeam'
