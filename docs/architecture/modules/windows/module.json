@@ -14,7 +14,7 @@
     },
     {
       "module": "auth-mediation",
-      "port": "auth-exec"
+      "port": "auth-exec (MCP auth_exec; container socket; main-server host socket)"
     }
   ],
   "source": [
