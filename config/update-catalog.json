@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-27T12:16:22Z",
-  "expiresAt": "2026-12-04T12:16:22Z",
+  "publishedAt": "2026-11-27T12:53:10Z",
+  "expiresAt": "2026-12-04T12:53:10Z",
   "releases": [
     {
       "componentId": "usage",
@@ -823,8 +823,8 @@
     },
     {
       "componentId": "approval-box-extension",
-      "sourceCommit": "4858df18d6f4cf919a56cb0401bf8e43008f35ef",
-      "versionId": "1a9cc243e382c6dc469382311d6b7642dd994e170f43f7fb117f1dbb92e91800",
+      "sourceCommit": "aca3934993aa1a1a011e3e5f66d859aaef489886",
+      "versionId": "ea5298a486da0850eceffbb1415b335821aad4f0348916df99267b0eea487d59",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -832,16 +832,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T110052Z/approval-box-extension-4858df18d6f4cf919a56cb0401bf8e43008f35ef-linux-amd64.tar.gz",
-          "bytes": 3717274,
-          "sha256": "1a9cc243e382c6dc469382311d6b7642dd994e170f43f7fb117f1dbb92e91800"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T125249Z/approval-box-extension-aca3934993aa1a1a011e3e5f66d859aaef489886-linux-amd64.tar.gz",
+          "bytes": 3717739,
+          "sha256": "ea5298a486da0850eceffbb1415b335821aad4f0348916df99267b0eea487d59"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T110052Z/approval-box-extension-4858df18d6f4cf919a56cb0401bf8e43008f35ef-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11280,
-          "sha256": "54c69db268c7b580544c82abf4bd7d9009eb84f4e14e8e4367f3c43ef6c57639"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T125249Z/approval-box-extension-aca3934993aa1a1a011e3e5f66d859aaef489886-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11045,
+          "sha256": "9eefd0e24f1a5e37897b643e2aee63dff8e9ec4e58a1fb091114fbac85d48b73"
         },
-        "signerCommit": "4858df18d6f4cf919a56cb0401bf8e43008f35ef"
+        "signerCommit": "aca3934993aa1a1a011e3e5f66d859aaef489886"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -853,13 +853,13 @@
         }
       },
       "changes": [
-        "決裁箱の答えを、聞いた席へ BellTeam のメッセージとして渡します。"
+        "決裁箱の答えを聞いた席へ渡す記録の起点が、権限の確認の前に置かれるようになり、確認が通る前に出された答えも取りこぼされなくなります。"
       ]
     },
     {
       "componentId": "approval-box-extension",
-      "sourceCommit": "4858df18d6f4cf919a56cb0401bf8e43008f35ef",
-      "versionId": "949e5386f14e4a93c4134f88874e2b6961776cdd5c708ca83972611780e0818b",
+      "sourceCommit": "aca3934993aa1a1a011e3e5f66d859aaef489886",
+      "versionId": "cfbf19828aafa38854ab120a760ed866a0c30a10dfb5c7af1925c1983c2ec131",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -867,16 +867,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T110052Z/approval-box-extension-4858df18d6f4cf919a56cb0401bf8e43008f35ef-linux-arm64.tar.gz",
-          "bytes": 3717274,
-          "sha256": "949e5386f14e4a93c4134f88874e2b6961776cdd5c708ca83972611780e0818b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T125249Z/approval-box-extension-aca3934993aa1a1a011e3e5f66d859aaef489886-linux-arm64.tar.gz",
+          "bytes": 3717739,
+          "sha256": "cfbf19828aafa38854ab120a760ed866a0c30a10dfb5c7af1925c1983c2ec131"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T110052Z/approval-box-extension-4858df18d6f4cf919a56cb0401bf8e43008f35ef-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11468,
-          "sha256": "9b08d05676ccdcf384a4ed2f2393d87b993bb2aca54046b406cc371e0bb639c8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T125249Z/approval-box-extension-aca3934993aa1a1a011e3e5f66d859aaef489886-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11139,
+          "sha256": "1f537ee52408aae3a0d58ffcc12eb7f44914059b4d41cf8bb04fe16bd4e156e4"
         },
-        "signerCommit": "4858df18d6f4cf919a56cb0401bf8e43008f35ef"
+        "signerCommit": "aca3934993aa1a1a011e3e5f66d859aaef489886"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -888,7 +888,7 @@
         }
       },
       "changes": [
-        "決裁箱の答えを、聞いた席へ BellTeam のメッセージとして渡します。"
+        "決裁箱の答えを聞いた席へ渡す記録の起点が、権限の確認の前に置かれるようになり、確認が通る前に出された答えも取りこぼされなくなります。"
       ]
     },
     {
