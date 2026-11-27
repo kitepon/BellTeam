@@ -28,7 +28,8 @@ export function qrPng(text, { scale = 6, quiet = 4 } = {}) {
   return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', header), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))])
 }
 
-const clock = iso => { const at = Date.parse(iso); return Number.isFinite(at) ? new Date(at + 9 * 3_600_000).toISOString().slice(11, 16) : null }
+// "12/5 00:00": the date is always shown, the pairing lives days (the connector's expiresAt), not minutes.
+const clock = iso => { const at = Date.parse(iso); if (!Number.isFinite(at)) return null; const jst = new Date(at + 9 * 3_600_000).toISOString(); return `${Number(jst.slice(5, 7))}/${Number(jst.slice(8, 10))} ${jst.slice(11, 16)}` }
 
 export function ownerMessage(view) {
   const until = clock(view.expiresAt)
