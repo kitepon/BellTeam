@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-27T03:08:09Z",
-  "expiresAt": "2026-12-04T03:08:09Z",
+  "publishedAt": "2026-11-27T04:07:29Z",
+  "expiresAt": "2026-12-04T04:07:29Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "e0fd4c159e0640f1b8bd01d8225d49b82c92dba7",
-      "versionId": "sha256:6a974c545abdbf14a36a93356f5d5cf9ac222df3081485247102cb5357f08573",
+      "sourceCommit": "6e17e2b4602a985ebf18d40c56e26e6c88eeafe3",
+      "versionId": "sha256:3769bb8ac055f218db8bedd770121e3a2ef7916c4fd5ec857b2d7d62b1fdb9dc",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6a974c545abdbf14a36a93356f5d5cf9ac222df3081485247102cb5357f08573"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3769bb8ac055f218db8bedd770121e3a2ef7916c4fd5ec857b2d7d62b1fdb9dc"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,21 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "認証仲介の起動口が、最初の管理者（サクラ、ライ）を子の起動時に渡します。",
-        "端末の席のうち、席の一覧に載らないものの稼働表示を直します（実行の行と同じ内容）。"
+        "認証仲介の管理者が、モジュールの運用記録（audit）の末尾を読むための結果の検証を、本体側にも足します。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "e0fd4c159e0640f1b8bd01d8225d49b82c92dba7",
-      "versionId": "sha256:6a974c545abdbf14a36a93356f5d5cf9ac222df3081485247102cb5357f08573",
+      "sourceCommit": "6e17e2b4602a985ebf18d40c56e26e6c88eeafe3",
+      "versionId": "sha256:3769bb8ac055f218db8bedd770121e3a2ef7916c4fd5ec857b2d7d62b1fdb9dc",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6a974c545abdbf14a36a93356f5d5cf9ac222df3081485247102cb5357f08573"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3769bb8ac055f218db8bedd770121e3a2ef7916c4fd5ec857b2d7d62b1fdb9dc"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -747,8 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "認証仲介の起動口が、最初の管理者（サクラ、ライ）を子の起動時に渡します。",
-        "端末の席のうち、席の一覧に載らないものの稼働表示を直します（実行の行と同じ内容）。"
+        "認証仲介の管理者が、モジュールの運用記録（audit）の末尾を読むための結果の検証を、本体側にも足します。"
       ]
     },
     {
@@ -893,8 +891,8 @@
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "e0fd4c159e0640f1b8bd01d8225d49b82c92dba7",
-      "versionId": "75126a7ff0c0b9c4b588b1cb4b6f44d280ea7ea5b432a2a9798c9e192cddbf25",
+      "sourceCommit": "6e17e2b4602a985ebf18d40c56e26e6c88eeafe3",
+      "versionId": "9e0a084425581bf0111a28567699e93fcd85a2f485a2cd5efebd897e4f875016",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -902,16 +900,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T030218Z/auth-mediation-e0fd4c159e0640f1b8bd01d8225d49b82c92dba7-linux-amd64.tar.gz",
-          "bytes": 3705554,
-          "sha256": "75126a7ff0c0b9c4b588b1cb4b6f44d280ea7ea5b432a2a9798c9e192cddbf25"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T040510Z/auth-mediation-6e17e2b4602a985ebf18d40c56e26e6c88eeafe3-linux-amd64.tar.gz",
+          "bytes": 3705707,
+          "sha256": "9e0a084425581bf0111a28567699e93fcd85a2f485a2cd5efebd897e4f875016"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T030218Z/auth-mediation-e0fd4c159e0640f1b8bd01d8225d49b82c92dba7-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11414,
-          "sha256": "406dffc56e43df914f433773aed898127596545280bb7df5db651d0e9c1d0e38"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T040510Z/auth-mediation-6e17e2b4602a985ebf18d40c56e26e6c88eeafe3-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11230,
+          "sha256": "81a2dab16d458a4d7db2188c17970b4c6205a62e6ba1ee006f9ab8eef84b4758"
         },
-        "signerCommit": "e0fd4c159e0640f1b8bd01d8225d49b82c92dba7"
+        "signerCommit": "6e17e2b4602a985ebf18d40c56e26e6c88eeafe3"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -923,13 +921,13 @@
         }
       },
       "changes": [
-        "認証仲介のモジュールを、署名付きの行として出します。最初の管理者（サクラ、ライ）を方針に加え、トークンの登録と方針の取り込みができるようになります。"
+        "管理者が、認証仲介モジュール自身の運用記録（値は含まない）の末尾を、audit 動詞で読めるようになります。"
       ]
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "e0fd4c159e0640f1b8bd01d8225d49b82c92dba7",
-      "versionId": "fe6e91a135bd9debf76635e84355a51980d7e7a98f3e5a681b1f2d1689bdfb30",
+      "sourceCommit": "6e17e2b4602a985ebf18d40c56e26e6c88eeafe3",
+      "versionId": "f4e7ffe76568ea4a2f556c08307331663f486c336c0d2dbc85fcc8b91125fc31",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -937,16 +935,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T030218Z/auth-mediation-e0fd4c159e0640f1b8bd01d8225d49b82c92dba7-linux-arm64.tar.gz",
-          "bytes": 3705554,
-          "sha256": "fe6e91a135bd9debf76635e84355a51980d7e7a98f3e5a681b1f2d1689bdfb30"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T040510Z/auth-mediation-6e17e2b4602a985ebf18d40c56e26e6c88eeafe3-linux-arm64.tar.gz",
+          "bytes": 3705707,
+          "sha256": "f4e7ffe76568ea4a2f556c08307331663f486c336c0d2dbc85fcc8b91125fc31"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T030218Z/auth-mediation-e0fd4c159e0640f1b8bd01d8225d49b82c92dba7-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11359,
-          "sha256": "e0adc298100321700465f5294abdbf926f371707bad241f312e7379206f3078a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T040510Z/auth-mediation-6e17e2b4602a985ebf18d40c56e26e6c88eeafe3-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11324,
+          "sha256": "62a819a9bdc2054d17f0c1bc4789b09ecd18eeab07e598f0103453a168ec99ec"
         },
-        "signerCommit": "e0fd4c159e0640f1b8bd01d8225d49b82c92dba7"
+        "signerCommit": "6e17e2b4602a985ebf18d40c56e26e6c88eeafe3"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -958,7 +956,7 @@
         }
       },
       "changes": [
-        "認証仲介のモジュールを、署名付きの行として出します。最初の管理者（サクラ、ライ）を方針に加え、トークンの登録と方針の取り込みができるようになります。"
+        "管理者が、認証仲介モジュール自身の運用記録（値は含まない）の末尾を、audit 動詞で読めるようになります。"
       ]
     }
   ],
