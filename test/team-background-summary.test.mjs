@@ -149,6 +149,8 @@ test('codex runner uses exec JSONL without user config/MCP/rules, read-only sand
   for (const flag of ['--json', '--ephemeral', '--ignore-user-config', '--ignore-rules', '--skip-git-repo-check']) assert.ok(args.includes(flag), flag)
   assert.equal(args[args.indexOf('--sandbox') + 1], 'read-only'); assert.equal(args[args.indexOf('-C') + 1], '/unused')
   assert.equal(args[args.indexOf('-m') + 1], 'gpt-6-luna'); assert.ok(args.includes('model_reasoning_effort="low"'))
+  // The account plugins' MCPs (xcodebuildmcp via npx) must stay off although --ignore-user-config skips the config stubs (respawned every few seconds, 11-27).
+  for (const name of ['xcodebuildmcp', 'openai-api-key-local-confirmation']) for (const kv of [`mcp_servers.${name}.command="true"`, `mcp_servers.${name}.enabled=false`]) assert.ok(args.includes(kv), kv)
   assert.equal(options.input, '{"text":"限定本文"}'); assert.equal(options.maxBuffer, 65_536)
   for (const bad of [lines([message]), lines([message, { type: 'turn.failed', error: {} }, { type: 'turn.completed' }]),
     lines([{ type: 'turn.completed' }]), { stdout: 'not jsonl' }]) {
