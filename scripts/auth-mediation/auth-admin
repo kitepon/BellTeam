@@ -37,6 +37,8 @@ def main():
         s.add_argument("command", nargs="?" if name == "flush" else None)
     sub.add_parser("token-set", help="read the 1Password read token from stdin")
     sub.add_parser("token-clear")
+    s = sub.add_parser("audit", help="print the last N audit lines (no values)")
+    s.add_argument("--last", type=int, default=50)
     s = sub.add_parser("import", help="import an old broker policy.json (v1)")
     s.add_argument("--host", required=True, choices=["container", "main-server"])
     s.add_argument("file")
@@ -64,6 +66,9 @@ def main():
             sys.exit("No token on stdin.")
         ask("token.set", {"value": value})
         print(json.dumps({"change": "token.set"}))
+    elif a.cmd == "audit":
+        for line in ask("audit", {"last": a.last})["lines"]:
+            print(line)
     elif a.cmd == "token-clear":
         ask("token.clear")
         print(json.dumps({"change": "token.clear"}))

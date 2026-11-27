@@ -109,3 +109,15 @@ test('first administrators come from the environment and are not lost when polic
   assert.equal((await service.admin({ botId: 'bot-first', verb: 'grant', args: { bot: 'bot-x', command: 'c' } }, effect)).outcome, 'ok')
   assert.deepEqual(JSON.parse(await readFile(join(dir, 'policy.json'), 'utf8')).bots['bot-x'].grants, [{ command: 'c' }])
 })
+
+test('audit verb: admins read the last lines, a non-admin is denied, nothing but audit lines come back', async () => {
+  const f = await fixture()
+  await f.call('resolve', { command: ['node', 'app.mjs'], cwd: '/srv/bellteam/bots/bot-a', via: 'container-socket' })
+  await f.call('resolve', { command: ['node', 'nope'], cwd: '/srv/bellteam/bots/bot-a', via: 'container-socket' })
+  await new Promise(r => setTimeout(r, 20))
+  const out = await f.call('admin', { botId: 'bot-admin', verb: 'audit', args: { last: 1 } })
+  assert.equal(out.outcome, 'ok'); assert.equal(out.lines.length, 1); assert.equal(JSON.parse(out.lines[0]).outcome, 'denied')
+  assert.ok(!JSON.stringify(out).includes(SECRET))
+  assert.equal((await f.call('admin', { botId: 'bot-a', verb: 'audit' })).outcome, 'denied')
+  assert.equal((await f.call('admin', { botId: 'bot-admin', verb: 'audit' })).lines.length, 3) // two requests and the non-admin's denied attempt
+})
