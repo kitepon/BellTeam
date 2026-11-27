@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-27T14:39:12Z",
-  "expiresAt": "2026-12-04T14:39:12Z",
+  "publishedAt": "2026-11-27T21:32:49Z",
+  "expiresAt": "2026-12-04T21:32:49Z",
   "releases": [
     {
       "componentId": "usage",
@@ -489,8 +489,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "03ecb4ee959fd1a35ba6df6a3a4477376ff822af",
-      "versionId": "e5f4d73eaf5a3444612f9dc3042a1753b2010c9d3f9ac518e9d65fc5e427da2d",
+      "sourceCommit": "d74b336a69030b0bc1d1a1b75bcf9df5580a71e6",
+      "versionId": "646d66b41c1dbeb6b3b3f3cdef27ec92e1d8281f95038cd1de361fe5b691acca",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -498,16 +498,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T121601Z/execution-03ecb4ee959fd1a35ba6df6a3a4477376ff822af-linux-amd64.tar.gz",
-          "bytes": 3881985,
-          "sha256": "e5f4d73eaf5a3444612f9dc3042a1753b2010c9d3f9ac518e9d65fc5e427da2d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T213220Z/execution-d74b336a69030b0bc1d1a1b75bcf9df5580a71e6-linux-amd64.tar.gz",
+          "bytes": 4074148,
+          "sha256": "646d66b41c1dbeb6b3b3f3cdef27ec92e1d8281f95038cd1de361fe5b691acca"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T121601Z/execution-03ecb4ee959fd1a35ba6df6a3a4477376ff822af-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11130,
-          "sha256": "61730f833ee85f732dcda4bcbe016a69d03c01cfc375500b71d63ff902685b5c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T213220Z/execution-d74b336a69030b0bc1d1a1b75bcf9df5580a71e6-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10942,
+          "sha256": "e89da0dd82cb885e68b8de52df5a62138d482acb5a1bbfb46c7380686d948be8"
         },
-        "signerCommit": "03ecb4ee959fd1a35ba6df6a3a4477376ff822af"
+        "signerCommit": "d74b336a69030b0bc1d1a1b75bcf9df5580a71e6"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -517,13 +517,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "席の起動の数え方が、起動に成功したコンテナの席だけを数えるようになり、端末の席や失敗した起動で「メモリが足りない」と誤って断られなくなります。"
+        "席のstreamが「待機・保留なし」と120秒言い続けているのに、Aitermがターン実行中と報告し続ける席でも、配送の待ちが終わります。受理済みの配送は、答えが不明のまま残り、再送されません。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "03ecb4ee959fd1a35ba6df6a3a4477376ff822af",
-      "versionId": "559351bcdfd637f605568026e82278a48a77d4de201e187e4b976e696c1267a4",
+      "sourceCommit": "d74b336a69030b0bc1d1a1b75bcf9df5580a71e6",
+      "versionId": "a36977c4ab881393d3e6afca46f7c3d9ad959749f687705be8e56825ce922445",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -531,16 +531,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T121601Z/execution-03ecb4ee959fd1a35ba6df6a3a4477376ff822af-linux-arm64.tar.gz",
-          "bytes": 3881985,
-          "sha256": "559351bcdfd637f605568026e82278a48a77d4de201e187e4b976e696c1267a4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T213220Z/execution-d74b336a69030b0bc1d1a1b75bcf9df5580a71e6-linux-arm64.tar.gz",
+          "bytes": 4074148,
+          "sha256": "a36977c4ab881393d3e6afca46f7c3d9ad959749f687705be8e56825ce922445"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T121601Z/execution-03ecb4ee959fd1a35ba6df6a3a4477376ff822af-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11365,
-          "sha256": "cc8c066c81e59e33afd9a2380d8a7de2528d839e15405295550038b07172116b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T213220Z/execution-d74b336a69030b0bc1d1a1b75bcf9df5580a71e6-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10895,
+          "sha256": "442fc7687153f795a5f4ec832f8678c15905db41c33f61f21caeb0ea737fc5b2"
         },
-        "signerCommit": "03ecb4ee959fd1a35ba6df6a3a4477376ff822af"
+        "signerCommit": "d74b336a69030b0bc1d1a1b75bcf9df5580a71e6"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -550,7 +550,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "席の起動の数え方が、起動に成功したコンテナの席だけを数えるようになり、端末の席や失敗した起動で「メモリが足りない」と誤って断られなくなります。"
+        "席のstreamが「待機・保留なし」と120秒言い続けているのに、Aitermがターン実行中と報告し続ける席でも、配送の待ちが終わります。受理済みの配送は、答えが不明のまま残り、再送されません。"
       ]
     },
     {
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "3432023fe0b0dbe85e722af0d250e31536d3fea3",
-      "versionId": "sha256:8eb8271deee1d09bc220380abdb9712bb1b97467bb841cd54f5791e4aa00210c",
+      "sourceCommit": "f57bd818de9f252b258d1eae2f9a013e9cde12bc",
+      "versionId": "sha256:011e00116aa3c72026d3ce90db109ab5d7d05108e5446220e55c84c4a6c554d3",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:8eb8271deee1d09bc220380abdb9712bb1b97467bb841cd54f5791e4aa00210c"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:011e00116aa3c72026d3ce90db109ab5d7d05108e5446220e55c84c4a6c554d3"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -722,22 +722,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "本体のイメージの Aiterm が 0.70.120 になります（動いている席の自分の待機状態が確定せず、ラピさんが「不明」に見えた不具合の修正）。端末側の ~/.aiterm の版が、コンテナの版へ戻されなくなります。",
-        "プッシュ通知は中継だけを使い、BellTeam は 1Password を読まなくなります。",
-        "決裁箱拡張の持ち主の席から、オーナーの会話へペアリングの QR を送るツールが加わります。"
+        "席のstreamが「待機・保留なし」と120秒言い続けているのに、Aitermがターン実行中と報告し続ける席でも、配送の待ちが終わります（Stopが記録されなかったターンで、配送が数時間「実行中」のまま残る不具合の修正）。",
+        "決裁箱のペアリングが始まらない時、理由に失敗の行のコードを示します。QRの文に、有効期限の日付も付きます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "3432023fe0b0dbe85e722af0d250e31536d3fea3",
-      "versionId": "sha256:8eb8271deee1d09bc220380abdb9712bb1b97467bb841cd54f5791e4aa00210c",
+      "sourceCommit": "f57bd818de9f252b258d1eae2f9a013e9cde12bc",
+      "versionId": "sha256:011e00116aa3c72026d3ce90db109ab5d7d05108e5446220e55c84c4a6c554d3",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:8eb8271deee1d09bc220380abdb9712bb1b97467bb841cd54f5791e4aa00210c"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:011e00116aa3c72026d3ce90db109ab5d7d05108e5446220e55c84c4a6c554d3"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,9 +745,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "本体のイメージの Aiterm が 0.70.120 になります（動いている席の自分の待機状態が確定せず、ラピさんが「不明」に見えた不具合の修正）。端末側の ~/.aiterm の版が、コンテナの版へ戻されなくなります。",
-        "プッシュ通知は中継だけを使い、BellTeam は 1Password を読まなくなります。",
-        "決裁箱拡張の持ち主の席から、オーナーの会話へペアリングの QR を送るツールが加わります。"
+        "席のstreamが「待機・保留なし」と120秒言い続けているのに、Aitermがターン実行中と報告し続ける席でも、配送の待ちが終わります（Stopが記録されなかったターンで、配送が数時間「実行中」のまま残る不具合の修正）。",
+        "決裁箱のペアリングが始まらない時、理由に失敗の行のコードを示します。QRの文に、有効期限の日付も付きます。"
       ]
     },
     {
