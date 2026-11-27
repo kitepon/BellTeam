@@ -8,7 +8,8 @@
 
 ```mermaid
 flowchart TD
-  Descriptor["nativeが返したwait_process"] --> Caller["runWaitProcess"]
+  Descriptor["nativeが返したwait_process"] --> Share["同じsession・wait_processを追う者は1つのprocessを分け合う<br/>最後の追う者が止まると止める"]
+  Share --> Caller["runWaitProcess"]
   Caller --> Seat{"seatProject指定あり"}
   Seat -->|"あり"| Runner["SeatProcessRunner<br/>このcallerだけacceptNonzero"]
   Seat -->|"なし"| Spawn["従来のprocess実行"]

@@ -2253,11 +2253,40 @@ export class AitermTransport {
     return { path, temporary: true, attachment: { name: plainLine(file.name, 200), mime: plainLine(file.mime, 100), size: bytes.length } }
   }
 
+  // wait-contract.md "同じ待機を追う者は1つのprocessを分け合う": a busy seat's queued deliveries all follow the same turn with the same
+  // wait_process, so one process serves them all (memory stays flat as the queue grows). The last follower to stop stops the process.
+  #turnWaits = new Map()
+  async #sharedWait(receipt, signal) {
+    const key = JSON.stringify([receipt.session_id, receipt.wait_process])
+    let shared = this.#turnWaits.get(key)
+    if (!shared) {
+      const stop = new AbortController(), forget = () => { if (this.#turnWaits.get(key) === shared) this.#turnWaits.delete(key) }
+      // The session goes along: a remote seat's wait is `ssh ... '<aiterm-wait command>'` (one string, or base64 on Windows), so --session is not an argument of it.
+      shared = { stop, followers: 0, forget, result: this.waitProcess(receipt.wait_process, stop.signal, { session: receipt.session_id }) }
+      shared.result.then(forget, forget)
+      this.#turnWaits.set(key, shared)
+    }
+    shared.followers++
+    let onAbort
+    try {
+      const stopped = signal ? new Promise((_, reject) => signal.addEventListener('abort', onAbort = () => reject(Object.assign(new Error('ABORT_ERR'), { code: 'ABORT_ERR', name: 'AbortError' })), { once: true })) : null
+      stopped?.catch(() => {})
+      if (signal?.aborted) onAbort()
+      return await (stopped ? Promise.race([shared.result, stopped]) : shared.result)
+    } finally {
+      signal?.removeEventListener('abort', onAbort)
+      if (--shared.followers === 0) {
+        shared.forget(); shared.stop.abort()
+        // A stop is confirmed only once the process is gone (seat-process.mjs), so the last follower waits for it.
+        await shared.result.catch(() => {})
+      }
+    }
+  }
+
   // signalは、追うのをやめた時に待ちのprocessを止める（watchTurn）。
   async waitUntilDone(receipt, signal = null) {
     while (!signal?.aborted) {
-      // The session goes along: a remote seat's wait is `ssh ... '<aiterm-wait command>'` (one string, or base64 on Windows), so --session is not an argument of it.
-      const result = await this.waitProcess(receipt.wait_process, signal, { session: receipt.session_id })
+      const result = await this.#sharedWait(receipt, signal)
       const recoveryFailure = recoverableTurnFailure(receipt, result)
       if (result.outcome === 'done') { this.workState.completedTurn(result); return result }
       if (result.outcome === 'timeout' || result.outcome === 'running') continue
