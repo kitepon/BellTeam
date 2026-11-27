@@ -43,3 +43,18 @@ test('auth-admin: grant, stop, token-set (value only on stdin), import', async (
   assert.equal((await run(ADMIN, ['token-set'], env, '')).code, 1)
   m.close()
 })
+
+test('auth exec: a SIGTERM sent only to auth reaches a command that is still running after 1 s, and auth mirrors its exit code', async () => {
+  const m = await fakeModule(() => ({ outcome: 'granted', env: {} }))
+  const child = spawn(AUTH, ['exec', 'sh', '-c', 'trap "exit 7" TERM; while :; do sleep 0.1; done'], { env: { ...process.env, AUTH_SOCK: m.path } })
+  const closed = new Promise(r => child.on('close', (code, signal) => r({ code, signal })))
+  await new Promise(r => setTimeout(r, 700)); child.kill('SIGTERM')
+  const timer = setTimeout(() => child.kill('SIGKILL'), 8000)
+  assert.deepEqual(await closed, { code: 7, signal: null }); clearTimeout(timer); m.close()
+})
+
+test('auth exec: a command killed by a signal makes auth die by the same signal', async () => {
+  const m = await fakeModule(() => ({ outcome: 'granted', env: {} }))
+  const out = await new Promise(resolve => { const c = spawn(AUTH, ['exec', 'sh', '-c', 'kill -TERM $$'], { env: { ...process.env, AUTH_SOCK: m.path } }); c.on('close', (code, signal) => resolve({ code, signal })) })
+  assert.deepEqual(out, { code: null, signal: 'SIGTERM' }); m.close()
+})
