@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-27T06:21:46Z",
-  "expiresAt": "2026-12-04T06:21:46Z",
+  "publishedAt": "2026-11-27T07:11:34Z",
+  "expiresAt": "2026-12-04T07:11:34Z",
   "releases": [
     {
       "componentId": "usage",
@@ -183,8 +183,8 @@
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "e6eca195de7a09b913ded939217c34f4dada23cb",
-      "versionId": "9a8e130e004cddedef7eb7d4a6ff7087a948c5ad706be5c7c2ba43866d2e33e7",
+      "sourceCommit": "a571977cf722f1bd8d0f9995da17f4eed8998f0d",
+      "versionId": "903356e117d8d0bf5787e7fd2bda9c38457abeb4e0df408a556315c4d865e0db",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -192,16 +192,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110406Z/conversation-e6eca195de7a09b913ded939217c34f4dada23cb-linux-amd64.tar.gz",
-          "bytes": 3799307,
-          "sha256": "9a8e130e004cddedef7eb7d4a6ff7087a948c5ad706be5c7c2ba43866d2e33e7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T070348Z/conversation-a571977cf722f1bd8d0f9995da17f4eed8998f0d-linux-amd64.tar.gz",
+          "bytes": 3799713,
+          "sha256": "903356e117d8d0bf5787e7fd2bda9c38457abeb4e0df408a556315c4d865e0db"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110406Z/conversation-e6eca195de7a09b913ded939217c34f4dada23cb-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11186,
-          "sha256": "f1cf8a049ffb09227cf1d804d0a2c00c0b0397ac13d10637502abc7789959c2f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T070348Z/conversation-a571977cf722f1bd8d0f9995da17f4eed8998f0d-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11327,
+          "sha256": "ba7be9aaadeeb2b29b24f85313609dc014e01820f15a781de6c772ba64337dd9"
         },
-        "signerCommit": "e6eca195de7a09b913ded939217c34f4dada23cb"
+        "signerCommit": "a571977cf722f1bd8d0f9995da17f4eed8998f0d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -232,13 +232,13 @@
         }
       },
       "changes": [
-        "席のコマンドの口に、秘密の環境変数を渡す選択肢が増えます（表に出る動作は変わりません）。"
+        "Bot の応答完了の確認が、1 つの区間で 1 回になります。"
       ]
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "e6eca195de7a09b913ded939217c34f4dada23cb",
-      "versionId": "ae07a3dd9ec39dd0c27aa682b9a9d30053e83e60ea6b3a3315dce171e9ac5241",
+      "sourceCommit": "a571977cf722f1bd8d0f9995da17f4eed8998f0d",
+      "versionId": "2e17faed8958728b0e491fa8136b341532e903971110413396bf02d1fa8447d5",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -246,16 +246,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110406Z/conversation-e6eca195de7a09b913ded939217c34f4dada23cb-linux-arm64.tar.gz",
-          "bytes": 3799307,
-          "sha256": "ae07a3dd9ec39dd0c27aa682b9a9d30053e83e60ea6b3a3315dce171e9ac5241"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T070348Z/conversation-a571977cf722f1bd8d0f9995da17f4eed8998f0d-linux-arm64.tar.gz",
+          "bytes": 3799713,
+          "sha256": "2e17faed8958728b0e491fa8136b341532e903971110413396bf02d1fa8447d5"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110406Z/conversation-e6eca195de7a09b913ded939217c34f4dada23cb-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11033,
-          "sha256": "b221c428e3c3c831765391b51b43819858f4c049387273e11d32b5f45087dde3"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T070348Z/conversation-a571977cf722f1bd8d0f9995da17f4eed8998f0d-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11186,
+          "sha256": "da852f87c9808c01e01f2fa9537aa9e2235f8825126130ea1634642dba3fe9f0"
         },
-        "signerCommit": "e6eca195de7a09b913ded939217c34f4dada23cb"
+        "signerCommit": "a571977cf722f1bd8d0f9995da17f4eed8998f0d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -286,7 +286,7 @@
         }
       },
       "changes": [
-        "席のコマンドの口に、秘密の環境変数を渡す選択肢が増えます（表に出る動作は変わりません）。"
+        "Bot の応答完了の確認が、1 つの区間で 1 回になります。"
       ]
     },
     {
@@ -491,8 +491,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "ab04a27ab8c7965810a3d5648618a986243f2bd0",
-      "versionId": "76a0a65355f1a5df7f5600f907b3fbca022c9f34f8142408ce29880e0a2da52b",
+      "sourceCommit": "a571977cf722f1bd8d0f9995da17f4eed8998f0d",
+      "versionId": "7f9e4f31b82ff1b7d90d318310471e01bb488cc0f367e60b98a536d245495e12",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T131136Z/execution-ab04a27ab8c7965810a3d5648618a986243f2bd0-linux-amd64.tar.gz",
-          "bytes": 3880226,
-          "sha256": "76a0a65355f1a5df7f5600f907b3fbca022c9f34f8142408ce29880e0a2da52b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T070334Z/execution-a571977cf722f1bd8d0f9995da17f4eed8998f0d-linux-amd64.tar.gz",
+          "bytes": 3881122,
+          "sha256": "7f9e4f31b82ff1b7d90d318310471e01bb488cc0f367e60b98a536d245495e12"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T131136Z/execution-ab04a27ab8c7965810a3d5648618a986243f2bd0-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11083,
-          "sha256": "e6032d7973bcba392012c5da9d65cb671d12bc43d373a81dd926464e99708efb"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T070334Z/execution-a571977cf722f1bd8d0f9995da17f4eed8998f0d-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11177,
+          "sha256": "f0d330c02f52d5e23f058c493782ae78e3ac1d07062be2396f3e5da04bbaf084"
         },
-        "signerCommit": "ab04a27ab8c7965810a3d5648618a986243f2bd0"
+        "signerCommit": "a571977cf722f1bd8d0f9995da17f4eed8998f0d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +519,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "端末の席のうち、席の一覧に載らないものが、オーナーの稼働ランプで待機に見える不具合（Z207）を直します。"
+        "同じ席に溜まった配達が、1 つの待ちの処理を共有するようになり、実行側のメモリの増え方が止まります。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "ab04a27ab8c7965810a3d5648618a986243f2bd0",
-      "versionId": "014613b2f6e30047e433373002d13efa95a364affbff8bfa7e2635d1e028a285",
+      "sourceCommit": "a571977cf722f1bd8d0f9995da17f4eed8998f0d",
+      "versionId": "4da735e555dd59104e2d53b88d4a8cabfb1ed4a57926269ce695025d7b131193",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +533,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T131136Z/execution-ab04a27ab8c7965810a3d5648618a986243f2bd0-linux-arm64.tar.gz",
-          "bytes": 3880226,
-          "sha256": "014613b2f6e30047e433373002d13efa95a364affbff8bfa7e2635d1e028a285"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T070334Z/execution-a571977cf722f1bd8d0f9995da17f4eed8998f0d-linux-arm64.tar.gz",
+          "bytes": 3881122,
+          "sha256": "4da735e555dd59104e2d53b88d4a8cabfb1ed4a57926269ce695025d7b131193"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T131136Z/execution-ab04a27ab8c7965810a3d5648618a986243f2bd0-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11114,
-          "sha256": "e215dcdbd44fa94c0ac112aa833bad96de52aa4245bfc3ccee6f29d11abd1f40"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T070334Z/execution-a571977cf722f1bd8d0f9995da17f4eed8998f0d-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11181,
+          "sha256": "22c17da9c7ffe515ef21be81b65e797ab58e53d1e985fe32cdf171772e42cfe4"
         },
-        "signerCommit": "ab04a27ab8c7965810a3d5648618a986243f2bd0"
+        "signerCommit": "a571977cf722f1bd8d0f9995da17f4eed8998f0d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,7 +552,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "端末の席のうち、席の一覧に載らないものが、オーナーの稼働ランプで待機に見える不具合（Z207）を直します。"
+        "同じ席に溜まった配達が、1 つの待ちの処理を共有するようになり、実行側のメモリの増え方が止まります。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "ed4af4b7011b0789d3403f6a61e5ede36c36f642",
-      "versionId": "sha256:adb3e4186005711c2aaf82dcf0f602f729e03835c56122cfe9a420bb7271df11",
+      "sourceCommit": "a571977cf722f1bd8d0f9995da17f4eed8998f0d",
+      "versionId": "sha256:db91d89278df78e791c48fc172f7bcca2dd45d2fa57356936e667dbeb461bd93",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:adb3e4186005711c2aaf82dcf0f602f729e03835c56122cfe9a420bb7271df11"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:db91d89278df78e791c48fc172f7bcca2dd45d2fa57356936e667dbeb461bd93"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "統括の工程表の一覧に、チャートごとの「催促」の設定の保存値が含まれるようになります。"
+        "同じ席に溜まった配達が、1 つの待ちの処理を共有するようになり、コンテナのメモリの増え方が止まります。",
+        "Bot の応答完了の確認が、1 つの区間で 1 回になります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "ed4af4b7011b0789d3403f6a61e5ede36c36f642",
-      "versionId": "sha256:adb3e4186005711c2aaf82dcf0f602f729e03835c56122cfe9a420bb7271df11",
+      "sourceCommit": "a571977cf722f1bd8d0f9995da17f4eed8998f0d",
+      "versionId": "sha256:db91d89278df78e791c48fc172f7bcca2dd45d2fa57356936e667dbeb461bd93",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:adb3e4186005711c2aaf82dcf0f602f729e03835c56122cfe9a420bb7271df11"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:db91d89278df78e791c48fc172f7bcca2dd45d2fa57356936e667dbeb461bd93"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +747,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "統括の工程表の一覧に、チャートごとの「催促」の設定の保存値が含まれるようになります。"
+        "同じ席に溜まった配達が、1 つの待ちの処理を共有するようになり、コンテナのメモリの増え方が止まります。",
+        "Bot の応答完了の確認が、1 つの区間で 1 回になります。"
       ]
     },
     {
