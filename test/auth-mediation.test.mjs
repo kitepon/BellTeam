@@ -108,3 +108,21 @@ test('MCP path: cwd must be clean and inside the Bot project, symlinks resolved'
     assert.equal(await ask(bad), 'denied', bad)
   assert.equal(t.calls(), 1)
 })
+
+test('item reads are coalesced: simultaneous first requests for one item cost one op call; a flush during the read drops its result', async () => {
+  let calls = 0, release
+  const gate = new Promise(r => { release = r })
+  const cache = createItemCache({ runOp: async () => { calls++; await gate; return itemJson({ API_KEY: SECRET }) } })
+  const all = Promise.all([cache.get('x', 'v', 3600), cache.get('x', 'v', 3600), cache.get('x', 'v', 3600)])
+  await new Promise(r => setImmediate(r)); release()
+  const got = await all
+  assert.equal(calls, 1); assert.deepEqual(got.map(g => g.hit), [false, true, true]); assert.deepEqual(got[1].fields, { API_KEY: SECRET })
+  assert.equal((await cache.get('x', 'v', 3600)).hit, true)
+  let again = 0, open
+  const hold = new Promise(r => { open = r })
+  const c2 = createItemCache({ runOp: async () => { again++; await hold; return itemJson({ A: '1' }) } })
+  const p = c2.get('y', 'v', 3600); await new Promise(r => setImmediate(r)); c2.flush('y'); open(); await p
+  assert.equal((await c2.get('y', 'v', 3600)).hit, false); assert.equal(again, 2) // the flushed read was not cached
+  const fail = createItemCache({ runOp: async () => { throw new Error('x') } })
+  assert.deepEqual(await Promise.all([fail.get('z', 'v', 1), fail.get('z', 'v', 1)]), [null, null])
+})
