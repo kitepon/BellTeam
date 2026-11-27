@@ -422,3 +422,11 @@ AI CLIの導入画面（a451、#1942）をMacの実装に合わせた0.6.2（#19
 - 導入元: main `5a58eabe`（#2699）。ホストの保管庫は使わず、main-serverの `auth exec /home/kite/BellTeam/scripts/windows-install-with-oauth.sh`（項目と許可はサクラ、実行はエピネルがコンテナから1回）が、sshでfoxの `scripts/install-windows.ps1 -NoLaunch -SkipShareTarget -GoogleDesktopOAuthStdin` へクライアントJSONを標準入力で渡した。終了コード0（11秒）、出力に秘密は無い。
 - 確認（fox）: 導入したexeの版は `0.9.4+5a58eabebfa38d14b3df028b16d0c2b9e4d43682`。`BellTeam.dll` のアセンブリのメタデータ `GoogleDesktopSecret` が35文字（値は表示していない）。`Kitepon.LoginBilling.Desktop.dll` は0.24.1。BellTeamは動いていない。
 - 確認できていない: このビルドでの実サインイン（秘密も経路も0.9.4と同じ）。
+
+## Windows 0.9.6 を入れた：決裁箱の子のjoinに参加コード、部品 0.6.1（abx-join-code-windows、2026-11-27 16:0x JST、アニス）
+
+- 導入元: main `8bde2e88`（#2712）。最初に素の `install-windows.ps1` で入れて Googleの秘密が抜けたため、エピネルが `auth exec scripts/windows-install-with-oauth.sh` で16:03に入れ直した。
+- 確認（fox）: exeの版は `0.9.6+8bde2e882654acc395663223ebf5f96ec57400e9`。`BellTeam.dll` の `GoogleDesktopSecret` は35文字（値は表示していない）。BellTeamは動いていない。
+- 変更: 決裁箱の子のjoinの待ち画面でQRの下に参加コード（読み取り専用）と「コードをコピー」。失敗3種（local_network_denied / not_answering / unreachable_same_wifi）はライブラリの文をそのまま出す。部品は ApprovalBox.Client 0.6.1（購入の証明つきの親の返事でも追加を送る。bt-child-join-paid-dotnet）、LoginBilling.Desktop 0.25.1。
+- スモーク（`--smoke-test` 本番）: 成功。ok=true、認証済み。`--render-approvals join-waiting|join-not-answering|join-failed` は終了コード0。
+- 確認できていない: 本物の親のスマホでの通し、ラピの表が出た後の文言（コードの案内文とボタン名は仮）。有線PCへ「同じWi-Fi」と出る件はライブラリの文のまま（ミント・インディビリアの判断待ち）。
