@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-27T05:44:07Z",
-  "expiresAt": "2026-12-04T05:44:07Z",
+  "publishedAt": "2026-11-27T06:21:46Z",
+  "expiresAt": "2026-12-04T06:21:46Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "62ee3ebd8dada4e008d72c79cb2792d2e99d2c5e",
-      "versionId": "sha256:2aadd5cced92e34f16b10614a5929bc4e2b7ff9fd544719bbf8260d6b3cbf294",
+      "sourceCommit": "ed4af4b7011b0789d3403f6a61e5ede36c36f642",
+      "versionId": "sha256:adb3e4186005711c2aaf82dcf0f602f729e03835c56122cfe9a420bb7271df11",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:2aadd5cced92e34f16b10614a5929bc4e2b7ff9fd544719bbf8260d6b3cbf294"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:adb3e4186005711c2aaf82dcf0f602f729e03835c56122cfe9a420bb7271df11"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,21 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "部品の入れ替えの検証が、認証仲介の行でも止まらないようになります。",
-        "認証仲介の長い実行が、頼んだ時間まで待つようになり、同時の実行で互いを止めなくなります。"
+        "統括の工程表の一覧に、チャートごとの「催促」の設定の保存値が含まれるようになります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "62ee3ebd8dada4e008d72c79cb2792d2e99d2c5e",
-      "versionId": "sha256:2aadd5cced92e34f16b10614a5929bc4e2b7ff9fd544719bbf8260d6b3cbf294",
+      "sourceCommit": "ed4af4b7011b0789d3403f6a61e5ede36c36f642",
+      "versionId": "sha256:adb3e4186005711c2aaf82dcf0f602f729e03835c56122cfe9a420bb7271df11",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:2aadd5cced92e34f16b10614a5929bc4e2b7ff9fd544719bbf8260d6b3cbf294"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:adb3e4186005711c2aaf82dcf0f602f729e03835c56122cfe9a420bb7271df11"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -747,8 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "部品の入れ替えの検証が、認証仲介の行でも止まらないようになります。",
-        "認証仲介の長い実行が、頼んだ時間まで待つようになり、同時の実行で互いを止めなくなります。"
+        "統括の工程表の一覧に、チャートごとの「催促」の設定の保存値が含まれるようになります。"
       ]
     },
     {
