@@ -406,3 +406,13 @@ AI CLIの導入画面（a451、#1942）をMacの実装に合わせた0.6.2（#19
 - 導入元: main `8003708b`（#2616。ピンは #2613）。`scripts/install-windows.ps1 -NoLaunch -SkipShareTarget -GoogleDesktopOAuthRef op://…`（foxの対話ユーザーfox\kite_で実行）。導入したexeの版は `0.9.3+8003708b07d9901608aed8791ebc6fc8f88080ea`。導入したDLLは Kitepon.ApprovalBox.Client 0.5.4（`1E161842E2B0`）、Kitepon.LoginBilling.Desktop 0.24.1（`1E5DFA4FF135`）。`BellTeam.dll`にGoogle Desktopクライアントの秘密が35文字（値は表示していない）。試験導入のみで、公開はしていない。
 - スモーク（`--smoke-test` 本番）: 成功。ok=true、bots=144、rooms=9、SSE接続あり。
 - 確認できていない: 0.24.1での実サインイン（a540の実機セッションで行う）。
+
+## Windows 0.9.4 の導入（a540のリリース候補、2026-11-27 09:5x JST、アニス）
+
+- 導入元: main `adc1e7d7`（#2686。0.9.4の版上げは #2683）。`scripts/install-windows.ps1 -NoLaunch -SkipShareTarget -GoogleDesktopOAuthRef op://…`（foxの対話ユーザーfox\kite_で実行）。導入したexeの版は `0.9.4+adc1e7d715bee97c6cf3f6074aa233aedf532d9a`。導入したDLLは Kitepon.ApprovalBox.Client 0.5.4（`1E161842E2B0`）、Kitepon.LoginBilling.Desktop 0.24.1（`1E5DFA4FF135`）。`BellTeam.dll`にGoogle Desktopクライアントの秘密が35文字（値は表示していない）。試験導入のみで、公開はしていない（公開はトロニーの判断）。
+- 0.9.3からの差: Coreの接続画面の言葉と`TypedSecret`（#2648）、新しい接続画面「決裁箱につなぐ」（コードと確認コード、#2650）、子のjoinのGoogleサインインがテスト用ブラウザーの差し込み口を使う（#2682）、`ApprovalsHub.ReadLinks`が破棄後に何もしない（#2686。0.9.4を最初に入れた時に`--render-approvals`が終了時に0xE0434352で落ちた原因）。
+- スモーク（`--smoke-test` 本番）: 成功。ok=true、bots=144、rooms=9、SSE接続あり。
+- 画面の確認: `--render-approvals main|link|link-seat-waiting` を6回ずつ（18回）実行して終了コードはすべて0（直す前は `main` などで落ちることがあった）。`--render-conversation member` 本番（アニス）も終了コード0。新しい接続画面（QR・コード・確認コード・2つのつなぎ方・期限）は `docs/windows-seat-link-waiting.png` と同じ描画。
+- a540の実機相当の確認（シミュレーター／エミュレーター）: [docs/a540-sim-windows-20261127/README.md](a540-sim-windows-20261127/README.md)（0.9.3の記録。Googleサインイン、QRのAndroidエミュレーターでの承認、決裁箱の子のjoinの通過、ファイアウォール確認はfoxのESETで出ないこと）。
+- Windowsは子の端末で承認する側ではないため、a540の仕様「承認後に承認した端末が結果を1行出す」は当てはまらない。
+- 確認できていない: 0.9.4での実サインインの再実行（0.9.3で通した経路と同じコード）、WindowsのPublic/別セグメント、実機iPhoneからの承認。
