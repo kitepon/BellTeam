@@ -21,28 +21,41 @@ export class TurnReports {
     this.report = report
     this.messageId = messageId
     this.notifyReport = notifyReport
+    // botId -> endedAt of the last window afterTurn took; one entry per Bot.
+    this.covered = new Map()
   }
 
   // 配送の完了を止めないよう、呼び出し側は待たない。失敗は記録だけして、報告は頼まない。
+  // execution fires onTurnEnd once per delivery job, so deliveries that end in one turn give several overlapping windows for one Bot.
+  // A window is taken once: one ending at or before the covered end is skipped, one that overlaps starts where the covered part ends
+  // (and cannot be called "missing": the covered part may hold the owner-visible rows). Set before any await, so concurrent calls see it.
   afterTurn(turn) {
-    return this.check(turn).catch(error => this.report(`BellTeam turn report: ${turn.botId} を確かめられませんでした（${error.message}）`))
+    const covered = this.covered.get(turn.botId)
+    if (covered !== undefined && turn.endedAt <= covered) {
+      this.report(`BellTeam turn report: ${turn.botId} ${turn.startedAt}..${turn.endedAt} は ${covered} まで確かめ済み（確かめません）`)
+      return Promise.resolve(null)
+    }
+    this.covered.set(turn.botId, turn.endedAt)
+    const overlap = covered !== undefined && turn.startedAt < covered
+    return this.check(overlap ? { ...turn, startedAt: covered, overlap } : turn).catch(error => this.report(`BellTeam turn report: ${turn.botId} を確かめられませんでした（${error.message}）`))
   }
 
-  async check({ botId, context, startedAt, endedAt }) {
+  async check({ botId, context, startedAt, endedAt, overlap = false }) {
     const bot = this.bots.get(botId)
     if (!bot) return null
     const { ownerView, memberMessages } = turnView(await this.store.turnEntries(botId, startedAt, endedAt), { botId, startedAt, endedAt, names: id => this.bots.get(id)?.name ?? id, rows: this.streamRows(botId) })
     const shown = ownerView.progress_notes.length || ownerView.messages_to_owner.length || ownerView.final_message
     // ルームの発言はオーナーもルームで読める。黙る指示に従ったターンも漏れではない。
-    if (!shown && context !== 'room') return this.requestReport(bot, 'missing', [])
+    if (!shown && context !== 'room' && !overlap) return this.requestReport(bot, 'missing', [], { startedAt, endedAt })
     if (!memberMessages.length || !await this.enabled()) return null
     const { outcome, substance } = await this.judge({ ownerView, memberMessages })
     if (outcome >= OUTCOME_MIN && substance >= SUBSTANCE_MIN) return null
-    return this.requestReport(bot, 'content', [...new Set(memberMessages.map(message => message.to))])
+    return this.requestReport(bot, 'content', [...new Set(memberMessages.map(message => message.to))], { startedAt, endedAt })
   }
 
-  async requestReport(bot, reason, recipients) {
+  async requestReport(bot, reason, recipients, window) {
     const groupId = this.messageId()
+    this.report(`BellTeam turn report: ${bot.id} に報告を頼みます（${reason}、${window.startedAt}..${window.endedAt}）`)
     const message = reportRequestMessage(reason, recipients)
     // この依頼で始まるターンは確かめない（onTurnEndを渡さない）。返事はそのBotの会話画面にだけ出す。
     const notify = this.notifyReport ?? ((...args) => this.transport.notify(...args))

@@ -60,4 +60,6 @@ flowchart TD
   Request --> Owner["回答はOwner画面へ<br/>この依頼は再判定しない"]
 ```
 
-`TurnReports.afterTurn`は配送の終了を待たせないcallbackから呼ぶ。`turnView`は保存時間の幅で直接発言と途中経過を集める。部屋でsilentを守った場合を「表示なし」にしない。Jevのoutcome/substanceは0..1検証後、それぞれ0.35/0.5を使う。判定失敗はlogだけで依頼を送らない。`requestReport`はonTurnEndを渡さず、同じ報告要求の無限連鎖を作らない。追加notify自体も通常の全体停止/入力制御を通る。
+`TurnReports.afterTurn`は配送の終了を待たせないcallbackから呼ぶ。`turnView`は保存時間の幅で直接発言と途中経過を集める。部屋でsilentを守った場合を「表示なし」にしない。Jevのoutcome/substanceは0..1検証後、それぞれ0.35/0.5を使う。判定失敗はlogだけで依頼を送らない。`requestReport`はonTurnEndを渡さず、同じ報告要求の無限連鎖を作らない。
+
+同じBotの窓は一度だけ確かめる（2026-11-27、実行は配送jobごとにonTurnEndを呼ぶため、同じターンに終わるN件の配送がN個の重なる窓になる）。`afterTurn`は同期でBotごとに「確かめ済みの終端」を持ち、終端がそれ以前の窓は確かめず（logに残す）、重なる窓は確かめ済みの終端から始める。その窓は「表示なし」と判定しない（確かめ済みの部分にオーナーへ出た行があり得る）。報告を頼む時は理由と窓をlogに残す。追加notify自体も通常の全体停止/入力制御を通る。
