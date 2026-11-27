@@ -178,7 +178,7 @@ final class LocalAccount: ObservableObject {
                                                    answer: { confirm in try await self.form.answer(qr: qr, confirm: confirm) },
                                                    signIn: { try await self.form.signInLocal("apple") }) {
             case .sent: self.message = "確認の返事を送りました。"
-            case .noPurchase: self.message = "この端末には購読がありません。先に購読してください。"
+            case .noPurchase: self.errorText = "この端末には購読がありません。先に購読してください。"
             case .declined: break
             }
         }

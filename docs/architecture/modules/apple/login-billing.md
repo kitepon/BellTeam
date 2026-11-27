@@ -31,7 +31,7 @@ flowchart TD
   Req -->|"購読しているiPhoneが直接返す"| Acc2["awaitPaid → accept（署名・同一アカウントを自分で確かめる）→ 保存"]
   Acc2 --> Own
   Paid --> Ap["承認する側: QRを読む → answer(qr, confirm) → 自分のStoreの購入の証明を封印して返す"]
-  Ap -->|"signin_required（このスマホがサインインしていない）"| SI["signInLocal(apple)（Appleのシート）→ 同じQRでもう一度answer（1回だけ。承認の問いは1回で、答えは2回目へ持ち越す。終わりは根のアラート: 返事を送った／理由とコード）"]
+  Ap -->|"signin_required（このスマホがサインインしていない）"| SI["signInLocal(apple)（Appleのシート）→ 同じQRでもう一度answer（1回だけ。承認の問いは1回で、答えは2回目へ持ち越す。終わりは根のアラート: 返事を送った（題「別の端末を承認しました」）／理由とコード（題「承認できませんでした」。購読のない端末も、この題で「この端末には購読がありません」）。全OS同じ仕様: 承認のあとは必ず結果の1行）"]
   SI --> Ap
 ```
 
