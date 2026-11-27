@@ -7,12 +7,14 @@ import { createPolicyStore } from './policy.mjs'
 import { redact } from './redact.mjs'
 
 const CAP = 65536
+// A long MCP run holds one of the child's 8 slots; keeping 4 for the socket callers means main-server deploys are never starved by Bot runs.
+const MAX_MCP_RUNS = 4
 const clip = text => text.length > CAP ? { text: text.slice(0, CAP), cut: true } : { text, cut: false }
 
 // Requests run side by side; each call's effect travels with it (AsyncLocalStorage), so a long run never blocks or mixes up another request.
 export function createAuthMediationService({ policyPath, auditPath, opExe, firstAdmins = [], appendLine = (path, line) => appendFile(path, line, { mode: 0o600 }), runOp = null, realpath = undefined }) {
   const calls = new AsyncLocalStorage(), current = (method, params) => calls.getStore()(method, params)
-  let adminTail = Promise.resolve()
+  let adminTail = Promise.resolve(), mcpRuns = 0
   const withToken = async consume => {
     const got = await current('secret.get', {})
     if (got.unavailable) throw new Error('AUTH_NO_TOKEN')
@@ -26,13 +28,19 @@ export function createAuthMediationService({ policyPath, auditPath, opExe, first
   const serial = work => { const next = adminTail.then(work, work); adminTail = next.catch(() => {}); return next }
   return {
     resolve: (params, effect) => within(effect, async () => {
-      const result = await core.resolve(params)
-      if (result.outcome !== 'granted' || params.via !== 'mcp') return result
-      // Run path: the Bot's own seat runs the one fixed command; secrets go in through the runner and come back redacted.
-      const run = await effect('seat.run', { botId: params.botId, cwd: params.cwd, argv: [...params.command, ...(params.args ?? [])],
-        env: result.env, timeoutMs: (params.timeoutSec ?? 600) * 1000 })
-      const out = clip(redact(run.stdout, result.env)), err = clip(redact(run.stderr, result.env))
-      return { outcome: 'granted', exit_code: run.exitCode, stdout: out.text, stderr: err.text, truncated: run.truncated || out.cut || err.cut || run.timedOut, cache: result.cache }
+      if (params.via === 'mcp') {
+        if (mcpRuns >= MAX_MCP_RUNS) return { outcome: 'error', error: 'Too many runs are in progress; use the socket client (auth exec) for long commands.' }
+        mcpRuns++
+      }
+      try {
+        const result = await core.resolve(params)
+        if (result.outcome !== 'granted' || params.via !== 'mcp') return result
+        // Run path: the Bot's own seat runs the one fixed command; secrets go in through the runner and come back redacted.
+        const run = await effect('seat.run', { botId: params.botId, cwd: params.cwd, argv: [...params.command, ...(params.args ?? [])],
+          env: result.env, timeoutMs: (params.timeoutSec ?? 600) * 1000 })
+        const out = clip(redact(run.stdout, result.env)), err = clip(redact(run.stderr, result.env))
+        return { outcome: 'granted', exit_code: run.exitCode, stdout: out.text, stderr: err.text, truncated: run.truncated || out.cut || err.cut || run.timedOut, cache: result.cache }
+      } finally { if (params.via === 'mcp') mcpRuns-- }
     }),
     admin: (input, effect) => within(effect, () => serial(async () => {
       // The container socket sends the peer cwd; the Bot is the registered root that contains it (same rule as a script caller).

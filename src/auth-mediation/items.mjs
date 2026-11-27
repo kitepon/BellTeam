@@ -2,18 +2,29 @@ import { execFile } from 'node:child_process'
 
 // One cache per child. A miss costs one `op item get` (the account limit is shared by every Bot).
 export function createItemCache({ runOp, now = Date.now }) {
-  const cache = new Map()
+  const cache = new Map(), inflight = new Map()
+  let epoch = 0
+  // Requests for one item that arrive while its first read is running wait for that read (one `op item get`, not one per request).
+  const read = async (name, vault, ttlSeconds) => {
+    const mine = epoch
+    let out
+    try { out = await runOp(['item', 'get', name, '--vault', vault, '--reveal', '--format', 'json']) } catch { return null }
+    const fields = Object.fromEntries((JSON.parse(out).fields ?? []).filter(f => f.value && f.purpose !== 'NOTES').map(f => [f.label, f.value]))
+    if (mine === epoch) cache.set(name, { fields, until: now() + ttlSeconds * 1000 }) // a flush during the read drops its result
+    return fields
+  }
   return {
     async get(name, vault, ttlSeconds) {
       const hit = cache.get(name)
       if (hit && now() < hit.until) return { fields: hit.fields, hit: true }
-      let out
-      try { out = await runOp(['item', 'get', name, '--vault', vault, '--reveal', '--format', 'json']) } catch { return null }
-      const fields = Object.fromEntries((JSON.parse(out).fields ?? []).filter(f => f.value && f.purpose !== 'NOTES').map(f => [f.label, f.value]))
-      cache.set(name, { fields, until: now() + ttlSeconds * 1000 })
-      return { fields, hit: false }
+      const waiting = inflight.get(name)
+      if (waiting) { const fields = await waiting; return fields && { fields, hit: true } }
+      const task = read(name, vault, ttlSeconds).finally(() => inflight.delete(name))
+      inflight.set(name, task)
+      const fields = await task
+      return fields && { fields, hit: false }
     },
-    flush: name => name ? cache.delete(name) : cache.clear(),
+    flush: name => { epoch++; inflight.delete(name); name ? cache.delete(name) : cache.clear() },
   }
 }
 

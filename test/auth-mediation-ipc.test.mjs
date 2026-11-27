@@ -149,3 +149,21 @@ test('a long MCP run does not block a socket caller, and each call keeps its own
   assert.equal(quick.outcome, 'granted'); assert.deepEqual(quick.env, { API_KEY: SECRET })
   release(); assert.equal((await run).stdout, 'done')
 })
+
+test('at most 4 MCP runs at once; the fifth answers at once, a socket caller is not affected, and a slot frees when a run ends', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'auth-cap-'))
+  await writeFile(join(dir, 'policy.json'), JSON.stringify({ version: 2, vault: 'v', admins: [], bots: { 'bot-a': { grants: [{ command: 'node app.mjs' }] } }, units: {}, stopped: [] }))
+  const service = createAuthMediationService({ policyPath: join(dir, 'policy.json'), auditPath: join(dir, 'a.jsonl'), realpath: async p => p, runOp: async () => ok })
+  const releases = []
+  const effect = async method => method === 'members.roots' ? { roots: { 'bot-a': '/srv/bellteam/bots/bot-a' } }
+    : method === 'seat.run' ? new Promise(resolve => releases.push(() => resolve({ exitCode: 0, stdout: 'x', stderr: '', truncated: false, timedOut: false }))) : { value: 'tok' }
+  const mcp = { command: ['node', 'app.mjs'], cwd: '/srv/bellteam/bots/bot-a', via: 'mcp', botId: 'bot-a' }
+  const runs = [1, 2, 3, 4].map(() => service.resolve(mcp, effect))
+  await new Promise(r => setTimeout(r, 30))
+  assert.equal(releases.length, 4)
+  assert.match((await service.resolve(mcp, effect)).error, /Too many runs/u)
+  assert.equal((await service.resolve({ ...mcp, via: 'container-socket', botId: undefined }, effect)).outcome, 'granted')
+  releases.shift()(); await runs[0]
+  const next = service.resolve(mcp, effect); await new Promise(r => setTimeout(r, 30)); assert.equal(releases.length, 4)
+  releases.splice(0).forEach(r => r()); await Promise.all([...runs.slice(1), next])
+})
