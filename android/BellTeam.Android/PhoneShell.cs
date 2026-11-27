@@ -387,6 +387,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
     private void RouteJoin()
     {
         if (!model.Connected || !JoinLink.HasPending) return;
+        if (settingsPage.IsVisible) return;   // the open settings page's approve panel takes the link; rebuilding the page let the dying panel take it, with nobody to ask
         CloseAllPages(); CloseSheet(); ShowSettings();
     }
     private void ShowSettings()

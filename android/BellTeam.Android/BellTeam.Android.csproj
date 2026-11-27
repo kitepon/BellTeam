@@ -7,7 +7,7 @@
     <AssemblyName>BellTeam</AssemblyName>
     <ApplicationId>dev.kitepon.bellbot</ApplicationId>
     <ApplicationVersion>1</ApplicationVersion>
-    <ApplicationDisplayVersion>0.1.34</ApplicationDisplayVersion>
+    <ApplicationDisplayVersion>0.1.35</ApplicationDisplayVersion>
     <AndroidPackageFormat>apk</AndroidPackageFormat>
     <!-- Fast Deployment keeps assemblies outside the APK and breaks after pm clear; embed them so a clean install always starts. -->
     <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
