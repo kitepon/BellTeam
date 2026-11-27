@@ -206,6 +206,12 @@ test('P3 pairing: no package in the image is failed (unavailable), never a throw
   assert.deepEqual(await daemon.pairing.start(), { state: 'failed', reason: 'unavailable' })
 })
 
+test('P3 pairing: a failed line names its cause (server_flag_off), never the free text', async t => {
+  const { daemon, entry } = await setup(t)
+  await writeFile(entry, `process.stdout.write(JSON.stringify({ schema: 'approval-box.pair.v1', state: 'failed', code: 'server_flag_off', message: 'secret-looking free text' }) + '\\n'); process.exit(1)`)
+  assert.deepEqual(await daemon.pairing.start(), { state: 'failed', reason: 'server_flag_off' })
+})
+
 test('P5: the seat entry file is published in its own 0755 folder, not in the 0700 folder of the module child', async t => {
   const root = await mkdtemp(join(tmpdir(), 'abd-'))
   const entry = join(root, 'cli.mjs'); await writeFile(entry, FAKE)
