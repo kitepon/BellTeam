@@ -25,11 +25,11 @@ packages:
     revision: 9f7204661671717ef90c701a23c8cba9ed54c613
   LoginBilling:
     url: https://github.com/kitepon/login-billing.git
-    exactVersion: 0.25.2
+    exactVersion: 0.26.0
   ApprovalBoxClient:
-    # The tarball of client-v0.6.0 (sha256 edbcda23a3caa819862a45c4117490aca1db33e438565d1802a4a634c7da8f29) is this revision (0.6.0: login-billing exact 0.25.2, the join code and take(_:)); SwiftPM cannot read the client-v<semver> tag.
+    # The tarball of client-v0.8.0 (sha256 618fa7565f8f5544087a7e2b89f76f40216015b689e20fd20b8ad8f2cc20b5ce) is this revision (0.8.0: login-billing exact 0.26.0, the join outcome; 0.7.0 added ChildJoin.make(hostAppId:)); SwiftPM cannot read the client-v<semver> tag.
     url: https://github.com/kitepon/approval-box-apps.git
-    revision: c4ede6e74034ff645d403622c84e4be985f6eb53
+    revision: 7beb5f40e927901c61aed9b4b305e86a8db0b587
 targets:
   BellTeam:
     type: application
@@ -47,7 +47,7 @@ targets:
         CFBundleDisplayName: BellTeam
         CFBundleName: BellTeam
         CFBundleShortVersionString: '1.0.8'
-        CFBundleVersion: '203'
+        CFBundleVersion: '204'
         UIUserInterfaceStyle: Light
         ITSAppUsesNonExemptEncryption: false
         LSApplicationCategoryType: public.app-category.productivity
@@ -161,7 +161,7 @@ targets:
       properties:
         CFBundleDisplayName: BellTeam
         CFBundleShortVersionString: '1.0.8'
-        CFBundleVersion: '203'
+        CFBundleVersion: '204'
         BellTeamAppGroupIdentifier: group.$(BELLTEAM_APP_BUNDLE_IDENTIFIER)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.usernotifications.service
@@ -205,7 +205,7 @@ targets:
       properties:
         CFBundleDisplayName: BellTeam
         CFBundleShortVersionString: '1.0.8'
-        CFBundleVersion: '203'
+        CFBundleVersion: '204'
         BellTeamKeychainGroup: $(AppIdentifierPrefix)$(BELLTEAM_APP_BUNDLE_IDENTIFIER).share
         NSExtension:
           NSExtensionPointIdentifier: com.apple.share-services

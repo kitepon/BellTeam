@@ -22,7 +22,7 @@ enum ApprovalWriteOutcome: Equatable {
     }
 }
 
-/// The 決裁箱 window's link to the Owner's Approval Box as a CHILD device (child-join.md, abx-child-join-apple): the embedded client component (ApprovalBoxClient 0.6.0) joins, reads and answers;
+/// The 決裁箱 window's link to the Owner's Approval Box as a CHILD device (child-join.md, abx-child-join-apple): the embedded client component (ApprovalBoxClient 0.8.0) joins, reads and answers;
 /// this class only draws its states for the window. BellTeam's own sign-in is never touched, and BellTeam's server never sees the child's key. A BellTeam host is never a parent.
 @MainActor
 final class ApprovalBoxLink: ObservableObject, ChildJoinSource {
@@ -51,7 +51,8 @@ final class ApprovalBoxLink: ObservableObject, ChildJoinSource {
     init(origin: URL = ApprovalBoxLink.origin, anchor: @escaping @MainActor () -> ASPresentationAnchor = LocalAccount.anchor, bundleId: String = Bundle.main.bundleIdentifier ?? "") {
         let identifiers = SignInIdentifiers(appleBundleIds: [bundleId], googleClientId: LocalAccount.googleClientId,
                                             audiences: [bundleId, LocalAccount.appleServicesId] + LocalAccount.googleAudiences)
-        if let made = try? ChildJoin.make(baseURL: origin, identifiers: identifiers, anchor: anchor) {
+        // hostAppId: Approval Box's open button on the return link comes back to this app (login-billing 1.62).
+        if let made = try? ChildJoin.make(baseURL: origin, identifiers: identifiers, anchor: anchor, hostAppId: bundleId) {
             join = made.join
             client = ApprovalBoxClient(baseURL: origin, signer: made.signer, join: made.join)
         } else {
@@ -65,9 +66,9 @@ final class ApprovalBoxLink: ObservableObject, ChildJoinSource {
     func requestJoin(provider: String) async { client?.requestJoin(provider: provider); sync() }
     func cancelJoin() async { client?.cancelJoin(); sync() }
     func leave() async { await client?.leave(); sync() }
-    /// Only while a request is open: after a join the library would swallow another link's refusal.
+    /// The library says whose link it is (qr_invalid, request_gone) and whether this device joined (its outcome, which the join state shows).
     func take(_ link: String) async throws {
-        guard let client, case .waitingForParent = joinState else { throw LoginBillingError(code: "qr_invalid") }
+        guard let client else { throw LoginBillingError(code: "qr_invalid") }
         try await client.take(link)
         sync()
     }
