@@ -32,7 +32,7 @@ internal interface IApprovalSource
 /// <summary>The component's joinState (child-join.md): NotJoined, SigningIn (notJoined while the browser sign-in of requestJoin runs), Waiting (waitingForParent: the library's join link and its expiry), Failed (a refusal or library failure; the library's code picks the sentence, only other_account has its own, and is never shown), Joined.
 /// Removed = notJoined(removed): the parent took this device off, shown above the not-joined screen, which starts clean.</summary>
 internal enum JoinPhase { NotJoined, SigningIn, Waiting, Failed, Joined }   // SigningIn = signingIn(provider)
-internal sealed record ChildJoinState(JoinPhase Phase, string? QrLink = null, DateTimeOffset? ExpiresAt = null, bool Removed = false, string? Code = null);
+internal sealed record ChildJoinState(JoinPhase Phase, string? QrLink = null, DateTimeOffset? ExpiresAt = null, bool Removed = false, string? Code = null, string? JoinCode = null, string? Words = null);
 
 /// <summary>Kitepon.ApprovalBox.Client (the .NET form of the Approval Box client component) behind the port; the origin rule is BellTeam's own and stays here.</summary>
 internal sealed class ClientApprovalSource(ApprovalBoxClient client, Func<IReadOnlyList<(string Id, string Name)>> roster) : IApprovalSource
@@ -49,9 +49,9 @@ internal sealed class ClientApprovalSource(ApprovalBoxClient client, Func<IReadO
     public ChildJoinState? Join => client.JoinState switch
     {
         { Status: JoinStatus.SigningIn } => new(JoinPhase.SigningIn),
-        { Status: JoinStatus.WaitingForParent } wait => new(JoinPhase.Waiting, wait.QrLink, wait.ExpiresAt),
+        { Status: JoinStatus.WaitingForParent } wait => new(JoinPhase.Waiting, wait.QrLink, wait.ExpiresAt, JoinCode: wait.Code),
         { Status: JoinStatus.Joined } => new(JoinPhase.Joined),
-        { Status: JoinStatus.Failed } failed => new(JoinPhase.Failed, Code: failed.Reason),
+        { Status: JoinStatus.Failed } failed => new(JoinPhase.Failed, Code: failed.Reason, Words: failed.Words),
         var other => new(JoinPhase.NotJoined, Removed: other.Reason == "removed"),
     };
     public void RequestJoin(string provider) => client.RequestJoin(provider);

@@ -55,6 +55,61 @@ public sealed class ApprovalsChildJoinTests
         finally { window.Close(); }
     });
 
+    // login-billing 1.60/1.61 (Owner 2026-11-27): the code beside the QR for Approval Box's paste field, and the library's own words for a local-network failure, shown as they are.
+    [Fact]
+    public Task WaitingShowsTheJoinCodeAndFailedShowsTheLibrarysWords() => Ui.Run(async () =>
+    {
+        var (window, source, device) = await OpenAsync(new(JoinPhase.Waiting, "https://login-billing.kitepon.dev/join/dev.kitepon.approvalbox#lbq4:test", DateTimeOffset.Now.AddMinutes(5), JoinCode: "https://login-billing.kitepon.dev/join/dev.kitepon.approvalbox#lbj1:code"));
+        try
+        {
+            Assert.True(Has(window, "#lbj1:code")); Assert.True(Has(window, ChildJoinText.CodeHint));
+            source.Current = new(JoinPhase.Failed, Code: "not_answering", Words: "QRを出している端末が応答しません。");
+            device.Refresh(); await Task.Delay(100); Avalonia.Threading.Dispatcher.UIThread.RunJobs(); Assert.True(Has(window, "QRを出している端末が応答しません。")); Assert.False(Has(window, ChildJoinText.Failed));
+        }
+        finally { window.Close(); }
+    });
+    // On a phone the parent is usually this same phone: the first action opens the code in 決裁箱, the hint covers both cases and the PC's QR sentence is gone (Tronie 11/27); a PC has no open button.
+    [Fact]
+    public Task OnAPhoneTheCodeOpensInTheParentFirst() => Ui.Run(async () =>
+    {
+        var opened = new List<string>();
+        var state = new ChildJoinState(JoinPhase.Waiting, "https://login-billing.kitepon.dev/join/dev.kitepon.approvalbox#lbq4:test", DateTimeOffset.Now.AddMinutes(5), JoinCode: "https://login-billing.kitepon.dev/join/dev.kitepon.approvalbox#lbj1:code");
+        JoinCodeView.OpenOnThisPhone = opened.Add;
+        try
+        {
+            var (window, _, _) = await OpenAsync(state);
+            try
+            {
+                var buttons = window.GetVisualDescendants().OfType<Button>().Select(button => button.Content as string).ToList();
+                Assert.True(buttons.IndexOf(ChildJoinText.CodeOpen) is >= 0 and var at && at < buttons.IndexOf(LocalFormText.CodeCopy));
+                Assert.True(Has(window, ChildJoinText.CodeHintPhone)); Assert.False(Has(window, LocalFormText.Qr));
+                Click(Find(window, ChildJoinText.CodeOpen)!);
+                Assert.Equal(["https://login-billing.kitepon.dev/join/dev.kitepon.approvalbox#lbj1:code"], opened);
+            }
+            finally { window.Close(); }
+        }
+        finally { JoinCodeView.OpenOnThisPhone = null; }
+        var (pc, _, _) = await OpenAsync(state);
+        try { Assert.Null(Find(pc, ChildJoinText.CodeOpen)); Assert.True(Has(pc, ChildJoinText.CodeHint)); }
+        finally { pc.Close(); }
+    });
+    [Fact] public void OtherAccountKeepsItsOwnSentenceAndOtherFailuresTakeTheLibrarysWords() { Assert.Equal(ChildJoinText.OtherAccount, ChildJoinText.FailedLine("other_account", "words")); Assert.Equal("words", ChildJoinText.FailedLine("unreachable_same_wifi", "words")); Assert.Equal(ChildJoinText.Failed, ChildJoinText.FailedLine("x")); }
+
+    // The add comes with the reply before the store proof is judged: whatever the wait refuses with, an add that is there is sent; without it the wait's own code (else add_missing) fails the join (Anis 11/27, Kitepon.ApprovalBox.Client 0.6.1).
+    private sealed class Refusal(string code) : Exception(code);
+    [Fact]
+    public async Task ARefusedStoreProofStillSendsTheAddAndOnlyAMissingAddFailsTheJoin()
+    {
+        var sent = new List<string>();
+        await ChildJoinAccept.RunAsync<string, Refusal>(() => throw new Refusal("purchase_unverified"), () => "add", add => { sent.Add(add); return Task.CompletedTask; }, error => new ChildJoinException(error.Message, error));
+        await ChildJoinAccept.RunAsync<string, Refusal>(() => Task.CompletedTask, () => "add", add => { sent.Add(add); return Task.CompletedTask; }, error => new ChildJoinException(error.Message, error));
+        Assert.Equal(["add", "add"], sent);
+        var kept = await Assert.ThrowsAsync<ChildJoinException>(() => ChildJoinAccept.RunAsync<string, Refusal>(() => throw new Refusal("not_paid"), () => null, add => Task.CompletedTask, error => new ChildJoinException(error.Message, error)));
+        Assert.Equal("not_paid", kept.Code);
+        var missing = await Assert.ThrowsAsync<ChildJoinException>(() => ChildJoinAccept.RunAsync<string, Refusal>(() => Task.CompletedTask, () => null, add => Task.CompletedTask, error => new ChildJoinException(error.Message, error)));
+        Assert.Equal("add_missing", missing.Code);
+    }
+
     [Fact]
     public Task SigningInOffersOnlyTheWayOut() => Ui.Run(async () =>
     {

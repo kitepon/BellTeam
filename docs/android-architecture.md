@@ -21,7 +21,7 @@ flowchart LR
   shell --> abx[決裁箱（Approval Boxのクライアント）<br/>ApprovalsHub・ApprovalsWindow・ClientApprovalSource（Kitepon.ApprovalBox.Client）<br/>linux/BellTeam.Linux の .cs をリンク]
   abx -->|IApprovalSource：ClientApprovalSource＝Kitepon.ApprovalBox.Client（部品がpeer_channelを読んで/v1か/pc/v1を選ぶ）| abxsrv[Approval Box<br/>/auth/v1・/v1・（/pc/v1）]
   abx -->|by-decision・by-task・connection（idと連携だけ）| core
-  account -->|サインイン・要求・返事の確認・Play購入| lib[login-billing 0.24.1 android部<br/>Kitepon.LoginBilling.Android LocalForm]
+  account -->|サインイン・要求・返事の確認・Play購入| lib[login-billing 0.25.1 android部<br/>Kitepon.LoginBilling.Android LocalForm]
   approve -->|AnswerAsync・OwnPurchasesAsync| lib
   lib <-->|同じネットワーク（同じLAN）・直接・暗号化| peer[相手の端末<br/>QRを出す端末 / 購読しているスマホ]
   lib -->|Googleのサインインだけ| google[Google Credential Manager]
