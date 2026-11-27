@@ -121,3 +121,16 @@ test('effects: the hosted daemon is read through fixed, narrowed methods; not ru
   const none = createApprovalBoxExtensionEffects({ lattice, bots: {} })
   assert.deepEqual(await none('daemon.decisions.list', {}), [])
 })
+
+test('effects: seat.message goes through the messenger as the scheduler; a gone Bot is a permanent refusal, anything else fails the call; no messenger is unavailable', async () => {
+  const seen = []
+  const messenger = { sendmessage: async input => { seen.push(input); if (input.target === 'bot-gone') throw new Error('BOT_NOT_FOUND: bot-gone'); if (input.target === 'bot-down') throw new Error('transport down'); return { delivery: 'steered', delivery_id: 'd-9' } } }
+  const actors = []
+  const effects = createApprovalBoxExtensionEffects({ lattice: {}, bots: {}, messenger, runAs: (actor, send) => { actors.push(actor); return send() } })
+  const ok = await effects('seat.message', { target: 'bot-a', message: 'hi' })
+  assert.deepEqual(ok, { delivery: 'steered', deliveryId: 'd-9' }); validateApprovalsEffectResult('seat.message', ok)
+  assert.deepEqual(seen[0], { from: 'scheduler', target: 'bot-a', message: 'hi' }); assert.deepEqual(actors[0], { kind: 'scheduler' })
+  assert.deepEqual(await effects('seat.message', { target: 'bot-gone', message: 'hi' }), { delivery: 'refused', deliveryId: null, code: 'BOT_NOT_FOUND' })
+  await assert.rejects(() => effects('seat.message', { target: 'bot-down', message: 'hi' }), { message: 'transport down' })
+  await assert.rejects(() => createApprovalBoxExtensionEffects({ lattice: {}, bots: {} })('seat.message', { target: 'bot-a', message: 'hi' }), { code: 'APPROVAL_BOX_EXTENSION_SESSION_UNAVAILABLE' })
+})

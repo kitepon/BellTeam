@@ -7,6 +7,7 @@ import { toViewDecision, summarize } from './origin-view.mjs'
 import { entitlementFrom, cacheMillis } from './entitlement.mjs'
 import { nextConnect } from './connect-state.mjs'
 import { planLink, targetChart, DECISION_PLAN, DECISION_LANE } from './link-plan.mjs'
+import { planRelay, relayAccepted, RELAY_ROW_KEEP_MS } from './answer-relay.mjs'
 import { approvalsError } from '../approval-box-extension-protocol.mjs'
 
 export const STATE_DIR = '/srv/bellteam/state/approval-box-extension'
@@ -25,7 +26,8 @@ const existsAlready = result => /EXIST|ALREADY|UNCHANGED/iu.test(result?.code ??
 export function createApprovalBoxExtensionCore({ client = createApprovalBoxClient(), now = Date.now, stateDir = STATE_DIR, files = fileOps, streamBackoffMs = 1000 } = {}) {
   let session, unsaved = false, rows = null, pairing = null, connectState = 'not_connected', entitlement = null, entitlementAt = 0, roster = null, rosterAt = 0
   let seq = 0, ring = [], dirty = new Set(), daemonIds = new Set(), caughtUp = false, lastCatchUp = 0, stream = null, sessionInvalid = false, lastEventId = null
-  const rowsPath = join(stateDir, 'links.json')
+  const rowsPath = join(stateDir, 'links.json'), bookPath = join(stateDir, 'answers.json')
+  let book = null
 
   const loadRows = async () => {
     if (rows) return rows
@@ -35,6 +37,26 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
     return rows
   }
   const saveRows = () => files.write(rowsPath, `${JSON.stringify({ version: 1, rows })}\n`)
+  // F8 ledger: since = the first time this file was written, so a first install never replays old answers (README section 13, A2).
+  const loadBook = () => (bookLoading ??= readBook()).then(() => book) // the promise memoizes the first read only; relay replaces `book`
+  const readBook = async () => {
+    const text = await files.read(bookPath)
+    const parsed = text ? JSON.parse(text) : null
+    book = { since: parsed?.since ?? new Date(now()).toISOString(), rows: (parsed?.rows ?? []).filter(row => now() - Date.parse(row.at) < RELAY_ROW_KEEP_MS) }
+    if (!parsed) await saveBook()
+    return book
+  }
+  let bookLoading = null
+  const saveBook = () => files.write(bookPath, `${JSON.stringify({ version: 1, ...book })}\n`)
+  // One message to the asking seat through BellTeam's normal delivery; the row is written only once the parent says it was taken (A4).
+  const relay = async (effect, d) => {
+    const current = await loadBook(), plan = planRelay(d, current, now())
+    if (!plan) return
+    const sent = await effect('seat.message', { target: plan.target, message: plan.message })
+    if (!relayAccepted(sent.delivery) && sent.delivery !== 'refused') throw fail('APPROVALS_EFFECT_FAILED', 503)
+    book = { ...current, rows: [...current.rows, { decisionId: d.id, delivery: sent.delivery, deliveryId: sent.deliveryId, at: new Date(now()).toISOString() }] }
+    await saveBook()
+  }
 
   // ---- connection (F7): the session lives in the usage secret store (R7); this process keeps it in memory only
   const loadSession = async effect => {
@@ -124,7 +146,8 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
   }
   const view = async (decision, effect, memo = {}) => {
     const list = await loadRows()
-    return toViewDecision(decision, { roster: await members(effect), link: await linkView(list.find(row => row.decisionId === decision.id), effect, memo) })
+    const sent = (await loadBook()).rows.find(row => row.decisionId === decision.id)
+    return toViewDecision(decision, { roster: await members(effect), link: await linkView(list.find(row => row.decisionId === decision.id), effect, memo), relayed: relayAccepted(sent?.delivery) })
   }
   const read = async (effect, id) => {
     const response = await abx(effect, 'GET', `/v1/decisions/${id}`)
@@ -217,8 +240,12 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
   const process_ = async (effect, id, memo) => {
     const decision = await readEngine(effect, id)
     if (!decision) return
-    const list = await loadRows(), row = list.find(item => item.decisionId === id) ?? null
     const d = toViewDecision(decision, { roster: await members(effect) })
+    await link_(effect, id, d, memo)
+    await relay(effect, d) // after the chart step: a failing relay never holds the task back, and a failing task never holds the answer back from the next tick
+  }
+  const link_ = async (effect, id, d, memo) => {
+    const list = await loadRows(), row = list.find(item => item.decisionId === id) ?? null
     let projectId = row?.projectId
     if (!projectId) {
       if (d.status !== 'pending' && d.status !== 'held') return
@@ -248,6 +275,11 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
         if (!(cursor = response.json.next_cursor)) break
       }
     }
+    // F8: answers made while the child was down or the stream had a gap (the first page of answered is enough: A2 keeps only the last 24 h).
+    const { since } = await loadBook()
+    const answered = await abx(effect, 'GET', '/v1/decisions?status=answered&limit=100')
+    if (answered.status !== 200) throw mapped(answered)
+    answered.json.items.filter(item => Date.parse(item.answer?.answered_at) >= Date.parse(since) && !book.rows.some(row => row.decisionId === item.id)).forEach(item => dirty.add(item.id))
     // a490g: what BellTeam's seats and the body filed into the hosted daemon (empty until it is paired, or when the parent cannot read it: the /v1 feed above still runs).
     const held = await effect('daemon.decisions.list', {}).catch(() => [])
     daemonIds = new Set(held.map(item => item.id))

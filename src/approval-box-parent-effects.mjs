@@ -5,7 +5,11 @@ const fail = (code, status) => Object.assign(new Error(code), { code, status })
 const unavailable = () => fail('APPROVAL_BOX_EXTENSION_SESSION_UNAVAILABLE', 503)
 const text = value => value == null ? '' : String(value)
 
-export function createApprovalBoxExtensionEffects({ lattice, bots, credentials = null, scope = APPROVAL_BOX_SESSION_SCOPE, daemon = null }) {
+// Refusals that repeat whatever happens later (Bot deleted, bad text): the child records them instead of retrying forever (as lattice-facade.mjs does).
+const PERMANENT = /^(SENDER_NOT_FOUND|BOT_NOT_FOUND|MESSAGE_REQUIRED)\b/u
+
+// messenger + runAs: the public send path, the same one the sendmessage tool and Lattice's notices use (README section 13, F8). No messenger: the child retries on the next tick.
+export function createApprovalBoxExtensionEffects({ lattice, bots, credentials = null, scope = APPROVAL_BOX_SESSION_SCOPE, daemon = null, messenger = null, runAs = (actor, send) => send() }) {
   return async (method, params) => {
     switch (method) {
       // A refused Owner-task write is told apart so the child skips that decision; every other failure ends the tick (the child's retry).
@@ -15,6 +19,17 @@ export function createApprovalBoxExtensionEffects({ lattice, bots, credentials =
       // The facade returns the full snapshot and {schema, at, charts}; the child's protocol takes only the narrowed shapes (the validator refuses extra keys).
       case 'lattice.chart': { const { cards, edges } = await lattice.chart(params.projectId); return { cards, edges } }
       case 'lattice.charts': return (await lattice.charts()).charts.map(chart => ({ projectId: chart.projectId, name: chart.name ?? null, createdBy: chart.createdBy ?? null, coordinator: chart.coordinator === true }))
+      case 'seat.message': {
+        if (!messenger) throw unavailable()
+        try {
+          const value = await runAs({ kind: 'scheduler' }, () => messenger.sendmessage({ from: 'scheduler', target: params.target, message: params.message }))
+          return { delivery: text(value?.delivery) || 'delivered', deliveryId: value?.delivery_id ?? null }
+        } catch (error) {
+          const code = PERMANENT.exec(error?.message ?? '')?.[1]
+          if (code) return { delivery: 'refused', deliveryId: null, code }
+          throw error
+        }
+      }
       case 'members.list': return (await bots.listForClient()).map(item => ({ id: text(item.id), name: text(item.name) }))
       case 'session.get': {
         if (!credentials) throw unavailable()

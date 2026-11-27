@@ -207,6 +207,7 @@ BUSINESS_FILES = {
         'src/approval-box-extension-ipc.mjs',
         'src/approval-box-extension-locks.mjs',
         'src/approval-box-extension-protocol.mjs',
+        'src/approval-box-extension/answer-relay.mjs',
         'src/approval-box-extension/client.mjs',
         'src/approval-box-extension/connect-state.mjs',
         'src/approval-box-extension/core.mjs',

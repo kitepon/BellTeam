@@ -13,8 +13,8 @@ const raw = (id, extra = {}) => ({ id, title: '請求を同じにするか', con
   source: { client: 'claude-code', session_label: 'ブレッディ / billing', requester: 'ブレッディ', requester_bot_id: 'bot-823b56e9', via: 'connector' }, ...extra })
 
 // A fake Approval Box + a fake parent. calls records every effect; `server` answers /v1 paths.
-function harness({ decisions = [], session = { token: 'kss_x', expiresAt: null }, cards = [], me = ME, pairing = null, rowsText = null, daemon = null } = {}) {
-  const calls = [], writes = new Map(), box = { decisions: new Map(decisions.map(d => [d.id, d])), me, hits: [] }
+function harness({ decisions = [], session = { token: 'kss_x', expiresAt: null }, cards = [], me = ME, pairing = null, rowsText = null, daemon = null, bookText = null, seatMessage = null, now = () => Date.parse('2026-11-15T03:00:00Z') } = {}) {
+  const calls = [], writes = new Map(), files = new Map(), box = { decisions: new Map(decisions.map(d => [d.id, d])), me, hits: [] }
   let stored = session && JSON.stringify(session)
   const client = {
     async call(token, method, path, options = {}) {
@@ -43,6 +43,7 @@ function harness({ decisions = [], session = { token: 'kss_x', expiresAt: null }
     if (method === 'session.erase') { stored = null; return { ok: true } }
     if (method === 'daemon.decisions.list') { if (!daemon) throw new Error('unexpected effect'); return [...daemon.keys()].map(id => ({ id })) } // a490g: the hosted daemon's list
     if (method === 'daemon.decisions.read') { if (!daemon) throw new Error('unexpected effect'); return daemon.get(params.id) ?? null }
+    if (method === 'seat.message') { if (!seatMessage) throw new Error('unexpected effect'); return seatMessage(params) }
     if (method === 'members.list') return [{ id: 'bot-823b56e9', name: 'ブレッディ' }]
     if (method === 'lattice.charts') return [{ projectId: 'bellteam', name: 'BellTeam開発', createdBy: 'bot-7b140b27', coordinator: true }]
     if (method === 'lattice.chart') return { cards: chartCards, edges: [] }
@@ -50,8 +51,8 @@ function harness({ decisions = [], session = { token: 'kss_x', expiresAt: null }
     if (method === 'lattice.ownerTask') { writes.set(params.args.join(' '), params); return { exitCode: 0, result: {}, stdout: null, stderr: '' } }
     throw new Error(`unexpected effect ${method}`)
   }
-  const core = createApprovalBoxExtensionCore({ client, now: () => Date.parse('2026-11-15T03:00:00Z'), files: { read: async () => rowsText, write: async () => {} }, streamBackoffMs: 5 })
-  return { core, effect, calls, writes, box, stored: () => stored }
+  const core = createApprovalBoxExtensionCore({ client, now, files: { read: async path => (path.endsWith('answers.json') ? bookText : rowsText), write: async (path, text) => { files.set(path.split('/').pop(), text) } }, streamBackoffMs: 5 })
+  return { core, effect, calls, writes, box, files, stored: () => stored }
 }
 
 test('gate: no session answers not_connected, a plan-less account not_entitled; trial is entitled', async () => {
@@ -308,6 +309,72 @@ test('http: an attachment is sandboxed and only images are inline (the sender ma
   assert.match(svg['content-security-policy'], /^sandbox;/u)
   assert.deepEqual([svg['content-disposition'], png['content-disposition'], png['content-security-policy'] === svg['content-security-policy']], ['attachment', 'inline', true])
 })
+// ---- F8 answer relay (README section 13)
+const answeredRaw = (id, extra = {}) => raw(id, { status: 'answered', version: 2, answer: { option_id: 'o1', text: '本番は金曜に', answered_at: '2026-11-15T02:00:00Z' }, ...extra })
+const BOOK = JSON.stringify({ version: 1, since: '2026-11-15T01:30:00Z', rows: [] })
+const sent = () => { const log = []; return { log, fn: async params => { log.push(params); return { delivery: 'steered', deliveryId: 'd-1' } } } }
+
+test('A1/A3/A4/A6: an answer made after the ledger began is sent once to the asking seat, then the view says delivered', async () => {
+  const seat = sent()
+  const h = harness({ decisions: [answeredRaw('K-AAAA', { delivery: 'unknown' })], bookText: BOOK, seatMessage: seat.fn })
+  await h.core.refresh({ since: 0 }, h.effect)
+  assert.equal(seat.log.length, 1)
+  assert.equal(seat.log[0].target, 'bot-823b56e9')
+  assert.match(seat.log[0].message, /K-AAAA/u); assert.match(seat.log[0].message, /同じにする/u); assert.match(seat.log[0].message, /本番は金曜に/u)
+  assert.deepEqual(JSON.parse(h.files.get('answers.json')).rows.map(row => [row.decisionId, row.delivery]), [['K-AAAA', 'steered']])
+  assert.doesNotMatch(h.files.get('answers.json'), /本番は金曜に/u) // ids and delivery words only (A5)
+  await h.core.refresh({ since: 0 }, h.effect)
+  assert.equal(seat.log.length, 1) // a replay sends nothing
+  assert.equal((await h.core.get({ id: 'K-AAAA' }, h.effect)).delivery, 'delivered')
+})
+
+test('A2: an answer from before the ledger began, a stale one, an external one and a pending one are never sent', async () => {
+  const seat = sent()
+  const before = answeredRaw('K-BEF1', { answer: { option_id: 'o1', answered_at: '2026-11-15T01:00:00Z' } })
+  const outside = answeredRaw('K-EXT1', { source: { client: 'cursor', session_label: 'Mac / receipts' } })
+  const h = harness({ decisions: [before, outside, raw('K-PEND')], bookText: BOOK, seatMessage: seat.fn })
+  await h.core.refresh({ since: 0 }, h.effect)
+  assert.equal(seat.log.length, 0)
+  const late = harness({ decisions: [answeredRaw('K-OLD1')], bookText: BOOK, seatMessage: seat.fn, now: () => Date.parse('2026-11-17T03:00:00Z') })
+  await late.core.refresh({ since: 0 }, late.effect)
+  assert.equal(seat.log.length, 0)
+  const first = harness({ decisions: [answeredRaw('K-FRST')], seatMessage: seat.fn }) // no ledger yet: since = now, so the old answer is not replayed
+  await first.core.refresh({ since: 0 }, first.effect)
+  assert.equal(seat.log.length, 0); assert.ok(first.files.get('answers.json'))
+})
+
+test('A4: a failed send keeps the id for the next tick; a permanent refusal is recorded and never retried', async () => {
+  let fail = true
+  const h = harness({ decisions: [answeredRaw('K-AAAA')], bookText: BOOK, seatMessage: async () => { if (fail) throw new Error('down'); return { delivery: 'queued', deliveryId: 'd-2' } } })
+  await h.core.refresh({ since: 0 }, h.effect)
+  assert.equal(h.files.get('answers.json'), undefined)
+  fail = false
+  await h.core.refresh({ since: 0 }, h.effect)
+  assert.equal(JSON.parse(h.files.get('answers.json')).rows[0].delivery, 'queued')
+  const gone = harness({ decisions: [answeredRaw('K-AAAA', { delivery: 'unknown' })], bookText: BOOK, seatMessage: async () => ({ delivery: 'refused', deliveryId: null, code: 'BOT_NOT_FOUND' }) })
+  await gone.core.refresh({ since: 0 }, gone.effect)
+  assert.equal(JSON.parse(gone.files.get('answers.json')).rows[0].delivery, 'refused')
+  assert.equal((await gone.core.get({ id: 'K-AAAA' }, gone.effect)).delivery, 'unknown') // a refusal never turns into delivered
+})
+
+test('A1: the catch-up finds an answer whose event was missed (answered list), and the hosted daemon source relays by requester name', async () => {
+  const seat = sent()
+  const daemon = new Map([['K-DAEM', { id: 'K-DAEM', title: 't', status: 'answered', version: 2, urgency: 'normal', options: [{ id: 'o1', label: '同じにする' }], sessionLabel: 'ブレッディ / billing', requester: 'ブレッディ',
+    answer: { optionId: 'o1', text: null, answeredAt: '2026-11-15T02:00:00Z' }, cancelReason: null, createdAt: '2026-11-15T01:00:00Z', updatedAt: '2026-11-15T02:00:00Z' }]])
+  const h = harness({ decisions: [answeredRaw('K-AAAA')], daemon, bookText: BOOK, seatMessage: seat.fn })
+  await h.core.refresh({ since: 0 }, h.effect)
+  assert.deepEqual(seat.log.map(item => /K-[A-Z]{4}/u.exec(item.message)[0]).sort(), ['K-AAAA', 'K-DAEM'])
+})
+
+test('seat.message: the protocol takes {target, message} and answers {delivery, deliveryId, code?}', () => {
+  assert.doesNotThrow(() => validateApprovalsEffect('seat.message', { target: 'bot-823b56e9', message: 'x' }))
+  assert.throws(() => validateApprovalsEffect('seat.message', { target: 'bot-823b56e9', message: '' }))
+  assert.throws(() => validateApprovalsEffect('seat.message', { target: 'bot-823b56e9', message: 'x', from: 'user' }))
+  assert.doesNotThrow(() => validateApprovalsEffectResult('seat.message', { delivery: 'steered', deliveryId: null }))
+  assert.doesNotThrow(() => validateApprovalsEffectResult('seat.message', { delivery: 'refused', deliveryId: null, code: 'BOT_NOT_FOUND' }))
+  assert.throws(() => validateApprovalsEffectResult('seat.message', { delivery: 3, deliveryId: null }))
+})
+
 test('module.json source lists every file of src/approval-box-extension* (the packager test pattern)', () => {
   const listed = JSON.parse(readFileSync(new URL('../docs/architecture/modules/approval-box-extension/module.json', import.meta.url), 'utf8')).source
   const files = [...readdirSync(new URL('../src/approval-box-extension', import.meta.url)).map(name => `src/approval-box-extension/${name}`),
