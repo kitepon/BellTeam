@@ -492,12 +492,13 @@ export class AitermTransport {
     let launch
     // harness-accounts.md: every seat runs on the 1st root; a 2nd seat differs only in the login the CLI gets (env token).
     const account = harness === 'claude-code' && this.accounts ? await this.accounts.selection('claude', bot.model) : null
-    let remote = null, issuedLaunch = false, machineLaunched = false
+    let remote = null, issuedLaunch = false, machineLaunched = false, counted = null
     try {
       this.requireStopVersion(bot.id, version)
       admissionCheck?.()
-      // a505c (memory-budget.md): every cold launch counts for the next 30 s, so a refusal sees what is about to be used.
-      this.launchGate?.launched()
+      // a505c (memory-budget.md): every cold launch of a container seat counts for the next 30 s, so a refusal sees what is about to be used.
+      // A terminal seat runs on the terminal, not in this container; a launch that fails is taken back below (Z220 11/27: failing terminal launches filled the window).
+      counted = isRemoteBot(bot) ? null : this.launchGate?.launched() ?? null
       let launchArgs = {
         harness,
         cwd: bot.project,
@@ -576,6 +577,7 @@ export class AitermTransport {
       machineLaunched = isMachineLaunch(launchArgs) && !machineSkipped
       if (account) void this.accounts.setSeat(bot.id, account.slot, account.stamp ?? null).catch(() => {})
     } catch (error) {
+      if (counted) this.launchGate.abandon?.(counted)
       // a451 N5: a local launch Aiterm answered with a failure while usage says installed: the CLI may be gone, so usage looks again once.
       if (!remote && issuedLaunch && !launch) error = await this.recheckedCliRefusal(bot) ?? error
       // A credential issued for a launch that was never issued is revoked; a launch possibly running keeps its own.
