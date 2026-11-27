@@ -108,6 +108,7 @@ flowchart LR
   m_usage -->|"lifecycle"| m_runtime
   m_usage -->|"seat-process"| m_runtime
   m_usage -->|"accounts"| m_execution
+  m_usage -->|"auth-exec (MCP auth_exec; container socket; main-server host socket)"| m_auth_mediation
   m_web -->|"HTTP/SSE"| m_integration
   m_work_graph -->|"observation"| m_execution
   m_work_graph -->|"registry"| m_members
@@ -191,7 +192,7 @@ flowchart LR
 | [Caveat](modules/caveat/README.md) | ノア | public |
 | [会話・履歴](modules/conversation/README.md) | N102 | messages / history / membership-cleanup / room-access / durable-messages / fork-inquiry / reply-reference / seatStream (cursor, ingest) / call-bridge delivery (/v0/directory, /v0/deliver) |
 | [診断](modules/diagnostics/README.md) | シグナル | diagnostics |
-| [商用配布](modules/distribution/README.md) | モリー | image / web-gateway-artifact / notifications-artifact / update-catalog / members-artifact / memory-artifact / conversation-artifact / runtime-artifact / work-graph-artifact / lattice-artifact / approval-box-extension-artifact |
+| [商用配布](modules/distribution/README.md) | モリー | image / web-gateway-artifact / notifications-artifact / update-catalog / members-artifact / memory-artifact / conversation-artifact / runtime-artifact / work-graph-artifact / lattice-artifact / approval-box-extension-artifact / auth-mediation-artifact |
 | [AI実行制御](modules/execution/README.md) | キロ | turn / configuration / stop / observation / members-admission / accounts / fork |
 | [共通入口・結合実装](modules/integration/README.md) | モリー | HTTP/MCP / HTTP/SSE / diagnostics / remote-seat-port |
 | [Lattice工程表](modules/lattice/README.md) | フローラ | lattice-chart / lattice-seat / lattice-owner-task (facade.ownerTask / facade.link, L20; caller: approval-box-extension, Delta) / lattice-schedule-connect (facade.run fixed 接続 verbs, L21; caller: body scheduler and registry removal hook, a164) |

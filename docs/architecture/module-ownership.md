@@ -18,7 +18,7 @@ Owner 2026-11-02指示による本体分担。機能を分離し、担当が自�
 | キロ | AI実行制御 | AitermTransport/Client、DeliveryJob、SeatActivity、BotSessionState、AiControl、Goal、SeatTurns、IdleSessions。モデル保存後の適用と再開まで |
 | N102 | 会話・履歴 | Messenger、RoomMessenger/Registry/History、ConversationStore、画像、履歴/SSE、SelfTurns、TurnReports、通話の本体受入口 |
 | ベロータ | メンバー・予定 | BotRegistry、ProjectFilesのメンバー構造と指示、Owner規範、アバター/設定画、Schedule定義・実行発行 |
-| ミカ | 利用設定・通知 | Onboarding、HarnessAuth、AuthUI、FeatureSettings、質問/秘密入力、PushNotifications、Subscriptions、Cloudflare利用認証 |
+| ミカ | 利用設定・通知 | Onboarding、HarnessAuth、AuthUI、FeatureSettings、質問/秘密入力、PushNotifications、Subscriptions、Cloudflare利用認証、運営の通知中継（`services/notifications`、本番ホストのOS部分はエマ、Tronie裁定 2026-11-27） |
 | アドミ | Web | web全体の状態・操作・表示。サーバーの機能判定を画面へ複製しない |
 | モリー（2026-11-08まではエピネル） | 実行環境・更新復旧 | 全module共通交換runner/controller・世代/close-drain、bootstrap/supervisor/lifecycle、SeatRuntime/短命runner、CLI/hook登録、状態移行、installer、backup/restore、更新実行の製品コード |
 | ビスケット | 記憶・知識 | MemoryService/Search、記憶形式と検索索引、短期記憶の方針。DB実行proxyはエピネル |
