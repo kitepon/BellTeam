@@ -194,6 +194,16 @@ test('a queued seat write unanswered at the answer bound resolves PENDING, stays
   f.finish[2]()
 })
 
+test('f30: the chart list carries the saved 催促 switch per chart; an unreadable setting or no store leaves the rows as the child sent them', async () => {
+  const list = () => ({ schema: 'bellteam.lattice-charts.v1', at: 'a', charts: [{ projectId: 'alpha', name: 'A' }, { projectId: 'beta', name: 'B' }] })
+  const respond = method => method === 'charts' ? list() : null
+  const on = fixture({ respond, reminders: { enabledProjects: async () => ['beta', 'gone'] } })
+  assert.deepEqual((await on.facade.charts()).charts, [{ projectId: 'alpha', name: 'A', reminders: false }, { projectId: 'beta', name: 'B', reminders: true }])
+  const broken = fixture({ respond, reminders: { enabledProjects: async () => { throw new Error('disk') } } })
+  assert.deepEqual((await broken.facade.charts()).charts, list().charts, 'the list never fails for the badge')
+  assert.deepEqual((await fixture({ respond }).facade.charts()).charts, list().charts)
+})
+
 test('subscribers get only their chart; the loop follows nextRefreshMs and stops with the last subscriber', async () => {
   let next = { snapshots: [snap('alpha', 1), snap('beta', 1)], nextRefreshMs: 2000 }
   const f = fixture({ respond: method => method === 'refresh' ? next : null })
