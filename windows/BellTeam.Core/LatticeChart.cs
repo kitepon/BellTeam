@@ -445,7 +445,7 @@ public static class LatticeChart
             var name = ChartName(chart.Name, chart.CreatedBy, id => roster(id)?.Name);
             return new LatticeListItem(chart.ProjectId, name, chart.Coordinator, counts.Done, counts.Total, counts.Connections, members,
                 counts.Total > 0 ? Math.Min(1, (double)counts.Done / counts.Total) : 0, chart.UpdatedAt is { } at ? $"更新 {FormatJst(at)}" : "",
-                $"{name}{(chart.Coordinator ? "、統括の工程表" : "")}、完了 {counts.Done}/{counts.Total}、接続 {counts.Connections}{(chart.Reminders == true ? "、催促あり" : "")}{(members.Count > 0 ? "、動いているのは" + string.Join("、", members.Select(member => member.Name)) : "")}", chart.Reminders == true);
+                $"{name}{(chart.Coordinator ? "、統括の工程表" : "")}、完了 {counts.Done}/{counts.Total}、接続 {counts.Connections}{(chart.Reminders == true ? "、催促オン" : "")}{(members.Count > 0 ? "、動いているのは" + string.Join("、", members.Select(member => member.Name)) : "")}", chart.Reminders == true);
         }).ToList();
     public static string? CoordinatorBotId(LatticeChartList list) => list.Charts.FirstOrDefault(chart => chart.Coordinator && chart.CreatedBy is { Length: > 0 })?.CreatedBy;
 }
