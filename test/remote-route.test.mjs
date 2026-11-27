@@ -33,8 +33,8 @@ test('prepare on a switched terminal ensures the forward first, names P in the s
   assert.equal('terminal' in prepared.args, false)
   assert.equal(prepared.args.mcp_config.mcpServers.bellteam.url, 'http://127.0.0.1:41999/api/seat-mcp')
   assert.equal(prepared.args.mcp_config.mcpServers['call-bridge'].url, 'http://127.0.0.1:41999/api/seat-mcp/call-bridge')
-  assert.deepEqual(prepared.privateEnv.names, ['BELLTEAM_MCP_TOKEN', 'AITERM_SEAT_FORWARD_PORT', ...GIT_NAMES])
-  assert.deepEqual(await prepared.privateEnv.resolve(), { BELLTEAM_MCP_TOKEN: 'tok', AITERM_SEAT_FORWARD_PORT: '41999', GIT_AUTHOR_NAME: BOT_GIT_IDENTITY.name, GIT_AUTHOR_EMAIL: BOT_GIT_IDENTITY.email, GIT_COMMITTER_NAME: BOT_GIT_IDENTITY.name, GIT_COMMITTER_EMAIL: BOT_GIT_IDENTITY.email })
+  assert.deepEqual(prepared.privateEnv.names, ['BELLTEAM_MCP_TOKEN', ...GIT_NAMES])
+  assert.deepEqual(await prepared.privateEnv.resolve(), { BELLTEAM_MCP_TOKEN: 'tok', GIT_AUTHOR_NAME: BOT_GIT_IDENTITY.name, GIT_AUTHOR_EMAIL: BOT_GIT_IDENTITY.email, GIT_COMMITTER_NAME: BOT_GIT_IDENTITY.name, GIT_COMMITTER_EMAIL: BOT_GIT_IDENTITY.email })
 })
 
 test('ensure_forward failing, or a terminal not switched, launches on terminal exactly as before', async () => {

@@ -150,8 +150,8 @@ export class RemoteSeats {
           return fresh.terminal
         },
         // The seat launcher forwards exactly these names (Molly #793); the login value still comes only from claudeLogin.
-        privateEnv: { names: ['BELLTEAM_MCP_TOKEN', ...(route ? ['AITERM_SEAT_FORWARD_PORT'] : []), ...(claudeLogin ? ['CLAUDE_CODE_OAUTH_TOKEN'] : []), ...Object.keys(gitIdentityEnv())],
-          resolve: async () => ({ BELLTEAM_MCP_TOKEN: await this.ingress.seatCredential.reveal(credentialRef), ...(route ? { AITERM_SEAT_FORWARD_PORT: String(route.port) } : {}), ...gitIdentityEnv() }) },
+        privateEnv: { names: ['BELLTEAM_MCP_TOKEN', ...(claudeLogin ? ['CLAUDE_CODE_OAUTH_TOKEN'] : []), ...Object.keys(gitIdentityEnv())],
+          resolve: async () => ({ BELLTEAM_MCP_TOKEN: await this.ingress.seatCredential.reveal(credentialRef), ...gitIdentityEnv() }) },
         revoke: () => this.revoke(sessionName),
       }
     } catch (error) {
