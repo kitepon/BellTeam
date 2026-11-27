@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-27T10:41:44Z",
-  "expiresAt": "2026-12-04T10:41:44Z",
+  "publishedAt": "2026-11-27T10:55:08Z",
+  "expiresAt": "2026-12-04T10:55:08Z",
   "releases": [
     {
       "componentId": "usage",
@@ -893,8 +893,8 @@
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "4d96d97ddb33799ef01d315832c8843318105835",
-      "versionId": "44d32fa8bba40a46291d1b9eb02e2d70e91320f8451cd7750f09e810f0bc47d8",
+      "sourceCommit": "17953fb2e215f61a05ba7c9a46fb52fed5515a54",
+      "versionId": "d39ebd68fee49d7c1b00abcf17696da95f38c29ab5e0e92abb2e18af504ff664",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -902,16 +902,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T104125Z/auth-mediation-4d96d97ddb33799ef01d315832c8843318105835-linux-amd64.tar.gz",
-          "bytes": 3707253,
-          "sha256": "44d32fa8bba40a46291d1b9eb02e2d70e91320f8451cd7750f09e810f0bc47d8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T105438Z/auth-mediation-17953fb2e215f61a05ba7c9a46fb52fed5515a54-linux-amd64.tar.gz",
+          "bytes": 3707750,
+          "sha256": "d39ebd68fee49d7c1b00abcf17696da95f38c29ab5e0e92abb2e18af504ff664"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T104125Z/auth-mediation-4d96d97ddb33799ef01d315832c8843318105835-linux-amd64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T105438Z/auth-mediation-17953fb2e215f61a05ba7c9a46fb52fed5515a54-linux-amd64.tar.gz.sigstore.json",
           "bytes": 11265,
-          "sha256": "f11085753689b2a0b0fa05052485f3a08a6e86f1a358683b558f26deb54230fb"
+          "sha256": "d539134e2d570290fd927b4ad3dd1f10058ed078d5575005a039708cf20a958b"
         },
-        "signerCommit": "4d96d97ddb33799ef01d315832c8843318105835"
+        "signerCommit": "17953fb2e215f61a05ba7c9a46fb52fed5515a54"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -930,8 +930,8 @@
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "4d96d97ddb33799ef01d315832c8843318105835",
-      "versionId": "a949d7e7395b001de3b7d3b2d82882c3ff2fa6d9be5ba4ff5a0d00e1080c79e0",
+      "sourceCommit": "17953fb2e215f61a05ba7c9a46fb52fed5515a54",
+      "versionId": "7ea4be8d259b1e56e66d7b8eb330ad8c497e099e46210ea2c4bd945b2056755f",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -939,16 +939,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T104125Z/auth-mediation-4d96d97ddb33799ef01d315832c8843318105835-linux-arm64.tar.gz",
-          "bytes": 3707253,
-          "sha256": "a949d7e7395b001de3b7d3b2d82882c3ff2fa6d9be5ba4ff5a0d00e1080c79e0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T105438Z/auth-mediation-17953fb2e215f61a05ba7c9a46fb52fed5515a54-linux-arm64.tar.gz",
+          "bytes": 3707750,
+          "sha256": "7ea4be8d259b1e56e66d7b8eb330ad8c497e099e46210ea2c4bd945b2056755f"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T104125Z/auth-mediation-4d96d97ddb33799ef01d315832c8843318105835-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11312,
-          "sha256": "7c92a7a554343888a1f42810b0c0bb81f8b1945a83a53052fa33610f909b0eff"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T105438Z/auth-mediation-17953fb2e215f61a05ba7c9a46fb52fed5515a54-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11316,
+          "sha256": "1a80cfb96ccf29fb940b507048f9b6d9be0ac328cd43bcc8cd829fb6ac06ae62"
         },
-        "signerCommit": "4d96d97ddb33799ef01d315832c8843318105835"
+        "signerCommit": "17953fb2e215f61a05ba7c9a46fb52fed5515a54"
       },
       "compatibility": {
         "nodeMajor": 26,
