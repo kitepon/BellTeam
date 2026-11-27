@@ -21,6 +21,10 @@ internal interface IChildJoin
     DateTimeOffset? ExpiresAt { get; }
     /// <summary>Failed: the library's own code; never shown, only other_account has its own sentence.</summary>
     string? FailedCode { get; }
+    /// <summary>Waiting: the join code (a link with an identity token) the person may copy beside the QR; null when the library gave none.</summary>
+    string? Code { get; }
+    /// <summary>Failed: the library's own Japanese text for a local-network cause (local_network_denied, not_answering, unreachable_same_wifi); null for any other failure.</summary>
+    string? Words { get; }
     /// <summary>The parent removed this device while it was joined (a /v1 401): NotJoined, with the word for it.</summary>
     bool Removed { get; }
     /// <summary>Joined, but the component says this build cannot read /v1.</summary>
@@ -44,7 +48,7 @@ internal sealed class ChildJoinView : StackPanel
         var title = Text(ChildJoinText.Title, 24, Ink, FontWeights.Bold); title.HorizontalAlignment = HorizontalAlignment.Center; Children.Add(title);
         var lead = Text(ChildJoinText.Lead, 15, Muted, null, new Thickness(0, 8, 0, 18)); lead.TextAlignment = TextAlignment.Center; lead.HorizontalAlignment = HorizontalAlignment.Center; Children.Add(lead);
         var card = new StackPanel();
-        if (join.Phase == ChildJoinPhase.Failed) card.Children.Add(Id(Text(ChildJoinText.FailedLine(join.FailedCode), 13, Red), "child-join-failed"));
+        if (join.Phase == ChildJoinPhase.Failed) card.Children.Add(Id(Text(ChildJoinText.FailedLine(join.FailedCode, join.Words), 13, Red), "child-join-failed"));
         else if (join.Removed) card.Children.Add(Id(Text(ChildJoinText.Removed, 14, Ink, FontWeights.SemiBold), "child-join-removed"));
         if (join.SigningIn)
         {
@@ -70,7 +74,18 @@ internal sealed class ChildJoinView : StackPanel
         valid.Children.Add(new Spinner { Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center });
         valid.Children.Add(Id(Text(LocalFormText.ValidUntil(until), 14, Muted), "child-join-valid")); Children.Add(valid);
         var guidance = Text(LocalFormText.Qr, 15, Ink, FontWeights.SemiBold, new Thickness(0, 14, 0, 0)); Id(guidance, "child-join-qr-guidance"); Children.Add(guidance);
+        if (join.Code is { Length: > 0 } code) CodeBlock(code);
         var cancel = FirstScreenView.Button(ChildJoinText.LeaveNo, Fill, Ink, join.CancelJoin, "child-join-cancel"); cancel.HorizontalAlignment = HorizontalAlignment.Center; Children.Add(cancel);
+    }
+
+    /// <summary>The join code beside the QR: read-only text the person can select, and one button that copies it (the same code the QR carries; the parent app takes it pasted).</summary>
+    private void CodeBlock(string code)
+    {
+        var lead = Text(ChildJoinText.CodeLead, 14, Muted, null, new Thickness(0, 14, 0, 6)); Id(lead, "child-join-code-lead"); Children.Add(lead);
+        var box = new System.Windows.Controls.TextBox { Text = code, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, MaxHeight = 64, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, FontSize = 12 };
+        System.Windows.Automation.AutomationProperties.SetName(box, ChildJoinText.CodeLabel); Id(box, "child-join-code"); Children.Add(box);
+        var copy = FirstScreenView.Button(ChildJoinText.CopyCode, Fill, Ink, () => { try { System.Windows.Clipboard.SetText(code); } catch (Exception) { return; } }, "child-join-code-copy");
+        copy.HorizontalAlignment = HorizontalAlignment.Center; copy.Margin = new Thickness(0, 8, 0, 0); Children.Add(copy);
     }
 
     private static T Id<T>(T element, string id) where T : DependencyObject { System.Windows.Automation.AutomationProperties.SetAutomationId(element, id); return element; }

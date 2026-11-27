@@ -69,6 +69,8 @@ internal sealed class ApprovalsFixture(string scene) : HttpMessageHandler
         public string? QrLink { get; set; }
         public DateTimeOffset? ExpiresAt { get; set; }
         public string? FailedCode { get; set; }
+        public string? Code { get; set; }
+        public string? Words { get; set; }
         public bool Removed { get; set; }
         public bool UpdateRequired { get; set; }
         public event Action? Changed;
