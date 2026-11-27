@@ -87,6 +87,10 @@ int main(int argc, char **argv) {
 #ifdef MODULE_STATE_ENV
     if (setenv(MODULE_STATE_ENV, STATE_ROOT "/" MODULE_NAME, 1)) return fail();
 #endif
+#ifdef MODULE_FIXED_ENV_NAME
+    /* A value fixed at build time: seats cannot edit the image, so no request can set it (first administrators of auth-mediation). */
+    if (setenv(MODULE_FIXED_ENV_NAME, MODULE_FIXED_ENV_VALUE, 1)) return fail();
+#endif
 #ifdef MODULE_PRESERVE_NOTES
     if (notes && setenv("BELLTEAM_DIAGNOSTIC_INVESTIGATIONS", notes, 1)) return fail();
     free(notes);
