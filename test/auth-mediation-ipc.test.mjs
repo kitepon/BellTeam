@@ -98,3 +98,14 @@ test('unknown admin verb: denied for a non-admin, a plain error for an admin', a
   assert.equal((await f.call('admin', { botId: 'bot-a', verb: 'drop' })).outcome, 'denied')
   assert.deepEqual(await f.call('admin', { botId: 'bot-admin', verb: 'drop' }), { outcome: 'error', error: 'Unknown verb.' })
 })
+
+test('first administrators come from the environment and are not lost when policy.json has none', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'auth-adm-'))
+  await writeFile(join(dir, 'policy.json'), JSON.stringify({ version: 2, vault: 'v', admins: [], bots: {}, units: {}, stopped: [] }))
+  const service = createAuthMediationService({ policyPath: join(dir, 'policy.json'), auditPath: join(dir, 'a.jsonl'), firstAdmins: ['bot-first'], realpath: async p => p })
+  const effect = async m => m === 'members.roots' ? { roots: { 'bot-first': '/srv/bellteam/bots/bot-first', 'bot-x': '/srv/bellteam/bots/bot-x' } } : { unavailable: true }
+  assert.equal((await service.admin({ cwd: '/srv/bellteam/bots/bot-first', verb: 'show' }, effect)).outcome, 'ok')
+  assert.equal((await service.admin({ cwd: '/srv/bellteam/bots/bot-x', verb: 'show' }, effect)).outcome, 'denied')
+  assert.equal((await service.admin({ botId: 'bot-first', verb: 'grant', args: { bot: 'bot-x', command: 'c' } }, effect)).outcome, 'ok')
+  assert.deepEqual(JSON.parse(await readFile(join(dir, 'policy.json'), 'utf8')).bots['bot-x'].grants, [{ command: 'c' }])
+})

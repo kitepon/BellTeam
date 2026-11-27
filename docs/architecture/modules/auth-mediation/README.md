@@ -193,7 +193,7 @@ Request: `Received -> Identified -> Authorized -> ItemResolved -> Delivered`, ea
 | Refuse before any secret read: unknown caller, no grant, expired, stopped | Secret exposure to a caller that was never granted | Admin grant / resume; `expires` passing is a normal refusal, renewed by grant |
 | MCP `cwd` must be a clean path (no `..`, no `//`, no trailing `/`) whose real path is inside the real path of the Bot's own project root | Running a granted command in another Bot's or a system folder (privilege escalation) | The Bot passes a folder inside its project, or none (the facade defaults to the project root) |
 | Fork seats refused on the MCP tool | Secret exposure and project writes from read-only fork inquiries (seat MCP SK04) | The main seat is not a fork |
-| Admin only for `admins` | Privilege escalation (a Bot granting itself secrets) | Owner/Tronie edit the admin list through Rai or Sakura |
+| Admin only for `admins`; the first administrators come from the body's start environment `AUTH_MEDIATION_ADMINS` (Bot IDs, merged at read time, never from a request) | Privilege escalation (a Bot granting itself secrets) | Owner/Tronie edit the admin list through Rai or Sakura |
 | Output redaction on the MCP path | Secret exposure into AI conversation and transcripts | none needed (a filter, not a stop). Limit: transformed output (encoded, split) is not caught |
 | No direct 1Password read by clients when the module is down | Account limit (1000 read+write/day shared by every Bot) | Child restart by the shared lifecycle |
 | Cache of 3600 s | Same account limit | Expiry; flush |
