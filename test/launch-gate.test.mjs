@@ -17,6 +17,15 @@ test('no reading is no pressure', async () => {
   assert.equal(await gate(async () => { throw new Error('EACCES') }).g.tight(), false)
 })
 
+test('a launch that failed is taken back and no longer counts', async () => {
+  const { g } = gate(reading(11))
+  const failed = g.launched(); g.launched()
+  g.launched()
+  assert.equal(await g.tight(), true, '11 + 3 = 14 GiB')
+  g.abandon(failed)
+  assert.equal(await g.tight(), false, '11 + 2 = 13 GiB')
+})
+
 test('seats launched in the last settleMs count as already there, then age out', async () => {
   const { g, time } = gate(reading(11))
   assert.equal(await g.tight(), false)
