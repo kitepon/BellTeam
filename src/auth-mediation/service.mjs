@@ -9,7 +9,7 @@ const CAP = 65536
 const clip = text => text.length > CAP ? { text: text.slice(0, CAP), cut: true } : { text, cut: false }
 
 // A request runs one at a time (the channel serializes root calls), so `current` is the effect of the call in progress.
-export function createAuthMediationService({ policyPath, auditPath, opExe, appendLine = (path, line) => appendFile(path, line, { mode: 0o600 }), runOp = null, realpath = undefined }) {
+export function createAuthMediationService({ policyPath, auditPath, opExe, firstAdmins = [], appendLine = (path, line) => appendFile(path, line, { mode: 0o600 }), runOp = null, realpath = undefined }) {
   let current = null
   const withToken = async consume => {
     const got = await current('secret.get', {})
@@ -17,7 +17,7 @@ export function createAuthMediationService({ policyPath, auditPath, opExe, appen
     return consume(got.value)
   }
   const items = createItemCache({ runOp: args => (runOp ?? opRunner({ exe: opExe, withToken }))(args) })
-  const core = createAuthCore({ realpath, store: createPolicyStore(policyPath), items, roots: async () => (await current('members.roots', {})).roots,
+  const core = createAuthCore({ realpath, store: createPolicyStore(policyPath, firstAdmins), items, roots: async () => (await current('members.roots', {})).roots,
     audit: line => appendLine(auditPath, JSON.stringify(line) + '\n') })
   const within = async (effect, work) => { current = effect; try { return await work() } finally { current = null } }
   return {

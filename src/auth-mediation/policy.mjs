@@ -33,9 +33,14 @@ export function importV1(policy, v1, host) {
   return { policy: next, count }
 }
 
-export function createPolicyStore(path) {
+// firstAdmins: Bot IDs from the body's environment (seats cannot edit it). They are always administrators, so a new install can run token.set and import.
+export function createPolicyStore(path, firstAdmins = []) {
   return {
-    read: async () => ({ ...emptyPolicy(), ...JSON.parse(await readFile(path, 'utf8').catch(error => error.code === 'ENOENT' ? '{}' : Promise.reject(error))) }),
+    read: async () => {
+      const policy = { ...emptyPolicy(), ...JSON.parse(await readFile(path, 'utf8').catch(error => error.code === 'ENOENT' ? '{}' : Promise.reject(error))) }
+      policy.admins = [...new Set([...policy.admins, ...firstAdmins])]
+      return policy
+    },
     write: async policy => { const tmp = path + '.tmp'; await writeFile(tmp, JSON.stringify(policy, null, 2), { mode: 0o600 }); await rename(tmp, path) },
   }
 }
