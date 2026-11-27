@@ -11,7 +11,7 @@ The body hosts and supervises ONE connector daemon for the four server-side read
 1. **Image**: the exact package from a lock (`distribution/approval-box/`), installed with its own `install-runtime` so the runtime copy has the native `node-datachannel` next to `cli.mjs` (the npm copy does not; checked). Runs from `/app/distribution/approval-box/runtime-home/runtime/0.2.0-pc.4/cli.mjs`.
 2. **Child** `src/approval-box-daemon.mjs`: spawns `node cli.mjs daemon --hosted` as the body's own uid (1001), state under `/srv/bellteam/state/approval-box-daemon/` (0700, no new mount), restarts with the shared 1-30 s backoff, never blocks the body start.
 3. **Local API** (parent side of the 決裁箱拡張 module, one port: ruling B, Tronie 2026-11-26): `status()` and `route(method, path, body)` over the daemon's unix socket (`state/pc/daemon.sock`, NDJSON `{method,path,body}` -> `{ok,result|status,code,message}`). The readers no longer reach it themselves: Kiro (seat cards, running exclusions), Flora (read and cancel of legacy Lattice records) and every other caller use **P1 `approvals.decisions`** (`src/approval-box-port.mjs`), which files, reads and cancels through `route()` with typed errors and a 5 s bound; the old token path (`createApprovalDecisions`, `seatLink`, `pair --v1`) was deleted (#2645). `olrw-management-caller.mjs` is not switched here (OLRW caller owner, chart a490q4).
-4. **Pairing** is the module's **P3** (the Owner's one pairing, one QR, in the app's pairing view; `daemon.pairing`: none / waiting / linked / failed / removed). The MCP tools `approval_box_pair` and `approval_box_pair_status` are retired (this change); the secrets of the waiting line (`code`, `typed_secret`, `qr_text`) go only to the Owner's session through P3, never to a Bot's tool result. `approval_box_daemon_status` stays: body's own Bot only, read-only (mode, paired, reason, version, `seats`, optional egress).
+4. **Pairing** is the module's **P3** (the Owner's one pairing, `daemon.pairing`: none / waiting / linked / failed / removed). Its only caller is the module's own P8 Owner QR notice (seats-on-hosted-daemon.md section 10, 2026-11-27): the QR is posted into the Owner's conversation through the messenger port; no app has a pairing view. The MCP tools `approval_box_pair` and `approval_box_pair_status` are retired (this change); the secrets of the waiting line (`code`, `typed_secret`, `qr_text`) go only to the Owner's session through P3, never to a Bot's tool result. `approval_box_daemon_status` stays: body's own Bot only, read-only (mode, paired, reason, version, `seats`, optional egress).
 5. **Egress check** (Q3: "UDP egress to be checked"): `approval_box_daemon_status {egress:true}` sends a STUN Binding request over UDP to `stun.cloudflare.com:3478`, `turn.cloudflare.com:3478` and `:443` and opens TCP 443 to the Approval Box server, each with a 3 s bound, and reports ok / timeout / error per target.
 
 Not in this change: the link-engine feed route for app reports (Q5) and the reader base change; see "Open questions".
@@ -160,50 +160,6 @@ Once the peer channel is up (`mode: pc`), `startHosted` returns and the daemon h
 - **Q4** (K-3JM9PS answer): independent of hosting. Proposal: keep the already-read answer (no daemon dependency); the OLRW owner confirms before the close.
 - **Q5** (the authenticated route for app reports, D7b): not part of hosting; belongs to the link-engine feed with the apps (Delta, Flora). This module exposes `route()` for the D7a feed (decisions the Lattice connector filed) when that PR comes.
 
-## Seat link: the body's own QR pairing for seat-approval cards (seat-link-pair-body, 2026-11-24)
+## Seat link (superseded 2026-11-27)
 
-Contract: [seat-approval-card.md](../approval-box-extension/seat-approval-card.md) (Delta, #2538). The body pairs ONCE as a connector of the Owner's Approval Box account (the Owner scans a QR code in the Approval Box app), and the seat cards use the token that pairing leaves in `<daemon HOME>/config.json` directly on `/connector/v1`. This is a second, earlier pairing than the peer-channel one (a490p, unchanged; PC_OFFER stays off). The hosted daemon never reads it.
-
-The daemon controller gains a `seatLink` slot (state in parent memory only; the token stays in `config.json`, 0600, and is read at call time):
-
-| Call | What it does |
-| --- | --- |
-| `get()` | the view `{state, code?, qrText?, expiresAt?, reason?}`; adopts a token already in `config.json` (none -> linked) |
-| `start()` | returns the running pairing's view, or starts one `pair --json` run in the `/v1` mode (`approval-box pair --json --v1`, approval-box 0.2.0-pc.4, `SEAT_LINK_ARGS`), waits up to 20 s for the `waiting` line |
-| `stop()` | kills the run; `waiting -> none` |
-| `token()` | `readPairedToken` for `createApprovalDecisions({ tokenSource })`: the token only while the state is `linked`, else null (nothing is filed) |
-| `unauthorized(token)` | called by `createApprovalDecisions` when `/connector/v1` answers 401 for that token: `linked -> removed` (ignored when `config.json` already holds a newer token) |
-
-```mermaid
-stateDiagram-v2
-  [*] --> none
-  none --> linked: config.json holds a token (adopted by get/token/start)
-  none --> waiting: start (run spawned, waiting line within 20 s)
-  none --> failed: start and no waiting line in 20 s, spawn error, package missing, or an a490p pair run is active (reason unavailable / busy)
-  waiting --> linked: claimed line (config.json is written just before it; there is no bound line), exit 0, and a NEW token is readable
-  waiting --> failed: rejected | expired (the run is capped at expires_at, at most 5 min) | run ended without a token
-  waiting --> none: stop (run killed)
-  failed --> waiting: start
-  linked --> removed: unauthorized(token) with the token still in config.json
-  removed --> waiting: start (a new token must differ from the removed one)
-  linked --> linked: start (returns the view, no run)
-```
-
-Every state leaves by the Owner's tap, the run ending or a bounded wait; `close()` kills the run. None waits for an operator.
-
-```mermaid
-flowchart LR
-  Owner["Owner (app, same-origin session)"] -->|"GET / POST start / POST stop /api/approvals/seat-link"| Routes["approval-box-extension http-api (keeps no pairing data)"]
-  Routes --> Link["daemon.seatLink"]
-  Link -->|"spawn pair --json (/v1 mode), lines on stdout"| Pair["pair child"]
-  Pair -->|"waiting {pairing_id, code, qr_text, expires_at}"| Link
-  Pair -->|"claimed: writes"| Config[("HOME/config.json 0600: token")]
-  Link -->|"qrText to the Owner's screen only"| Owner
-  Seat["createApprovalDecisions (seat-approvals)"] -->|"tokenSource = link.token()"| Config
-  Seat -->|"Bearer token"| Server["Approval Box /connector/v1"]
-  Server -->|"401: connection removed"| Seat -->|"unauthorized(token)"| Link
-```
-
-The waiting line's `code` (the typed code) and `qr_text` are held in parent memory and returned only to the Owner's route; they are never logged, never in `status()`, diagnostics or the chart. The token is never copied to the secret store, a card, a log or a route answer.
-
-Lines of `approval-box pair --json --v1` (Nayuta, 0.2.0-pc.4): `waiting {pairing_id, code, qr_text, expires_at}`; `claimed {connection_id, path:"v1"}` then exit 0; `failed {code: rejected|expired, message}` then exit 1 (no config written). `config.json`: `{server, token, connection_id, device_name, path:"v1"}`, `token` is the Bearer on `/connector/v1`. No daemon runs for seat cards (Tronie 2026-11-24): the hosted daemon slot stays what a490p uses; the pin moved to 0.2.0-pc.4 as its own change (the `--v1` run needs it; the hosted daemon and the seats' door run from the same package and were started and answered through the door on the real pc.4 runtime, 2026-11-24).
+The 2026-11-24 design here (a `seatLink` slot, a `pair --json --v1` run, a token in `<daemon HOME>/config.json`, `token()` / `unauthorized()`) is gone from the code (src/approval-box-daemon.mjs 8766ba32 has only `controller.pairing` over `pair --json`; origin/main 61f90abc). The one pairing is P3 of [seats-on-hosted-daemon.md](../approval-box-extension/seats-on-hosted-daemon.md); the Owner's QR is posted into his conversation by that page's P8 (section 10); no app draws a pairing block. Contract history: [seat-approval-card.md](../approval-box-extension/seat-approval-card.md).

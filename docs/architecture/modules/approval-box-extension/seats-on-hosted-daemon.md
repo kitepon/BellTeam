@@ -10,10 +10,11 @@ This page replaces the first drawing of the Owner's sitting (#2626/#2627). Other
 | --- | --- | --- | --- | --- |
 | **P1 Decision port** (typed, in the body; reached as `approvals.decisions`, the same facade object that carries `ownerTask` / `link`, L20) | this module | Kiro (seat tool-approval cards, running exclusions: `file`, `read`, `cancel`, `capabilities`); Flora (`read` and `cancel` only, for the legacy Lattice records filed before 2026-11-14) | see the contract under this table | no caller holds a credential, a secret card or a token |
 | **P2 Seat line port** (the connector's own NDJSON line protocol, one line in, one line out) | this module, at the module's seat socket | transport only: the container door and the body route (Molly), the host doors (Krust) | the lines the seat's Approval Box runtime sends after `use-hosted` (requests, uploads, `GET /deliveries`, `POST /deliveries/:id`) | the doors parse nothing and keep nothing; a door that cannot reach it answers `503 APPROVAL_BOX_DAEMON_UNAVAILABLE`. **Opener side on Windows hosts** (this module's contract, Krust's #2630/#2634): the default pipe name can be squatted, so the door may serve on a fresh address written in `~/.bellteam/approval-box-door.addr`; whoever opens the door reads that file first (default name only if absent) and sends **only** the hello `{"bellteam_door":"hello","nonce":…}` until the reply carries a valid proof (HMAC-SHA256 of the nonce under `~/.bellteam/approval-box-door.key`, 2 s limit); a peer that does not prove is a stranger and gets nothing else. Krust owns the door side. The opener on a host is the seat's connector daemon, which is Nayuta's code and runs on the host, not in this module's process: the module states the contract and asks Nayuta for it through P6 (section 9) |
-| **P3 Pairing port** (Owner-session HTTP, same origin as `/api/approvals`) | this module | the clients' pairing view (Rapi, Anis, Neon) | `GET` the state, `POST start`, `POST stop` (state none / waiting / linked / failed / removed, `code` (8 characters, ABCD-EFGH), `typedSecret` (16 characters), `qrText`, `expiresAt`, `reason`) | the existing `/api/approvals/seat-link` routes keep their path and shape so no client re-routes; they now mean the one pairing (the screen's heading moves to 「決裁箱につなぐ」 in screen-spec, Delta) |
+| **P3 Pairing port** (Owner-session HTTP, same origin as `/api/approvals`) | this module | P8 only, inside the module (2026-11-27). The clients' pairing view (Rapi, Anis, Neon) is retired by the Owner's ruling: an app that is already connected shows no 「決裁箱につなぐ」 block, so the Owner never meets two connections of one name | `get()`, `start()`, `stop()` (state none / waiting / linked / failed / removed, `code` (8 characters, ABCD-EFGH), `typedSecret` (16 characters), `qrText`, `expiresAt`, `reason`) | the HTTP routes `/api/approvals/seat-link` stay for now (diagnostics read them) and are removed in the same train as the clients' blocks (tasks requested through Tronie from Rapi, Anis, Neon); no client may call them after that |
 | **P4 Supervision port** | Molly (body, runtime) | this module | the body starts, stops and watches the module's child process like any module and builds the module's **parent-side object** (section 1a); the parent-side object supervises the connector daemon | the module.json hosting contract that exists today (`approval-box-parent-*`) |
 | **P5 Seat entry contract** (`bellteam.harness-entries.v1`, E1) | this module | Molly's harness-entries (E2 item `approval-box`) | the MCP and hook entry the seats need, naming the installed runtime | a **file** at `/srv/bellteam/state/approval-box-entries/harness-entries.json` (its own folder, 0755, made by the parent-side code: the module child's folder `approval-box-extension` is 0700 and Molly's E2 pass reads as the seat user), written atomically (Molly: the body's boot pass runs before any module child is up, so a command is not possible); content = what the seats' installed runtime prints for `harness-entries --json` (`~/.approval-box/bin/approval-box`, read-only), refreshed at start and every minute, rewritten only when it changes, and an unreadable answer keeps the last file (`src/approval-box-entries.mjs`); Molly switches the E2 item from the binary command to this file once it exists, and until then it keeps running `~/.approval-box/bin/approval-box` (same content) |
 | **P6 Connector commands** | Nayuta (Approval Box) | this module only | `pair`, `install-runtime`, `use-hosted --socket` / `--off`, `harness-entries --json`, `connection export --json`, daemon run, `version --json` | nobody else calls them |
+| **P8 Owner QR notice** (2026-11-27, seat-link-qr-in-chat) | this module (parent-side adapter, `src/approval-box-parent-seat-link-qr.mjs`) | Delta's seat only, through one Bot tool `approval_box_seat_link_show` (no arguments; the answer carries no secret) | start the pairing through the module's own pairing manager (the P3 object), take the waiting view, draw the QR as a PNG, post it with the code and the 確認コード to the Owner's conversation through the **messenger port** (`sendmessage`, target `user`, one image); answers `posted` (+ expiry JST) / `linked` / `not_started` / `post_failed` | the secrets leave the module only into the Owner's own conversation (the rule on the waiting view); no other module's file or state is read; clients get no screen |
 | **P7 Credential custody** | Mika (usage, `secrets`) | this module | the one connection's secret is kept through the existing usage `secrets` port | usage no longer calls Approval Box itself |
 
 ### P1 contract (Kiro's read of what execution calls today, 2026-11-26)
@@ -41,8 +42,8 @@ flowchart LR
   subgraph CALLERS["Other BellTeam modules (each keeps its own part)"]
     FL["Flora: Lattice decisions"]
     KI["Kiro: seat cards, running exclusions"]
-    CL["Rapi / Anis / Neon: pairing view"]
     SEAT["seats' Approval Box runtime (use-hosted)"]
+    DEL["Delta's seat: Bot tool approval_box_seat_link_show (no arguments)"]
   end
   subgraph TRANSPORT["Transport only (parses nothing, keeps nothing)"]
     CD["container door (Molly)"]
@@ -56,11 +57,16 @@ flowchart LR
     DAE["hosted connector daemon (supervised)"]
     P5["P5 seat entry (E1)"]
     SW["seat switch + first request check (runbook)"]
+    QR["P8 Owner QR notice (seat-link-qr): starts the pairing, draws the QR, posts it to the Owner only"]
     EXT["existing: link rules, link record, /api/approvals/*, client /v1"]
   end
   subgraph BODY["Body (Molly)"]
     SUP["P4 supervision of the module"]
     REG["harness-entries registration (E2)"]
+  end
+  subgraph MSGM["BellTeam conversation (Kiro, execution): messenger port"]
+    MSG["sendmessage: target user, one image, to the Owner's conversation"]
+    OWN["the Owner's chat screen (every client, nothing new in any app)"]
   end
   subgraph USG["usage (Mika)"]
     SEC["secrets"]
@@ -71,7 +77,7 @@ flowchart LR
   end
   FL --> P1
   KI --> P1
-  CL --> P3 --> PAIR
+  P3 --> PAIR
   SEAT --> CD --> P2
   SEAT --> HD --> P2
   P1 --> DAE
@@ -83,9 +89,12 @@ flowchart LR
   PAIR --> SEC
   P5 --> REG
   SUP --> MOD
+  DEL --> QR
+  QR -->|"start(), then the waiting view (inside the module)"| PAIR
+  QR -->|"image + codes, Owner only"| MSG --> OWN
 ```
 
-Every arrow into this module lands on P1, P2, P3 or P5; every arrow out lands on P6 or P7. No other module reads or writes this module's files, state or the connector's home.
+Every arrow into this module lands on P1, P2, P3, P5 or P8; every arrow out lands on P6 or P7. No other module reads or writes this module's files, state or the connector's home.
 
 ## 3. Data flow
 
@@ -99,7 +108,12 @@ flowchart TD
   IPH -->|"answer"| DAE
   DAE -->|"P1 read(id)"| K
   DAE -->|"deliveries: seat connector daemon polls GET /deliveries through P2"| AI
-  PV["pairing view"] -->|"P3 start"| PAIR["pairing manager"] -->|"P6 pair"| IPH
+  DT["Delta's seat: approval_box_seat_link_show"] -->|"tool call, no arguments, no secret in the answer"| QRN["P8 Owner QR notice (module)"]
+  QRN -->|"start()"| PAIR["pairing manager"] -->|"P6 pair"| IPH
+  PAIR -->|"waiting view: qrText, code, typedSecret (stays inside the module)"| QRN
+  QRN -->|"messenger port: one PNG and the two codes as text, target user"| OC["Owner's conversation (his Mac screen)"]
+  OC -.->|"he reads the QR with the iPhone: 接続 > AIをつなぐ > QRコードを読む"| IPH
+  IPH -->|"linked"| PAIR
 ```
 
 Data ownership: decision content lives only in the hosted connector's store (this module); the seat keeps no token and no keys; the doors keep nothing (a host door holds a seat bearer in memory only, Krust); callers keep ids (Kiro's record of botId, digest, first-seen, id) and nothing of the connection.
@@ -206,3 +220,32 @@ Protected: the seat bearer and decision content (never copied by a caller), the 
 - Kiro: **answered 2026-11-26** with five points, all in the P1 contract above (idempotent `file`, `read` result and fetched mark, typed errors with a 5 s bound, `GONE` for old ids, `capabilities()` with the engine's route). Open with Kiro: the name of the parent effect.
 - Nayuta (P6): **done 2026-11-26, connector `0.2.0-pc.6`** (npm next, kitepon/approval-box PR #130): on Windows the connector reads `~/.bellteam/approval-box-door.addr` first, then the `use-hosted --socket` address, sends only the hello and accepts a door only when the proof (HMAC-SHA256 of `<nonce>\n<address>` under `~/.bellteam/approval-box-door.key`) arrives within 2 s; no key or only strangers: `503 door_unproven`. `--socket` must be the exact string the door listens on. The fox step uses the pc.6 runtime and is the live check. (Original ask:) the Windows opener side of P2 (section 1): the host connector daemon, pointed at the door by `use-hosted`, reads `~/.bellteam/approval-box-door.addr` first and verifies the door's hello proof (key `~/.bellteam/approval-box-door.key`) before it sends anything. How the connector learns the two paths (flags of `use-hosted`, or fixed names) is hers to decide; until it does this, a Windows host works only while the default pipe name is not squatted, and the door side (Krust) never serves a stranger.
 - Molly: **confirmed 2026-11-26** with the corrections in section 5 (the body ran the daemon in-process), the obligations and release shape before section 7, and the E1 file path in P5. Open with Delta: the module must read the installed seat runtime's E1 (the seats' profile is uid 1000) or publish it from the pinned version; settled at the code step.
+
+## 10. The Owner's QR in his conversation (seat-link-qr-in-chat; Delta 2026-11-27)
+
+Read for this change (origin/main 61f90abc, 2026-11-27 23:0x JST; file: last commit): src/approval-box-daemon.mjs 8766ba32 (`controller.pair`, `controller.pairing` get/start/stop, `pairingView`), src/approval-box-daemon-mcp.mjs d9eaf670 (the one Molly-only tool), src/mcp-tools.mjs de18ff8e (tool registry and `runBellTeamTool` context), src/application-runtime.mjs de18ff8e (the tool context carries `messenger` and `approvalBoxDaemon`), src/application-services.mjs be8e7704, src/messenger.mjs a92b6ea8 (`sendmessage`, `prepareDirect`: target `user`, `images` as `{mime, data}`), src/approval-box-parent-effects.mjs 4858df18, src/approval-box-extension/http-api.mjs and src/approval-box-parent-facade.mjs (the `seat-link` routes), and the diagrams runtime/approval-box-daemon.md, approval-box-extension/child-join.md, apple/approvals.md, screen-spec.md, this page. Mismatches found and fixed in this diff: (a) runtime/approval-box-daemon.md still drew a `seatLink` slot, a `--v1` run and a token in `config.json`; the code at 8766ba32 has none of them (only `controller.pairing` over `pair --json`), and the stale shortcut comment in the daemon file is removed; (b) the Apple page and child-join.md drew a client block 「決裁箱につなぐ」 under 「決裁箱につながっています」: two connections of one name in one window, against the Owner's ruling (apps join as child devices; the body is an AI on the AI path), now retired in the diagrams, the client removal is requested through Tronie from Rapi, Anis, Neon; (c) the P3 caller "clients' pairing view" is replaced by P8 here.
+
+Rulings: the BellTeam body is an AI on the AI path (Owner 11/24, 11/26); the only step left to the Owner is the scan in the iPhone Approval Box 「AIをつなぐ」, because the connector's key is admitted by the parent key on his phone (Nayuta: the server, a session or a child cannot admit a reader). Already connected apps get no new block (the Mac window's 「決裁箱につながっています」 is the child join and is correct). Owner on this work: use only the contracted ports; an ugly connection is wrong.
+
+Ports used, nothing else: (1) this module's own pairing manager (the P3 object: `start()`, the waiting view); (2) BellTeam's messenger port, `sendmessage` with `target: user` and one image (the public send path the `sendmessage` tool uses). No other module's file or state is read. The seats' move to the hosted path after `linked` stays this module's own step (section 7: `use-hosted` through P6, registration through P5/E2, the first real request through P1); no caller does any of it.
+
+| Step | Who | What |
+| --- | --- | --- |
+| 1 | Tronie | asks the Owner once, when he has the iPhone in hand; tells Delta |
+| 2 | Delta's seat | calls `approval_box_seat_link_show` (no arguments) |
+| 3 | P8 | `pairing.start()`: none or removed starts `pair --json`, waiting is reused, linked answers `linked` |
+| 4 | P8 | the waiting view (`qrText`, 8-character `code`, 16-character `typedSecret`, `expiresAt`) draws a PNG (`qrcode-generator`, MIT, one file) and posts one message with the image and the two codes to the Owner's conversation; the answer to the seat is `{outcome: 'posted', expiresAt}` and holds no secret |
+| 5 | Owner | on his Mac screen reads the image with the iPhone Approval Box: 接続 > AIをつなぐ > QRコードを読む > つなぐ (QR not readable: 「コードを確認」 takes the 8 characters, the next screen the 16) |
+| 6 | module | the pairing manager reads `linked`; Delta runs section 7 steps 3-5 |
+
+```mermaid
+stateDiagram-v2
+  [*] --> Idle
+  Idle --> Waiting: tool call, state none or removed (start, 5 minutes)
+  Waiting --> Waiting: tool call again (the same pairing, one more post)
+  Waiting --> Linked: Owner scanned and confirmed
+  Waiting --> Idle: 5 minutes passed (state failed): the tool starts a new one
+  Linked --> [*]: the tool answers linked and posts nothing
+```
+
+Failure handling: the pairing does not start (daemon not available, `PAIR_NO_WAITING_LINE`): the tool answers `not_started` with the module's reason and posts nothing; the post to the Owner fails: the tool answers `post_failed`, the pairing stays waiting and the next call posts again (it never starts a second pairing while one waits); the QR expires unseen: the next call issues a new one. Nothing here is a guard: every state leaves by the next call or by the 5-minute expiry. Protection named: the secrets of the waiting view go only to the Owner's own conversation; the tool result, the logs and every seat see none of them.

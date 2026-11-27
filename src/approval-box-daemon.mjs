@@ -15,7 +15,6 @@ export const SEATS_SOCKET = 'approval-box-hosted.sock'
 export const APPROVAL_BOX_SERVER = 'https://approval-box.kitepon.dev'
 const READY_MS = 15000, STATUS_MS = 2000, PAIR_LINE_MS = 20000, PAIR_GRACE_MS = 5 * 60 * 1000, STOP_MS = 5000, EGRESS_MS = 3000
 const PAIR_MAX_MS = 7 * 24 * 60 * 60 * 1000 + PAIR_GRACE_MS
-// seat link (seat-approval-card.md): the body's own `/v1` pairing. shortcut: Nayuta's flag for the /v1 mode is not released, so it is this one constant; change it when her pin lands.
 // Egress targets (Nayuta c8h): UDP for the relay (STUN/TURN), TCP 443 for the Approval Box server.
 export const EGRESS_TARGETS = Object.freeze([
   { kind: 'udp', host: 'stun.cloudflare.com', port: 3478 },
