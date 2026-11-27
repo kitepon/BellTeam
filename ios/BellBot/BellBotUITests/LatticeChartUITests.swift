@@ -86,6 +86,9 @@ final class LatticeChartUITests: XCTestCase {
             XCTAssertTrue(chart.label.hasPrefix("Lattice組込、統括の工程表"), chart.label)
             XCTAssertTrue(element(app, "lattice-chart-guide").label.hasPrefix("名前のない工程表"), element(app, "lattice-chart-guide").label)
             XCTAssertFalse(app.staticTexts["lattice"].exists)
+            // 催促 badge: only on the chart whose nudge is on (fixture: lattice on, guide off).
+            XCTAssertTrue(chart.label.contains("催促オン"), chart.label)
+            XCTAssertFalse(element(app, "lattice-chart-guide").label.contains("催促"))
             settle()
             shot(app, "\(scheme)-01-list")
 
