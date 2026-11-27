@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
+import { statSync } from 'node:fs'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import test from 'node:test'
 import { createAuthCore } from '../src/auth-mediation/core.mjs'
 import { createItemCache } from '../src/auth-mediation/items.mjs'
@@ -102,7 +103,8 @@ test('relay program_of: argv[1] of "interpreter /abs/script", its sha256, sealed
     await new Promise(r => setTimeout(r, 400))
     const seat = process.getuid()
     assert.deepEqual(program(peers[0].pid, seat), { path: script, sha256: sha, sealed: false }) // the file is the seat's own: editable
-    assert.deepEqual(program(peers[0].pid, seat + 1), { path: script, sha256: sha, sealed: true }) // a root-owned copy would read like this
+    let tight = true; for (let d = dir; ; d = dirname(d)) { if (statSync(d).mode & 0o022) tight = false; if (d === '/') break } // a checkout under sticky /tmp is never sealed
+    assert.deepEqual(program(peers[0].pid, seat + 1), { path: script, sha256: sha, sealed: tight }) // a root-owned copy would read like this
     assert.equal(program(peers[1].pid, seat), null) // -c: no script
     assert.equal(program(peers[2].pid, seat), null) // relative script path
     assert.equal(program(2 ** 22 + 1, seat), null) // no such process
