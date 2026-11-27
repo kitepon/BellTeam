@@ -41,7 +41,7 @@ import { createWorkGraphFacade, createWorkGraphEffects } from './work-graph-faca
 import { createLatticeFacade, createLatticeEffects } from './lattice-facade.mjs'
 import { createLatticeReminders } from './lattice/reminders.mjs'
 import { createLatticeDecisions } from './lattice-decisions.mjs'
-import { createApprovalBoxPort } from './approval-box-port.mjs'
+import { createApprovalBoxClientPort } from './approval-box-client.mjs'
 import { createSeatApprovals } from './seat-approvals.mjs'
 import { createApprovalBoxExtensionEffects } from './approval-box-parent-effects.mjs'
 import { createApprovalsFacade } from './approval-box-parent-facade.mjs'
@@ -529,7 +529,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   // The seats' Approval Box binary is the seat user's (the body is uid 1001, ~/.approval-box is 0700): run it as the seat user (seat-process.mjs). No seat runtime (dev, tests): no runner, nothing published.
   const seatRun = seatRuntime ? createSeatProcessRunner(root, { environment: 'base' }) : null
   const approvalBoxDaemon = createApprovalBoxDaemon({ root, seatRun })
-  const approvalBoxPort = createApprovalBoxPort({ daemon: approvalBoxDaemon, seatRun })
+  const approvalBoxPort = createApprovalBoxClientPort({ seatRun })
   if (latticeFactory) {
     // Optional module like work-graph: the routes and the seat tool answer LATTICE_UNAVAILABLE until the child is available.
     // Each new child generation (start, restart, exchange) re-delivers unacked startable notices; the call waits until the child is ready.
