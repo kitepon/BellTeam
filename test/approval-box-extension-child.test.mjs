@@ -311,7 +311,7 @@ test('http: an attachment is sandboxed and only images are inline (the sender ma
 })
 // ---- F8 answer relay (README section 13)
 const answeredRaw = (id, extra = {}) => raw(id, { status: 'answered', version: 2, answer: { option_id: 'o1', text: '本番は金曜に', answered_at: '2026-11-15T02:00:00Z' }, ...extra })
-const BOOK = JSON.stringify({ version: 1, since: '2026-11-15T01:30:00Z', rows: [] })
+const BOOK = JSON.stringify({ version: 2, since: '2026-11-15T01:30:00Z', rows: [] })
 const sent = () => { const log = []; return { log, fn: async params => { log.push(params); return { delivery: 'steered', deliveryId: 'd-1' } } } }
 
 test('A1/A3/A4/A6: an answer made after the ledger began is sent once to the asking seat, then the view says delivered', async () => {
@@ -397,6 +397,23 @@ test('F8: a Lattice step that fails every tick never keeps the answer from the s
   const broken = async (method, params) => { if (method === 'lattice.ownerTask') throw new Error('lattice down'); return original(method, params) }
   await h.core.refresh({ since: 0 }, broken)
   assert.equal(seat.log.length, 1)
+})
+
+test('A2: the ledger starts at the first tick after install even while the gate is closed; a version 1 ledger (made late, on the first entitled tick) moves back to the release date', async () => {
+  const seat = sent()
+  const closed = harness({ decisions: [], seatMessage: seat.fn, me: { plan: 'expired' } })
+  await closed.core.refresh({ since: 0 }, closed.effect)
+  assert.deepEqual(JSON.parse(closed.files.get('answers.json')), { version: 2, since: '2026-11-15T03:00:00.000Z', rows: [] })
+  // K-9DBLUD 2026-11-27: answered 12:35Z, ledger made at 12:44Z by the old child
+  const late = JSON.stringify({ version: 1, since: '2026-11-27T12:44:10.000Z', rows: [] })
+  const answered = answeredRaw('K-9DBL', { answer: { option_id: 'o1', answered_at: '2026-11-27T12:35:00Z' } })
+  const h = harness({ decisions: [answered], bookText: late, seatMessage: seat.fn, now: () => Date.parse('2026-11-27T12:50:00Z') })
+  await h.core.refresh({ since: 0 }, h.effect)
+  assert.equal(seat.log.length, 1); assert.match(seat.log[0].message, /21:35 JST/u)
+  assert.equal(JSON.parse(h.files.get('answers.json')).version, 2)
+  const again = harness({ decisions: [answeredRaw('K-OLDR', { answer: { option_id: 'o1', answered_at: '2026-11-27T10:00:00Z' } })], bookText: late, seatMessage: seat.fn, now: () => Date.parse('2026-11-27T12:50:00Z') })
+  await again.core.refresh({ since: 0 }, again.effect)
+  assert.equal(seat.log.length, 1) // answered before the release: never sent
 })
 
 test('module.json source lists every file of src/approval-box-extension* (the packager test pattern)', () => {
