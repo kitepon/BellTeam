@@ -1,5 +1,4 @@
 import { OS_LABEL, childPath, isEntryName, isTerminalPath, parentPath } from './paths.mjs'
-import { doorHook, atLeast } from './approval-door.mjs'
 import { parseExport } from './trust-copy.mjs'
 
 export const CONNECTION_CODES = ['TERMINAL_UNAVAILABLE', 'CREDENTIAL_UNAVAILABLE', 'TARGET_MISMATCH']
@@ -50,6 +49,13 @@ const REGISTRY_REASONS = new Set(['SSH_KEY_UNSET', 'BINDING_UNSET'])
 const PROVISION_CODES = new Set(['REMOTE_AITERM_UNAVAILABLE', 'REMOTE_AITERM_TOO_OLD'])
 const CODE = /^[A-Z][A-Z0-9_]{0,63}$/
 const REMOTE_ROUTE_MINIMUM = '0.70.113'
+const version = value => /^(\d+)\.(\d+)\.(\d+)/.exec(value ?? '')?.slice(1).map(Number) ?? null
+function atLeast(value, minimum) {
+  const a = version(value), b = version(minimum)
+  if (!a || !b) return false
+  for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] > b[i]
+  return true
+}
 // The container's Aiterm version seen by the open that made an `aiterm` evidence object; not part of the evidence itself.
 const containerVersions = new WeakMap()
 const parseVersion = value => /^(\d+)\.(\d+)\.(\d+)/.exec(value ?? '')?.slice(1).map(Number)
@@ -397,7 +403,7 @@ export function createTerminalConnection({ registry, secrets, native, keyReader 
     try {
       const binding = await resolveBinding(record, memberId)
       if (!current()) throw failure('TERMINAL_UNAVAILABLE')
-      let doorFields = {}, inputFields = {}
+      let inputFields = {}
       if (Object.hasOwn(CLI_NAMES, harness)) {
         // Shared only within one registry generation, so a launch never waits on a run against an older target.
         const key = `${terminalId}\0${harness}`
@@ -410,7 +416,6 @@ export function createTerminalConnection({ registry, secrets, native, keyReader 
         const result = await shared.run, { loggedIn, aiterm } = result
         if (!current()) throw failure('TERMINAL_UNAVAILABLE')
         if (loggedIn === false) throw loginRequired(harness, record.os)
-        doorFields = doorHook(aiterm?.before, containerVersions.get(aiterm))
         inputFields = await remoteInput(record, binding, aiterm, result)
         if (!current()) throw failure('TERMINAL_UNAVAILABLE')
       }
@@ -422,8 +427,6 @@ export function createTerminalConnection({ registry, secrets, native, keyReader 
         cwd: projectRoot,
         os: record.os,
         accountOwner: record.accountOwner,
-        // a532b1: the Approval Box door's post_launch field, only for a terminal whose Aiterm (and the container's) can run it; execution passes it on unchanged.
-        ...(doorFields.post_launch ? { doorHook: doorFields } : {}),
         ...inputFields
       }
     } catch (error) { if (error.code !== 'TARGET_MISMATCH' && error.code !== 'AGENT_AUTH_REQUIRED' && current()) want(terminalId); throw error }
