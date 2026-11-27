@@ -1,12 +1,12 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-27T13:18:51Z",
-  "expiresAt": "2026-12-04T13:18:51Z",
+  "publishedAt": "2026-11-27T14:22:05Z",
+  "expiresAt": "2026-12-04T14:22:05Z",
   "releases": [
     {
       "componentId": "usage",
-      "sourceCommit": "e6eca195de7a09b913ded939217c34f4dada23cb",
-      "versionId": "1d69338bc0bff75d27f078fafe1a8244bd43670749fd1059a8d08777df2a45ea",
+      "sourceCommit": "61f90abc19411ca734a02ecd604b8c3124d6d018",
+      "versionId": "96c0b3794b88a841ed1dc37fc72fabbee6c89964dc9131fa92169b5c5ece39e0",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -14,16 +14,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110346Z/usage-e6eca195de7a09b913ded939217c34f4dada23cb-linux-amd64.tar.gz",
-          "bytes": 92713,
-          "sha256": "1d69338bc0bff75d27f078fafe1a8244bd43670749fd1059a8d08777df2a45ea"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T140449Z/usage-61f90abc19411ca734a02ecd604b8c3124d6d018-linux-amd64.tar.gz",
+          "bytes": 88583,
+          "sha256": "96c0b3794b88a841ed1dc37fc72fabbee6c89964dc9131fa92169b5c5ece39e0"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110346Z/usage-e6eca195de7a09b913ded939217c34f4dada23cb-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11058,
-          "sha256": "7833097864cec1902df75fcd5f438e13c3cb0645cca5fdf71225b6cb12c37f0d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T140449Z/usage-61f90abc19411ca734a02ecd604b8c3124d6d018-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10729,
+          "sha256": "24dc1e2a478c5b146d9efc8c787b1a5cc37459ec58691e4df05b0f10e6a89cb1"
         },
-        "signerCommit": "e6eca195de7a09b913ded939217c34f4dada23cb"
+        "signerCommit": "61f90abc19411ca734a02ecd604b8c3124d6d018"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -41,20 +41,19 @@
             "cloudflare",
             "diagnostics",
             "notifications",
-            "onePassword",
             "thinkingDisplay"
           ],
           "subscriptionSchema": "bellteam.subscription.v1"
         }
       },
       "changes": [
-        "認証仲介のための秘密の置き場の範囲を足します。"
+        "設定の 1Password 項目と、秘密の入力で 1Password の項目を使う経路が消えます。"
       ]
     },
     {
       "componentId": "usage",
-      "sourceCommit": "e6eca195de7a09b913ded939217c34f4dada23cb",
-      "versionId": "4274f16837c86d9b1b53889c1c70916387ce6b40ce2b6c2315f15420db38ea50",
+      "sourceCommit": "61f90abc19411ca734a02ecd604b8c3124d6d018",
+      "versionId": "ad2fe6633561f3a0ba8c7916e9980df172f1844d1c1e382f2871729880e89eb2",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -62,16 +61,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110346Z/usage-e6eca195de7a09b913ded939217c34f4dada23cb-linux-arm64.tar.gz",
-          "bytes": 92713,
-          "sha256": "4274f16837c86d9b1b53889c1c70916387ce6b40ce2b6c2315f15420db38ea50"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T140449Z/usage-61f90abc19411ca734a02ecd604b8c3124d6d018-linux-arm64.tar.gz",
+          "bytes": 88583,
+          "sha256": "ad2fe6633561f3a0ba8c7916e9980df172f1844d1c1e382f2871729880e89eb2"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110346Z/usage-e6eca195de7a09b913ded939217c34f4dada23cb-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11046,
-          "sha256": "c10947aa9af6cd0d622c2fedff1f624c3c712f9e811e7542007c81ead821f442"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T140449Z/usage-61f90abc19411ca734a02ecd604b8c3124d6d018-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10670,
+          "sha256": "ecab4f98c4cd39452d25c8933f3618c6e99ef36f51ad05f221774dbb30aa1513"
         },
-        "signerCommit": "e6eca195de7a09b913ded939217c34f4dada23cb"
+        "signerCommit": "61f90abc19411ca734a02ecd604b8c3124d6d018"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -89,14 +88,13 @@
             "cloudflare",
             "diagnostics",
             "notifications",
-            "onePassword",
             "thinkingDisplay"
           ],
           "subscriptionSchema": "bellteam.subscription.v1"
         }
       },
       "changes": [
-        "認証仲介のための秘密の置き場の範囲を足します。"
+        "設定の 1Password 項目と、秘密の入力で 1Password の項目を使う経路が消えます。"
       ]
     },
     {
@@ -291,8 +289,8 @@
     },
     {
       "componentId": "notifications",
-      "sourceCommit": "254c13d3e067b3484761b8d8624402d1f0843c99",
-      "versionId": "1847236e01eaf9d4d7f52025a9c9f52d8ab6cb6b450a339c45f73fdc7962d6a8",
+      "sourceCommit": "61f90abc19411ca734a02ecd604b8c3124d6d018",
+      "versionId": "1733cfbb465f79b5ea2554c8c6c007195e13ed437a7e56edbea78b78bbd57f70",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -300,16 +298,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T200444Z/notifications-254c13d3e067b3484761b8d8624402d1f0843c99-linux-amd64.tar.gz",
-          "bytes": 4546918,
-          "sha256": "1847236e01eaf9d4d7f52025a9c9f52d8ab6cb6b450a339c45f73fdc7962d6a8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T140502Z/notifications-61f90abc19411ca734a02ecd604b8c3124d6d018-linux-amd64.tar.gz",
+          "bytes": 4586561,
+          "sha256": "1733cfbb465f79b5ea2554c8c6c007195e13ed437a7e56edbea78b78bbd57f70"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T200444Z/notifications-254c13d3e067b3484761b8d8624402d1f0843c99-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11041,
-          "sha256": "daf99a6c235eecb579a77bf75b85f826e8fdc980eaa55bcd1f7ac9aecb71d824"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T140502Z/notifications-61f90abc19411ca734a02ecd604b8c3124d6d018-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10943,
+          "sha256": "c8f9ff28ce0b3c15d39ee889bfefc3375c827faf6df3f51f0ffea3744fa6f45d"
         },
-        "signerCommit": "254c13d3e067b3484761b8d8624402d1f0843c99"
+        "signerCommit": "61f90abc19411ca734a02ecd604b8c3124d6d018"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -318,13 +316,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "通知の購入まわりの扱いを、課金の確認をしない形に合わせます。"
+        "プッシュ通知は中継だけを使います。"
       ]
     },
     {
       "componentId": "notifications",
-      "sourceCommit": "254c13d3e067b3484761b8d8624402d1f0843c99",
-      "versionId": "74d72b3c4e6cec4ce057c1af41849eba2e7a2b04cf1b67863719c8b59a071621",
+      "sourceCommit": "61f90abc19411ca734a02ecd604b8c3124d6d018",
+      "versionId": "ea86a9ee24230548181552c371feed8460c2d258e1f9d95087b6568eaf9fcf08",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -332,16 +330,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T200444Z/notifications-254c13d3e067b3484761b8d8624402d1f0843c99-linux-arm64.tar.gz",
-          "bytes": 4546919,
-          "sha256": "74d72b3c4e6cec4ce057c1af41849eba2e7a2b04cf1b67863719c8b59a071621"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T140502Z/notifications-61f90abc19411ca734a02ecd604b8c3124d6d018-linux-arm64.tar.gz",
+          "bytes": 4586561,
+          "sha256": "ea86a9ee24230548181552c371feed8460c2d258e1f9d95087b6568eaf9fcf08"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261123T200444Z/notifications-254c13d3e067b3484761b8d8624402d1f0843c99-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11037,
-          "sha256": "924418d4c48f77307060c7444e2d066fa7ba27760be8e75e95b1531f7869a7ed"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T140502Z/notifications-61f90abc19411ca734a02ecd604b8c3124d6d018-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10755,
+          "sha256": "e6e8c97ec10b2630a0ca10d82a900db2c78f8c11266518bee948d13b2163bed5"
         },
-        "signerCommit": "254c13d3e067b3484761b8d8624402d1f0843c99"
+        "signerCommit": "61f90abc19411ca734a02ecd604b8c3124d6d018"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -350,7 +348,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "通知の購入まわりの扱いを、課金の確認をしない形に合わせます。"
+        "プッシュ通知は中継だけを使います。"
       ]
     },
     {
@@ -707,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "fd51808a39ec7b3ed19cdfd85f088a07ac837f62",
-      "versionId": "sha256:245316c76d6eafcdb50cf8285dc2aeb9b6bf05bae2bb537d715f1cf4e169b5cb",
+      "sourceCommit": "53b1105033352ca05272ecc9dcb10d6eccc5129c",
+      "versionId": "sha256:6f1764016b9e9ef28f4631017d84e5cbb07458fa794facfced5a3d0e8e74f08d",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:245316c76d6eafcdb50cf8285dc2aeb9b6bf05bae2bb537d715f1cf4e169b5cb"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6f1764016b9e9ef28f4631017d84e5cbb07458fa794facfced5a3d0e8e74f08d"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,21 +722,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "本体のイメージの Aiterm が 0.70.119 になります（Aiterm 側の、BellTeam 向けだった部品の削除が反映されます）。",
-        "席の起動の数え方の修正（#2755）が、本体の予備の経路にも入ります。"
+        "プッシュ通知は中継だけを使い、BellTeam は 1Password を読まなくなります（設定の 1Password 項目と、端末の鍵の 1Password 選択も消えます）。",
+        "決裁箱の拡張の持ち主の席から、オーナーの会話へペアリングの QR を送るツールが加わります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "fd51808a39ec7b3ed19cdfd85f088a07ac837f62",
-      "versionId": "sha256:245316c76d6eafcdb50cf8285dc2aeb9b6bf05bae2bb537d715f1cf4e169b5cb",
+      "sourceCommit": "53b1105033352ca05272ecc9dcb10d6eccc5129c",
+      "versionId": "sha256:6f1764016b9e9ef28f4631017d84e5cbb07458fa794facfced5a3d0e8e74f08d",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:245316c76d6eafcdb50cf8285dc2aeb9b6bf05bae2bb537d715f1cf4e169b5cb"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6f1764016b9e9ef28f4631017d84e5cbb07458fa794facfced5a3d0e8e74f08d"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -747,8 +745,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "本体のイメージの Aiterm が 0.70.119 になります（Aiterm 側の、BellTeam 向けだった部品の削除が反映されます）。",
-        "席の起動の数え方の修正（#2755）が、本体の予備の経路にも入ります。"
+        "プッシュ通知は中継だけを使い、BellTeam は 1Password を読まなくなります（設定の 1Password 項目と、端末の鍵の 1Password 選択も消えます）。",
+        "決裁箱の拡張の持ち主の席から、オーナーの会話へペアリングの QR を送るツールが加わります。"
       ]
     },
     {
