@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-26T13:11:58Z",
-  "expiresAt": "2026-12-03T13:11:58Z",
+  "publishedAt": "2026-11-27T03:08:09Z",
+  "expiresAt": "2026-12-04T03:08:09Z",
   "releases": [
     {
       "componentId": "usage",
@@ -557,8 +557,8 @@
     },
     {
       "componentId": "members",
-      "sourceCommit": "e6eca195de7a09b913ded939217c34f4dada23cb",
-      "versionId": "03198ccff77f853e7e4f19856c53a3de11da7c97eb3e3f5c8d9a51739bf41ceb",
+      "sourceCommit": "e0fd4c159e0640f1b8bd01d8225d49b82c92dba7",
+      "versionId": "6405d9c7e1b6e528c629f5f0b7aeb7e14a6c5bcef87d0c435233367d933d103b",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -566,16 +566,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110413Z/members-e6eca195de7a09b913ded939217c34f4dada23cb-linux-amd64.tar.gz",
-          "bytes": 4585966,
-          "sha256": "03198ccff77f853e7e4f19856c53a3de11da7c97eb3e3f5c8d9a51739bf41ceb"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T030210Z/members-e0fd4c159e0640f1b8bd01d8225d49b82c92dba7-linux-amd64.tar.gz",
+          "bytes": 4592302,
+          "sha256": "6405d9c7e1b6e528c629f5f0b7aeb7e14a6c5bcef87d0c435233367d933d103b"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110413Z/members-e6eca195de7a09b913ded939217c34f4dada23cb-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11090,
-          "sha256": "08aa4529de1054503215c52f02ebb1fe0603d9a2ca839eec414cdc70e3fa3413"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T030210Z/members-e0fd4c159e0640f1b8bd01d8225d49b82c92dba7-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11282,
+          "sha256": "25b81d36967af65739dd43988c06dbfc778c220495974378dacb1abf0eaba2c7"
         },
-        "signerCommit": "e6eca195de7a09b913ded939217c34f4dada23cb"
+        "signerCommit": "e0fd4c159e0640f1b8bd01d8225d49b82c92dba7"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -592,13 +592,13 @@
         }
       },
       "changes": [
-        "席のコマンドの口に、秘密の環境変数を渡す選択肢が増えます（表に出る動作は変わりません）。"
+        "統括の席が読む「統括だけの目次」へ案内する共通規則（roles.coordinator）が、各席のAGENTS.mdに入ります。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "e6eca195de7a09b913ded939217c34f4dada23cb",
-      "versionId": "3084ba5926a0e19e1a4dded0f561c9f25ffa4e7320e41504950c4d28943f9cb9",
+      "sourceCommit": "e0fd4c159e0640f1b8bd01d8225d49b82c92dba7",
+      "versionId": "dac1990fb2b7fd75b5994d8e1621a1ffe29e69f2056f50efe0c4ed9749d75564",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -606,16 +606,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110413Z/members-e6eca195de7a09b913ded939217c34f4dada23cb-linux-arm64.tar.gz",
-          "bytes": 4585966,
-          "sha256": "3084ba5926a0e19e1a4dded0f561c9f25ffa4e7320e41504950c4d28943f9cb9"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T030210Z/members-e0fd4c159e0640f1b8bd01d8225d49b82c92dba7-linux-arm64.tar.gz",
+          "bytes": 4592303,
+          "sha256": "dac1990fb2b7fd75b5994d8e1621a1ffe29e69f2056f50efe0c4ed9749d75564"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110413Z/members-e6eca195de7a09b913ded939217c34f4dada23cb-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11043,
-          "sha256": "4af69b52c654574ef7ac332b493d150058309f74fcef8342a88faccbbabebfbd"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T030210Z/members-e0fd4c159e0640f1b8bd01d8225d49b82c92dba7-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11168,
+          "sha256": "6f6fac1712050a9757e998bb510bedced0f896129888d62fd8c69d819ebe14a7"
         },
-        "signerCommit": "e6eca195de7a09b913ded939217c34f4dada23cb"
+        "signerCommit": "e0fd4c159e0640f1b8bd01d8225d49b82c92dba7"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -632,7 +632,7 @@
         }
       },
       "changes": [
-        "席のコマンドの口に、秘密の環境変数を渡す選択肢が増えます（表に出る動作は変わりません）。"
+        "統括の席が読む「統括だけの目次」へ案内する共通規則（roles.coordinator）が、各席のAGENTS.mdに入ります。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "f9c49999b17206d7a2e660a6e972c55b11b95862",
-      "versionId": "sha256:ffcc1159cbce771f1ea77bea79071a9b661cabbb5c28726c5f4e042781d308af",
+      "sourceCommit": "e0fd4c159e0640f1b8bd01d8225d49b82c92dba7",
+      "versionId": "sha256:6a974c545abdbf14a36a93356f5d5cf9ac222df3081485247102cb5357f08573",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ffcc1159cbce771f1ea77bea79071a9b661cabbb5c28726c5f4e042781d308af"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6a974c545abdbf14a36a93356f5d5cf9ac222df3081485247102cb5357f08573"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,22 +724,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席の登録ファイル（決裁箱の席の設定）を、席のユーザーが読める専用のフォルダへ置き、席の登録がそのファイルを読むようになります。",
-        "認証仲介の本体側（モジュールの起動、席のユーザーで動く待ち受けの受け口と監視、auth_exec の道具）を足します。規則が空の間は、すべて断ります。",
-        "遠隔の席の route_since を keeper の ready_at から決め、席の画面の数え方を直します。"
+        "認証仲介の起動口が、最初の管理者（サクラ、ライ）を子の起動時に渡します。",
+        "端末の席のうち、席の一覧に載らないものの稼働表示を直します（実行の行と同じ内容）。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "f9c49999b17206d7a2e660a6e972c55b11b95862",
-      "versionId": "sha256:ffcc1159cbce771f1ea77bea79071a9b661cabbb5c28726c5f4e042781d308af",
+      "sourceCommit": "e0fd4c159e0640f1b8bd01d8225d49b82c92dba7",
+      "versionId": "sha256:6a974c545abdbf14a36a93356f5d5cf9ac222df3081485247102cb5357f08573",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ffcc1159cbce771f1ea77bea79071a9b661cabbb5c28726c5f4e042781d308af"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6a974c545abdbf14a36a93356f5d5cf9ac222df3081485247102cb5357f08573"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,9 +747,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席の登録ファイル（決裁箱の席の設定）を、席のユーザーが読める専用のフォルダへ置き、席の登録がそのファイルを読むようになります。",
-        "認証仲介の本体側（モジュールの起動、席のユーザーで動く待ち受けの受け口と監視、auth_exec の道具）を足します。規則が空の間は、すべて断ります。",
-        "遠隔の席の route_since を keeper の ready_at から決め、席の画面の数え方を直します。"
+        "認証仲介の起動口が、最初の管理者（サクラ、ライ）を子の起動時に渡します。",
+        "端末の席のうち、席の一覧に載らないものの稼働表示を直します（実行の行と同じ内容）。"
       ]
     },
     {
@@ -891,6 +889,76 @@
       },
       "changes": [
         "決裁箱への窓口を1つにします。決裁の窓口 P1 とペアリング P3 を、この拡張の本体側が持ちます。"
+      ]
+    },
+    {
+      "componentId": "auth-mediation",
+      "sourceCommit": "e0fd4c159e0640f1b8bd01d8225d49b82c92dba7",
+      "versionId": "75126a7ff0c0b9c4b588b1cb4b6f44d280ea7ea5b432a2a9798c9e192cddbf25",
+      "platform": {
+        "os": "linux",
+        "arch": "amd64"
+      },
+      "artifact": {
+        "kind": "archive",
+        "archive": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T030218Z/auth-mediation-e0fd4c159e0640f1b8bd01d8225d49b82c92dba7-linux-amd64.tar.gz",
+          "bytes": 3705554,
+          "sha256": "75126a7ff0c0b9c4b588b1cb4b6f44d280ea7ea5b432a2a9798c9e192cddbf25"
+        },
+        "bundle": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T030218Z/auth-mediation-e0fd4c159e0640f1b8bd01d8225d49b82c92dba7-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11414,
+          "sha256": "406dffc56e43df914f433773aed898127596545280bb7df5db651d0e9c1d0e38"
+        },
+        "signerCommit": "e0fd4c159e0640f1b8bd01d8225d49b82c92dba7"
+      },
+      "compatibility": {
+        "nodeMajor": 26,
+        "parentProtocol": 1,
+        "stateSchema": null,
+        "containerUpdate": null,
+        "stateCompatibility": {
+          "state": "policy-v2"
+        }
+      },
+      "changes": [
+        "認証仲介のモジュールを、署名付きの行として出します。最初の管理者（サクラ、ライ）を方針に加え、トークンの登録と方針の取り込みができるようになります。"
+      ]
+    },
+    {
+      "componentId": "auth-mediation",
+      "sourceCommit": "e0fd4c159e0640f1b8bd01d8225d49b82c92dba7",
+      "versionId": "fe6e91a135bd9debf76635e84355a51980d7e7a98f3e5a681b1f2d1689bdfb30",
+      "platform": {
+        "os": "linux",
+        "arch": "arm64"
+      },
+      "artifact": {
+        "kind": "archive",
+        "archive": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T030218Z/auth-mediation-e0fd4c159e0640f1b8bd01d8225d49b82c92dba7-linux-arm64.tar.gz",
+          "bytes": 3705554,
+          "sha256": "fe6e91a135bd9debf76635e84355a51980d7e7a98f3e5a681b1f2d1689bdfb30"
+        },
+        "bundle": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T030218Z/auth-mediation-e0fd4c159e0640f1b8bd01d8225d49b82c92dba7-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11359,
+          "sha256": "e0adc298100321700465f5294abdbf926f371707bad241f312e7379206f3078a"
+        },
+        "signerCommit": "e0fd4c159e0640f1b8bd01d8225d49b82c92dba7"
+      },
+      "compatibility": {
+        "nodeMajor": 26,
+        "parentProtocol": 1,
+        "stateSchema": null,
+        "containerUpdate": null,
+        "stateCompatibility": {
+          "state": "policy-v2"
+        }
+      },
+      "changes": [
+        "認証仲介のモジュールを、署名付きの行として出します。最初の管理者（サクラ、ライ）を方針に加え、トークンの登録と方針の取り込みができるようになります。"
       ]
     }
   ],
