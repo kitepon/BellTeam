@@ -22,7 +22,7 @@ public sealed class ApprovalBoxDevice : IAsyncDisposable
     private ApprovalOffer? shownOffer; private string? shownNote;
     private bool wasJoined;
 
-    public ApprovalBoxDevice(string directory) : this(directory, null) { }
+    public ApprovalBoxDevice(string directory) : this(directory, null, null, TestBrowser.Open) { }   // the child join's Google sign-in honours BELLTEAM_TEST_CHROME_PROFILE too (null = the system browser)
     /// <param name="origin">Development runs point it at approval-box's local dev server (BELLTEAM_APPROVAL_BOX_URL).</param>
     internal ApprovalBoxDevice(string directory, string? origin, HttpMessageHandler? transport = null, Func<Uri, Task>? openBrowser = null, string? stateDirectory = null)
     {
