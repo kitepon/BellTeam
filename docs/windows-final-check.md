@@ -438,3 +438,12 @@ AI CLIの導入画面（a451、#1942）をMacの実装に合わせた0.6.2（#19
 - 確認（fox）: 導入したexeの版は `0.9.8+c2e1bb0c49bf5621be8ed3a0e4e79a44de3d8d65`。`Kitepon.ApprovalBox.Client.dll` は0.7.0、`Kitepon.LoginBilling.Desktop.dll` は0.26.0。`BellTeam.dll` の `GoogleDesktopSecret` が35文字（値は表示していない）。BellTeamは動いていない。
 - 確認（本番の読み取り）: `--smoke-test http://192.168.1.2:18891/` は成功（`ok: true`、認証済み、SSE接続あり）。
 - 確認できていない: 本物の親のスマホでの通し。
+
+## Windows 0.9.9 の導入（廃止した「決裁箱につなぐ」の区画を外した版、2026-11-27 23:1x JST、アニス）
+
+Deltaの図の改め（seat-link-qr-in-chat）で廃止した区画（QR・コード・期限・やめる）を決裁箱の窓から外した版（PR #2766、main `dd942401`）を、エピネルがfoxへ導入した（`auth exec windows-install-with-oauth.sh`、終了コード0、-NoLaunch）。Coreの`SeatLink.cs`はネオンが別PRで消す。
+
+- 確認（fox）: 導入したexeの版は `0.9.9+dd9424013f0dc0fac24a16a745c26571d858eef6`。`BellTeam.dll` の `GoogleDesktopSecret` が35文字（値は表示していない）。BellTeamは動いていない。
+- 確認（本番の読み取り）: `--smoke-test http://192.168.1.2:18891/` は成功（認証済み、SSE接続あり）。
+- 確認（画面）: `--render-approvals join-block`・`link-connected` は終了コード0。工程表との連携のパネルに「決裁箱につながっています」と「つなぎを外す」があり、廃止した区画は出ていない。
+- 確認できていない: 本物の親のスマホでの通し。
