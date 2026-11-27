@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-27T10:55:08Z",
-  "expiresAt": "2026-12-04T10:55:08Z",
+  "publishedAt": "2026-11-27T11:06:27Z",
+  "expiresAt": "2026-12-04T11:06:27Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "5444a42beb0e7cd095597c64dc7e81c431c00a98",
-      "versionId": "sha256:58a27356b59b78229f3ade993f7762233f6b84251de82ee12fe4fc41625efa8e",
+      "sourceCommit": "4858df18d6f4cf919a56cb0401bf8e43008f35ef",
+      "versionId": "sha256:93ec6a780301b8c3b8ffb183f1f8df53ee9893a97ec6606ac6903e910a258aed",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:58a27356b59b78229f3ade993f7762233f6b84251de82ee12fe4fc41625efa8e"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:93ec6a780301b8c3b8ffb183f1f8df53ee9893a97ec6606ac6903e910a258aed"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,21 +724,22 @@
         "containerUpdate": 1
       },
       "changes": [
-        "認証仲介の管理（grant/revoke/import）は、登録された入口プログラムからだけ受け付けられ、決裁の記録が監査に残ります。入口プログラムは、座席が書き換えられない /app/scripts/auth-mediation/grant に入ります。",
+        "決裁箱の答えが、聞いた席へ BellTeam のメッセージとして届くようになります（メンバーからのメッセージと同じ配達です）。",
+        "認証仲介の管理（grant/revoke/import）は、登録された入口プログラムからだけ受け付けられ、入口プログラムは座席が書き換えられない場所に入ります。",
         "席ごとの待ちの修正（#2730、#2732）が、本体の予備の経路にも入ります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "5444a42beb0e7cd095597c64dc7e81c431c00a98",
-      "versionId": "sha256:58a27356b59b78229f3ade993f7762233f6b84251de82ee12fe4fc41625efa8e",
+      "sourceCommit": "4858df18d6f4cf919a56cb0401bf8e43008f35ef",
+      "versionId": "sha256:93ec6a780301b8c3b8ffb183f1f8df53ee9893a97ec6606ac6903e910a258aed",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:58a27356b59b78229f3ade993f7762233f6b84251de82ee12fe4fc41625efa8e"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:93ec6a780301b8c3b8ffb183f1f8df53ee9893a97ec6606ac6903e910a258aed"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -747,7 +748,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "認証仲介の管理（grant/revoke/import）は、登録された入口プログラムからだけ受け付けられ、決裁の記録が監査に残ります。入口プログラムは、座席が書き換えられない /app/scripts/auth-mediation/grant に入ります。",
+        "決裁箱の答えが、聞いた席へ BellTeam のメッセージとして届くようになります（メンバーからのメッセージと同じ配達です）。",
+        "認証仲介の管理（grant/revoke/import）は、登録された入口プログラムからだけ受け付けられ、入口プログラムは座席が書き換えられない場所に入ります。",
         "席ごとの待ちの修正（#2730、#2732）が、本体の予備の経路にも入ります。"
       ]
     },
@@ -823,8 +825,8 @@
     },
     {
       "componentId": "approval-box-extension",
-      "sourceCommit": "e6eca195de7a09b913ded939217c34f4dada23cb",
-      "versionId": "d9d5092867a0ce250c81bc9902c2c6e0b6bf33a65f68d15790c7fc2a9e4d31f7",
+      "sourceCommit": "4858df18d6f4cf919a56cb0401bf8e43008f35ef",
+      "versionId": "1a9cc243e382c6dc469382311d6b7642dd994e170f43f7fb117f1dbb92e91800",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -832,16 +834,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110358Z/approval-box-extension-e6eca195de7a09b913ded939217c34f4dada23cb-linux-amd64.tar.gz",
-          "bytes": 3715595,
-          "sha256": "d9d5092867a0ce250c81bc9902c2c6e0b6bf33a65f68d15790c7fc2a9e4d31f7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T110052Z/approval-box-extension-4858df18d6f4cf919a56cb0401bf8e43008f35ef-linux-amd64.tar.gz",
+          "bytes": 3717274,
+          "sha256": "1a9cc243e382c6dc469382311d6b7642dd994e170f43f7fb117f1dbb92e91800"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110358Z/approval-box-extension-e6eca195de7a09b913ded939217c34f4dada23cb-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11237,
-          "sha256": "e6148201751d4e67f05b1f7496858a87d9f403df2e946fd342982d61db6fb458"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T110052Z/approval-box-extension-4858df18d6f4cf919a56cb0401bf8e43008f35ef-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11280,
+          "sha256": "54c69db268c7b580544c82abf4bd7d9009eb84f4e14e8e4367f3c43ef6c57639"
         },
-        "signerCommit": "e6eca195de7a09b913ded939217c34f4dada23cb"
+        "signerCommit": "4858df18d6f4cf919a56cb0401bf8e43008f35ef"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -853,13 +855,13 @@
         }
       },
       "changes": [
-        "決裁箱への窓口を1つにします。決裁の窓口 P1 とペアリング P3 を、この拡張の本体側が持ちます。"
+        "決裁箱の答えを、聞いた席へ BellTeam のメッセージとして渡します。"
       ]
     },
     {
       "componentId": "approval-box-extension",
-      "sourceCommit": "e6eca195de7a09b913ded939217c34f4dada23cb",
-      "versionId": "eccc80d5975d6b35cd06409516fcf4b3e6dfdd35466817e937cfed26339d88a0",
+      "sourceCommit": "4858df18d6f4cf919a56cb0401bf8e43008f35ef",
+      "versionId": "949e5386f14e4a93c4134f88874e2b6961776cdd5c708ca83972611780e0818b",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -867,16 +869,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110358Z/approval-box-extension-e6eca195de7a09b913ded939217c34f4dada23cb-linux-arm64.tar.gz",
-          "bytes": 3715595,
-          "sha256": "eccc80d5975d6b35cd06409516fcf4b3e6dfdd35466817e937cfed26339d88a0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T110052Z/approval-box-extension-4858df18d6f4cf919a56cb0401bf8e43008f35ef-linux-arm64.tar.gz",
+          "bytes": 3717274,
+          "sha256": "949e5386f14e4a93c4134f88874e2b6961776cdd5c708ca83972611780e0818b"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110358Z/approval-box-extension-e6eca195de7a09b913ded939217c34f4dada23cb-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11186,
-          "sha256": "629b36cdc2248f8cccb58677b02239938efc166b01772aa9076b3bfa3d3518a5"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T110052Z/approval-box-extension-4858df18d6f4cf919a56cb0401bf8e43008f35ef-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11468,
+          "sha256": "9b08d05676ccdcf384a4ed2f2393d87b993bb2aca54046b406cc371e0bb639c8"
         },
-        "signerCommit": "e6eca195de7a09b913ded939217c34f4dada23cb"
+        "signerCommit": "4858df18d6f4cf919a56cb0401bf8e43008f35ef"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -888,7 +890,7 @@
         }
       },
       "changes": [
-        "決裁箱への窓口を1つにします。決裁の窓口 P1 とペアリング P3 を、この拡張の本体側が持ちます。"
+        "決裁箱の答えを、聞いた席へ BellTeam のメッセージとして渡します。"
       ]
     },
     {
