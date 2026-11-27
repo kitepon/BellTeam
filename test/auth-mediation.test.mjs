@@ -76,11 +76,12 @@ test('v1 import keeps every grant exactly as narrow (decision equivalence with t
   assert.throws(() => importV1(emptyPolicy(), { bots: [{ root: '/etc', grants: [] }] }, 'container'), /AUTH_IMPORT_ROOT/u)
 })
 
-test('env rules: only VAR labels and credential leave, run path is strict; redaction', async () => {
-  assert.deepEqual(envReturn({ A_B: '1', credential: ' t ', lower: 'x', 'file:F': 'p', 'ssh-key': 'k' }, 'gh'), { A_B: '1', GH_TOKEN: 't' })
+test('env rules: VAR, file:VAR, ssh-key and credential leave on the sockets, the run path is strict; redaction', async () => {
+  assert.deepEqual(envReturn({ A_B: '1', credential: ' t ', lower: 'x', 'file:F': 'p', 'ssh-key': 'k', 'file:bad': 'z', other: 'o' }, 'gh'), { A_B: '1', GH_TOKEN: 't', 'file:F': 'p', 'ssh-key': 'k' })
   assert.deepEqual(runEnv({ API_KEY: SECRET }, 'node'), { API_KEY: SECRET })
   assert.equal(runEnv({ PATH: '/x' }, 'node'), null); assert.equal(runEnv({ BELLTEAM_X: '1' }, 'node'), null)
-  assert.equal(runEnv({ 'file:F': 'p' }, 'node'), null); assert.equal(runEnv({}, 'node'), null)
+  assert.equal(runEnv({ 'file:F': 'p' }, 'node'), null); assert.equal(runEnv({ 'ssh-key': 'k' }, 'node'), null); // the run path takes plain variables only
+   assert.equal(runEnv({}, 'node'), null)
   assert.equal(redact('token=' + SECRET + ' short=abc', { API_KEY: SECRET, S: 'abc' }), 'token=[redacted:API_KEY] short=abc')
   const t = setup({ policy: { bots: { 'bot-a': { grants: [{ command: 'bad env' }] } } } })
   assert.equal((await t.core.resolve({ command: ['bad', 'env'], botId: 'bot-a', cwd: '/srv/bellteam/bots/bot-a', via: 'mcp' })).outcome, 'error')

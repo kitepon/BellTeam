@@ -2,7 +2,7 @@
 """auth exec COMMAND... [-- ARGS...]: runs the command with the secret from the authentication module.
 The item is named by COMMAND (as typed); ARGS are appended at run time and never take part in authorization.
 Same line protocol as the old broker; the module reads the caller's folder itself on the container socket, and takes the folder sent here on the host socket."""
-import json, os, signal, socket, subprocess, sys, threading
+import json, os, shutil, signal, socket, subprocess, sys, tempfile, threading, time
 
 SOCK = os.environ.get("AUTH_SOCK") or "/srv/bellteam/shared/tools/auth-mediation/container.sock"
 
@@ -13,6 +13,36 @@ def ask(request):
     s.connect(SOCK)
     s.sendall((json.dumps(request) + "\n").encode())
     return json.loads(s.makefile().readline())
+
+
+def scratch():
+    """Owner-only folder for this run: RAM (/dev/shm) when there is one."""
+    return tempfile.mkdtemp(prefix="auth-", dir="/dev/shm" if os.path.isdir("/dev/shm") else None)
+
+
+def hand_over(fields, d, agents):
+    """Turn the module's fields into the command's environment (labels: VAR, file:VAR, ssh-key)."""
+    env = {}
+    for label, value in fields.items():
+        if label.startswith("file:"):
+            path = os.path.join(d, label[5:])
+            with open(path, "w", newline="") as f:
+                f.write(value if value.endswith("\n") else value + "\n")
+            os.chmod(path, 0o600)
+            env[label[5:]] = path
+        elif label == "ssh-key":
+            sock = os.path.join(d, "agent.sock")
+            agents.append(subprocess.Popen(["ssh-agent", "-D", "-a", sock], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
+            for _ in range(50):
+                if os.path.exists(sock):
+                    break
+                time.sleep(0.05)
+            subprocess.run(["ssh-add", "-q", "-"], input=(value if value.endswith("\n") else value + "\n").encode(), env={**os.environ, "SSH_AUTH_SOCK": sock},
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            env["SSH_AUTH_SOCK"] = sock
+        else:
+            env[label] = value
+    return env
 
 
 def main():
@@ -31,7 +61,7 @@ def main():
     if resp.get("outcome") != "granted":
         print(resp.get("error", "Refused."), file=sys.stderr)
         return 2 if resp.get("outcome") == "error" else 1
-    child = []
+    child, agents, d = [], [], scratch()
 
     def stop(sig, _):
         if not child:
@@ -44,11 +74,21 @@ def main():
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, stop)
     try:
-        # The caller's environment passes through (e.g. GIT_COMMIT_SHA for docker compose); item variables are added on top.
-        child.append(subprocess.Popen(command + args, env={**os.environ, **resp["env"]}))
-    except OSError:
-        sys.exit("The command could not be started.")
-    return child[0].wait()
+        try:
+            extra = hand_over(resp["env"], d, agents)
+        except (OSError, subprocess.CalledProcessError):
+            sys.exit("The secret could not be handed over.")
+        try:
+            # The caller's environment passes through (e.g. GIT_COMMIT_SHA for docker compose); item fields are added on top.
+            child.append(subprocess.Popen(command + args, env={**os.environ, **extra}))
+        except OSError:
+            sys.exit("The command could not be started.")
+        return child[0].wait()
+    finally:  # the temp folder and the per-run agent never outlive the command (also on SIGINT/SIGTERM)
+        for a in agents:
+            a.terminate()
+            a.wait()
+        shutil.rmtree(d, ignore_errors=True)
 
 
 if __name__ == "__main__":
