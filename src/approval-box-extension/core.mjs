@@ -7,7 +7,7 @@ import { toViewDecision, summarize } from './origin-view.mjs'
 import { entitlementFrom, cacheMillis } from './entitlement.mjs'
 import { nextConnect } from './connect-state.mjs'
 import { planLink, targetChart, DECISION_PLAN, DECISION_LANE } from './link-plan.mjs'
-import { planRelay, relayAccepted, RELAY_ROW_KEEP_MS } from './answer-relay.mjs'
+import { planRelay, relayAccepted, RELAY_ROW_KEEP_MS, RELAY_FEATURE_START } from './answer-relay.mjs'
 import { approvalsError } from '../approval-box-extension-protocol.mjs'
 
 export const STATE_DIR = '/srv/bellteam/state/approval-box-extension'
@@ -42,12 +42,14 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
   const readBook = async () => {
     const text = await files.read(bookPath)
     const parsed = text ? JSON.parse(text) : null
-    book = { since: parsed?.since ?? new Date(now()).toISOString(), rows: (parsed?.rows ?? []).filter(row => now() - Date.parse(row.at) < RELAY_ROW_KEEP_MS) }
-    if (!parsed) await saveBook()
+    // Ledgers of version 1 were created at the first entitled tick, which on a closed gate (Owner account read expired, 11/27) was hours after install and hid the answers made meanwhile: one-time move back to the release date.
+    const migrate = parsed && parsed.version !== 2
+    book = { since: migrate ? RELAY_FEATURE_START : parsed?.since ?? new Date(now()).toISOString(), rows: (parsed?.rows ?? []).filter(row => now() - Date.parse(row.at) < RELAY_ROW_KEEP_MS) }
+    if (!parsed || migrate) await saveBook()
     return book
   }
   let bookLoading = null
-  const saveBook = () => files.write(bookPath, `${JSON.stringify({ version: 1, ...book })}\n`)
+  const saveBook = () => files.write(bookPath, `${JSON.stringify({ ...book, version: 2 })}\n`)
   // One message to the asking seat through BellTeam's normal delivery; the row is written only once the parent says it was taken (A4).
   const relay = async (effect, d) => {
     const current = await loadBook(), plan = planRelay(d, current, now())
@@ -388,6 +390,7 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
     },
     async refresh({ since }, effect) {
       await ready(effect)
+      await loadBook() // the ledger starts at the first tick after install, never at the first entitled tick (A2)
       const idle = { seq, events: [], summary: null }
       if (!session) return idle
       if (!(await readEntitlement(effect)).entitled) return idle
