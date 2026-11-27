@@ -210,10 +210,13 @@ test('disabledと設定適用失敗はready statusへ、破損stateと不正鍵�
     await assert.rejects(service.control('initialize', { configuration: { apns: { enabled: false, relayUrl: '' } } }), /PUSH_STATE_INVALID/)
     assert.equal(await readFile(join(root, 'state/push-devices.json'), 'utf8'), text)
   }
+  // 2026-11-27: an old shared/tools/apns/config.json is never read, so even a broken one cannot stop the child.
   await mkdir(join(root, 'shared/tools/apns'), { recursive: true })
   await writeFile(join(root, 'shared/tools/apns/config.json'), '{}')
+  await rm(join(root, 'state/push-devices.json'))
   const service = createNotificationsDispatcher({ root, diagnostic: async () => {} })
-  await assert.rejects(service.control('initialize', { configuration: { apns: { enabled: false, relayUrl: '' } } }), /APNS_CONFIG_INVALID/)
+  t.after(() => service.disconnect())
+  await service.control('initialize', { configuration: { apns: { enabled: false, relayUrl: '' } } })
 })
 
 test('親bufferは交換中の未送信256件までで、ACK不明イベントを再送しない', async () => {

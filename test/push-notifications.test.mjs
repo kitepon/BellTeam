@@ -137,7 +137,7 @@ test('通知APIは認証が必要で、設定取得にトークンを返さな�
   assert.equal(service.devices.size, 0)
 })
 
-test('空volumeは通知OFF、既存直送のON/OFFを起動中に反映する', async t => {
+test('空volumeは通知OFF、relay URLの有無とON/OFFを起動中に反映する（直送は無い）', async t => {
   const { root, bots, service, diagnostics, sent } = await fixture(t)
   const empty = new PushNotifications({ root, bots, diagnostics })
   await empty.initialize()
@@ -147,10 +147,16 @@ test('空volumeは通知OFF、既存直送のON/OFFを起動中に反映する',
   service.secret({ id: 'off', botId: 'bot-a' })
   await service.close()
   assert.equal(sent.length, 0)
-  await service.configure({ enabled: true, relayUrl: '' })
+  // Tronie 2026-11-27: the relay is the only push path; ON without a relay URL sends nothing and reads no file.
+  await assert.rejects(empty.configure({ enabled: true, relayUrl: '' }), /PUSH_NOT_CONFIGURED/)
+  assert.equal(empty.status().configured, false)
+  const posts = []
+  service.request = async (url, options) => { if (options.method === 'POST') posts.push(url.pathname); return Response.json(options.method === 'GET' ? { configured: true, environments: ['production'] } : { accepted: true }) }
+  await service.configure({ enabled: true, relayUrl: 'https://relay.example' })
   service.secret({ id: 'on', botId: 'bot-a' })
   await service.close()
-  assert.equal(sent.length, 1)
+  assert.deepEqual(posts, ['/v1/notifications/send'])
+  assert.equal(sent.length, 0)
 })
 
 test('HTTPのLAN・loopback登録を共通の接続URL契約に合わせる', async t => {
@@ -373,95 +379,18 @@ test('同時に送る通知は同じ認証トークンを使い、期限まで�
   assert.equal(new Set(tokens).size, 1)
 })
 
-test('APNs keys come per key from a .p8 file or a 1Password reference; an unreadable reference leaves APNs unconfigured until the next direct apply', async t => {
-  const { mkdir } = await import('node:fs/promises')
+test('operator relay APNs keys are {keyId, file} only: a 1Password reference, two sources or a bad shape is refused', async t => {
   const { exportPKCS8 } = await import('jose')
-  const { onePasswordKeyReader } = await import('../src/push-notifications.mjs')
   const root = await mkdtemp(join(tmpdir(), 'bellteam-apns-keys-'))
   t.after(() => rm(root, { recursive: true, force: true }))
-  const pem = await exportPKCS8((await generateKeyPair('ES256', { extractable: true })).privateKey)
+  await writeFile(join(root, 'dev.p8'), await exportPKCS8((await generateKeyPair('ES256', { extractable: true })).privateKey))
+  const config = keys => ({ teamId: 'TEAM123456', topic: 'dev.example.bellteam', keys })
   const reference = `op://${'v'.repeat(26)}/${'i'.repeat(26)}/notesPlain`
-  await mkdir(join(root, 'shared/tools/apns'), { recursive: true })
-  await mkdir(join(root, 'shared/tools/bellteam-settings'), { recursive: true })
-  await writeFile(join(root, 'shared/tools/bellteam-settings/settings.json'), JSON.stringify({ onePassword: { enabled: true, token: ' ops_SYNTHETIC ' } }))
-  await writeFile(join(root, 'shared/tools/apns/dev.p8'), pem)
-  const config = keys => writeFile(join(root, 'shared/tools/apns/config.json'), JSON.stringify({ teamId: 'TEAM123456', topic: 'dev.example.bellteam', keys }))
-  let stored = null, tokens = [], closed = 0
-  const readKeys = onePasswordKeyReader(root, { create: () => {
-    let token
-    return { setToken: reader => { token = reader }, close: () => { closed++ },
-      resolve: async ref => { tokens.push(await token()); if (ref !== reference || stored === null) throw new Error('SECRET_SOURCE_UNAVAILABLE'); return stored } }
-  } })
-  const reports = []
-  const service = new PushNotifications({ root, bots: new Map(), diagnostics: { record: async item => { reports.push(item) } }, readKeys })
-  await config({ development: { keyId: 'KEY1234567', file: 'dev.p8' }, production: { keyId: 'KEY7654321', reference } })
-  await service.initialize()
-  await assert.rejects(service.configure({ enabled: true, relayUrl: '' }), { code: 'APNS_KEY_UNAVAILABLE' })
-  assert.equal(service.status().configured, false)
-  assert.equal(service.status().error.code, 'APNS_KEY_UNAVAILABLE')
-  assert.match(service.status().error.message, /1Password連携/u)
-  assert.deepEqual(reports.at(-1), { code: 'SERVER_PUSH_UNAVAILABLE', module: 'notifications', diagnostic_log: 'APNS_KEY_UNAVAILABLE' })
-  assert.deepEqual(tokens, ['ops_SYNTHETIC'])
-  stored = 'not a key'
-  await assert.rejects(service.configure({ enabled: true, relayUrl: '' }), { code: 'APNS_KEY_INVALID' })
-  stored = `\n${pem.replace(/\n/gu, '')}\n`
-  const status = await service.configure({ enabled: true, relayUrl: '' })
-  assert.deepEqual([status.configured, status.environments, status.error], [true, ['development', 'production'], undefined])
-  assert.equal(closed, 3)
-  assert.ok(!JSON.stringify([reports, service.status()]).includes('SYNTHETIC') && !JSON.stringify(reports).includes(reference))
-  await config({ production: { keyId: 'KEY7654321', reference: 'op://Private/APNs/key' } })
-  await assert.rejects(service.configure({ enabled: true, relayUrl: '' }), { code: 'APNS_KEY_REFERENCE_INVALID' })
-  for (const bad of [{ keyId: 'KEY7654321', file: 'dev.p8', reference }, { keyId: 'KEY7654321' }, 'dev.p8']) {
-    await config({ production: bad })
-    await assert.rejects(service.configure({ enabled: true, relayUrl: '' }), /APNS_CONFIG_INVALID/u)
+  const provider = await APNsProvider.create(config({ development: { keyId: 'KEY1234567', file: 'dev.p8' } }), root)
+  assert.deepEqual(provider.environments, ['development'])
+  provider.close()
+  for (const bad of [{ keyId: 'KEY7654321', reference }, { keyId: 'KEY7654321', file: 'dev.p8', reference }, { keyId: 'KEY7654321' }, 'dev.p8']) {
+    await assert.rejects(APNsProvider.create(config({ production: bad }), root), /APNS_CONFIG_INVALID/u)
   }
-  await config({ development: { keyId: 'KEY1234567', file: 'dev.p8' } })
-  assert.deepEqual((await service.configure({ enabled: true, relayUrl: '' })).environments, ['development'])
-  await service.close()
 })
 
-test('a500: a read key stays in memory, a 1Password refusal shows as rate limited and is not retried for ten minutes, and a value that is not a key is read again', async () => {
-  const { onePasswordKeyReader } = await import('../src/push-notifications.mjs')
-  const { createOnePasswordSource } = await import('../src/usage/onepassword-source.mjs')
-  const first = `op://${'a'.repeat(26)}/${'b'.repeat(26)}/notesPlain`, second = `op://${'c'.repeat(26)}/${'d'.repeat(26)}/notesPlain`
-  let clock = 1000, calls = [], refuse = false
-  const read = onePasswordKeyReader(null, { now: () => clock, create: () => ({ close() {},
-    resolve: async reference => { calls.push(reference); if (refuse) throw Object.assign(new Error('SECRET_SOURCE_UNAVAILABLE'), { reason: 'rate_limited' }); return `PEM:${reference.slice(5, 6)}` } }) })
-  assert.deepEqual([...await read([first])], [[first, 'PEM:a']])
-  assert.deepEqual([...await read([first])], [[first, 'PEM:a']])
-  assert.deepEqual(calls, [first]) // the second read came from memory
-  refuse = true
-  await assert.rejects(read([first, second]), { code: 'APNS_KEY_RATE_LIMITED' })
-  assert.deepEqual(calls, [first, second]) // only the missing reference was asked, and stopped at the refusal
-  refuse = false; clock += 9 * 60 * 1000
-  await assert.rejects(read([second]), { code: 'APNS_KEY_RATE_LIMITED' })
-  assert.equal(calls.length, 2) // inside the ten minutes 1Password is not called at all
-  assert.deepEqual([...await read([first])], [[first, 'PEM:a']]) // a key already known needs no call, even while refused
-  clock += 2 * 60 * 1000
-  assert.deepEqual([...await read([second])], [[second, 'PEM:c']]) // after the ten minutes it reads again
-  read.forget(); calls = []
-  await read([first]); assert.deepEqual(calls, [first]) // forget() (a value that was not a key) drops what was kept
-  // the source tells op's "Too many requests" from any other failure, without carrying op's text
-  const limited = createOnePasswordSource({ command: '/bin/sh', execute: async () => { throw Object.assign(new Error('boom'), { stderr: Buffer.from('[ERROR] Too many requests. Your client has been rate-limited.') }) } })
-  await assert.rejects(limited.resolve(first), error => error.code === 'SECRET_SOURCE_UNAVAILABLE' && error.reason === 'rate_limited' && !/Too many/u.test(error.message))
-  limited.close()
-})
-
-test('a495b: only Apple rejecting the provider token drops the kept key; other send failures keep it', async () => {
-  let forgotten = 0
-  const readKeys = Object.assign(async () => new Map(), { forget: () => { forgotten++ } })
-  const service = new PushNotifications({ root: '/synthetic-parent-only', bots: new Map(), diagnostics: { record: async () => {} }, readKeys })
-  await service.recordFailure({ code: 'APNS_HTTP_403_EXPIREDPROVIDERTOKEN' })
-  await service.recordFailure({ code: 'APNS_HTTP_500' })
-  assert.equal(forgotten, 0)
-  await service.recordFailure({ code: 'APNS_HTTP_403_INVALIDPROVIDERTOKEN' })
-  assert.equal(forgotten, 1)
-})
-
-test('the operator relay reader leaves the token to the process env', async () => {
-  const { onePasswordKeyReader } = await import('../src/push-notifications.mjs')
-  let setToken = false, closed = false
-  const read = onePasswordKeyReader(null, { create: () => ({ setToken() { setToken = true }, close() { closed = true }, resolve: async () => 'PEM' }) })
-  assert.deepEqual([...await read(['op://x'])], [['op://x', 'PEM']])
-  assert.deepEqual([setToken, closed], [false, true])
-})

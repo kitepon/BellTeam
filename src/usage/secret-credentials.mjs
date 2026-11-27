@@ -3,7 +3,6 @@ import { mkdir, open, readdir, realpath, rename, rm, writeFile } from 'node:fs/p
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
-import { createOnePasswordSource, validateOnePasswordReference } from './onepassword-source.mjs'
 
 const id = value => typeof value === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,199}$/u.test(value)
 const error = (code, status = 400) => Object.assign(new Error(code), { code, status })
@@ -54,17 +53,15 @@ export class SecretCredentials {
   #closed = false
   #bindingOrder = 0
   #takeOnce
-  constructor({ root, getRequest, onePassword = createOnePasswordSource(), providers = {}, retryMs = 60000, takeOnce = () => null }) {
+  constructor({ root, getRequest, providers = {}, retryMs = 60000, takeOnce = () => null }) {
     this.#takeOnce = takeOnce
     this.sourceDirectory = join(root, 'state/secret-sources')
     this.directory = join(root, 'state/secret-credentials')
     this.toolsDirectory = join(root, 'state/secret-values')
     this.moduleDirectory = join(root, 'state/secret-module-values')
     this.getRequest = getRequest
-    this.onePassword = onePassword
     this.retryMs = retryMs
     this.#providers = new Map(Object.entries(providers))
-    this.onePassword.watch(() => this.#publishRecovery())
   }
 
   async initialize({ readOnly = false } = {}) {
@@ -77,7 +74,8 @@ export class SecretCredentials {
         const record = JSON.parse(await readPrivateSecret(join(directory, name), 8192))
         const key = name.slice(0, -5)
         if (items === this.#sources) {
-          if (record.kind === 'onepassword') validateOnePasswordReference(record.reference)
+          // 2026-11-27: a 1Password source is read no more; an old record stays so its handle reports unavailable until the secret is entered again.
+          if (record.kind === 'onepassword') { if (typeof record.reference !== 'string') throw error('SECRET_STORAGE_INVALID', 503) }
           else if (record.kind !== 'provider' || !id(record.providerId)) throw error('SECRET_STORAGE_INVALID', 503)
         } else if (record.handle !== key || !credentialScopeValid({ terminalId: record.terminalId, purpose: record.purpose })
           || !id(record.requestId) || !Number.isSafeInteger(record.revision) || record.revision < 1
@@ -88,13 +86,11 @@ export class SecretCredentials {
         if (items === this.#handles) this.#bindingOrder = Math.max(this.#bindingOrder, record.bindingOrder ?? 0)
       }
     }
-    await this.onePassword.refresh()
   }
 
-  inputOptions() { return { preferred: this.onePassword.available ? 'onepassword' : 'stored', onePasswordAvailable: this.onePassword.available } }
   watch(listener) { this.#events.on('change', listener); return () => this.#events.off('change', listener) }
   watchRecovery(listener) { this.#events.on('recovery', listener); return () => this.#events.off('recovery', listener) }
-  recoveryState() { return { recoveryNeeded: !this.onePassword.available || [...this.#availability.values()].some(available => !available) } }
+  recoveryState() { return { recoveryNeeded: [...this.#availability.values()].some(available => !available) } }
   #publishRecovery() {
     const state = this.recoveryState()
     if (!this.#closed && state.recoveryNeeded !== this.#recovery) {
@@ -121,10 +117,7 @@ export class SecretCredentials {
   async registerSource(requestId, source) {
     if (!id(requestId)) throw error('SECRET_REQUEST_INVALID')
     let record
-    if (source?.source === 'onepassword') {
-      validateOnePasswordReference(source.reference)
-      record = { kind: 'onepassword', reference: source.reference }
-    } else if (source?.source === 'provider' && this.#providers.has(source.providerId)) record = { kind: 'provider', providerId: source.providerId }
+    if (source?.source === 'provider' && this.#providers.has(source.providerId)) record = { kind: 'provider', providerId: source.providerId }
     else throw error('SECRET_VALUE_INVALID')
     const path = join(this.sourceDirectory, requestId + '.json')
     await mkdir(this.sourceDirectory, { recursive: true, mode: 0o700 })
@@ -145,7 +138,7 @@ export class SecretCredentials {
     if (this.#availability.has(requestId)) return this.#availability.get(requestId)
     const source = this.#sources.get(requestId)
     if (!source) return true
-    return source.kind === 'onepassword' ? this.onePassword.available : this.#providers.get(source.providerId)?.available === true
+    return source.kind === 'onepassword' ? false : this.#providers.get(source.providerId)?.available === true
   }
   #dto(record) { return { handle: record.handle, revision: record.revision, available: !record.revoked && this.#available(record.requestId) } }
   #event(record, reason) { return { ...this.#dto(record), terminalId: record.terminalId, purpose: record.purpose, requestId: record.requestId, reason } }
@@ -305,7 +298,7 @@ export class SecretCredentials {
     const item = this.#request(requestId), source = this.#sources.get(requestId)
     try {
       let value
-      if (source?.kind === 'onepassword') value = await this.onePassword.resolve(source.reference)
+      if (source?.kind === 'onepassword') throw error('SECRET_SOURCE_UNAVAILABLE', 503)
       else if (source?.kind === 'provider') {
         const provider = this.#providers.get(source.providerId)
         if (!provider) throw error('SECRET_SOURCE_UNAVAILABLE', 503)
@@ -343,9 +336,8 @@ export class SecretCredentials {
     } finally { value = null }
   }
   async refreshAvailability() {
-    await this.onePassword.refresh()
     const pending = new Set([...this.#availability].filter(([, available]) => !available).map(([id]) => id))
-    if (!this.onePassword.available) for (const record of this.#handles.values()) {
+    for (const record of this.#handles.values()) {
       if (!record.revoked && this.#sources.get(record.requestId)?.kind === 'onepassword') pending.add(record.requestId)
     }
     for (const requestId of pending) {
@@ -357,5 +349,5 @@ export class SecretCredentials {
     }
     return this.#publishRecovery()
   }
-  close() { this.#closed = true; clearTimeout(this.#retry); this.onePassword.close() }
+  close() { this.#closed = true; clearTimeout(this.#retry) }
 }

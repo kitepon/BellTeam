@@ -8,15 +8,17 @@ import { notificationsReadyValid } from '../src/notifications-ipc.mjs'
 // a487n stage 1: webPush is leaving. Every reader accepts the shipped shape (with webPush) and the shape without it,
 // before any writer stops sending it (module-ipc.md "Records between halves that ship apart").
 // a487n stage 2: the child's own list no longer has webPush; the readers still accept the older list that has it
+// 2026-11-27: onePassword is the third optional feature (the Settings 1Password feature is gone); readers first, the usage child stops writing it.
 const all = ['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'webPush', 'onePassword', 'thinkingDisplay']
 const without = (...ids) => all.filter(id => !ids.includes(id))
 
-test('the usage state compatibility accepts every combination of the two optional features and nothing else', () => {
-  assert.deepEqual(USAGE_STATE_COMPATIBILITY.settingsFeatures, without('webPush'))
-  for (const list of [all, without('webPush'), without('thinkingDisplay'), without('webPush', 'thinkingDisplay')]) {
-    assertUsageStateCompatibility({ ...USAGE_STATE_COMPATIBILITY, settingsFeatures: list })
+test('the usage state compatibility accepts every combination of the three optional features and nothing else', () => {
+  assert.deepEqual(USAGE_STATE_COMPATIBILITY.settingsFeatures, without('webPush', 'onePassword'))
+  const optional = ['webPush', 'onePassword', 'thinkingDisplay']
+  for (let mask = 0; mask < 8; mask++) {
+    assertUsageStateCompatibility({ ...USAGE_STATE_COMPATIBILITY, settingsFeatures: without(...optional.filter((_, bit) => mask & (1 << bit))) })
   }
-  for (const list of [without('onePassword'), without('routing', 'webPush'), [...all].reverse(), [...all, 'extra']]) {
+  for (const list of [without('routing', 'webPush'), [...all].reverse(), [...all, 'extra']]) {
     assert.throws(() => assertUsageStateCompatibility({ ...USAGE_STATE_COMPATIBILITY, settingsFeatures: list }), { code: 'USAGE_STATE_INCOMPATIBLE' })
   }
   assert.throws(() => assertUsageStateCompatibility({ ...USAGE_STATE_COMPATIBILITY, secretEncoding: 'utf8-exclusive-0600' }), { code: 'USAGE_STATE_INCOMPATIBLE' })
@@ -26,6 +28,7 @@ test('the settings list check accepts a list without webPush, still refuses one 
   assert.equal(usageFeatureIdsValid(all), true)
   assert.equal(usageFeatureIdsValid(without('webPush')), true)
   assert.equal(usageFeatureIdsValid(without('webPush', 'thinkingDisplay')), true)
+  assert.equal(usageFeatureIdsValid(without('webPush', 'onePassword')), true)
   assert.equal(usageFeatureIdsValid(without('routing')), false)
 })
 
@@ -34,6 +37,7 @@ test('a usage handoff with or without webPush epochs is read; a missing core epo
   assert.equal(usageHandoffValid(handoff(all)), true)
   assert.equal(usageHandoffValid(handoff(without('webPush'))), true)
   assert.equal(usageHandoffValid(handoff(without('webPush', 'thinkingDisplay'))), true)
+  assert.equal(usageHandoffValid(handoff(without('webPush', 'onePassword'))), true)
   assert.equal(usageHandoffValid(handoff(without('routing'))), false)
 })
 
@@ -45,10 +49,4 @@ test('the notifications ready answer is read with and without webPush in status 
   assert.equal(notificationsReadyValid({ status: { apns }, applyError: { apns: 'PUSH_CONFIGURATION_FAILED' } }), true)
   assert.equal(notificationsReadyValid({ status: { webPush: web }, applyError: { apns: null } }), false)
   assert.equal(notificationsReadyValid({ status: { apns }, applyError: { apns: null, other: null } }), false)
-})
-
-test('an APNs key that 1Password cannot give still yields a valid ready answer', () => {
-  const error = { code: 'APNS_KEY_UNAVAILABLE', message: '1PasswordからAPNsの鍵を読めませんでした。設定の「1Password連携」がつながっているか、鍵の参照が正しいかを確かめてください。' }
-  assert.equal(notificationsReadyValid({ status: { apns: { configured: false, environments: [], error } }, applyError: { apns: null } }), true)
-  assert.equal(notificationsReadyValid({ status: { apns: { configured: false, environments: [], error: { code: 'APNS_KEY_UNAVAILABLE', message: '' } } }, applyError: { apns: null } }), false)
 })

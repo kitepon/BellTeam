@@ -12,7 +12,7 @@ BellTeamはメンバーの返信（直接会話・ルーム）、秘密情報の
 
 Apple DeveloperのApp IDでPush Notificationsを有効にし、そのアプリのTopicと環境に対応したAPNs署名キーを発行する。TestFlightとApp Storeはproduction、Debugはdevelopmentを使う。App Store Connectのアップロード用APIキーとは別のキーである。
 
-各コンテナの永続領域`/srv/bellteam/shared/tools/apns/`に秘密鍵と`config.json`を置く。ホストからは`runtime/data/shared/tools/apns/`に対応する。設定例の値はすべて各配布者のものに置き換える。
+2026-11-27：利用者のサーバーはAPNsの秘密鍵を持たず、`shared/tools/apns/` も読まない（残っていても無視する）。通知は設定の「通知中継URL」の運営relay（`bellteam-push`）だけを通して送る。以下の `config.json` と鍵の置き方は、運営が動かす中継（`services/notifications`、`BELLTEAM_APNS_DIRECTORY`）の話で、鍵は `{keyId, file}` の `.p8` だけ（1Password参照は無い）。設定例の値はすべて運営のものに置き換える。
 
 ```json
 {
@@ -46,7 +46,7 @@ Apple Developer の Certificates, Identifiers & Profiles で、署名の前に�
 
 Androidアプリ（Neon、`dev.kitepon.bellbot`）へも、アプリを閉じている間の通知をFirebase Cloud Messaging（FCM）で送る。対象の出来事・文言はAPNsと同じ（返信、ルームの新着、秘密情報の入力依頼、選んでほしいこと）。更新のお知らせもAndroidへ同じ文言で送る（Updateを開く）。通知の「オン／オフ」設定と中継のURLの設定はAndroidにも効く。中継を使うサーバーでは、購読（どの購入元でも）がある時だけ、運営の中継が送る。
 
-配布者はFirebaseのサービスアカウントの鍵（JSON）を取得し、`/srv/bellteam/shared/tools/fcm/config.json` に `{ "serviceAccount": { "file": "firebase-service-account.json" } }`（鍵は同じ場所の0600のファイル）か `{ "serviceAccount": { "reference": "op://保管庫のID/アイテムのID/フィールド名" } }`（1Password、APNsの鍵参照と同じ連携）を書く。設定がなければAndroid通知は無効で、設定や鍵が不正でもAPNs・Web通知は止まらない。端末の登録は `state/fcm-devices.json` に別に保存する。認証済みAPIは `POST /api/notifications/android/devices`、`POST /api/notifications/android/unregister`、`GET /api/notifications/android`。構成・契約・保護の全文は [fcm-push](architecture/modules/usage/fcm-push.md)。
+配布者はFirebaseのサービスアカウントの鍵（JSON）を取得し、運営の中継の `BELLTEAM_FCM_DIRECTORY/config.json` に `{ "serviceAccount": { "file": "firebase-service-account.json" } }`（鍵は同じ場所の0600のファイル）を書く。利用者のサーバーは `shared/tools/fcm` を読まない（2026-11-27）。通知中継URLがなければAndroid通知は無効で、設定や鍵が不正でもAPNs・Web通知は止まらない。端末の登録は `state/fcm-devices.json` に別に保存する。認証済みAPIは `POST /api/notifications/android/devices`、`POST /api/notifications/android/unregister`、`GET /api/notifications/android`。構成・契約・保護の全文は [fcm-push](architecture/modules/usage/fcm-push.md)。
 
 ## 送信と記録
 

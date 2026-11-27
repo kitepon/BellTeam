@@ -1,4 +1,4 @@
-import { access, chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { isSupportedServerURL } from './server-address.mjs'
 
@@ -13,26 +13,11 @@ const features = [
   ] },
   { id: 'diagnostics', title: '診断情報の連携', fields: [{ key: 'key', label: 'BugHubの合鍵', secret: true }] },
   { id: 'notifications', title: 'プッシュ通知', fields: [{ key: 'relayUrl', label: '通知中継URL', url: true }] },
-  { id: 'onePassword', title: '1Password連携', fields: [{ key: 'token', label: 'サービスアカウントのトークン', secret: true }],
-    guide: {
-      steps: [
-        '1Passwordに保存しているSSH鍵を、端末の鍵として一覧から選べるようになります。使わない場合は、鍵を貼り付けて登録できます。',
-        '「サービスアカウント」は、BellTeamのようなアプリが1Passwordを読むための専用の鍵です。1Passwordのアカウントで1回作ります。',
-        '1. 下の案内を開き、1Password.comで「サービスアカウントを作成」を選びます。名前は「BellTeam」など分かるものにします。',
-        '2. 読める保管庫に、SSH鍵を入れている保管庫を選び、「読み取り」を許可します。「個人」「プライベート」の保管庫は選べないので、鍵はほかの保管庫に入れてください。',
-        '3. 最後に表示されるトークン（ops_で始まる文字）をコピーし、下の欄に貼って保存します。トークンはこのあと画面に表示しません。',
-      ],
-      link: { label: 'サービスアカウントの作り方を開く（1Password）', url: 'https://developer.1password.com/docs/service-accounts/get-started/' },
-    } },
   // a479: a plain switch, no fields; hidden until the Owner turns it on.
   { id: 'thinkingDisplay', title: 'AIの考えの表示', fields: [] },
 ]
 // Features added after the first release; a stored file without them gains their disabled default.
-const lateFeatures = ['onePassword', 'thinkingDisplay']
-const onePasswordErrors = {
-  ONEPASSWORD_TOKEN_REJECTED: 'このトークンで1Passwordに接続できませんでした。トークンを貼り直してください。サービスアカウントが無効になっていないか、通信ができるかも確かめてください。',
-  ONEPASSWORD_CLI_MISSING: 'この本体には1Passwordに接続する道具がありません。BellTeamを更新してください。',
-}
+const lateFeatures = ['thinkingDisplay']
 
 export class FeatureSettingsError extends Error {
   constructor(code, status, message, cause) {
@@ -52,8 +37,7 @@ function object(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
-function configured(feature, values, legacyAPNsConfigured = false) {
-  if (feature.id === 'notifications' && legacyAPNsConfigured && !values.relayUrl.trim()) return true
+function configured(feature, values) {
   return feature.fields.every(field => field.optional || Boolean(values[field.key].trim()))
 }
 
@@ -65,9 +49,6 @@ function validateValues(feature, values) {
     const field = feature.fields.find(item => item.key === key)
     if (typeof value !== 'string' || value.includes('\0')) {
       throw new FeatureSettingsError('FEATURE_VALUE_INVALID', 400, '設定値は文字列で入力してください。')
-    }
-    if (feature.id === 'onePassword' && value.trim() && !/^ops_\S+$/u.test(value.trim())) {
-      throw new FeatureSettingsError('FEATURE_VALUE_INVALID', 400, 'サービスアカウントのトークンは「ops_」で始まる文字です。1Passwordで表示されたトークンをそのまま貼ってください。')
     }
     if (!value.trim()) continue
     if (field.url || field.domain) {
@@ -89,9 +70,7 @@ export class FeatureSettings {
     this.path = join(root, 'shared/tools/bellteam-settings/settings.json')
     this.environment = environment
     this.onChange = onChange
-    this.legacyAPNsConfigured = false
     this.errors = new Map()
-    this.connections = new Map()
     this.routingEpoch = 0
     this.settings = Object.fromEntries(features.map(feature => [feature.id, {
       enabled: false, ...Object.fromEntries(feature.fields.map(field => [field.key, ''])),
@@ -100,11 +79,6 @@ export class FeatureSettings {
   }
 
   async initialize({ readOnly = false } = {}) {
-    this.legacyAPNsConfigured = false
-    try {
-      await access(join(this.root, 'shared/tools/apns/config.json'))
-      this.legacyAPNsConfigured = true
-    } catch (error) { if (error.code !== 'ENOENT') throw error }
     let text
     try { text = await readFile(this.path, 'utf8') }
     catch (error) { if (error.code !== 'ENOENT') throw error }
@@ -115,6 +89,10 @@ export class FeatureSettings {
         // a487n: Web push is gone (the browser version is abolished); an entry written by an older version is dropped.
         const droppedWebPush = Object.hasOwn(settings, 'webPush')
         delete settings.webPush
+        // 2026-11-27: the Settings 1Password feature is gone; an entry written by an older version is dropped.
+        const droppedOnePassword = Object.hasOwn(settings, 'onePassword')
+        let switchedOffNotifications = false
+        delete settings.onePassword
         const missing = features.filter(feature => !Object.hasOwn(settings, feature.id))
         if (missing.some(feature => !lateFeatures.includes(feature.id))) throw new Error('設定項目が一致しません。')
         const expected = features.filter(feature => Object.hasOwn(settings, feature.id))
@@ -125,11 +103,16 @@ export class FeatureSettings {
           const { enabled, ...values } = entry
           if (Object.keys(values).length !== feature.fields.length) throw new Error('設定項目が一致しません。')
           validateValues(feature, values)
-          if (enabled && !configured(feature, values, this.legacyAPNsConfigured)) throw new Error('有効な設定に必要な値がありません。')
+          if (enabled && !configured(feature, values)) {
+            // 2026-11-27: "on with no relay URL" was the old direct-send state (an apns/config.json beside it); there is no direct send now, so it becomes off instead of a broken settings file.
+            if (feature.id !== 'notifications') throw new Error('有効な設定に必要な値がありません。')
+            entry.enabled = false
+            switchedOffNotifications = true
+          }
         }
         this.settings = { ...settings, ...Object.fromEntries(missing.map(feature => [feature.id, {
           enabled: false, ...Object.fromEntries(feature.fields.map(field => [field.key, ''])) }])) }
-        if ((missing.length || droppedWebPush) && !readOnly) await this.save(this.settings)
+        if ((missing.length || droppedWebPush || droppedOnePassword || switchedOffNotifications) && !readOnly) await this.save(this.settings)
       } catch (cause) {
         throw new FeatureSettingsError('FEATURE_SETTINGS_INVALID', 500, '保存済みの設定を読み取れません。', cause)
       }
@@ -145,7 +128,7 @@ export class FeatureSettings {
     for (const feature of features) {
       const { enabled, ...values } = this.settings[feature.id]
       validateValues(feature, values)
-      this.settings[feature.id].enabled = feature.fields.length > 0 && configured(feature, values, this.legacyAPNsConfigured)
+      this.settings[feature.id].enabled = feature.fields.length > 0 && configured(feature, values)
     }
     await this.save(this.settings)
     return this.list()
@@ -156,14 +139,12 @@ export class FeatureSettings {
       const values = this.settings[feature.id]
       return {
         id: feature.id, title: feature.title, enabled: values.enabled,
-        status: !configured(feature, values, this.legacyAPNsConfigured) ? 'unconfigured' : values.enabled ? 'enabled' : 'disabled',
+        status: !configured(feature, values) ? 'unconfigured' : values.enabled ? 'enabled' : 'disabled',
         ...(this.errors.has(feature.id) ? { error: this.errors.get(feature.id) } : {}),
-        ...(this.connections.has(feature.id) ? { connection: structuredClone(this.connections.get(feature.id)) } : {}),
-        ...(feature.guide ? { guide: { steps: [...feature.guide.steps], link: { ...feature.guide.link } } } : {}),
         fields: feature.fields.map(field => ({
           key: field.key, label: field.label, secret: field.secret === true,
           value: field.secret ? '' : values[field.key], configured: Boolean(values[field.key].trim()),
-          required: !field.optional && !(feature.id === 'notifications' && this.legacyAPNsConfigured),
+          required: !field.optional,
         })),
       }
     })
@@ -178,17 +159,9 @@ export class FeatureSettings {
     return { enabled: this.settings.routing.enabled, epoch: this.routingEpoch }
   }
 
-  // What a connected feature can see (1Password: vault names and SSH key count); never a value.
-  setConnection(id, connection) {
-    definition(id)
-    if (connection) this.connections.set(id, connection)
-    else this.connections.delete(id)
-  }
-
   setError(id, error) {
     definition(id)
     if (!error) this.errors.delete(id)
-    else if (Object.hasOwn(onePasswordErrors, error.code)) this.errors.set(id, { code: error.code, message: onePasswordErrors[error.code] })
     else this.errors.set(id, { code: /^[A-Z_0-9]+$/u.test(error.code ?? '') ? error.code : 'FEATURE_APPLY_FAILED', message: '設定を保存しましたが、反映できませんでした。設定を確認して再度保存してください。' })
   }
 
@@ -223,7 +196,7 @@ export class FeatureSettings {
         }
       }
       const next = { ...this.settings[id], ...values, enabled: input.enabled ?? this.settings[id].enabled }
-      if (next.enabled && !configured(feature, next, this.legacyAPNsConfigured)) {
+      if (next.enabled && !configured(feature, next)) {
         throw new FeatureSettingsError('FEATURE_UNCONFIGURED', 400, '有効にするには必要な項目を登録してください。')
       }
       const settings = { ...this.settings, [id]: next }

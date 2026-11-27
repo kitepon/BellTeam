@@ -1,8 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { importPKCS8, SignJWT } from 'jose'
-import { onePasswordKeyReader } from './push-notifications.mjs'
-import { validateOnePasswordReference } from './usage/onepassword-source.mjs'
 import { NotificationRelayProvider } from './push-notifications.mjs'
 import { FCM_CHANNEL, fcmError, validateFcmDevice, validateFcmToken } from './usage/fcm-schema.mjs'
 
@@ -13,9 +11,7 @@ const SCOPE = 'https://www.googleapis.com/auth/firebase.messaging'
 const STATE_SCHEMA = 'bellteam.fcm-devices.v1'
 const MESSAGES = {
   FCM_CONFIG_INVALID: 'Android通知の設定（shared/tools/fcm/config.json）の形が正しくありません。',
-  FCM_KEY_REFERENCE_INVALID: 'Android通知の鍵の1Password参照の形式が正しくありません。op://保管庫のID/アイテムのID/フィールド名 の形で書いてください。',
-  FCM_KEY_UNAVAILABLE: 'Android通知の鍵を読めませんでした。設定の「1Password連携」がつながっているか、鍵の参照が正しいかを確かめてください。',
-  FCM_KEY_RATE_LIMITED: 'Android通知の鍵の読み取りを、1Passwordが一時的に断っています。10分ほど待ってから、通知の設定を保存し直してください。',
+  FCM_KEY_UNAVAILABLE: 'Android通知の鍵（Firebaseのサービスアカウント）のファイルを読めませんでした。',
   FCM_KEY_INVALID: 'Android通知の鍵（Firebaseのサービスアカウント）の中身が正しくありません。Firebaseから取得したJSONをそのまま保存し直してください。',
   FCM_STATE_INVALID: 'Android端末の登録ファイルを読めませんでした。',
 }
@@ -97,20 +93,14 @@ export class FcmProvider {
   close() {}
 }
 
-// Direct credential: shared/tools/fcm/config.json -> a service account file or an op:// reference. null when there is no config.json.
-export async function loadFcmProvider(directory, { readKeys, fetch: request = fetch } = {}) {
+// Only the operator relay builds this (services/notifications): shared config.json = {serviceAccount:{file}}, the Firebase key JSON beside it.
+export async function loadFcmProvider(directory, { fetch: request = fetch } = {}) {
   let config
   try { config = JSON.parse(await readFile(join(directory, 'config.json'), 'utf8')) }
   catch (error) { if (error.code === 'ENOENT') return null; throw fcmError('FCM_CONFIG_INVALID') }
-  const source = config?.serviceAccount, file = Object.hasOwn(source ?? {}, 'file')
-  if (Object.keys(config ?? {}).join() !== 'serviceAccount' || Object.keys(source ?? {}).length !== 1
-    || file === Object.hasOwn(source ?? {}, 'reference') || (file && !/^[\w.-]+\.json$/u.test(source.file ?? ''))) throw fcmError('FCM_CONFIG_INVALID')
-  let text
-  if (file) text = await readFile(join(directory, source.file), 'utf8').catch(() => { throw fcmError('FCM_KEY_UNAVAILABLE') })
-  else {
-    try { validateOnePasswordReference(source.reference) } catch { throw fcmError('FCM_KEY_REFERENCE_INVALID') }
-    text = (await readKeys([source.reference]).catch(error => { throw fcmError(error?.code === 'APNS_KEY_RATE_LIMITED' ? 'FCM_KEY_RATE_LIMITED' : 'FCM_KEY_UNAVAILABLE') })).get(source.reference)
-  }
+  const source = config?.serviceAccount
+  if (Object.keys(config ?? {}).join() !== 'serviceAccount' || Object.keys(source ?? {}).join() !== 'file' || !/^[\w.-]+\.json$/u.test(source.file ?? '')) throw fcmError('FCM_CONFIG_INVALID')
+  const text = await readFile(join(directory, source.file), 'utf8').catch(() => { throw fcmError('FCM_KEY_UNAVAILABLE') })
   let account
   try { account = JSON.parse(text) } catch { throw fcmError('FCM_KEY_INVALID') }
   return FcmProvider.create(account, { fetch: request })
@@ -137,10 +127,9 @@ export class FcmRelayProvider {
 }
 
 export class FcmNotifications {
-  constructor({ root, diagnostics, readKeys = onePasswordKeyReader(root), fetch: request = fetch }) {
+  constructor({ root, diagnostics, fetch: request = fetch }) {
     this.root = root
     this.diagnostics = diagnostics
-    this.readKeys = readKeys
     this.request = request
     this.file = join(root, 'state/fcm-devices.json')
     this.devices = new Map()
@@ -164,12 +153,11 @@ export class FcmNotifications {
     } catch { this.broken = true; await this.#fail(fcmError('FCM_STATE_INVALID'), 'SERVER_PUSH_UNAVAILABLE'); return }
   }
 
-  // relayUrl set = the operator relay carries the send (like APNs); otherwise the credential in shared/tools/fcm.
+  // relayUrl set = the operator relay carries the send (like APNs); empty = no provider: the server holds no Firebase credential (Tronie 2026-11-27).
   async load() {
     this.provider?.close(); this.provider = null
     try {
-      this.provider = this.relayUrl ? await FcmRelayProvider.create(this.relayUrl, this.request)
-        : await loadFcmProvider(join(this.root, 'shared/tools/fcm'), { readKeys: this.readKeys, fetch: this.request })
+      this.provider = this.relayUrl ? await FcmRelayProvider.create(this.relayUrl, this.request) : null
       this.error = null
     // The relay being unreachable is the cause the APNs apply already reports; FCM only shows it on its status.
     } catch (error) { await this.#fail(error, 'SERVER_PUSH_UNAVAILABLE', !/^PUSH_RELAY_/u.test(error.code ?? '')) }

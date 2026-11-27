@@ -10,13 +10,13 @@ import { usageResultValid } from '../src/usage/process-results.mjs'
 
 const scope = { terminalId: 'synthetic-terminal', purpose: 'terminal.ssh' }
 const context = { ...scope, memberId: 'bot-a' }
-const reference = `op://${'a'.repeat(26)}/${'b'.repeat(26)}/credential`
-const provider = () => ({ available: true, reads: 0, async refresh() {}, close() {}, watch: () => () => {}, async resolve() { this.reads++; return 'synthetic-OpenSSH-key\n' } })
+// 2026-11-27: no 1Password source; a private provider (a fixed local key) is injected as a capability.
+const provider = () => ({ available: true, reads: 0, async resolve() { this.reads++; return 'synthetic-OpenSSH-key\n' } })
 async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'terminal-secret-requests-'))
   const bots = new Map([['bot-a', { id: 'bot-a', name: 'A' }]])
   const onePassword = provider(), notify = []
-  const service = new SecretRequests({ root, bots, rooms: new Map(), onePassword, credentialRetryMs: 0,
+  const service = new SecretRequests({ root, bots, rooms: new Map(), secretProviders: { fake: onePassword }, credentialRetryMs: 0,
     notify: value => notify.push(value), onRequest: value => notify.push(value) })
   await service.initialize()
   t.after(async () => { service.close(); await rm(root, { recursive: true, force: true }) })
@@ -29,8 +29,8 @@ test('Owner terminal cards bind exact retained SSH/sudo scope and stay outside B
   const { secretRequest } = await service.requestTerminalKey({ ...scope, purpose: 'ssh-key', label: 'SSH key' })
   assert.equal(secretRequest.botId, null)
   assert.equal(secretRequest.purpose, 'terminal.ssh')
-  assert.deepEqual(secretRequest.inputOptions, { preferred: 'onepassword', onePasswordAvailable: true })
-  await service.submit(secretRequest.id, { source: 'onepassword', reference })
+  assert.deepEqual(secretRequest.inputOptions, { preferred: 'stored', onePasswordAvailable: false })
+  await service.submitProvider(secretRequest.id, 'fake')
   const current = await service.currentCredential(scope)
   assert.equal(current.requestId, secretRequest.id)
   assert.deepEqual(events.at(-1), { ...scope, ...current, reason: 'bound' })
@@ -41,7 +41,7 @@ test('Owner terminal cards bind exact retained SSH/sudo scope and stay outside B
   assert.equal((await service.currentCredential({ ...scope, purpose: 'terminal.sudo' })).requestId, sudo.secretRequest.id)
   assert.deepEqual(service.timeline({ botId: 'bot-a' }), [])
   assert.deepEqual(notify, [])
-  assert.ok(!JSON.stringify([events, current, secretRequest]).includes(reference))
+  assert.ok(!JSON.stringify([events, current, secretRequest]).includes('synthetic-OpenSSH-key'))
   await assert.rejects(service.bindCredential(secretRequest.id, { ...scope, terminalId: 'another-terminal' }), { code: 'SECRET_CREDENTIAL_FORBIDDEN' })
 })
 
@@ -61,7 +61,7 @@ test('new Owner request cancels pending predecessor; unbind persists revocation 
   await assert.rejects(service.withResolved(current.handle, context, () => assert.fail()), { code: 'SECRET_CREDENTIAL_REVOKED' })
   await assert.rejects(service.bindCredential(second.secretRequest.id, scope), { code: 'SECRET_REQUEST_CLOSED' })
   service.close()
-  const restored = new SecretRequests({ root, bots, rooms: new Map(), onePassword: provider(), credentialRetryMs: 0, notify() {} })
+  const restored = new SecretRequests({ root, bots, rooms: new Map(), credentialRetryMs: 0, notify() {} })
   t.after(() => restored.close())
   await restored.initialize({ readOnly: true })
   assert.equal(await restored.currentCredential(scope), null)
@@ -92,7 +92,7 @@ test('parent terminal-key facade captures authority, publishes correlated select
         Object.defineProperty(run, 'completion', { value: run }); return run
       }, async close() { await service.quiesce(); service.close() },
     } } })
-  service = createUsageServices({ root, bots, rooms: new Map(), onePassword: provider(), effect: async (method, params) => { if (method !== 'cli.probe') effects.push({ method, params }) },
+  service = createUsageServices({ root, bots, rooms: new Map(), effect: async (method, params) => { if (method !== 'cli.probe') effects.push({ method, params }) },
     onProjection: async row => { rows.push(row); await ports.onProjection(row, { phase: 'update', generation: 'terminal-test' }) } })
   await service.initializeSettings(); await service.initialize()
   ports.onSnapshotStart({ generation: 'terminal-test' })
@@ -101,12 +101,12 @@ test('parent terminal-key facade captures authority, publishes correlated select
   t.after(() => assembly.close())
   const { secretRequest } = await assembly.credentials.requestTerminalKey({ ...scope, label: 'app key' })
   await assert.rejects(service.request('secrets.get', { id: secretRequest.id }, { kind: 'bot', botId: 'bot-a' }), { code: 'SECRET_REQUEST_NOT_FOUND' })
-  await service.request('secrets.submit', { id: secretRequest.id, value: { source: 'onepassword', reference } }, { kind: 'owner', botId: null })
+  await service.request('secrets.submit', { id: secretRequest.id, value: 'synthetic-OpenSSH-key\n' }, { kind: 'owner', botId: null })
   const current = await assembly.credentials.current(scope)
   assert.equal(current.requestId, secretRequest.id)
   assert.equal(await assembly.credentials.withResolved(current.handle, { ...context, expectedRevision: current.revision }, value => value), 'synthetic-OpenSSH-key\n')
   assert.equal(effects.length, 0)
-  assert.ok(!JSON.stringify(rows).includes(reference))
+  assert.ok(!JSON.stringify(rows).includes('synthetic-OpenSSH-key'))
   await assembly.credentials.unbind(current.handle, scope)
   assert.equal(await assembly.credentials.current(scope), null)
   const pending = await assembly.credentials.requestTerminalKey({ ...scope, label: 'delete before first submit' })

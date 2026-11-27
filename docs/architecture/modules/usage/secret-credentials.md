@@ -1,14 +1,27 @@
-# Secret credentials and 1Password (C5)
+# Secret credentials (C5; the 1Password source was withdrawn 2026-11-27)
 
 Owner: Mika. Consumer: terminals (Crust), existing settings/auth consumers. Parent composition and authenticated capability capture: Molly. Web: Admi. 1Password deployment: Sakura.
+
+
+## 2026-11-27: the 1Password source is gone (Tronie ruling, Owner: no service account or direct 1Password read in BellTeam)
+
+BellTeam no longer reads 1Password. `src/usage/onepassword-source.mjs`, the Settings `onePassword` feature (token field, guide, connection, errors), the SSH/sudo key pickers (`GET /api/secret-requests/:id/onepassword-items`, `secrets.onePasswordItems`), the `{source:'onepassword',reference}` submit and the notifications `onePasswordKeyReader` are removed. Rows below that describe them are withdrawn: **OnePasswordSource, "Settings 1Password連携 token field", the key picker and Web card rows, "APNs key reference consumer in the notifications child"**, and the first-version "Production cause" section. What stays:
+
+| Piece | Contract now |
+| --- | --- |
+| Input | A request accepts the stored string only. `inputOptions` is always `{preferred:'stored', onePasswordAvailable:false}` (the field stays so an older client that reads it sees "paste only"). A `{source:'onepassword'}` submit is refused with `SECRET_VALUE_INVALID` (usage IPC: `USAGE_INPUT_INVALID`; HTTP 400); the route `onepassword-items` is 404. |
+| Private providers | `{source:'provider', providerId}` (fixed local capabilities injected by the parent) is the only non-stored source. |
+| Old records | A source record `{kind:'onepassword', reference}` written by an older version is still read at start so nothing crashes. Its handle reports `available:false` (`SECRET_SOURCE_UNAVAILABLE` on use) and `recoveryNeeded` is true until the secret is entered again; nothing is read from 1Password. Self-exit: the Owner submits the secret again on a new card, `replace` moves the handle to it. |
+| Settings | The `onePassword` feature is not listed; a stored entry is dropped when the settings file loads. Readers (body projection, state compatibility, handoff epochs) still accept an older usage child that lists it (module-ipc.md "Records between halves that ship apart", same two stages as webPush): the body release that holds these readers goes in before the usage module that stops writing it. |
+| Not affected | The 認証仲介 module reads 1Password by itself (`auth-mediation.op-read` scope, module-written value); that is another product's path. |
 
 ## Function contract
 
 | Component | Responsibility and public interface |
 | --- | --- |
-| SecretRequests | All request_secret slots except `oneTime` (see below) accept legacy stored string or `{source:'onepassword',reference:'op://<vault id>/<item id>/<field>'}`. Public request metadata never contains reference/source/value. Pending input options prefer 1Password when connected, with stored input as fallback. |
+| SecretRequests | All request_secret slots except `oneTime` (see below) accept the stored string. (Before 2026-11-27 they also accepted `{source:'onepassword',reference}`; withdrawn, see the 2026-11-27 section.) Public request metadata never contains reference/source/value. Pending input options are `stored` only. |
 | SecretCredentials | Own private request source records, opaque terminal-scoped handles, revisions, value resolution and availability. `bind(requestId,{terminalId,purpose})` returns `{handle,revision,available}`. The parent exports `usageAssembly.credentials = {requestTerminalKey,bind,current,unbind,credential,withResolved,replace,put,erase,refresh,watch,watchRecovery}` and captures system authority internally. `credential(handle,context)` and `withResolved(handle,{terminalId,memberId,purpose},consume)` require a parent-authorized context; consumer callback receives only the value. `replace(handle,requestId,context)` increments revision. |
-| OnePasswordSource | Fixed executable, argument-array `op read --no-newline` with captured stdout only. No shell, value argv, stderr/error forwarding, value cache or value file. `available`, `refresh()`, `watch(listener)`, `close()`; private refresh is invoked by a parent-owned helper after provider availability/recovery, never AI polling. Server op or a terminal-local provider uses the same private interface. |
+| OnePasswordSource (withdrawn 2026-11-27) | Fixed executable, argument-array `op read --no-newline` with captured stdout only. No shell, value argv, stderr/error forwarding, value cache or value file. `available`, `refresh()`, `watch(listener)`, `close()`; private refresh is invoked by a parent-owned helper after provider availability/recovery, never AI polling. Server op or a terminal-local provider uses the same private interface. |
 | Private fixed providers | Parent registers provider capabilities under opaque private IDs. Configuration and key paths stay with secret input/provider owner, not terminal DTOs. No caller-supplied path/command. P1 existing Owner Mac key remains native-held for `owner-macbook` / `terminal.ssh`; authorized parent supplies only the native status/use capability described below. |
 | Usage private IPC | System-only bind/resolve/credential/replace/put/erase/refresh methods; facade captures value only inside trusted callback. No public HTTP/MCP value endpoint. Context DTO is validation data, never authority; authority is the parent-captured token. |
 

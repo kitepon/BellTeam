@@ -16,7 +16,7 @@ const LOGIN_MESSAGES = {
 }
 
 export class SecretRequests {
-  constructor({ root, bots, rooms, notify, onRequest = () => {}, onSave = () => {}, onePassword, secretProviders, credentialRetryMs }) {
+  constructor({ root, bots, rooms, notify, onRequest = () => {}, onSave = () => {}, secretProviders, credentialRetryMs }) {
     this.directory = join(root, 'state/secret-requests')
     this.toolsDirectory = join(root, 'state/secret-values')
     this.bots = bots
@@ -32,16 +32,9 @@ export class SecretRequests {
     // terminal.login and oneTime values live only here and are taken out once (withResolved / resolveValue).
     this.loginValues = new Map()
     const takeOnce = id => { const value = this.loginValues.get(id) ?? null; this.loginValues.delete(id); return value }
-    this.credentials = new SecretCredentials({ root, getRequest: id => this.getPrivate(id), onePassword, providers: secretProviders, retryMs: credentialRetryMs, takeOnce })
+    this.credentials = new SecretCredentials({ root, getRequest: id => this.getPrivate(id), providers: secretProviders, retryMs: credentialRetryMs, takeOnce })
     this.credentials.watch(event => this.events.emit('credential', event))
     this.credentials.watchRecovery(event => this.events.emit('recovery', event))
-    this.credentials.onePassword.watch(() => {
-      for (const item of this.items.values()) {
-        if (item.botId !== null) this.cardTimelines.put(this.get(item.id))
-        this.onSave(this.get(item.id))
-      }
-      this.events.emit('change', { all: true, topics: ['requests'], botIds: [], roomIds: [] })
-    })
   }
 
   async initialize({ readOnly = false } = {}) {
@@ -58,12 +51,6 @@ export class SecretRequests {
     for (const item of this.items.values()) if (item.botId !== null) this.cardTimelines.put(this.get(item.id))
   }
 
-  async onePasswordItems(id) {
-    const { status, purpose } = this.get(id)
-    if (status !== 'pending') throw new Error('SECRET_REQUEST_CLOSED')
-    return purpose === 'terminal.sudo' ? this.credentials.onePassword.listPasswords() : this.credentials.onePassword.listSshKeys()
-  }
-
   getPrivate(id) {
     const item = this.items.get(id)
     if (!item) throw new Error('SECRET_REQUEST_NOT_FOUND')
@@ -72,7 +59,7 @@ export class SecretRequests {
 
   get(id) {
     const { terminalSuperseded, ...item } = this.getPrivate(id)
-    return { ...item, inputOptions: item.purpose === LOGIN || item.oneTime ? { preferred: 'stored', onePasswordAvailable: false } : this.credentials.inputOptions() }
+    return { ...item, inputOptions: { preferred: 'stored', onePasswordAvailable: false } }
   }
 
   async create({ botId, roomId = null, toolId, label, message, oneTime = false }) {
@@ -169,11 +156,8 @@ export class SecretRequests {
     })
     const login = this.get(id).purpose === LOGIN || this.get(id).oneTime === true
     if (value && typeof value === 'object' && !Array.isArray(value)) {
-      if (login || Object.keys(value).sort().join(',') !== 'reference,source' || value.source !== 'onepassword') throw new Error('SECRET_VALUE_INVALID')
-      return this.finish(id, async item => {
-        await this.credentials.registerSource(id, value)
-        return { ...item, status: 'submitted' }
-      })
+      // 2026-11-27: no 1Password source; the stored value is the only way in.
+      throw new Error('SECRET_VALUE_INVALID')
     }
     if (typeof value !== 'string' || value.length === 0 || Buffer.byteLength(value) > 16384 || value.includes('\0')) {
       throw new Error('SECRET_VALUE_INVALID')

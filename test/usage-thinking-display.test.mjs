@@ -21,7 +21,7 @@ const without = (row, id) => ({ list: row.list.filter(item => item.id !== id), c
 
 test('a479: the body accepts a settings list with and without thinkingDisplay, and nothing else missing', async t => {
   const row = await rows(t)
-  assert.equal(row.list.length, 7)
+  assert.equal(row.list.length, 6)
   const record = value => ({ type: 'settings', revision: 1, ...value })
   assert.equal(usageProjectionRecordValid(record(row)), true)
   assert.equal(usageProjectionRecordValid(record(without(row, 'thinkingDisplay'))), true)
@@ -41,5 +41,5 @@ test('a479: the body accepts a settings list with and without thinkingDisplay, a
 test('a479: the body starts a usage child that predates thinkingDisplay', () => {
   assertUsageStateCompatibility(structuredClone(USAGE_STATE_COMPATIBILITY))
   assertUsageStateCompatibility({ ...USAGE_STATE_COMPATIBILITY, settingsFeatures: USAGE_STATE_COMPATIBILITY.settingsFeatures.filter(id => id !== 'thinkingDisplay') })
-  assert.throws(() => assertUsageStateCompatibility({ ...USAGE_STATE_COMPATIBILITY, settingsFeatures: USAGE_STATE_COMPATIBILITY.settingsFeatures.slice(0, 5) }), { code: 'USAGE_STATE_INCOMPATIBLE' })
+  assert.throws(() => assertUsageStateCompatibility({ ...USAGE_STATE_COMPATIBILITY, settingsFeatures: USAGE_STATE_COMPATIBILITY.settingsFeatures.slice(0, 4) }), { code: 'USAGE_STATE_INCOMPATIBLE' })
 })
