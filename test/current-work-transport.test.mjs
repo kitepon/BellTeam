@@ -65,3 +65,16 @@ test('session retirement clears summary at issuance and pending generation chang
   await transport.seatTurns([bot]); assert.equal(transport.currentWorkBinding(bot, source), null)
   finish({ structuredContent: { schema: 'aiterm.pty-close-result.v1', outcome: 'closed', session_id: bot.id } }); await closing
 })
+
+test('one judgment: currentWork working/idle is runningState; a turn BellTeam runs counts while the native read stays unread', async t => {
+  const { transport } = fixture(t, { client: { async call() { return { _meta: { 'aiterm/seat_turns': { schema: 'aiterm.seat-turns.v1', seats: [], unread: [bot.id] } } } } } })
+  assert.equal(transport.runningState(bot.id), 'unknown')
+  await transport.seatTurns([bot])
+  transport.isIdle = () => false
+  assert.equal(transport.currentWork(bot).state, 'working'); assert.equal(transport.runningState(bot.id), 'working')
+  transport.isIdle = () => true
+  assert.equal(transport.currentWork(bot).state, 'unknown'); assert.equal(transport.runningState(bot.id), 'unknown')
+  transport.isIdle = () => false
+  const work = transport.currentWork(bot), { validateCurrentWork } = await import('../src/current-work-contract.mjs')
+  assert.ok(Number.isFinite(Date.parse(work.observedAt))); assert.equal(validateCurrentWork(work).valid, true)
+})
