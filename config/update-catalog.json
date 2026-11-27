@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-27T12:05:32Z",
-  "expiresAt": "2026-12-04T12:05:32Z",
+  "publishedAt": "2026-11-27T12:16:22Z",
+  "expiresAt": "2026-12-04T12:16:22Z",
   "releases": [
     {
       "componentId": "usage",
@@ -491,8 +491,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "04bbd67e602f55e53c9783e938123f07ddb36094",
-      "versionId": "0b90ade8515ab9194cd9735b1b413311e43079bf5e33c357ce3573791f61cd5d",
+      "sourceCommit": "03ecb4ee959fd1a35ba6df6a3a4477376ff822af",
+      "versionId": "e5f4d73eaf5a3444612f9dc3042a1753b2010c9d3f9ac518e9d65fc5e427da2d",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T084230Z/execution-04bbd67e602f55e53c9783e938123f07ddb36094-linux-amd64.tar.gz",
-          "bytes": 3881791,
-          "sha256": "0b90ade8515ab9194cd9735b1b413311e43079bf5e33c357ce3573791f61cd5d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T121601Z/execution-03ecb4ee959fd1a35ba6df6a3a4477376ff822af-linux-amd64.tar.gz",
+          "bytes": 3881985,
+          "sha256": "e5f4d73eaf5a3444612f9dc3042a1753b2010c9d3f9ac518e9d65fc5e427da2d"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T084230Z/execution-04bbd67e602f55e53c9783e938123f07ddb36094-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11322,
-          "sha256": "f37eae9d63a687985e29bb550c38b1b1f655c5b71bba92000feaa6f541d27793"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T121601Z/execution-03ecb4ee959fd1a35ba6df6a3a4477376ff822af-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11130,
+          "sha256": "61730f833ee85f732dcda4bcbe016a69d03c01cfc375500b71d63ff902685b5c"
         },
-        "signerCommit": "04bbd67e602f55e53c9783e938123f07ddb36094"
+        "signerCommit": "03ecb4ee959fd1a35ba6df6a3a4477376ff822af"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +519,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "配達の待ちも、その席の待ちの列に並び、待ちの処理が席ごとに 1 つになります。"
+        "席の起動の数え方が、起動に成功したコンテナの席だけを数えるようになり、端末の席や失敗した起動で「メモリが足りない」と誤って断られなくなります。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "04bbd67e602f55e53c9783e938123f07ddb36094",
-      "versionId": "e2385ac1a380b326926bcb6d4bf46e1d7ca50301d01e791bfb76ad512c799a5c",
+      "sourceCommit": "03ecb4ee959fd1a35ba6df6a3a4477376ff822af",
+      "versionId": "559351bcdfd637f605568026e82278a48a77d4de201e187e4b976e696c1267a4",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +533,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T084230Z/execution-04bbd67e602f55e53c9783e938123f07ddb36094-linux-arm64.tar.gz",
-          "bytes": 3881791,
-          "sha256": "e2385ac1a380b326926bcb6d4bf46e1d7ca50301d01e791bfb76ad512c799a5c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T121601Z/execution-03ecb4ee959fd1a35ba6df6a3a4477376ff822af-linux-arm64.tar.gz",
+          "bytes": 3881985,
+          "sha256": "559351bcdfd637f605568026e82278a48a77d4de201e187e4b976e696c1267a4"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T084230Z/execution-04bbd67e602f55e53c9783e938123f07ddb36094-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11322,
-          "sha256": "64f3ac8c516ffd0c612aa3b1415d97924d8f086a14220a57dc4fd87773460ec1"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T121601Z/execution-03ecb4ee959fd1a35ba6df6a3a4477376ff822af-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11365,
+          "sha256": "cc8c066c81e59e33afd9a2380d8a7de2528d839e15405295550038b07172116b"
         },
-        "signerCommit": "04bbd67e602f55e53c9783e938123f07ddb36094"
+        "signerCommit": "03ecb4ee959fd1a35ba6df6a3a4477376ff822af"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,7 +552,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "配達の待ちも、その席の待ちの列に並び、待ちの処理が席ごとに 1 つになります。"
+        "席の起動の数え方が、起動に成功したコンテナの席だけを数えるようになり、端末の席や失敗した起動で「メモリが足りない」と誤って断られなくなります。"
       ]
     },
     {
