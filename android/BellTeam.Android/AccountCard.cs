@@ -45,10 +45,11 @@ public sealed class AccountCard : StackPanel
     private void OnForeground() => Dispatcher.UIThread.Post(() => { if (!busy) _ = ReloadAsync(); });
 
     // Every opening and every foreground: the kept reply against this device's clock, and Play's own list of this phone's purchases (an ended or refunded one is no longer owned).
-    private async Task ReloadAsync()
+    // was: whether the card was entitled before the action that just ended (RunAsync), so a purchase made inside it still raises EntitledChanged.
+    private async Task ReloadAsync(bool? was = null)
     {
         if (Local is not { } local) { Render(); return; }
-        var before = Entitled;
+        var before = was ?? Entitled;
         failure = null;
         try { paid = local.PaidUntil(); }
         catch (LoginBillingException error) { paid = null; failure = LocalFormText.Failure(error.Code, error.Reason); }
@@ -69,20 +70,26 @@ public sealed class AccountCard : StackPanel
     private async Task RunAsync(Func<Kitepon.LoginBilling.LocalForm, Task> action)
     {
         if (busy || Local is not { } local) return;
+        var was = Entitled;
         busy = true; failure = notice = null; Render();
         try { await action(local); }
         catch (OperationCanceledException) { }   // the person pressed やめる, or the screen closed
         catch (LoginBillingException error) when (error.Code == "signin_cancelled") { }   // the person's own choice says nothing
         catch (LoginBillingException error) { failure = LocalWords.Ja(error.Code) ?? LocalFormText.Failure(error.Code, error.Reason, error.Detail); }
         if (taker is not null) { JoinLink.Takers.Remove(taker); taker = null; } request?.Dispose(); request = null; attempt?.Dispose(); attempt = null; busy = false;
-        if (!token.IsCancellationRequested) await ReloadAsync();
+        if (!token.IsCancellationRequested) await ReloadAsync(was);
     }
 
     // One try: Google signs in on this phone (Apple is the paying iPhone's own sign-in), then the QR waits for the phone that holds the purchase; every failure ends the try with its sentence and the next step is a new QR.
     private Task RequestAsync(string provider) => RunAsync(async local =>
     {
         attempt = CancellationTokenSource.CreateLinkedTokenSource(token); Render();
-        if (provider == "google") await local.SignInLocalAsync(MainActivity.Current).WaitAsync(attempt.Token);
+        if (provider == "google")
+        {
+            await local.SignInLocalAsync(MainActivity.Current).WaitAsync(attempt.Token);
+            // A listed account (freeAccounts, store "free": Play's reviewer) is paid by its sign-in alone: no QR to wait for.
+            if (local.PaidUntil() is { } listed) { paid = listed; notice = LocalFormText.PaidOk; return; }
+        }
         request = await local.MakeRequestAsync(MainActivity.Current, provider, parentAppId: "dev.kitepon.bellbot").WaitAsync(attempt.Token); JoinLink.Takers.Add(taker = JoinLink.Taker(link => local.TakeAsync(link))); expiry = DateTimeOffset.Now.AddMinutes(BellTeam.Core.LocalForm.ListenMinutes); Render();
         paid = await request.AwaitPaidAsync().WaitAsync(attempt.Token); notice = LocalFormText.PaidOk;
     });

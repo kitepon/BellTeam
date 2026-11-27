@@ -12,10 +12,16 @@ public static class AccountStore
 {
     public const string ServerClientId = "316260984663-ktbg3e8931u0jv94c2fhccrig8ppau78.apps.googleusercontent.com";
     private static LbLocalForm? local;
+    // Google Play's reviewer (Tronie 2026-11-28; Sakura's shared test account) uses the app with no purchase: its hash (lowercase hex SHA-256 of "google:<subject>", read once from LocalSignIn.Account) is listed in the store build only; debug builds list none.
+#if DEBUG
+    private static readonly string[] ReviewFreeAccounts = [];
+#else
+    private static readonly string[] ReviewFreeAccounts = ["7067e9e338648705b50c71464aee2f21884049bddf96b308d6101982abe55d7a"];
+#endif
     internal static string? Product(string key) { using var product = JsonDocument.Parse(EmbeddedAsset.Text("product.json")); return product.RootElement.TryGetProperty(key, out var value) ? value.GetString() : null; }
     public static LbLocalForm? Local => local ??= !LocalFormIds.AndroidReady ? null : new LbLocalForm(MainActivity.Current, ServerClientId,
         new LocalConfig([.. LocalFormIds.GoogleClientIds, LocalFormIds.AppleBundleId, LocalFormIds.AppleServicesId], Apple: new LocalAppleRules([LocalFormIds.AppleBundleId], [LocalFormIds.ProductId], LocalFormIds.AppleAcceptsSandbox),
-            Play: new LocalPlayRules(LocalFormIds.PlayPackage, [LocalFormIds.ProductId], LocalFormIds.PlayPublicKey), AppleWeb: new LocalAppleWeb(LocalFormIds.AppleServicesId, LocalFormIds.AppleReturnUrl), AppId: LocalFormIds.AppleBundleId),
+            Play: new LocalPlayRules(LocalFormIds.PlayPackage, [LocalFormIds.ProductId], LocalFormIds.PlayPublicKey), FreeAccounts: ReviewFreeAccounts, AppleWeb: new LocalAppleWeb(LocalFormIds.AppleServicesId, LocalFormIds.AppleReturnUrl), AppId: LocalFormIds.AppleBundleId),
         log: AppleReturnLine);
     // One line per Apple return (the library builds it: time, fields, Apple's error code; never a token, code or subject) goes to the app's own log file in its private files folder, and nowhere else.
     internal static string AppleReturnLogPath => Path.Combine(global::Android.App.Application.Context.FilesDir!.AbsolutePath, "apple-return.log");
