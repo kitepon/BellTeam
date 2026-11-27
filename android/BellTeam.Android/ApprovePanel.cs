@@ -26,10 +26,9 @@ public sealed class ApprovePanel : StackPanel
     {
         this.token = token; Spacing = 0;
         Render();
-        // The phone's own camera opened this app with the QR's link (1.49): answer it as if the scanner had read it.
-        JoinLink.Changed += TakeLink;
-        TakeLink();
     }
+    // The phone's own camera opened this app with the QR's link (1.49): answer it as if the scanner had read it. The card keeps this panel across its re-renders, so it listens while attached.
+    protected override void OnAttachedToVisualTree(Avalonia.VisualTreeAttachmentEventArgs e) { base.OnAttachedToVisualTree(e); JoinLink.Changed += TakeLink; TakeLink(); }
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e) { JoinLink.Changed -= TakeLink; base.OnDetachedFromVisualTree(e); }
     private void TakeLink() => Dispatcher.UIThread.Post(() => { if (!busy && JoinLink.Take() is { } link) _ = ApproveAsync(link); });
 

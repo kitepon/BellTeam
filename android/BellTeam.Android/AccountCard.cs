@@ -28,6 +28,8 @@ public sealed class AccountCard : StackPanel
     private readonly bool firstScreen;   // the gate of the first run (Approval Box's first screen is the model); the card in the settings keeps its own layout
     private readonly string? preview;    // debug render only: "" = the first screen, a QR = the waiting screen, both without asking Play or opening a request
 
+    private ApprovePanel? approve;
+
     // The account gate (first run) waits for this: true while this phone's purchase or an accepted period holds.
     public bool Entitled => owned || paid is not null;
     public event Action? EntitledChanged;
@@ -151,7 +153,7 @@ public sealed class AccountCard : StackPanel
         Children.Add(Text(owned ? LocalFormText.Status(null) : paid is { } now ? LocalFormText.Status(now.Until) : LocalFormText.StatusUnpaid, 14, Secondary, null, new Thickness(0, 10, 0, 0)));   // an own Play purchase: its end is Play's, not read here
         if (notice is not null && request is null) Children.Add(Text(notice, 14, Ink, FontWeight.SemiBold, new Thickness(0, 6, 0, 0)));
 
-        if (owned) { Children.Add(new ApprovePanel(token)); }
+        if (owned) { Children.Add(approve ??= new ApprovePanel(token)); }   // one panel for the card's life: a rebuilt one lost the asking question and the result line
         else if (request is { } open) Children.Add(QrBlock(open.Qr));
         else if (paid is not null) Children.Add(Button(StoreAccountText.SignOut, () => { Local?.SignOutLocal(); paid = null; EntitledChanged?.Invoke(); Render(); return Task.CompletedTask; }, Look.Secondary));
         else
