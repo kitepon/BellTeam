@@ -8,7 +8,7 @@ using Kitepon.LoginBilling.Desktop;
 
 namespace BellTeam.Linux;
 
-// The peer path of the packaged Approval Box client (0.6.1, login-billing 0.25.1) through BellTeam's own device class, against the loopback dev server of kitepon/approval-box
+// The peer path of the packaged Approval Box client (0.6.2, login-billing 0.25.2) through BellTeam's own device class, against the loopback dev server of kitepon/approval-box
 // (abx-peer-proof-linux-android). Mirrors approval-box-apps Tests/ApprovalBoxClientTests/DevServerE2ETests.swift. Runs only with ABX_PEER_URL (dev server), ABX_PEER_CTL (host control API of
 // tools/swift-client-e2e-host.ts) and ABX_PEER_PARENT (lab parent, packages/server/test/lab-parent.ts); every line of evidence goes to ABX_PEER_LOG.
 // Not covered: the QR join with a real provider token (the child's key is admitted by the lab parent's signed add, as the Swift test does for device B).
