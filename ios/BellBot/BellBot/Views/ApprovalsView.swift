@@ -386,6 +386,7 @@ private struct ApprovalsScreen: View {
                 disconnectRow
             }
             .padding(14)
+            .padding(.top, model.stale ? 44 : 0) // room for the 再接続 band, which lies over the list
             .padding(.bottom, wide ? 0 : 70)
         }
         .refreshable { model.reread() }
