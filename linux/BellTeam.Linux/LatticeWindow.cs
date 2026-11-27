@@ -184,7 +184,9 @@ public sealed class LatticeWindow : Window
         foreach (var (member, index) in item.Members.Select((member, index) => (member, index))) faces.Children.Add(new LatticeAvatar(member, 30, Avatar) { Margin = new Thickness(index == 0 ? 0 : -8, 0, 0, 0) });
         var waiting = Pill(Row(Shape(LinkGeometry, 11, item.Connections > 0 ? Violet : Muted), Spaced(Text($"接続 {item.Connections}", 12, item.Connections > 0 ? Violet : Muted, FontWeight.SemiBold), 5)), item.Connections > 0 ? Violet : Muted, 0x1A);
         waiting.Margin = new Thickness(12, 0, 0, 0);
-        left.Children.Add(Row(faces, waiting));
+        var chips = Row(faces, waiting);
+        if (item.Reminders) { var nudge = ReminderBadge(); nudge.Margin = new Thickness(8, 0, 0, 0); nudge.VerticalAlignment = VerticalAlignment.Center; chips.Children.Add(nudge); }
+        left.Children.Add(chips);
         grid.Children.Add(left);
         var ring = new LatticeRing(item.Done, item.Total, wide ? 64 : 52); Grid.SetColumn(ring, 1); ring.Margin = new Thickness(14, 0, 0, 0); grid.Children.Add(ring);
         var glass = Glass(grid, 20, new Thickness(20, 18, 20, 18)); glass.Width = Compact ? double.NaN : wide ? 560 : 360; glass.Margin = new Thickness(0, 0, Compact ? 0 : 16, 16);
