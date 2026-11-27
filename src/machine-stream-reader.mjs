@@ -23,6 +23,13 @@ export class MachineStreamReaders {
   // chat-from-stream: conversation draws this seat's words from the stream, so execution need not relay them (only while a reader runs; a fork or a TUI seat has none).
   displays(session) { return this.port?.displayFromStream === true && this.readers.has(session) }
 
+  // How long this seat's own stream has said "idle, nothing pending", or null when it does not say so now (anr: the wait of a delivery ends on it).
+  // Only a read taken within two long polls counts: a reader in backoff proves nothing about the seat.
+  idleFor(session, now = Date.now()) {
+    const reader = this.readers.get(session)
+    return reader?.idleSince != null && now - reader.seenAt <= 2 * WAIT_MS ? now - reader.idleSince : null
+  }
+
   stop(session) { const reader = this.readers.get(session); if (reader) reader.stopped = true }
 
   // An engine that quiesces or retires gives up every reader: its native calls are refused from then on, and the successor (or its own resume) starts them again.
@@ -47,6 +54,11 @@ export class MachineStreamReaders {
         // A previous launch stays readable after a wake or restart (its launch_id differs from current_launch_id): once it is drained, read the current launch from its start.
         const old = read.current_launch_id && read.current_launch_id !== read.launch_id
         cursor = old && read.at_end ? null : read.cursor
+        if (!old) {
+          const now = Date.now()
+          reader.idleSince = read.state?.state === 'idle' && !read.state.pending?.length ? reader.idleSince ?? now : null
+          reader.seenAt = now
+        }
         delay = 0
         if (read.state?.state === 'exited' && !old) return
       } catch (error) {
