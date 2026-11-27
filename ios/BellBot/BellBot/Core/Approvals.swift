@@ -263,6 +263,7 @@ final class ApprovalsModel: ObservableObject {
     private var settled: [String: ApprovalDecision] = [:]
     private var subscriptions: [AnyCancellable] = []
     private var records: [PeerDecisionRecord] = []
+    private var linkState: ApprovalBoxLink.State = .join
     /// The BellTeam members the origin rule matches against (the member list the app already holds).
     private var roster: [ApprovalRosterMember] = []
     /// decision id -> the engine's answer at the time: a link, or nil for 404 (external / not linked yet).
@@ -273,7 +274,7 @@ final class ApprovalsModel: ObservableObject {
     init(link: ApprovalBoxLink? = nil) {
         let link = link ?? ApprovalBoxLink()
         self.link = link
-        link.$state.sink { [weak self] in self?.gate = Self.gate(of: $0) }.store(in: &subscriptions)
+        link.$state.sink { [weak self] in self?.linkState = $0; self?.refreshGate() }.store(in: &subscriptions)
         link.$decisions.sink { [weak self] in self?.apply($0) }.store(in: &subscriptions)
     }
 
@@ -287,10 +288,13 @@ final class ApprovalsModel: ObservableObject {
         if link.state != .live { link.retryNow() }
     }
 
-    static func gate(of state: ApprovalBoxLink.State) -> Gate {
+    private func refreshGate() { gate = Self.gate(of: linkState, hasCards: !records.isEmpty) }
+
+    /// `joining` with decisions in hand (the component steps back to it on every retry) keeps the last cards on screen, dimmed; the spinner is for when there is nothing to show.
+    static func gate(of state: ApprovalBoxLink.State, hasCards: Bool = false) -> Gate {
         switch state {
         case .join: .join
-        case .joining: .loading
+        case .joining: hasCards ? .reconnecting : .loading
         case .notEntitled: .notEntitled
         case .updateRequired: .updateRequired
         case .live: .ready
@@ -335,6 +339,7 @@ final class ApprovalsModel: ObservableObject {
 
     func apply(_ records: [PeerDecisionRecord]) {
         self.records = records
+        refreshGate()
         rebuild()
     }
 

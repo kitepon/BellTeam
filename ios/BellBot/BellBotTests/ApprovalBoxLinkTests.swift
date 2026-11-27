@@ -16,6 +16,7 @@ final class ApprovalBoxLinkTests: XCTestCase {
     func testEveryLinkStateHasItsGate() {
         XCTAssertEqual(ApprovalsModel.gate(of: .join), .join)
         XCTAssertEqual(ApprovalsModel.gate(of: .joining), .loading)
+        XCTAssertEqual(ApprovalsModel.gate(of: .joining, hasCards: true), .reconnecting)
         XCTAssertEqual(ApprovalsModel.gate(of: .notEntitled), .notEntitled)
         XCTAssertEqual(ApprovalsModel.gate(of: .updateRequired), .updateRequired)
         XCTAssertEqual(ApprovalsModel.gate(of: .live), .ready)
