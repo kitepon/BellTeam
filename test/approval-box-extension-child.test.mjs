@@ -375,6 +375,30 @@ test('seat.message: the protocol takes {target, message} and answers {delivery, 
   assert.throws(() => validateApprovalsEffectResult('seat.message', { delivery: 3, deliveryId: null }))
 })
 
+test('F8 fails closed on entitlement: an expired Approval Box account (the Owner body 11/27: state expired) sends nothing; trial and active send', async () => {
+  const seat = sent()
+  const expired = harness({ decisions: [answeredRaw('K-AAAA')], bookText: BOOK, seatMessage: seat.fn, me: { plan: 'expired' } })
+  await expired.core.refresh({ since: 0 }, expired.effect)
+  assert.equal(seat.log.length, 0)
+  for (const me of [{ plan: 'trial', billing: 'store' }, { plan: 'active' }]) {
+    const ok = harness({ decisions: [answeredRaw('K-AAAA')], bookText: BOOK, seatMessage: seat.fn, me })
+    await ok.core.refresh({ since: 0 }, ok.effect)
+  }
+  assert.equal(seat.log.length, 2)
+})
+
+test('F8: a Lattice step that fails every tick never keeps the answer from the seat; the id stays for the next tick', async () => {
+  const seat = sent()
+  const answered = answeredRaw('K-AAAA')
+  const row = { decisionId: 'K-AAAA', projectId: 'bellteam', plan: 'approval-box', taskId: 'dec-k-aaaa', state: 'linked', attached: false, sessionLabel: 'ブレッディ / billing', handledVersion: 1, updatedAt: '2026-11-15T01:00:00Z' }
+  const cards = [{ id: 'approval-box/dec-k-aaaa', plan: 'approval-box', taskId: 'dec-k-aaaa', state: 'ready', lane: 'approval-box', title: 't' }]
+  const h = harness({ decisions: [answered], cards, rowsText: JSON.stringify({ version: 1, rows: [row] }), bookText: BOOK, seatMessage: seat.fn })
+  const original = h.effect
+  const broken = async (method, params) => { if (method === 'lattice.ownerTask') throw new Error('lattice down'); return original(method, params) }
+  await h.core.refresh({ since: 0 }, broken)
+  assert.equal(seat.log.length, 1)
+})
+
 test('module.json source lists every file of src/approval-box-extension* (the packager test pattern)', () => {
   const listed = JSON.parse(readFileSync(new URL('../docs/architecture/modules/approval-box-extension/module.json', import.meta.url), 'utf8')).source
   const files = [...readdirSync(new URL('../src/approval-box-extension', import.meta.url)).map(name => `src/approval-box-extension/${name}`),

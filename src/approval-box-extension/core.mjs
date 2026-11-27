@@ -56,6 +56,7 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
     if (!relayAccepted(sent.delivery) && sent.delivery !== 'refused') throw fail('APPROVALS_EFFECT_FAILED', 503)
     book = { ...current, rows: [...current.rows, { decisionId: d.id, delivery: sent.delivery, deliveryId: sent.deliveryId, at: new Date(now()).toISOString() }] }
     await saveBook()
+    process.stderr.write(`approval-box-extension relay ${d.id} ${sent.delivery}\n`)
   }
 
   // ---- connection (F7): the session lives in the usage secret store (R7); this process keeps it in memory only
@@ -241,8 +242,11 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
     const decision = await readEngine(effect, id)
     if (!decision) return
     const d = toViewDecision(decision, { roster: await members(effect) })
+    // The answer goes first and independently: a Lattice step that fails every tick (chart busy, task refused) must never keep the seat from its answer. Each failure keeps the id for the next tick.
+    let relayFailure = null
+    try { await relay(effect, d) } catch (error) { relayFailure = error; process.stderr.write(`approval-box-extension relay ${id} ${error?.code ?? 'FAILED'}\n`) }
     await link_(effect, id, d, memo)
-    await relay(effect, d) // after the chart step: a failing relay never holds the task back, and a failing task never holds the answer back from the next tick
+    if (relayFailure) throw relayFailure
   }
   const link_ = async (effect, id, d, memo) => {
     const list = await loadRows(), row = list.find(item => item.decisionId === id) ?? null
@@ -277,9 +281,9 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
     }
     // F8: answers made while the child was down or the stream had a gap (the first page of answered is enough: A2 keeps only the last 24 h).
     const { since } = await loadBook()
-    const answered = await abx(effect, 'GET', '/v1/decisions?status=answered&limit=100')
-    if (answered.status !== 200) throw mapped(answered)
-    answered.json.items.filter(item => Date.parse(item.answer?.answered_at) >= Date.parse(since) && !book.rows.some(row => row.decisionId === item.id)).forEach(item => dirty.add(item.id))
+    // Best effort: this list only adds ids, so a refusal here (rate limit, outage) must not stop the pending/held catch-up below. A 401 still ends the tick (abx drops the session).
+    const answered = await abx(effect, 'GET', '/v1/decisions?status=answered&limit=100').catch(error => { if (error?.code === 'APPROVALS_NOT_CONNECTED') throw error; return { status: 0 } })
+    if (answered.status === 200) answered.json.items.filter(item => Date.parse(item.answer?.answered_at) >= Date.parse(since) && !book.rows.some(row => row.decisionId === item.id)).forEach(item => dirty.add(item.id))
     // a490g: what BellTeam's seats and the body filed into the hosted daemon (empty until it is paired, or when the parent cannot read it: the /v1 feed above still runs).
     const held = await effect('daemon.decisions.list', {}).catch(() => [])
     daemonIds = new Set(held.map(item => item.id))
