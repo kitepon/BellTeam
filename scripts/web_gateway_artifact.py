@@ -233,6 +233,7 @@ BUSINESS_FILES = {
         'src/auth-mediation/redact.mjs',
         'src/auth-mediation/service.mjs',
         'src/module-ipc.mjs',
+        'src/module-locks.mjs',
         'src/module-streams.mjs',
     )},
 }

@@ -65,6 +65,11 @@ process.stdout.write(JSON.stringify(missing));
             '--input-type=module', '-e', script, str(ROOT)], input=json.dumps(files), text=True))
         self.assertEqual(missing, [])
 
+    def test_every_business_module_ships_the_files_the_install_check_requires(self):
+        # src/web-gateway-release.mjs validateBusinessModuleManifest requires these three in every business module; auth-mediation lacked module-locks (Z209, Z218 lab: GATEWAY_RELEASE_INVENTORY_INVALID).
+        for component, files in BUSINESS_FILES.items():
+            self.assertTrue({'payload/src/module-ipc.mjs', 'payload/src/module-locks.mjs', 'payload/src/module-streams.mjs'} <= files, component)
+
     def test_auth_mediation_payload_holds_every_relative_import(self):
         # Same trap as approval-box-extension: a new import in the child must also be in the payload list or the signed child dies on import.
         files = sorted(name.removeprefix('payload/') for name in BUSINESS_FILES['auth-mediation'])
