@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync, spawn } from 'node:child_process'
-import { mkdtemp } from 'node:fs/promises'
+import { access, mkdtemp, readFile } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -63,4 +63,23 @@ test('auth-admin audit prints the lines the module returns', async () => {
   const m = await fakeModule(() => ({ outcome: 'ok', lines: ['{"outcome":"granted"}', '{"outcome":"denied"}'] }))
   const out = await run(ADMIN, ['audit', '--last', '2'], { AUTH_SOCK: m.path })
   assert.deepEqual(m.seen[0], { op: 'admin', verb: 'audit', args: { last: 2 } }); assert.equal(out.out.trim().split('\n').length, 2); m.close()
+})
+
+test('auth exec: file:VAR becomes a 0600 file that is gone after the run; VAR labels pass as they are', async () => {
+  const m = await fakeModule(() => ({ outcome: 'granted', env: { PLAIN: 'p', 'file:CRED_FILE': '{"k":1}' } }))
+  const note = join(await mkdtemp(join(tmpdir(), 'cred-')), 'path')
+  const out = await run(AUTH, ['exec', 'sh', '-c', 'echo "$PLAIN"; stat -c %a "$CRED_FILE"; cat "$CRED_FILE"; echo "$CRED_FILE" > ' + note], { AUTH_SOCK: m.path })
+  assert.equal(out.code, 0); assert.deepEqual(out.out.trim().split('\n'), ['p', '600', '{"k":1}'])
+  await assert.rejects(access((await readFile(note, 'utf8')).trim())); m.close()
+})
+
+test('auth exec: ssh-key is loaded into a per-run agent that is gone after the run', async t => {
+  if (spawnSync('sh', ['-c', 'command -v ssh-agent && command -v ssh-add && command -v ssh-keygen']).status !== 0) return t.skip('ssh tools missing')
+  const dir = await mkdtemp(join(tmpdir(), 'sshk-'))
+  spawnSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', join(dir, 'k')])
+  const m = await fakeModule(() => ({ outcome: 'granted', env: { 'ssh-key': spawnSync('cat', [join(dir, 'k')]).stdout.toString() } }))
+  const note = join(dir, 'agent-path')
+  const out = await run(AUTH, ['exec', 'sh', '-c', 'ssh-add -l | grep -c ED25519; echo "$SSH_AUTH_SOCK" > ' + note], { AUTH_SOCK: m.path })
+  assert.equal(out.code, 0); assert.equal(out.out.trim(), '1')
+  await assert.rejects(access((await readFile(note, 'utf8')).trim())); m.close()
 })
