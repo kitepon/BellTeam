@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-27T21:32:49Z",
-  "expiresAt": "2026-12-04T21:32:49Z",
+  "publishedAt": "2026-11-27T22:30:07Z",
+  "expiresAt": "2026-12-04T22:30:07Z",
   "releases": [
     {
       "componentId": "usage",
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "f57bd818de9f252b258d1eae2f9a013e9cde12bc",
-      "versionId": "sha256:011e00116aa3c72026d3ce90db109ab5d7d05108e5446220e55c84c4a6c554d3",
+      "sourceCommit": "f33bed637ffeff4bbe1b6637ef380b9db43243be",
+      "versionId": "sha256:261b36821ca9ae3e36e5c2abb19ee2f061ab6838346baac476ebecb728c241ca",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:011e00116aa3c72026d3ce90db109ab5d7d05108e5446220e55c84c4a6c554d3"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:261b36821ca9ae3e36e5c2abb19ee2f061ab6838346baac476ebecb728c241ca"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -722,21 +722,22 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席のstreamが「待機・保留なし」と120秒言い続けているのに、Aitermがターン実行中と報告し続ける席でも、配送の待ちが終わります（Stopが記録されなかったターンで、配送が数時間「実行中」のまま残る不具合の修正）。",
-        "決裁箱のペアリングが始まらない時、理由に失敗の行のコードを示します。QRの文に、有効期限の日付も付きます。"
+        "席がツールの許可待ちで止まった時の決裁箱のカードを、ホストにある決裁箱の公開クライアント経由で出すようになります（ペアリング不要）。",
+        "本体の決裁箱の常駐プロセス、扉、ペアリング、QRを送るツールが消えます。端末側の決裁箱の扉も消えます。",
+        "本体のイメージの Aiterm が 0.70.121 になります。Stop が失敗したターンが、ホストの待機で確定します。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "f57bd818de9f252b258d1eae2f9a013e9cde12bc",
-      "versionId": "sha256:011e00116aa3c72026d3ce90db109ab5d7d05108e5446220e55c84c4a6c554d3",
+      "sourceCommit": "f33bed637ffeff4bbe1b6637ef380b9db43243be",
+      "versionId": "sha256:261b36821ca9ae3e36e5c2abb19ee2f061ab6838346baac476ebecb728c241ca",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:011e00116aa3c72026d3ce90db109ab5d7d05108e5446220e55c84c4a6c554d3"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:261b36821ca9ae3e36e5c2abb19ee2f061ab6838346baac476ebecb728c241ca"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -745,8 +746,9 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席のstreamが「待機・保留なし」と120秒言い続けているのに、Aitermがターン実行中と報告し続ける席でも、配送の待ちが終わります（Stopが記録されなかったターンで、配送が数時間「実行中」のまま残る不具合の修正）。",
-        "決裁箱のペアリングが始まらない時、理由に失敗の行のコードを示します。QRの文に、有効期限の日付も付きます。"
+        "席がツールの許可待ちで止まった時の決裁箱のカードを、ホストにある決裁箱の公開クライアント経由で出すようになります（ペアリング不要）。",
+        "本体の決裁箱の常駐プロセス、扉、ペアリング、QRを送るツールが消えます。端末側の決裁箱の扉も消えます。",
+        "本体のイメージの Aiterm が 0.70.121 になります。Stop が失敗したターンが、ホストの待機で確定します。"
       ]
     },
     {
@@ -821,8 +823,8 @@
     },
     {
       "componentId": "approval-box-extension",
-      "sourceCommit": "aca3934993aa1a1a011e3e5f66d859aaef489886",
-      "versionId": "ea5298a486da0850eceffbb1415b335821aad4f0348916df99267b0eea487d59",
+      "sourceCommit": "f33bed637ffeff4bbe1b6637ef380b9db43243be",
+      "versionId": "d1150ed1a2b0b7e738424b9c7c10c81df229cb309cd353aeddd1197b62214a49",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -830,16 +832,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T125249Z/approval-box-extension-aca3934993aa1a1a011e3e5f66d859aaef489886-linux-amd64.tar.gz",
-          "bytes": 3717739,
-          "sha256": "ea5298a486da0850eceffbb1415b335821aad4f0348916df99267b0eea487d59"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T222738Z/approval-box-extension-f33bed637ffeff4bbe1b6637ef380b9db43243be-linux-amd64.tar.gz",
+          "bytes": 3716268,
+          "sha256": "d1150ed1a2b0b7e738424b9c7c10c81df229cb309cd353aeddd1197b62214a49"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T125249Z/approval-box-extension-aca3934993aa1a1a011e3e5f66d859aaef489886-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11045,
-          "sha256": "9eefd0e24f1a5e37897b643e2aee63dff8e9ec4e58a1fb091114fbac85d48b73"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T222738Z/approval-box-extension-f33bed637ffeff4bbe1b6637ef380b9db43243be-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11186,
+          "sha256": "32518d405361c8a2af6d072e83442b41a316110e41e6a2fde738f5c8ce81a172"
         },
-        "signerCommit": "aca3934993aa1a1a011e3e5f66d859aaef489886"
+        "signerCommit": "f33bed637ffeff4bbe1b6637ef380b9db43243be"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -851,13 +853,13 @@
         }
       },
       "changes": [
-        "決裁箱の答えを聞いた席へ渡す記録の起点が、権限の確認の前に置かれるようになり、確認が通る前に出された答えも取りこぼされなくなります。"
+        "決裁箱拡張から、本体の常駐プロセスとの受け渡しと、ペアリングの経路が消えます。"
       ]
     },
     {
       "componentId": "approval-box-extension",
-      "sourceCommit": "aca3934993aa1a1a011e3e5f66d859aaef489886",
-      "versionId": "cfbf19828aafa38854ab120a760ed866a0c30a10dfb5c7af1925c1983c2ec131",
+      "sourceCommit": "f33bed637ffeff4bbe1b6637ef380b9db43243be",
+      "versionId": "28dad05c95ab89da3f7544c297f61f210cb8d895a4b725ae06c62ab7903ce89a",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -865,16 +867,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T125249Z/approval-box-extension-aca3934993aa1a1a011e3e5f66d859aaef489886-linux-arm64.tar.gz",
-          "bytes": 3717739,
-          "sha256": "cfbf19828aafa38854ab120a760ed866a0c30a10dfb5c7af1925c1983c2ec131"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T222738Z/approval-box-extension-f33bed637ffeff4bbe1b6637ef380b9db43243be-linux-arm64.tar.gz",
+          "bytes": 3716268,
+          "sha256": "28dad05c95ab89da3f7544c297f61f210cb8d895a4b725ae06c62ab7903ce89a"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T125249Z/approval-box-extension-aca3934993aa1a1a011e3e5f66d859aaef489886-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11139,
-          "sha256": "1f537ee52408aae3a0d58ffcc12eb7f44914059b4d41cf8bb04fe16bd4e156e4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T222738Z/approval-box-extension-f33bed637ffeff4bbe1b6637ef380b9db43243be-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11280,
+          "sha256": "731488e4515eef189cdd96efca44d2b0d02ce5bb5f2914de9181699e47f2d03d"
         },
-        "signerCommit": "aca3934993aa1a1a011e3e5f66d859aaef489886"
+        "signerCommit": "f33bed637ffeff4bbe1b6637ef380b9db43243be"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -886,7 +888,7 @@
         }
       },
       "changes": [
-        "決裁箱の答えを聞いた席へ渡す記録の起点が、権限の確認の前に置かれるようになり、確認が通る前に出された答えも取りこぼされなくなります。"
+        "決裁箱拡張から、本体の常駐プロセスとの受け渡しと、ペアリングの経路が消えます。"
       ]
     },
     {
