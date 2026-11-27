@@ -132,6 +132,12 @@ test('item reads are coalesced: simultaneous first requests for one item cost on
   const c2 = createItemCache({ runOp: async () => { again++; await hold; return itemJson({ A: '1' }) } })
   const p = c2.get('y', 'v', 3600); await new Promise(r => setImmediate(r)); c2.flush('y'); open(); await p
   assert.equal((await c2.get('y', 'v', 3600)).hit, false); assert.equal(again, 2) // the flushed read was not cached
+  let n = 0, go
+  const gate3 = new Promise(r => { go = r })
+  const c3 = createItemCache({ runOp: async () => { n++; await gate3; return itemJson({ A: '1' }) } })
+  const first = c3.get('w', 'v', 3600); await new Promise(r => setImmediate(r)); c3.flush() // flush-all must not leave the running read joinable
+  const second = c3.get('w', 'v', 3600); await new Promise(r => setImmediate(r)); go(); await Promise.all([first, second])
+  assert.equal(n, 2)
   const fail = createItemCache({ runOp: async () => { throw new Error('x') } })
   assert.deepEqual(await Promise.all([fail.get('z', 'v', 1), fail.get('z', 'v', 1)]), [null, null])
 })

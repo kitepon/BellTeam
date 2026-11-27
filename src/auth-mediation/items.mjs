@@ -19,12 +19,12 @@ export function createItemCache({ runOp, now = Date.now }) {
       if (hit && now() < hit.at + ttlSeconds * 1000) return { fields: hit.fields, hit: true }
       const waiting = inflight.get(name)
       if (waiting) { const fields = await waiting; return fields && { fields, hit: true } }
-      const task = read(name, vault, ttlSeconds).finally(() => inflight.delete(name))
+      const task = read(name, vault, ttlSeconds).finally(() => { if (inflight.get(name) === task) inflight.delete(name) }) // a flushed read must not delete a newer read's entry
       inflight.set(name, task)
       const fields = await task
       return fields && { fields, hit: false }
     },
-    flush: name => { epoch++; inflight.delete(name); name ? cache.delete(name) : cache.clear() },
+    flush: name => { epoch++; if (name) { inflight.delete(name); cache.delete(name) } else { inflight.clear(); cache.clear() } },
   }
 }
 
