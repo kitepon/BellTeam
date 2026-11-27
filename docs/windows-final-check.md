@@ -422,3 +422,11 @@ AI CLIの導入画面（a451、#1942）をMacの実装に合わせた0.6.2（#19
 - 導入元: main `5a58eabe`（#2699）。ホストの保管庫は使わず、main-serverの `auth exec /home/kite/BellTeam/scripts/windows-install-with-oauth.sh`（項目と許可はサクラ、実行はエピネルがコンテナから1回）が、sshでfoxの `scripts/install-windows.ps1 -NoLaunch -SkipShareTarget -GoogleDesktopOAuthStdin` へクライアントJSONを標準入力で渡した。終了コード0（11秒）、出力に秘密は無い。
 - 確認（fox）: 導入したexeの版は `0.9.4+5a58eabebfa38d14b3df028b16d0c2b9e4d43682`。`BellTeam.dll` のアセンブリのメタデータ `GoogleDesktopSecret` が35文字（値は表示していない）。`Kitepon.LoginBilling.Desktop.dll` は0.24.1。BellTeamは動いていない。
 - 確認できていない: このビルドでの実サインイン（秘密も経路も0.9.4と同じ）。
+
+## Windows 0.9.7 を入れた：催促バッジをApple版の見た目に、部品を0.6.2／0.25.2に（abx-win-097、2026-11-27 16:2x JST、アニス）
+
+- 導入元: main `096ca1a6`（#2721・#2722）。エピネルが `auth exec scripts/windows-install-with-oauth.sh` で16:22に入れた。
+- 確認（fox）: exeの版は `0.9.7+096ca1a60e78634feaa45a66aad135bb8dc519f0`。`BellTeam.dll` の `GoogleDesktopSecret` は35文字（値は表示していない）。入れた `Kitepon.ApprovalBox.Client.dll` に新しい文「同じネットワーク（同じLAN）につながっていません」があり、「同じWi-Fi」は無い。BellTeamは動いていない。
+- 変更: 工程表の一覧の催促バッジを、鈴の付いた紫のカプセルにして「接続」の左へ（ラピのApple版の基準、トロニー承認。#2721）。部品は ApprovalBox.Client 0.6.2・LoginBilling.Desktop 0.25.2（nupkgのsha256はリリースの値と一致。ローカルネットワークの原因の文から「Wi-Fi」が消えた。オーナー2026-11-24。#2722）。
+- スモーク（`--smoke-test` 本番）: 成功。ok=true、認証済み、SSE接続あり。`--render-lattice list-nudge`・`--render-approvals join-not-answering` は終了コード0。
+- 確認できていない: 本物の親のスマホでの通し、ローカルネットワークの原因の文を画面に出した状態（文は部品に入っていることだけ確認）。
