@@ -108,7 +108,7 @@ export class RemoteSeats {
     const sessionName = args.session_name
     let issued = false
     try {
-      const { terminal, remote, forward, cwd, accountOwner, doorHook } = await this.target(bot, harness)
+      const { terminal, remote, forward, cwd, accountOwner } = await this.target(bot, harness)
       const { text } = await this.launchContext(bot.id, { sessionName, shortTermMemory }, context)
       const { url, credentialRef } = await this.ingress.seatCredential.issue({ botId: bot.id, sessionName, terminalId: bot.terminalId, ...(kind === 'fork' ? { kind } : {}) })
       issued = true
@@ -135,7 +135,7 @@ export class RemoteSeats {
       // One login per slot (harness-accounts.md 2026-11-11): every slot, the 1st too, so no host login is needed.
       const claudeLogin = accountOwner === 'owner' && slot ? slot : null
       return {
-        args: { ...args, ...(route ? { remote: route.remote } : { terminal }), cwd, append_system_prompt: text, ...(kind === 'fork' ? {} : doorHook),
+        args: { ...args, ...(route ? { remote: route.remote } : { terminal }), cwd, append_system_prompt: text,
           mcp_config: { mcpServers: { ...userServers, bellteam: { type: 'http', url: seatUrl, headers, ...managed }, 'call-bridge': { type: 'http', url: `${seatUrl}/call-bridge`, headers, ...managed } } } },
         claudeLogin,
         route,
