@@ -92,7 +92,7 @@ flowchart LR
   subgraph Child["auth-mediation child (module-only exchange, Rai)"]
     Ident["identify: Bot ID or unit"]
     Auth["authorize: grants, expires, stopped"]
-    Items["resolve item: cache (24 h) or op item get"]
+    Items["resolve item: cache (1 h) or op item get"]
     Env["build env: VAR, credential"]
     Deliver["deliver: env return or run + redact"]
     Audit["audit.jsonl"]
@@ -126,7 +126,7 @@ flowchart LR
 | F1 | Identify | Transport identity (seat Bot ID; peer-derived Bot ID; unit folder) | A caller key `bot:<id>` or `unit:<folder>`. Unknown caller = `unknown-caller`, no secret read. |
 | F2 | Split command | Words before the first `--` (item name) and ARGS | Item name = words joined by one space. ARGS never reach F3. |
 | F3 | Authorize | `policy.json` re-read on every request; `stopped`; grant `{command, cwd?, expires?}` | `denied` / `stopped` before any read. `cwd` restricts a grant to a folder (used to keep today's folder-bound container grants exactly as narrow as before). |
-| F4 | Resolve item | Item name; vault; in-memory cache | Cache hit: no 1Password call. Miss: one `op item get` with the read token; kept for `cache_seconds` (default 86400 = 24 h; the Owner judged 1 h too short, 2026-11-27, because the 1Password account allows 1,000 requests per 24 h for all service accounts). An entry's age is judged against the **current** `cache_seconds` at every lookup, so raising the setting also extends entries already cached. Missing item or error = `not-registered` / `error`; nothing starts. |
+| F4 | Resolve item | Item name; vault; in-memory cache | Cache hit: no 1Password call. Miss: one `op item get` with the read token; kept for `cache_seconds` (default 3600 = 1 h, Owner 2026-11-27: a value edited in the 1Password app reaches products within an hour; the account is on Business, 50,000 requests a day and 10,000 reads an hour per token, and the 93 grants cost about 2,200 reads a day at this setting). An entry's age is judged against the **current** `cache_seconds` at every lookup, so changing the setting also changes entries already cached. For a 24 h hold (an exhausted quota) set `cache_seconds` with a no-grant `import`; no restart. Missing item or error = `not-registered` / `error`; nothing starts. |
 | F5 | Build env | Cached item | Fields labelled `VAR`; `credential` to the executable's variable (table: `gh` -> `GH_TOKEN`). Other fields never leave. |
 | F6 | Deliver | Env; transport | Seat MCP: run through `runtime.seat-process`, bounded output (64 KiB each of stdout and stderr, default timeout 600 s, max 3600 s), redact. Sockets: send env. |
 | F7 | Redact (MCP path only) | Returned stdout/stderr and the env values (length >= 6) | Exact matches replaced by `[redacted:VAR]`. Protects the AI conversation and transcripts from secret exposure. |
@@ -169,7 +169,7 @@ A request that carries a command has a deadline that follows what the caller ask
 | --- | --- | --- | --- |
 | Policy | `state/auth-mediation/policy.json` (0600) | child (admin verbs only) | v2: `{version:2, vault, cache_seconds, admins:[botId], bots:{<botId>:{grants:[{command,cwd?,expires?}]}}, units:{<folder>:{grants:[...]}}, stopped:[command]}` |
 | Audit | `state/auth-mediation/audit.jsonl` (0600) | child | Append only. Rotation is not changed by this module (today's behavior). |
-| Item cache | child memory | child | `cache_seconds` (default 86400), judged at lookup; dropped on stop, revoke, flush and child restart. |
+| Item cache | child memory | child | `cache_seconds` (default 3600), judged at lookup; dropped on stop, revoke, flush and child restart. |
 | Read token | usage secrets, module-written value (`secret-module-values/<handle>`, 0600) | usage | Replaces the two token files (container and `/home/kite/.config/bellteam-auth/op-token`). The account is limited to **reading** `開発工場・認証仲介`; the migration account stays with Sakura and is not touched by the module. |
 | Vault | 1Password `開発工場・認証仲介` (`3xxfco2wefpneyykctlkxk5q5q`), 41 items today | Sakura (store) | Read-only for the module. |
 
@@ -212,7 +212,7 @@ Request: `Received -> Identified -> Authorized -> ItemResolved -> Delivered`, ea
 | Admin only for `admins`; the first administrators come from the body's start environment `AUTH_MEDIATION_ADMINS` (Bot IDs, merged at read time, never from a request) | Privilege escalation (a Bot granting itself secrets) | Owner/Tronie edit the admin list through Rai or Sakura |
 | Output redaction on the MCP path | Secret exposure into AI conversation and transcripts | none needed (a filter, not a stop). Limit: transformed output (encoded, split) is not caught |
 | No direct 1Password read by clients when the module is down | Account limit (1000 read+write/day shared by every Bot) | Child restart by the shared lifecycle |
-| Cache of 24 h (`cache_seconds`); requests for one item that arrive during its first read wait for that read (one `op item get`) | Same account limit |
+| Cache of 1 h (`cache_seconds`); requests for one item that arrive during its first read wait for that read (one `op item get`) | Same account limit |
 | At most 4 MCP runs at once (the fifth answers `error` before any secret read and writes no audit line: it is refused before `core.resolve`, and the answer itself tells the caller) | Starving the socket callers (main-server deploys) of the child's 8 slots | A run ends or is aborted at its own deadline | Expiry; flush |
 | Failed audit write does not refuse the request | Avoids stopping every start/deploy on a log problem; a diagnostic is raised | n/a (not a stop) |
 
