@@ -110,11 +110,11 @@ function charts() {
   if (state.mode.list === 'empty') return []
   const main = snapshot('lattice'), done = main.cards.filter(card => card.state === 'done' || card.state === 'retired').length
   return [
-    { projectId: 'lattice', ...NAMES.lattice, coordinator: true, counts: { total: main.cards.length, done, working: 2, waiting: 4, connections: 4, blocked: 1 }, activeMembers: ['bot-trony', 'bot-molly', 'bot-kiro', 'bot-admi', 'bot-rapi', 'bot-flora'], updatedAt: ago(1), state: state.mode.state },
+    { projectId: 'lattice', ...NAMES.lattice, coordinator: true, counts: { total: main.cards.length, done, working: 2, waiting: 4, connections: 4, blocked: 1 }, activeMembers: ['bot-trony', 'bot-molly', 'bot-kiro', 'bot-admi', 'bot-rapi', 'bot-flora'], updatedAt: ago(1), state: state.mode.state, reminders: true },
     { projectId: 'nightly-care', ...NAMES['nightly-care'], coordinator: false, counts: { total: 12, done: 7, working: 2, waiting: 1, connections: 1, blocked: 0 }, activeMembers: ['bot-molly', 'bot-kiro', 'bot-admi'], updatedAt: ago(12), state: 'verified' },
     { projectId: 'call-bridge', ...NAMES['call-bridge'], coordinator: false, counts: { total: 8, done: 3, working: 1, waiting: 2, connections: 2, blocked: 0 }, activeMembers: ['bot-kiro', 'bot-molly', 'bot-trony', 'bot-rapi'], updatedAt: ago(34), state: 'verified' },
     { projectId: 'web-polish', ...NAMES['web-polish'], coordinator: false, counts: { total: 11, done: 9, working: 1, waiting: 0, connections: 0, blocked: 0 }, activeMembers: ['bot-admi', 'bot-flora'], updatedAt: ago(63), state: 'verified' },
-    { projectId: 'guide', ...NAMES.guide, coordinator: false, counts: { total: 9, done: 4, working: 1, waiting: 2, connections: 2, blocked: 0 }, activeMembers: ['bot-flora', 'bot-rapi', 'bot-trony'], updatedAt: ago(14 * 60), state: 'verified' },
+    { projectId: 'guide', ...NAMES.guide, coordinator: false, counts: { total: 9, done: 4, working: 1, waiting: 2, connections: 2, blocked: 0 }, activeMembers: ['bot-flora', 'bot-rapi', 'bot-trony'], updatedAt: ago(14 * 60), state: 'verified', reminders: false },
     ...(state.mode.many ? MANY.map((projectId, index) => ({ projectId, ...NAMES[projectId], coordinator: false, counts: { total: 6, done: index % 6, working: 1, waiting: 0, connections: 0, blocked: 0 }, activeMembers: ['bot-rapi'], updatedAt: ago(20 * (index + 1)), state: 'verified' })) : []),
     ...(state.mode.zero ? [{ projectId: 'empty', name: '空の工程表', createdBy: 'bot-rapi', coordinator: false, counts: { total: 0, done: 0, working: 0, waiting: 0, connections: 0, blocked: 0 }, activeMembers: [], updatedAt: ago(2), state: 'verified' }] : []),
   ]
