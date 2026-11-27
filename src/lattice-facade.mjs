@@ -104,7 +104,12 @@ export function createLatticeFacade({ controller, reminders = null, retryMs = 20
   if (nudgeMs !== null) armNudge()
 
   return {
-    charts: () => call('charts', {}),
+    // The 催促 switch is the body's (README L25): the list carries it per chart so an app can badge the charts the sweep covers. An unreadable setting leaves the field out.
+    charts: async () => {
+      const value = await call('charts', {})
+      const enabled = reminders ? await reminders.enabledProjects().then(ids => new Set(ids), () => null) : null
+      return enabled ? { ...value, charts: value.charts.map(chart => ({ ...chart, reminders: enabled.has(chart.projectId) })) } : value
+    },
     nudge,
     async reminderSettings(projectId, enabled) {
       if (!reminders) throw unavailable()
