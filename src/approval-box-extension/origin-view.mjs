@@ -18,14 +18,15 @@ export function classifyOrigin(source = {}, roster = []) {
 
 const view = list => list.map(item => ({ id: item.id, name: item.name, contentType: item.content_type, size: item.size, sha256: item.sha256 }))
 // link: the ViewDecision.link object (read by the caller from the facade and the link record) or null.
-export function toViewDecision(decision, { roster = [], link = null } = {}) {
+// relayed: the answer relay (F8) handed the answer to BellTeam's delivery; it then stands in for a delivery word Approval Box has not confirmed.
+export function toViewDecision(decision, { roster = [], link = null, relayed = false } = {}) {
   const { origin, requester } = classifyOrigin(decision.source, roster)
   const amended = [...(decision.history ?? [])].reverse().find(entry => entry.kind === 'amended')
   const answer = decision.answer && { optionId: decision.answer.option_id ?? null, text: decision.answer.text ?? null, attachments: view(decision.answer.attachments ?? []), answeredAt: decision.answer.answered_at }
   return {
     id: decision.id, title: decision.title, context: decision.context,
     options: decision.options.map(option => ({ id: option.id, label: option.label, recommended: option.id === decision.recommendation })),
-    urgency: decision.urgency, deadline: decision.deadline ?? null, status: decision.status, answer: answer ?? null, delivery: decision.delivery ?? null,
+    urgency: decision.urgency, deadline: decision.deadline ?? null, status: decision.status, answer: answer ?? null, delivery: relayed && !['delivered', 'fetched'].includes(decision.delivery) ? 'delivered' : decision.delivery ?? null,
     resumePhrase: decision.resume_phrase, version: decision.version, createdAt: decision.created_at, updatedAt: decision.updated_at, cancelReason: decision.cancel_reason ?? null,
     amended: { is: Boolean(amended), fields: amended?.fields ?? [], note: amended?.note ?? null, at: amended?.at ?? null },
     history: (decision.history ?? []).map(({ at, kind, by, note, fields }) => ({ at, kind, by, ...(note ? { note } : {}), ...(fields ? { fields } : {}) })),
