@@ -39,7 +39,8 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
     private static readonly Dictionary<string, int> Since = new() { ["t06"] = 52, ["t04"] = 41, ["t07"] = 36, ["t05"] = 24, ["t08"] = 18, ["t09"] = 6, ["t10"] = 3 };
     private int streams;
     // 工程表の設定 (reminders API): the saved switch of the chart that is asked, OFF until set. 「reminders-save-fails」 saves the PUT and then answers 503 (an uncertain write); 「reminders-old」 has no reminders route; 「reminders-read-fails」 answers 503 to the first read.
-    private readonly Dictionary<string, bool> reminders = [];
+    // list-nudge: 催促 already on for two charts, so the chart list shows the badge on those cards only.
+    private readonly Dictionary<string, bool> reminders = scene == "list-nudge" ? new() { ["lattice"] = true, ["call-bridge"] = true } : [];
     private int reminderReads;
     /// <summary>The bodies of the PUTs this server saw, in order (tests count them).</summary>
     internal List<string> ReminderWrites { get; } = [];
@@ -105,7 +106,7 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
         .. scene == "list-many" ? Enumerable.Range(1, 30).Select(index => (object)new { projectId = $"extra-{index:00}", name = $"追加の工程表 {index:00}", coordinator = false, createdBy = "bot-rapi", counts = new { total = 6, done = index % 6, working = 1, blocked = 0, connections = 0 }, activeMembers = new[] { "bot-rapi" }, updatedAt = Ago(20 * (index + 1)), state = "verified" }) : [],
     ];
     private object Summary(string id, bool coordinator, int total, int done, int working, int connections, int blocked, string[] active, double updated)
-        => new { projectId = id, name = Names[id].Name, coordinator, createdBy = Names[id].CreatedBy, counts = new { total, done, working, blocked, connections }, activeMembers = active, updatedAt = Ago(updated), state = "verified" };
+        => new { projectId = id, name = Names[id].Name, coordinator, createdBy = Names[id].CreatedBy, counts = new { total, done, working, blocked, connections }, activeMembers = active, updatedAt = Ago(updated), state = "verified", reminders = reminders.GetValueOrDefault(id) };
 
     private object Blockers()
     {

@@ -189,7 +189,10 @@ public sealed class LatticeWindow : Window
         foreach (var (member, index) in item.Members.Select((member, index) => (member, index))) faces.Children.Add(new LatticeAvatar(member, 30, Avatar) { Margin = new Thickness(index == 0 ? 0 : -8, 0, 0, 0) });
         var waiting = Pill(Row(Shape(LinkGeometry, 11, item.Connections > 0 ? Violet : Muted), Spaced(Text($"接続 {item.Connections}", 12, item.Connections > 0 ? Violet : Muted, FontWeights.SemiBold), 5)), item.Connections > 0 ? Violet : Muted, 0x1A);
         waiting.Margin = new Thickness(12, 0, 0, 0);
-        left.Children.Add(Row(faces, waiting));
+        // 催促 on for this chart (list field `reminders`): a badge beside 接続; nothing when off or the field is missing.
+        var line = Row(faces, waiting);
+        if (item.Reminders) { var nudge = Pill(Text("催促", 12, Done, FontWeights.SemiBold), Done, 0x1A); nudge.Margin = new Thickness(8, 0, 0, 0); System.Windows.Automation.AutomationProperties.SetAutomationId(nudge, "lattice-nudge-badge"); line.Children.Add(nudge); }
+        left.Children.Add(line);
         grid.Children.Add(left);
         var ring = new LatticeRing(item.Done, item.Total, wide ? 64 : 52); Grid.SetColumn(ring, 1); ring.Margin = new Thickness(14, 0, 0, 0); grid.Children.Add(ring);
         var glass = Glass(grid, 20, new Thickness(20, 18, 20, 18)); glass.Width = wide ? 560 : 360; glass.Margin = new Thickness(0, 0, 16, 16);

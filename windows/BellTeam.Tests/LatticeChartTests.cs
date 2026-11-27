@@ -215,6 +215,28 @@ public sealed class LatticeChartTests
         Assert.Equal("A、完了 1/3、接続 2", items[0].Label);
     }
     [Fact]
+    public void TheListCardsCarryTheNudgeFlagOnlyWhenTheServerSaysTrue()
+    {
+        var list = System.Text.Json.JsonSerializer.Deserialize<LatticeChartList>("""{"charts":[{"projectId":"a","name":"A","counts":{"total":3,"done":1,"working":1,"blocked":0,"connections":2},"reminders":true},{"projectId":"b","name":"B","counts":{"total":2,"done":0,"working":0,"blocked":0},"reminders":false},{"projectId":"c","name":"C","counts":{"total":2,"done":0,"working":0,"blocked":0}}]}""", BellApi.Json)!;
+        var items = LatticeChart.ListItems(list, _ => null);
+        Assert.Equal([true, false, false], items.Select(item => item.Reminders));   // a missing field (older server) = no badge
+        Assert.Equal("A、完了 1/3、接続 2、催促あり", items[0].Label);
+        Assert.Equal("B、完了 0/2、接続 0", items[1].Label);
+    }
+    [Fact]
+    public void ThePinnedAndTheOtherCardsShowTheNudgeBadgeOnlyOnChartsWithNudgeOn() => RunSta(() =>
+    {
+        using var workspace = new Workspace(origin => new BellApi(origin, new LatticeFixture("list-nudge")));
+        Await(workspace.ConnectAsync("http://localhost", listen: false));
+        var window = new LatticeWindow(workspace, _ => Task.CompletedTask) { Rendering = true };
+        window.Sync(); Until(() => window.ListSettled);
+        var cards = LogicalTree.Find<Button>(window.Content).Where(button => System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "lattice-chart-card").ToList();
+        bool Badge(Button card) => LogicalTree.Find<Border>(card).Any(border => System.Windows.Automation.AutomationProperties.GetAutomationId(border) == "lattice-nudge-badge");
+        Assert.Equal(5, cards.Count);
+        Assert.Equal(["Lattice組込", "通話ブリッジの刷新"], cards.Where(Badge).Select(card => System.Windows.Automation.AutomationProperties.GetName(card).Split('、')[0]).Order());
+        window.Close();
+    });
+    [Fact]
     public void BannersAndPillsArePlainSentences()
     {
         Assert.Null(LatticeChart.Banner(Snapshot([])));
