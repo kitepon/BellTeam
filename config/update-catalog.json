@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-27T22:30:07Z",
-  "expiresAt": "2026-12-04T22:30:07Z",
+  "publishedAt": "2026-11-27T23:05:44Z",
+  "expiresAt": "2026-12-04T23:05:44Z",
   "releases": [
     {
       "componentId": "usage",
@@ -489,8 +489,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "d74b336a69030b0bc1d1a1b75bcf9df5580a71e6",
-      "versionId": "646d66b41c1dbeb6b3b3f3cdef27ec92e1d8281f95038cd1de361fe5b691acca",
+      "sourceCommit": "4491da4b8b8f2c5e0ad881e1dd31169466f3a67e",
+      "versionId": "cf6db38d174044bc5bee48ab41cfdf7566dfae553e119246aa8a7c5aa236b1ca",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -498,16 +498,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T213220Z/execution-d74b336a69030b0bc1d1a1b75bcf9df5580a71e6-linux-amd64.tar.gz",
-          "bytes": 4074148,
-          "sha256": "646d66b41c1dbeb6b3b3f3cdef27ec92e1d8281f95038cd1de361fe5b691acca"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T230459Z/execution-4491da4b8b8f2c5e0ad881e1dd31169466f3a67e-linux-amd64.tar.gz",
+          "bytes": 3882343,
+          "sha256": "cf6db38d174044bc5bee48ab41cfdf7566dfae553e119246aa8a7c5aa236b1ca"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T213220Z/execution-d74b336a69030b0bc1d1a1b75bcf9df5580a71e6-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10942,
-          "sha256": "e89da0dd82cb885e68b8de52df5a62138d482acb5a1bbfb46c7380686d948be8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T230459Z/execution-4491da4b8b8f2c5e0ad881e1dd31169466f3a67e-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11036,
+          "sha256": "171de82aeb846cefaf127dbb6cda433799aaf35e43febf88f9430674ac441efa"
         },
-        "signerCommit": "d74b336a69030b0bc1d1a1b75bcf9df5580a71e6"
+        "signerCommit": "4491da4b8b8f2c5e0ad881e1dd31169466f3a67e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -517,13 +517,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "席のstreamが「待機・保留なし」と120秒言い続けているのに、Aitermがターン実行中と報告し続ける席でも、配送の待ちが終わります。受理済みの配送は、答えが不明のまま残り、再送されません。"
+        "遠隔の席の起動で、使われない転送ポートの設定と、決裁箱の扉の受け渡しが消えます。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "d74b336a69030b0bc1d1a1b75bcf9df5580a71e6",
-      "versionId": "a36977c4ab881393d3e6afca46f7c3d9ad959749f687705be8e56825ce922445",
+      "sourceCommit": "4491da4b8b8f2c5e0ad881e1dd31169466f3a67e",
+      "versionId": "6d5e8098b721dca0975a8f1c61ae7d41cb6eb02d72bf61025e31be5c598bbaf6",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -531,16 +531,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T213220Z/execution-d74b336a69030b0bc1d1a1b75bcf9df5580a71e6-linux-arm64.tar.gz",
-          "bytes": 4074148,
-          "sha256": "a36977c4ab881393d3e6afca46f7c3d9ad959749f687705be8e56825ce922445"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T230459Z/execution-4491da4b8b8f2c5e0ad881e1dd31169466f3a67e-linux-arm64.tar.gz",
+          "bytes": 3882343,
+          "sha256": "6d5e8098b721dca0975a8f1c61ae7d41cb6eb02d72bf61025e31be5c598bbaf6"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T213220Z/execution-d74b336a69030b0bc1d1a1b75bcf9df5580a71e6-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10895,
-          "sha256": "442fc7687153f795a5f4ec832f8678c15905db41c33f61f21caeb0ea737fc5b2"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T230459Z/execution-4491da4b8b8f2c5e0ad881e1dd31169466f3a67e-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10973,
+          "sha256": "32639e020364666ed85e01060a31f083431a6272c34039a392c8479ea6e27cf6"
         },
-        "signerCommit": "d74b336a69030b0bc1d1a1b75bcf9df5580a71e6"
+        "signerCommit": "4491da4b8b8f2c5e0ad881e1dd31169466f3a67e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -550,7 +550,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "席のstreamが「待機・保留なし」と120秒言い続けているのに、Aitermがターン実行中と報告し続ける席でも、配送の待ちが終わります。受理済みの配送は、答えが不明のまま残り、再送されません。"
+        "遠隔の席の起動で、使われない転送ポートの設定と、決裁箱の扉の受け渡しが消えます。"
       ]
     },
     {
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "f33bed637ffeff4bbe1b6637ef380b9db43243be",
-      "versionId": "sha256:261b36821ca9ae3e36e5c2abb19ee2f061ab6838346baac476ebecb728c241ca",
+      "sourceCommit": "4491da4b8b8f2c5e0ad881e1dd31169466f3a67e",
+      "versionId": "sha256:1a231dfd9b587b8a01b9021cfe28d416dfd93d4ded892e77f80b6493e0a9d962",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:261b36821ca9ae3e36e5c2abb19ee2f061ab6838346baac476ebecb728c241ca"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:1a231dfd9b587b8a01b9021cfe28d416dfd93d4ded892e77f80b6493e0a9d962"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -722,22 +722,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席がツールの許可待ちで止まった時の決裁箱のカードを、ホストにある決裁箱の公開クライアント経由で出すようになります（ペアリング不要）。",
-        "本体の決裁箱の常駐プロセス、扉、ペアリング、QRを送るツールが消えます。端末側の決裁箱の扉も消えます。",
-        "本体のイメージの Aiterm が 0.70.121 になります。Stop が失敗したターンが、ホストの待機で確定します。"
+        "閉じた席の、ツールの許可待ちの項目が閉じられ、決裁箱のカードも取り下げられます。",
+        "遠隔の席の起動で、使われない転送ポートの設定が渡されなくなります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "f33bed637ffeff4bbe1b6637ef380b9db43243be",
-      "versionId": "sha256:261b36821ca9ae3e36e5c2abb19ee2f061ab6838346baac476ebecb728c241ca",
+      "sourceCommit": "4491da4b8b8f2c5e0ad881e1dd31169466f3a67e",
+      "versionId": "sha256:1a231dfd9b587b8a01b9021cfe28d416dfd93d4ded892e77f80b6493e0a9d962",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:261b36821ca9ae3e36e5c2abb19ee2f061ab6838346baac476ebecb728c241ca"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:1a231dfd9b587b8a01b9021cfe28d416dfd93d4ded892e77f80b6493e0a9d962"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,9 +745,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席がツールの許可待ちで止まった時の決裁箱のカードを、ホストにある決裁箱の公開クライアント経由で出すようになります（ペアリング不要）。",
-        "本体の決裁箱の常駐プロセス、扉、ペアリング、QRを送るツールが消えます。端末側の決裁箱の扉も消えます。",
-        "本体のイメージの Aiterm が 0.70.121 になります。Stop が失敗したターンが、ホストの待機で確定します。"
+        "閉じた席の、ツールの許可待ちの項目が閉じられ、決裁箱のカードも取り下げられます。",
+        "遠隔の席の起動で、使われない転送ポートの設定が渡されなくなります。"
       ]
     },
     {
