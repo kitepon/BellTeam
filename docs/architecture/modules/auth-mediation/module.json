@@ -6,7 +6,8 @@
   "external": false,
   "provides": [
     "auth-exec (MCP auth_exec; container socket; main-server host socket)",
-    "auth-admin (grant, revoke, stop, resume, show, flush, token)"
+    "auth-admin (stop, resume, show, flush, audit, token, entry-set)",
+    "grant entry (grant, revoke only from the registered entry program, with the decision record)"
   ],
   "uses": [
     {
@@ -51,6 +52,7 @@
     "src/auth-mediation-ipc.mjs",
     "src/auth-mediation-dispatcher.mjs",
     "src/auth-mediation-entry.mjs",
-    "scripts/auth-mediation/relay.py"
+    "scripts/auth-mediation/relay.py",
+    "scripts/auth-mediation/grant"
   ]
 }

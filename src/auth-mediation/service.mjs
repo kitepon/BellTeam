@@ -61,7 +61,7 @@ export function createAuthMediationService({ policyPath, auditPath, opExe, first
         const text = await readFile(auditPath, 'utf8').catch(error => error.code === 'ENOENT' ? '' : Promise.reject(error))
         return { outcome: 'ok', lines: text.split('\n').filter(Boolean).slice(-last) }
       }
-      return core.admin(params.botId, params.verb, params.args ?? {})
+      return core.admin(params.botId, params.verb, params.args ?? {}, input.program)
     })),
     status: (params, effect) => within(effect, async () => ({ state: (await effect('secret.get', {})).unavailable ? 'no-token' : 'ready' })),
   }

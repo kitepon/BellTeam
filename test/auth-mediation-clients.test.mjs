@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync, spawn } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { access, mkdtemp, readFile } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -8,6 +9,7 @@ import test from 'node:test'
 
 const AUTH = new URL('../scripts/auth-mediation/auth', import.meta.url).pathname
 const ADMIN = new URL('../scripts/auth-mediation/auth-admin', import.meta.url).pathname
+const GRANT = new URL('../scripts/auth-mediation/grant', import.meta.url).pathname
 
 async function fakeModule(reply) {
   const dir = await mkdtemp(join(tmpdir(), 'auth-sock-')), path = join(dir, 's.sock'), seen = []
@@ -33,11 +35,12 @@ test('auth exec: sends command and cwd, appends ARGS after --, passes env, maps 
   assert.match(gone.err, /not running/u); assert.notEqual(gone.code, 0)
 })
 
-test('auth-admin: grant, stop, token-set (value only on stdin), import', async () => {
+test('auth-admin: entry-set (path and sha256 of the file), stop, token-set (value only on stdin), show prints the entry', async () => {
   const m = await fakeModule(req => req.verb === 'import' ? { outcome: 'ok', count: 3 } : { outcome: 'ok', policy: { bots: { 'bot-a': { grants: [{ command: 'x' }] } }, units: {}, stopped: ['y'] } })
   const env = { AUTH_SOCK: m.path }
-  await run(ADMIN, ['grant', '--bot', 'bot-a', 'gh release list', '--cwd', '/srv/bellteam/bots/bot-a', '--until', '2099-01-01T00:00:00+00:00'], env)
-  assert.deepEqual(m.seen[0], { op: 'admin', verb: 'grant', args: { command: 'gh release list', bot: 'bot-a', cwd: '/srv/bellteam/bots/bot-a', expires: '2099-01-01T00:00:00+00:00' } })
+  await run(ADMIN, ['entry-set', GRANT], env)
+  assert.deepEqual(m.seen[0], { op: 'admin', verb: 'entry.set', args: { path: GRANT, sha256: createHash('sha256').update(await readFile(GRANT)).digest('hex') } })
+  assert.notEqual((await run(ADMIN, ['grant', '--bot', 'bot-a', 'x'], env)).code, 0) // grant and revoke are the entry program's
   await run(ADMIN, ['token-set'], env, 'tok-123\n'); assert.deepEqual(m.seen[1], { op: 'admin', verb: 'token.set', args: { value: 'tok-123' } })
   const shown = await run(ADMIN, ['show'], env); assert.match(shown.out, /"bot": "bot-a"/u); assert.match(shown.out, /"stopped": "y"/u)
   assert.equal((await run(ADMIN, ['token-set'], env, '')).code, 1)
@@ -82,4 +85,23 @@ test('auth exec: ssh-key is loaded into a per-run agent that is gone after the r
   const out = await run(AUTH, ['exec', 'sh', '-c', 'ssh-add -l | grep -c ED25519; echo "$SSH_AUTH_SOCK" > ' + note], { AUTH_SOCK: m.path })
   assert.equal(out.code, 0); assert.equal(out.out.trim(), '1')
   await assert.rejects(access((await readFile(note, 'utf8')).trim())); m.close()
+})
+
+test('grant entry program: refuses a grant without role/record/need/reason before the socket; sends the decision record with the admin request', async () => {
+  const m = await fakeModule(() => ({ outcome: 'ok' }))
+  const env = { AUTH_SOCK: m.path }
+  const base = ['grant', '--bot', 'bot-a', '--cwd', '/srv/bellteam/bots/bot-a', 'gh release list']
+  for (const args of [[...base, '--reason', 'r'], [...base, '--reason', 'r', '--role', 'x', '--record', 'y'], [...base, '--reason', ' ', '--role', 'x', '--record', 'y', '--need', 'standing'],
+    [...base, '--reason', 'r', '--role', 'x', '--record', 'y', '--need', 'standing', '--until', '2099-01-01T00:00:00+00:00'], [...base, '--reason', 'r', '--role', 'x', '--record', 'y', '--need', 'one-off']])
+    assert.notEqual((await run(GRANT, args, env)).code, 0, args.join(' '))
+  assert.equal(m.seen.length, 0)
+  const ok = await run(GRANT, [...base, '--reason', 'Epinel installs every Windows release', '--role', 'main adoption', '--record', 'chart a, b', '--need', 'standing'], env)
+  assert.equal(ok.code, 0)
+  const { decision, ...rest } = m.seen[0].args
+  assert.deepEqual(m.seen[0].verb, 'grant'); assert.deepEqual(rest, { command: 'gh release list', bot: 'bot-a', cwd: '/srv/bellteam/bots/bot-a' })
+  assert.deepEqual({ ...decision, id: 'x' }, { id: 'x', reason: 'Epinel installs every Windows release', role: 'main adoption', record: 'chart a, b', need: 'standing' })
+  assert.match(ok.out, new RegExp(decision.id, 'u'))
+  assert.equal((await run(GRANT, ['revoke', '--unit', '/home/kite/x', '--reason', 'retired', 'deploy'], env)).code, 0)
+  assert.deepEqual(m.seen[1].args.decision.reason, 'retired'); assert.equal(m.seen[1].verb, 'revoke'); assert.equal(m.seen[1].args.unit, '/home/kite/x')
+  m.close()
 })

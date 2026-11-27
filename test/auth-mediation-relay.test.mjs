@@ -39,6 +39,17 @@ test('container socket adds the peer uid and cwd; host socket adds none; reply i
   } finally { r.stop() }
 })
 
+test('an admin request also carries the peer program (read by the relay); an exec request does not', async () => {
+  const r = await start()
+  try {
+    await r.ask('container.sock', line({ op: 'admin', verb: 'show' }))
+    await r.ask('container.sock', line({ op: 'exec', command: ['a'], cwd: '/' }))
+    assert.ok('program' in r.frames[0].peer); assert.equal(r.frames[0].peer.uid, process.getuid())
+    assert.ok(r.frames[0].peer.program === null || (r.frames[0].peer.program.sealed === false && /^[a-f0-9]{64}$/u.test(r.frames[0].peer.program.sha256))) // the test runner is a seat-owned program: never sealed
+    assert.ok(!('program' in r.frames[1].peer))
+  } finally { r.stop() }
+})
+
 test('framing: bad JSON, not an object and over 64 KiB all end as Bad request', async () => {
   const r = await start()
   try {
