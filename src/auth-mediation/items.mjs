@@ -10,13 +10,13 @@ export function createItemCache({ runOp, now = Date.now }) {
     let out
     try { out = await runOp(['item', 'get', name, '--vault', vault, '--reveal', '--format', 'json']) } catch { return null }
     const fields = Object.fromEntries((JSON.parse(out).fields ?? []).filter(f => f.value && f.purpose !== 'NOTES').map(f => [f.label, f.value]))
-    if (mine === epoch) cache.set(name, { fields, until: now() + ttlSeconds * 1000 }) // a flush during the read drops its result
+    if (mine === epoch) cache.set(name, { fields, at: now() }) // a flush during the read drops its result
     return fields
   }
   return {
     async get(name, vault, ttlSeconds) {
       const hit = cache.get(name)
-      if (hit && now() < hit.until) return { fields: hit.fields, hit: true }
+      if (hit && now() < hit.at + ttlSeconds * 1000) return { fields: hit.fields, hit: true }
       const waiting = inflight.get(name)
       if (waiting) { const fields = await waiting; return fields && { fields, hit: true } }
       const task = read(name, vault, ttlSeconds).finally(() => inflight.delete(name))
