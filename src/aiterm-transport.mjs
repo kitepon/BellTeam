@@ -1761,6 +1761,14 @@ export class AitermTransport {
       // 追っているターンがもう動いていない。止められたターンでは、Aitermの待ちは返らない（完了の印だけを待つ）。
       // nullは「分からない」なので、追い続ける。
       const watchable = turn?.state === 'running' && (turn.codex !== false || this.wordWatchable(bot.id, turn))
+      // A row says running, no job or watch shows it, and none will start: the lamp stays idle. Say why once per turn, so a wrong lamp has a reason on record.
+      if (turn?.state === 'running' && !watch && this.isIdle(bot.id) && this.#unwatchedTurns.get(bot.id) !== turn.turn_id) {
+        const reason = !allowNew() ? 'not_accepting' : !watchable ? 'not_watchable' : this.activity.followedTurns.get(bot.id) === turn.turn_id ? 'already_followed' : null
+        if (reason) {
+          this.#unwatchedTurns.set(bot.id, turn.turn_id)
+          process.stderr.write(`BellTeam seat turn not watched: ${bot.id} ${session} turn=${turn.turn_id} reason=${reason} codex=${turn.codex} interim_from=${turn.interim_from ?? null}\n`)
+        }
+      }
       if (watch && turn?.state === 'running' && turn.turn_id !== watch.turnId) {
         if (allowNew() && watchable) this.watchTurn(bot, session, turn, { onInterim, groupId, lease })
         watch.end()
@@ -1856,6 +1864,8 @@ export class AitermTransport {
     }
     return watch
   }
+
+  #unwatchedTurns = new Map() // botId -> turn_id already logged as "row says running, no watch"
 
   // 席が自分で始めたターンのうち、最後に追ったターンで合間の言葉として出した文と、追い終えた時刻。
   shownInSelfTurn(botId) {
