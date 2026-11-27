@@ -1,0 +1,32 @@
+#!/usr/bin/env node
+// Terminal SSH key loader (Owner ruling B 2026-11-27): the 認証仲介 module runs this file with the key in SSH_KEY of ITS environment;
+// the parent starts it and only reads the exit code and the Aiterm DTO json on stdout. No key is printed, logged or put in argv.
+// argv: <terminalId> --ref UUID --handle UUID --revision N   (words after the item title are never authorized)
+import { spawnSync } from 'node:child_process'
+import { createCredentialAgent } from '../src/terminals/credential-agent.mjs'
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u
+const [terminalId, ...flags] = process.argv.slice(2)
+const option = name => { const at = flags.indexOf(name); return at >= 0 ? flags[at + 1] : undefined }
+const key = process.env.SSH_KEY
+delete process.env.SSH_KEY
+const { ref, handle, revision } = { ref: option('--ref'), handle: option('--handle'), revision: option('--revision') }
+if (!/^[a-z0-9][a-z0-9-]{0,63}$/u.test(terminalId ?? '') || !UUID.test(ref ?? '') || !UUID.test(handle ?? '') || !/^[1-9][0-9]{0,15}$/u.test(revision ?? '') || !key) {
+  process.stderr.write('TERMINAL_KEY_LOAD_INVALID\n')
+  process.exit(64)
+}
+
+const run = async (file, args, { input } = {}) => {
+  const result = spawnSync(file, args, { input, encoding: 'utf8', maxBuffer: 65536 })
+  return { code: result.status ?? 1, stdout: result.stdout ?? '' }
+}
+
+// Aiterm keeps the key in its per-terminal agent; its DTO (or binding error, exit 2) goes to the parent unchanged.
+const loaded = await run('/usr/bin/env', ['aiterm-remote-terminal', 'credential-load', '--ref', ref, '--terminal-id', terminalId,
+  '--handle', handle, '--revision', revision, '--purpose', 'ssh-key'], { input: key })
+process.stdout.write(loaded.stdout)
+if (loaded.code !== 0) process.exit(loaded.code)
+
+// The same key to the terminal's own ssh-agent (best effort, as terminals did: the next load retries); only the error code is reported.
+try { await createCredentialAgent({ run }).load(terminalId, key) }
+catch (error) { process.stderr.write(`TERMINAL_AGENT_LOAD_FAILED ${typeof error?.code === 'string' ? error.code : 'FAILED'}\n`) }
