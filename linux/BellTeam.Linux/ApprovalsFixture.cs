@@ -10,7 +10,7 @@ namespace BellTeam.Linux;
 /// link (GET /api/approvals/by-decision: D-1 is linked, D-3 answered, everything else 404) and the 工程表との連携 connection (GET and DELETE /api/approvals/connection, POST and DELETE /api/approvals/connect).
 /// Scenes: "main" (not connected), "connected", "waiting", "gone" (every /api/approvals route answers 404: a removed route must show no failure).
 /// </summary>
-internal sealed class ApprovalsFixture(string scene = "main", string seat = "none") : HttpMessageHandler
+internal sealed class ApprovalsFixture(string scene = "main") : HttpMessageHandler
 {
     private static readonly (string Id, string Name, string Color)[] Members = [("bot-trony", "トロニー", "indigo"), ("bot-flora", "フローラ", "violet"), ("bot-molly", "モリー", "mint")];
     private string connection = scene == "connected" ? "connected" : scene == "waiting" ? "waiting" : "not_connected";
@@ -35,7 +35,6 @@ internal sealed class ApprovalsFixture(string scene = "main", string seat = "non
             "/api/approvals/connection" => Json(new { state = connection }),
             "/api/approvals/connect" when request.Method == HttpMethod.Delete => Json(new { state = connection }),
             "/api/approvals/connect" => Connect(),
-            "/api/approvals/seat-link" or "/api/approvals/seat-link/start" or "/api/approvals/seat-link/stop" => SeatLink(path),
             _ => NotFound()
         };
         return System.Threading.Tasks.Task.FromResult(response);
@@ -49,14 +48,6 @@ internal sealed class ApprovalsFixture(string scene = "main", string seat = "non
                 "D-3" => Json(new { project = "lattice", plan = "p1", task = "t09", state = "answered", attached = true }),
                 _ => NotFound()
             };
-        }
-        // The body's three seat-link routes (seat-approval-card.md): scene state, start waits for the scan, stop ends it.
-        HttpResponseMessage SeatLink(string route)
-        {
-            if (route.EndsWith("/start", StringComparison.Ordinal)) seat = "waiting"; else if (route.EndsWith("/stop", StringComparison.Ordinal)) seat = "none";
-            return seat == "waiting"
-                ? Json(new { state = "waiting", code = "ABCD-EFGH", typedSecret = "4CH9MGVR13NCMC6C", qrText = "https://approval-box.example/pair?c=4CH9MGVR13NCMC6C", expiresAt = DateTimeOffset.UtcNow.AddMinutes(4).AddSeconds(30).ToString("O") })
-                : seat is "failed-rejected" or "failed-expired" ? Json(new { state = "failed", reason = seat[7..] }) : Json(new { state = seat });
         }
         HttpResponseMessage Disconnect() { connection = "not_connected"; return Json(new { state = connection }); }
         HttpResponseMessage Connect() { connection = "waiting"; return Json(new { authorizationUrl = "https://approval.example/consent?code=fixture", expiresAt = DateTimeOffset.UtcNow.AddMinutes(10).ToString("O") }); }
