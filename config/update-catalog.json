@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-27T08:42:38Z",
-  "expiresAt": "2026-12-04T08:42:38Z",
+  "publishedAt": "2026-11-27T10:09:17Z",
+  "expiresAt": "2026-12-04T10:09:17Z",
   "releases": [
     {
       "componentId": "usage",
@@ -897,8 +897,8 @@
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "62ee3ebd8dada4e008d72c79cb2792d2e99d2c5e",
-      "versionId": "a43d90e98851a4046e0b7f8b589853696240b7b60c1bffbd491f8ab2e35c3bd5",
+      "sourceCommit": "8d06ea86a6310a2fda0691dc216b7c570c19cb0e",
+      "versionId": "5738b3ae79d03d3d58d643732a0378b98bcf803bd7cf11d5796f83dcf2d244f0",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -906,16 +906,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T053648Z/auth-mediation-62ee3ebd8dada4e008d72c79cb2792d2e99d2c5e-linux-amd64.tar.gz",
-          "bytes": 3706583,
-          "sha256": "a43d90e98851a4046e0b7f8b589853696240b7b60c1bffbd491f8ab2e35c3bd5"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T100811Z/auth-mediation-8d06ea86a6310a2fda0691dc216b7c570c19cb0e-linux-amd64.tar.gz",
+          "bytes": 3706565,
+          "sha256": "5738b3ae79d03d3d58d643732a0378b98bcf803bd7cf11d5796f83dcf2d244f0"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T053648Z/auth-mediation-62ee3ebd8dada4e008d72c79cb2792d2e99d2c5e-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11218,
-          "sha256": "9a181e6009f579348f4cf9da990d4c4492db59ab0672fe6eb19887be7219514c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T100811Z/auth-mediation-8d06ea86a6310a2fda0691dc216b7c570c19cb0e-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11273,
+          "sha256": "e2b25f5a0277d82bb18e057f7d1b0f1662ad17392efbec102458a923cbc94a16"
         },
-        "signerCommit": "62ee3ebd8dada4e008d72c79cb2792d2e99d2c5e"
+        "signerCommit": "8d06ea86a6310a2fda0691dc216b7c570c19cb0e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -927,13 +927,13 @@
         }
       },
       "changes": [
-        "認証仲介が、ファイルへの受け渡し（file:VAR）と ssh 鍵の受け渡しをソケットで行えるようになり、長い実行が頼んだ時間まで待ち、項目の読み出しをまとめて同時実行を4つまでに抑えます。"
+        "認証仲介の項目キャッシュの既定が 24 時間になり、期限は読み出しのたびに現在の cache_seconds で判定されます（設定を上げると、すでに入っている項目にも効きます）。"
       ]
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "62ee3ebd8dada4e008d72c79cb2792d2e99d2c5e",
-      "versionId": "1729244e76745c90d3c37cc7135f5f388516d311a8ce9118e0d499ffc5dd3ab4",
+      "sourceCommit": "8d06ea86a6310a2fda0691dc216b7c570c19cb0e",
+      "versionId": "0a16cc91ac13e7b4b88cb0e7622c3dfd52c9b1e2b372d5ddec40c86de0253850",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -941,16 +941,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T053648Z/auth-mediation-62ee3ebd8dada4e008d72c79cb2792d2e99d2c5e-linux-arm64.tar.gz",
-          "bytes": 3706583,
-          "sha256": "1729244e76745c90d3c37cc7135f5f388516d311a8ce9118e0d499ffc5dd3ab4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T100811Z/auth-mediation-8d06ea86a6310a2fda0691dc216b7c570c19cb0e-linux-arm64.tar.gz",
+          "bytes": 3706565,
+          "sha256": "0a16cc91ac13e7b4b88cb0e7622c3dfd52c9b1e2b372d5ddec40c86de0253850"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T053648Z/auth-mediation-62ee3ebd8dada4e008d72c79cb2792d2e99d2c5e-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11124,
-          "sha256": "0bf17fc855d7feebf0a471357405dd40a36841f29231dce56c971069c3b6fa11"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T100811Z/auth-mediation-8d06ea86a6310a2fda0691dc216b7c570c19cb0e-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11085,
+          "sha256": "c7073f8a3144c429a5a96162cdacd9203c4d829b550d73503a74b50a17070d23"
         },
-        "signerCommit": "62ee3ebd8dada4e008d72c79cb2792d2e99d2c5e"
+        "signerCommit": "8d06ea86a6310a2fda0691dc216b7c570c19cb0e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -962,7 +962,7 @@
         }
       },
       "changes": [
-        "認証仲介が、ファイルへの受け渡し（file:VAR）と ssh 鍵の受け渡しをソケットで行えるようになり、長い実行が頼んだ時間まで待ち、項目の読み出しをまとめて同時実行を4つまでに抑えます。"
+        "認証仲介の項目キャッシュの既定が 24 時間になり、期限は読み出しのたびに現在の cache_seconds で判定されます（設定を上げると、すでに入っている項目にも効きます）。"
       ]
     }
   ],
