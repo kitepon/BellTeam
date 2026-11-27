@@ -204,7 +204,7 @@ test('real advanced Node IPC uses the same dispatcher and exits after export/res
   const value = await f.request('secrets.submit', { id: item.id, value: 'real-node-ipc-only' })
   assert.equal(value.notification, 'sent'); assert.equal(f.projection.get('secret', item.id).status, 'submitted')
   await f.parent.control('quiesce'); const { handoff } = await f.parent.control('export')
-  assert.ok(handoff.epochs.length === 7)
+  assert.ok(handoff.epochs.length === 6)
   await f.parent.control('resume'); await f.parent.control('quiesce'); await f.parent.control('exit')
   assert.deepEqual(await f.ended, { code: 0, signal: null }); assert.equal(f.stderr(), '')
 })
@@ -277,51 +277,20 @@ test('startup refresh finds a post-initialization member while missing and unaut
   assert.equal(f.effects.length, after)
 })
 
-test('C5 private credential values cross only the system result lane, with public source-free events and history metadata', async t => {
-  const root = await mkdtemp(join(tmpdir(), 'bellteam-c5-channel-'))
-  const fakeOp = join(root, 'synthetic-op')
-  await writeFile(fakeOp, "#!/usr/bin/env node\nprocess.stdout.write(process.argv[2] === 'whoami' ? JSON.stringify({account_uuid:'synthetic-account'}) : 'SYNTHETIC-C5-KEY')\n", { mode: 0o700 })
-  const prior = process.env.OP_CLI_PATH
-  process.env.OP_CLI_PATH = fakeOp
-  t.after(async () => { if (prior === undefined) delete process.env.OP_CLI_PATH; else process.env.OP_CLI_PATH = prior; await rm(root, { recursive: true, force: true }) })
+test('C5 private credential values cross only the system result lane, with public events and history metadata', async t => {
   const f = await fixture(t); await f.initialize()
   const scope = { terminalId: 'synthetic-terminal', purpose: 'terminal.ssh' }, context = { ...scope, memberId: 'bot-a' }
-  const reference = `op://${'a'.repeat(26)}/${'b'.repeat(26)}/credential`
   const item = await f.request('secrets.create', { toolId: 'synthetic', label: 'key', message: 'input' }, bot)
-  assert.equal(item.inputOptions.onePasswordAvailable, true)
-  const submitted = await f.request('secrets.submit', { id: item.id, value: { source: 'onepassword', reference } })
-  assert.equal(submitted.path, undefined)
+  // 2026-11-27: no 1Password source; the card offers the stored value only.
+  assert.deepEqual(item.inputOptions, { onePasswordAvailable: false, preferred: 'stored' })
+  await f.request('secrets.submit', { id: item.id, value: 'SYNTHETIC-C5-KEY' })
   const dto = await f.request('secrets.bind', { id: item.id, scope }, system)
   assert.equal(await f.request('secrets.resolve', { handle: dto.handle, context }, system), 'SYNTHETIC-C5-KEY')
   await assert.rejects(f.request('secrets.resolve', { handle: dto.handle, context }, bot), { code: 'USAGE_ACTOR_FORBIDDEN' })
   const timeline = await f.request('secrets.timeline', { target: { botId: 'bot-a' } }, system)
-  assert.equal(timeline[0].secret_request.inputOptions.onePasswordAvailable, true)
+  assert.deepEqual(timeline[0].secret_request.inputOptions, { onePasswordAvailable: false, preferred: 'stored' })
   await f.request('secrets.refresh', {}, system)
   assert.ok(f.changes.some(({row}) => row.type === 'credential' && row.value.handle === dto.handle))
-  assert.ok(!JSON.stringify([f.effects, f.changes, timeline]).includes(reference))
   assert.ok(!JSON.stringify([f.effects, f.changes, timeline]).includes('SYNTHETIC-C5-KEY'))
-  await f.parent.control('quiesce'); await f.parent.control('exit')
-})
-
-test('C5 source recovery updates pending card input options after an unavailable start with no handles', async t => {
-  const root = await mkdtemp(join(tmpdir(), 'bellteam-c5-source-recovery-'))
-  const fakeOp = join(root, 'synthetic-op'), connected = join(root, 'connected')
-  await writeFile(fakeOp, `#!/usr/bin/env node\nif (!require('node:fs').existsSync(${JSON.stringify(connected)})) process.exit(2)\nprocess.stdout.write(JSON.stringify({account_uuid:'synthetic-account'}))\n`, { mode: 0o700 })
-  const prior = process.env.OP_CLI_PATH
-  process.env.OP_CLI_PATH = fakeOp
-  t.after(async () => { if (prior === undefined) delete process.env.OP_CLI_PATH; else process.env.OP_CLI_PATH = prior; await rm(root, { recursive: true, force: true }) })
-  const f = await fixture(t); await f.initialize()
-  const item = await f.request('secrets.create', { toolId: 'synthetic', label: 'key', message: 'input' }, bot)
-  assert.deepEqual(item.inputOptions, { onePasswordAvailable: false, preferred: 'stored' })
-  assert.deepEqual(await f.request('secrets.refresh', {}, system), { recoveryNeeded: true })
-  assert.ok(!f.changes.some(({row}) => row.type === 'credential'))
-  const recoveries = f.changes.filter(({row}) => row.type === 'credentialRecovery')
-  assert.equal(recoveries.at(-1).row.value.recoveryNeeded, true)
-  await writeFile(connected, 'connected')
-  assert.deepEqual(await f.request('secrets.refresh', {}, system), { recoveryNeeded: false })
-  const timeline = await f.request('secrets.timeline', { target: { botId: 'bot-a' } }, system)
-  assert.deepEqual(timeline[0].secret_request.inputOptions, { onePasswordAvailable: true, preferred: 'onepassword' })
-  assert.ok(f.changes.some(({row}) => row.type === 'secret' && row.value.id === item.id && row.value.inputOptions.onePasswordAvailable))
-  assert.equal(f.changes.filter(({row}) => row.type === 'credentialRecovery').at(-1).row.value.recoveryNeeded, false)
   await f.parent.control('quiesce'); await f.parent.control('exit')
 })

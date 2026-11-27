@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { FcmNotifications, fcmMessage } from '../src/fcm-notifications.mjs'
+import { FcmNotifications, FcmProvider, fcmMessage, loadFcmProvider } from '../src/fcm-notifications.mjs'
 import { createNotificationRelay } from '../services/notifications/relay.mjs'
 import { notificationPayload } from '../src/push-notifications.mjs'
 import { createNotificationsDispatcher, validateNotificationRequest } from '../src/usage/notifications-dispatcher.mjs'
@@ -37,18 +37,15 @@ function google(answers = {}) {
   return { calls, fetch }
 }
 
-async function fixture(t, { config = { serviceAccount: { file: 'key.json' } }, answers, reports = [] } = {}) {
+// 2026-11-27: a user's server holds no Firebase credential (the relay is the only path); this stands in for the relay's own provider, which sends the same way.
+async function fixture(t, { answers, reports = [] } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-fcm-'))
   t.after(() => rm(root, { recursive: true, force: true }))
-  if (config) {
-    await mkdir(join(root, 'shared/tools/fcm'), { recursive: true })
-    await writeFile(join(root, 'shared/tools/fcm/config.json'), JSON.stringify(config))
-    await writeFile(join(root, 'shared/tools/fcm/key.json'), JSON.stringify(account), { mode: 0o600 })
-  }
   const fake = google(answers)
   const service = new FcmNotifications({ root, diagnostics: { async record(report) { reports.push(report) } }, fetch: fake.fetch })
   await service.initialize()
   await service.configure({ enabled: true, relayUrl: '' })
+  service.provider = await FcmProvider.create(account, { fetch: fake.fetch })
   return { root, service, fake, reports }
 }
 const settle = async service => { await Promise.all(service.inflight); await service.saving }
@@ -70,34 +67,32 @@ test('the FCM message carries the APNs title and body and string data for the sa
   assert.equal(big.data.senderName, 'メンバー')
 })
 
-test('no config means off, and a broken config or key reports a fixed code without throwing', async t => {
-  const none = await fixture(t, { config: null })
-  assert.deepEqual(none.service.status(), { configured: false })
-  await assert.rejects(none.service.register({ token: tokenA, server }), { code: 'PUSH_NOT_CONFIGURED' })
-  for (const [config, code] of [[{ serviceAccount: { file: '../x.json' } }, 'FCM_CONFIG_INVALID'], [{ serviceAccount: { reference: 'nope' } }, 'FCM_KEY_REFERENCE_INVALID'],
-    [{ serviceAccount: { file: 'missing.json' } }, 'FCM_KEY_UNAVAILABLE'], [{ other: 1 }, 'FCM_CONFIG_INVALID']]) {
-    const broken = await fixture(t, { config })
-    assert.equal(broken.service.status().configured, false)
-    assert.equal(broken.service.status().error.code, code)
-    assert.ok(fcmStatusValid(broken.service.status()))
-    assert.deepEqual(broken.reports.map(report => [report.code, report.diagnostic_log]), [['SERVER_PUSH_UNAVAILABLE', code]])
-  }
-  const bad = await fixture(t)
-  await writeFile(join(bad.root, 'shared/tools/fcm/key.json'), JSON.stringify({ ...account, private_key: 'x' }))
-  await bad.service.load()
-  assert.equal(bad.service.status().error.code, 'FCM_KEY_INVALID')
-})
-
-test('a 1Password reference supplies the service account', async t => {
-  const reference = `op://${'a'.repeat(26)}/${'b'.repeat(26)}/key`
-  const root = await mkdtemp(join(tmpdir(), 'bellteam-fcm-op-'))
+test('without a relay URL the server is off and reads no file; the relay credential loader reports fixed codes', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-fcm-off-'))
   t.after(() => rm(root, { recursive: true, force: true }))
+  const reports = []
   await mkdir(join(root, 'shared/tools/fcm'), { recursive: true })
-  await writeFile(join(root, 'shared/tools/fcm/config.json'), JSON.stringify({ serviceAccount: { reference } }))
-  const service = new FcmNotifications({ root, diagnostics: { async record() {} }, readKeys: async refs => new Map(refs.map(ref => [ref, JSON.stringify(account)])) })
-  await service.initialize()
-  await service.configure({ enabled: true })
-  assert.deepEqual(service.status(), { configured: true })
+  await writeFile(join(root, 'shared/tools/fcm/config.json'), JSON.stringify({ serviceAccount: { file: 'key.json' } }))
+  await writeFile(join(root, 'shared/tools/fcm/key.json'), JSON.stringify(account), { mode: 0o600 })
+  const off = new FcmNotifications({ root, diagnostics: { async record(report) { reports.push(report) } } })
+  await off.initialize()
+  await off.configure({ enabled: true, relayUrl: '' })
+  assert.deepEqual(off.status(), { configured: false })
+  assert.deepEqual(reports, []) // an old shared/tools/fcm is never read
+  await assert.rejects(off.register({ token: tokenA, server }), { code: 'PUSH_NOT_CONFIGURED' })
+  const directory = join(root, 'relay')
+  await mkdir(directory)
+  assert.equal(await loadFcmProvider(directory), null)
+  for (const [config, code] of [[{ serviceAccount: { file: '../x.json' } }, 'FCM_CONFIG_INVALID'], [{ serviceAccount: { reference: 'op://x/y/z' } }, 'FCM_CONFIG_INVALID'],
+    [{ serviceAccount: { file: 'missing.json' } }, 'FCM_KEY_UNAVAILABLE'], [{ other: 1 }, 'FCM_CONFIG_INVALID']]) {
+    await writeFile(join(directory, 'config.json'), JSON.stringify(config))
+    await assert.rejects(loadFcmProvider(directory), { code })
+  }
+  await writeFile(join(directory, 'config.json'), JSON.stringify({ serviceAccount: { file: 'key.json' } }))
+  await writeFile(join(directory, 'key.json'), JSON.stringify({ ...account, private_key: 'x' }))
+  await assert.rejects(loadFcmProvider(directory), { code: 'FCM_KEY_INVALID' })
+  await writeFile(join(directory, 'key.json'), JSON.stringify(account))
+  assert.ok(await loadFcmProvider(directory) instanceof FcmProvider)
 })
 
 test('register persists privately, replaces previousToken, survives a restart and unregister removes', async t => {
@@ -154,10 +149,12 @@ test('the update notice reaches Android with the APNs wording; the Owner notific
   assert.equal(fake.calls.sends.length, 1)
 })
 
-test('the dispatcher routes provider fcm, the four events and the update notice, and keeps Apple requests unchanged', async t => {
-  const { root, fake } = await fixture(t)
-  const dispatcher = createNotificationsDispatcher({ root, diagnostic: async () => {}, fcmFetch: fake.fetch })
-  await dispatcher.control('initialize', { configuration: { apns: { enabled: true, relayUrl: '' }, webPush: { enabled: false, subject: 'mailto:ops@example.com' } } })
+test('the dispatcher routes provider fcm through the relay, the four events and the update notice, and keeps Apple requests unchanged', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-fcm-dispatch-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const world = relayWorld()
+  const dispatcher = createNotificationsDispatcher({ root, diagnostic: async () => {}, fcmFetch: (url, options) => world.relay.fetch(new Request(url, options)) })
+  await dispatcher.control('initialize', { configuration: { apns: { enabled: true, relayUrl: 'http://127.0.0.1:1' }, webPush: { enabled: false, subject: 'mailto:ops@example.com' } } })
   await dispatcher.control('resume', {})
   const request = (method, params) => { dispatcher.validateRequest(method, params); return dispatcher.dispatch(method, params) }
   assert.deepEqual(await request('status', { provider: 'fcm' }), { configured: true })
@@ -169,7 +166,7 @@ test('the dispatcher routes provider fcm, the four events and the update notice,
   await request('publish', { type: 'room', id: 'm2', botId: 'bot-a', senderName: 'Alice', roomId: 'room-1', roomName: '開発' })
   await request('publish', { type: 'update', id: 'a'.repeat(64) })
   await dispatcher.control('quiesce', {})
-  assert.deepEqual(fake.calls.sends.map(message => message.notification).sort((a, b) => a.title.localeCompare(b.title)),
+  assert.deepEqual(world.posted.map(message => message.notification).sort((a, b) => a.title.localeCompare(b.title)),
     [{ title: 'Alice · 開発', body: 'ルームに新しいメッセージが届きました。' }, { title: 'BellTeam', body: '更新があります。Updateで確認してください。' }])
   await dispatcher.control('exit', {})
 })

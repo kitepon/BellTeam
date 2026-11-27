@@ -12,7 +12,7 @@ Rabbit認証consumerの未配布候補は[認証runとOwner案内の契約](olrw
 
 [AI CLIの導入状態と「最新版を入れる」](harness-cli.md)（a451）が、AIの認証・初期設定・実行制御・各アプリへ渡す契約の正本。
 
-[Secret credentials and 1Password](secret-credentials.md) owns C5 source/handle/revision/resolution and availability; Owner terminal key cards bind exact scope and requestId, current selections/revocation persist, and trusted execution consumes values through a private callback.
+[Secret credentials](secret-credentials.md) (the 1Password source was withdrawn 2026-11-27) owns C5 source/handle/revision/resolution and availability; Owner terminal key cards bind exact scope and requestId, current selections/revocation persist, and trusted execution consumes values through a private callback.
 
 [Claudeアカウント別の認証](harness-accounts.md)に slot query・認証進行の分離・private accounts.prepare と旧1st互換を置く。
 
@@ -71,7 +71,7 @@ HTTP handlerは未一致の時だけfalseを返す。既存のstatus/JSON・pref
 | FeatureSettings | shared/tools/bellteam-settings/settings.json、適用errorsとpending Promise、親インスタンス内routingEpoch（永続化/公開listへ追加しない） |
 | SecretRequests | state/secret-requests/*.json、state/secret-values/<toolId>/secrets/<id>（0600、新規作成）、private secret-sources/secret-credentials、state/secret-module-values/<handle>（0600、module-written。R7）、parent-only secret-native-credentials、busy、表示索引 |
 | OwnerQuestions | state/owner-questions/*.json、busy、表示索引。通知例外でも回答済み状態は残る |
-| PushNotifications | state/push-devices.json、provider/inflight/設定エラー。APNs設定を読み、鍵ごとに`.p8`ファイルか1Password参照から得る（[notification-process](notification-process.md#apns鍵の取得元fileか1password参照2026-11-11-セキュリティ事故)） |
+| PushNotifications | state/push-devices.json、provider/inflight/設定エラー。鍵は持たず、外部relayだけを通して送る（[notification-process](notification-process.md#通知の送り先は外部relayだけ2026-11-27-トロニー裁定)） |
 | HomeLogin（a485） | shared/login-home.json（0600・原子的置換・子だけが書く）：持ち主（アカウントkまたはconsole）・enforced・登録済み接続先・nonce秘密・セッション（tokenのhash・ticket・権利・最終使用）。bodyのstate/login-enforcedは一度書いたら消さないmarker。setup code/console codeはメモリだけ |
 | Subscriptions | 通常shared/subscription.json、seatRuntimeではstate/subscription.json。案内の完了（setupComplete・setup）だけ。課金の状態は持たない（a540）。旧形式のキーは読み戻し用に空で残す |
 

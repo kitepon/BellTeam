@@ -94,7 +94,7 @@ Impact: `scripts/update_catalog.py:validate_business_compatibility` and `test/bu
 
 ## C5 secret reference state and child closure (2026-11-09)
 
-Centi authorized these source-contract edits in Mika's C5 diff. `SecretRequests` and the usage process validators import `usage/secret-credentials.mjs`, which imports `usage/onepassword-source.mjs`; BUSINESS_FILES['usage'] includes both files in the child artifact. NativeSecretCredentials is reached only from the parent usage-assembly and stays outside the child artifact.
+Centi authorized these source-contract edits in Mika's C5 diff. `SecretRequests` and the usage process validators import `usage/secret-credentials.mjs`, (it no longer imports `usage/onepassword-source.mjs`, deleted 2026-11-27 with the Settings 1Password feature); BUSINESS_FILES['usage'] includes it in the child artifact. NativeSecretCredentials is reached only from the parent usage-assembly and stays outside the child artifact.
 
 Private reference sources and opaque credential records extend the state interpretation: BUSINESS_STATE['usage'].secretEncoding and the usage export both become `stored-or-private-reference-v1`. Legacy stored values remain readable by the new code; old usage code cannot interpret a submitted reference record with no value path. Packaging, catalog descriptors and the installed consumer must advertise the same new encoding. Activation requires the compatible next parent/body and its native provider connection; the already signed/published catalog and selections are not rewritten by this source diff. Source adoption is neither publication nor live provider/SSH verification. The detailed data flow and guards are canonical in [usage secret credentials](../usage/secret-credentials.md).
 

@@ -12,7 +12,7 @@ Owner rule 2026-11-17: one spec on every platform. The Apple apps get closed-app
 | Message kind | FCM HTTP v1 `notification` + `data`, `android.priority` HIGH. The system shows title and body while the app is closed; the app needs no code to show it. | Reliable under Doze and OEM limits; mirrors iOS, where title and body appear even if the extension cannot run. Sender avatars are not part of v1 (iOS gets them from its extension); a later additive field can carry them. |
 | Registration | Separate routes under `/api/notifications/android/…`, a separate state file. | Apple routes and `push-devices.json` stay byte-identical, so an older usage/notification child ignores Android entirely and rollback cannot turn Android rows into `PUSH_STATE_INVALID`. |
 | On/off | Follows the existing notification feature setting (`apns.enabled`). When the Owner turns notifications off, Android sends stop too. | One spec. The setting reaches the child already; no new parent field. |
-| Relay | When the notification setting has a relay URL, Android sends through the operator relay like APNs (a381): `POST /v1/notifications/fcm/send`. Without a relay URL the server sends directly with its own credential. | A user's own server has no Firebase project; the operator's credential sends, gated by the same cross-store subscription rule (below). |
+| Relay | When the notification setting has a relay URL, Android sends through the operator relay like APNs (a381): `POST /v1/notifications/fcm/send`. Without a relay URL the server sends nothing (2026-11-27: no direct credential on a server; see the section below). | A user's own server has no Firebase project; the operator's credential sends, gated by the same cross-store subscription rule (below). |
 
 ## Function diagram
 
@@ -27,7 +27,7 @@ flowchart LR
   Fcm --> Prov[FcmProvider: OAuth token + messages:send]
   Prov -->|https| Google[(Google OAuth + FCM HTTP v1)]
   Google -->|push| Neon
-  Cfg[(shared/tools/fcm/config.json + service account JSON or op:// reference)] -->|read at initialize / apply| Fcm
+  Rel[(operator relay: its own Firebase credential)] --- Fcm
   Dev[(state/fcm-devices.json 0600)] <--> Fcm
   Fcm -->|safe code only| Diag[diagnostics: SERVER_PUSH_SEND_FAILED / SERVER_PUSH_UNAVAILABLE]
 ```
@@ -63,7 +63,7 @@ flowchart LR
 | Piece | Contract |
 | --- | --- |
 | Registration (a540) | `POST /api/notifications/android/devices` is `{token, server, previousToken?}`; the server adds nothing. A client-sent `proof` is still refused (`PUSH_DEVICE_INVALID`). Every app start registers again. |
-| Child provider | `configure({enabled, relayUrl})`: relay URL set -> `FcmRelayProvider` (needs `GET /v1/notifications/status` to say `android:true`, else `FCM_RELAY_UNSUPPORTED`); empty -> the direct credential. A relay outage is the cause APNs already reports, so FCM shows it on its status only. A device without a proof gets `SUBSCRIPTION_REQUIRED` at send (one diagnostic), like an Apple device without a transaction. |
+| Child provider | `configure({enabled, relayUrl})`: relay URL set -> `FcmRelayProvider` (needs `GET /v1/notifications/status` to say `android:true`, else `FCM_RELAY_UNSUPPORTED`); empty -> no provider (configured:false, no error, nothing is read). A relay outage is the cause APNs already reports, so FCM shows it on its status only. A device without a proof gets `SUBSCRIPTION_REQUIRED` at send (one diagnostic), like an Apple device without a transaction. |
 | Relay request (a540) | `{device:{token,server}, id (<=64), message}`: no `proof`, no `ticket`. `message` is exactly the closed shape below. |
 | Relay request, the closed message | `message` is exactly `{token, data, notification:{title,body}, android:{priority:'HIGH', ttl:'86400s', notification:{channel_id:'bellteam_messages', tag}}}`; `token` and `data.server` must equal `device`, `data` keys are letters-only strings, whole message at most 4,000 bytes. Anything else: 400. |
 | Relay answer | No verdict is asked for (a540); one post. 200 `{accepted:true}`; FCM `UNREGISTERED` -> 410 `FCM_UNREGISTERED` (the child removes the device); other failures 502 with the fixed code. No credential on the relay: 503 `PUSH_NOT_CONFIGURED`. |
@@ -71,15 +71,9 @@ flowchart LR
 
 Protection named: secret exposure (the proof and the operator's key stay private), privilege escalation (the relay only forwards the closed message to the device's own token after the Worker confirms entitlement; it cannot be used to send arbitrary text to arbitrary tokens), wrong target (`data.server` and `token` must match the device). Self-exit: the app registers again at every start; a missing proof or unentitled account is fixed by buying or restoring in any store, then the next start refreshes the row.
 
-## Server configuration (distributor)
+## Server configuration (2026-11-27: relay only)
 
-`/srv/bellteam/shared/tools/fcm/config.json`, next to `apns/`:
-
-```json
-{ "serviceAccount": { "file": "firebase-service-account.json" } }
-```
-
-or `{ "serviceAccount": { "reference": "op://<vault id>/<item id>/<field>" } }` (1Password, same reader and Settings token as the APNs key reference). The JSON is the Firebase service account key (`type: service_account`, `project_id`, `client_email`, `private_key`). The file sits beside `config.json`, mode 0600, never in Git or the image. The token endpoint is the fixed `https://oauth2.googleapis.com/token`; `token_uri` and any URL in the file are ignored, so a changed file cannot redirect the key. No `config.json`: Android notifications are off and `GET /api/notifications/android` says `configured:false`. A broken config or key never stops the notification child: it reports one of the fixed codes below and APNs/Web push continue.
+A user's server holds no Firebase credential and reads no `shared/tools/fcm` (an old `config.json` there is ignored). Android notifications work only through the operator relay: the notification setting's relay URL, and a relay whose status says `android:true`. The relay's own credential is `BELLTEAM_FCM_DIRECTORY/config.json` = `{ "serviceAccount": { "file": "firebase-service-account.json" } }` (the Firebase key JSON beside it, mode 0600, never in Git or the image; no 1Password reference form). The token endpoint is the fixed `https://oauth2.googleapis.com/token`; `token_uri` and any URL in the file are ignored. A relay config that is broken reports `FCM_CONFIG_INVALID`, `FCM_KEY_UNAVAILABLE` (file unreadable) or `FCM_KEY_INVALID` when the relay starts. Without a relay URL `GET /api/notifications/android` says `configured:false` and registration answers `PUSH_NOT_CONFIGURED`.
 
 ## Client contract for Neon
 
@@ -118,11 +112,11 @@ FCM message the server sends (HTTP v1):
 
 | State / transition | Meaning and self-exit |
 | --- | --- |
-| no config -> configured | `initialize` and each apply read `fcm/config.json`. A re-entered key applies at the next apply or restart. Self-exit: fix the file or reference. |
+| no relay URL -> configured | each apply checks the relay (`GET /v1/notifications/status` with `android:true`). Self-exit: set the relay URL, or the relay gets its credential, then the next apply. |
 | configured -> off | The notification setting is off, or no key. `publish` does nothing; registrations are kept. |
 | register | Row saved (`state/fcm-devices.json`, schema `bellteam.fcm-devices.v1`, 0600, tmp + rename, serialized) before `{registered:true}`. |
 | send fails | A fixed code `FCM_*` is recorded once as `SERVER_PUSH_SEND_FAILED`; no automatic retry (same as APNs). `UNREGISTERED` removes the row silently; `SENDER_ID_MISMATCH` (the token belongs to another Firebase project: wrong server credential or another app) removes it and is reported once. The app registers again at its next start. |
-| config / key unusable | `error` on `GET /api/notifications/android` with a fixed code and a plain message: `FCM_CONFIG_INVALID`, `FCM_KEY_REFERENCE_INVALID`, `FCM_KEY_UNAVAILABLE`, `FCM_KEY_RATE_LIMITED` (1Password refused with its account-wide limit; a500, see notification-process.md), `FCM_KEY_INVALID`; `FCM_STATE_INVALID` when `fcm-devices.json` is unreadable (never replaced by an empty list). Exactly one report per cause (`SERVER_PUSH_UNAVAILABLE`). |
+| relay / state unusable | `error` on `GET /api/notifications/android` with a fixed code and a plain message: `FCM_RELAY_UNSUPPORTED`, `PUSH_RELAY_*`; `FCM_STATE_INVALID` when `fcm-devices.json` is unreadable (never replaced by an empty list). Exactly one report per cause (`SERVER_PUSH_UNAVAILABLE`). |
 
 Protection named: secret exposure (the service account private key and the OAuth token live only in the child's memory; never in DTOs, status, diagnostics or logs; the token URL is fixed), wrong target (`SENDER_ID_MISMATCH`), data loss (atomic device file; an unreadable file is an error, not an empty list). No guard stops APNs or Web push.
 

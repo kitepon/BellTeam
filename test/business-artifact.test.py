@@ -97,8 +97,8 @@ process.stdout.write(JSON.stringify(missing));
     def test_usage_secret_reference_closure_and_encoding(self):
         _, manifest, _ = self.artifact('usage')
         paths = {row['path'] for row in manifest['files']}
-        self.assertTrue({'payload/src/usage/secret-credentials.mjs',
-                         'payload/src/usage/onepassword-source.mjs'} <= paths)
+        self.assertIn('payload/src/usage/secret-credentials.mjs', paths)
+        self.assertNotIn('payload/src/usage/onepassword-source.mjs', paths)
         self.assertNotIn('payload/src/usage/native-secret-credentials.mjs', paths)
         exported = json.loads(subprocess.check_output(['node', '--input-type=module', '-e',
             "import {USAGE_STATE_COMPATIBILITY as state} from './src/usage/state-compatibility.mjs'; process.stdout.write(JSON.stringify(state))"], cwd=ROOT))

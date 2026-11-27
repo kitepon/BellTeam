@@ -61,8 +61,8 @@ flowchart TD
   Configure --> Push
   Bots[members.registry: getで名前だけを参照] --> Push
   Push --> Devices[devices Map / saving: push-devices.json]
-  Push --> Sending[provider / directProvider / inflight / error]
-  Sending --> Provider[APNs直送 / 外部relay]
+  Push --> Sending[provider / inflight / error]
+  Sending --> Provider[外部relay]
   Provider --> Expired[APNS_UNREGISTERED・DEVICETOKENNOTFORTOPICだけ登録を除く<br/>後者は診断にも1回残す]
   Expired --> Devices
   Sending --> Diagnostics[integration Diagnostics.record: 唯一の診断writer]
@@ -91,9 +91,8 @@ flowchart TD
 | 状態 | 現所有と独立後の移動単位 |
 | --- | --- |
 | `state/push-devices.json` と `.tmp` | 通知だけが書く。devices Mapとsavingを同じ子へ移す。親の新旧Push実体を同時に残さない |
-| provider/directProvider/request/error/inflight | 通知だけが保持。APNsのkeys/token署名Promise/connections、relay URL/environmentsも子内。MapやPromiseを親へ投影しない |
-| `shared/tools/apns/config.json` とconfigに列挙された `.p8` | 通知の固定読取範囲。APNs.createはteam/topic/key名・形式を検証。設定内容/鍵をDTO・診断・親envへ出さない |
-| `shared/tools/bellteam-settings/settings.json` の `onePassword` | FeatureSettings（usage子）が唯一writer。通知子はAPNs鍵の1Password参照を解く時だけ `{enabled,token}` を読む（読取専用・保持しない） |
+| provider/request/error/inflight | 通知だけが保持。relay URL/environmentsも子内。MapやPromiseを親へ投影しない |
+| `shared/tools/apns/`・`shared/tools/fcm/` | 通知は読まない（2026-11-27）。古い設定が残っていても無視する |
 | `shared/tools/bellteam-settings/settings.json` | FeatureSettingsのwriterを親へ残す。通知設定の保存と子への適用は別結果 |
 | botsとroom、質問/秘密のitem/file | 元所有者に残す。通知は表示名と既IDだけを入力で受ける |
 | `logs/diagnostics.json` | integrationの唯一writerを維持。子は最小診断DTOを送る |
@@ -137,19 +136,16 @@ flowchart LR
   Apply --> Child
   Endpoint -->|status / device操作| Child
   Child --> Writer[devices / saving: 専用writer]
-  Child --> Provider[provider / inflight / APNs / relay]
+  Child --> Provider[provider / inflight / relay]
   Child -->|安全な診断DTO| Diag
   Runtime[runtime: 固定起動 / 専用排他 / 版交換] --> Child
-  Key[固定APNs設定と鍵: 読取だけ] --> Child
 ```
 
 ## 設定の起動順で必要な接点
 
-`src/bootstrap.mjs:29,33`はservices構築前にFeatureSettings.initializeを呼ぶ。`src/feature-settings.mjs:80`の旧APNs設定有無確認はaccessだけで、鍵やJSON内容を読まない。このbooleanは空relayUrlでも直送設定を有効にできる判定に使われる。APNs providerの妥当性検証は後の通知initializeが行う。
+2026-11-27：旧APNs設定の有無確認（`src/feature-settings.mjs` のaccess）は無くなった。通知のON/OFFと `relayUrl` は保存された設定だけで決まり、空 `relayUrl` は未設定（直送は無い）。`src/bootstrap.mjs` は従来どおりservices構築前にFeatureSettings.initializeを呼ぶ。
 
-この順を保つ最小案は、親に固定config pathの存在確認だけを残し、子へconfig内容や親envを渡さないこと。親からAPNs領域の参照を完全に除く権限契約なら、通知起動前の固定資材descriptorに「旧configが存在する」のbooleanを持たせ、FeatureSettingsへ注入する接点が必要。子status.configuredは設定apply後の意味なので、このbooleanの代用にならない。子から先に起動する案はbootstrap全体の順変更を伴う。どれを採るかRoot/runtimeが固定するまでは変更しない。
-
-通知子へ必要な秘密はAPNs設定/列挙鍵と、registerで渡す当該端末の署名付き取引だけ。relay方式に購読検証用Apple秘密環境を渡す必要はない。検証は既外部通知relayが持つ。settingsの他機能secret、BELLTEAM_WEB_TOKEN、席の資格、process.env全体を渡さない。
+通知子へ渡す秘密は無い（2026-11-27）。鍵は外部relayだけが持つ。検証は既外部通知relayが持つ。settingsの他機能secret、BELLTEAM_WEB_TOKEN、席の資格、process.env全体を渡さない。
 
 ## 停止・唯一writer・結果不明
 
@@ -219,63 +215,32 @@ runtime案のUID1001固定は寿命/協調writerの分離を提供する。同UI
 
 新単体試験ではfield射影/既filter、DTO拒否、4payload、保存/reload/失効保存、送信中quiesce/resume、保存失敗、実ConversationWriter/SecretRequests/OwnerQuestionsの保存継続、disabled/設定適用失敗とstate/鍵不正、buffer件数/bytes、ACK不明再送0、HTTP互換を扱う。既直接のpush/usage module/application runtimeは初回21件を継承し、code補完後に影響するpush/外部relayだけ再確認する。実UID1001/正規C entry/署名archiveのprobe・固定版交換と共通assemblyの受入はEpi/Centi/Mollyの工程へ接続する。
 
-## APNs鍵の取得元：fileか1Password参照（2026-11-11 セキュリティ事故）
+## 通知の送り先は外部relayだけ（2026-11-27 トロニー裁定）
 
-依頼：トロニー。APNs鍵 `AuthKey_366AK82X99`（production）と `AuthKey_PT4F464NK4`（development）は乗っ取られたPCと同期していたため盗まれたものとして扱う。Owner裁定（同日「限定はやめてくれ」）：config.json + `.p8` fileは恒久的な正式経路のまま。1Password参照は鍵ごとに選べる追加の選択肢で、唯一の取得元にしない。Ownerの本番は1Password参照を選び、実通知の確認後に `.p8` を消す。
+依頼：トロニー。Owner（同日）「BellTeamにサービスアカウントや直の1Password読取を置かない」。Ownerのサーバーも、ほかの利用者のサーバーと同じく外部relay（`bellteam-push`）を通して送る。サーバーの通知子はAPNs/FCMの鍵を持たず、読まず、1Passwordにも触れない。旧い「APNs鍵の取得元：fileか1Password参照」（2026-11-11）と、その読取の覚え・止めの状態遷移（a507c）は、この裁定で消えた。
 
 ```mermaid
 flowchart LR
-  Config[shared/tools/apns/config.json: teamId / topic / keys.env.keyId + file または reference] --> Load[PushNotifications.loadDirect]
-  Load -->|file| P8[config横の .p8 読取]
-  Load -->|reference| Reader[onePasswordKeyReader: 読む時だけのOnePasswordSource.resolve]
-  Settings[settings.json onePassword: enabled / token 読取専用] --> Reader
-  P8 --> Create[APNsProvider.create: importPKCS8 ES256]
-  Reader --> Create
-  Create -->|成功| Direct[directProvider]
-  Create -->|1Passwordから鍵を得られない| NotConfigured[provider無し + keyError固定code]
-  NotConfigured --> Configure[直送configure: keyErrorを投げる→SERVER_PUSH_UNAVAILABLE診断 / status.error平易文]
-  Configure -->|次の直送configure / 子の再起動| Load
+  Settings[通知設定: enabled / relayUrl] --> Configure[PushNotifications.configure]
+  Configure -->|enabled かつ relayUrl あり| Relay[NotificationRelayProvider.initialize: GET /v1/notifications/status]
+  Relay -->|configured=true・environments あり| Ready[provider 有り: POST /v1/notifications/send]
+  Relay -->|届かない・形が違う| Unavailable[provider 無し + PUSH_RELAY_* code: SERVER_PUSH_UNAVAILABLE診断 / status.error平易文]
+  Configure -->|enabled かつ relayUrl 空| NotConfigured[provider 無し + PUSH_NOT_CONFIGURED]
+  Configure -->|enabled=false| Off[provider 無し・エラー無し]
+  Unavailable --> Configure
+  NotConfigured --> Configure
 ```
 
 | 項目 | 契約 |
 | --- | --- |
-| config.json | `keys.<development\|production>` は鍵ごとに `{keyId, file}`（config横の `.p8`）か `{keyId, reference}`（`op://<vault id>/<item id>/<field>`、値は `.p8` の全文。改行が落ちても読める）のどちらか一方。teamId/topic/keyId/file名と「どちらか一方」の不正は従来どおり `APNS_CONFIG_INVALID` |
-| 1Password参照の失敗 | 参照の形式不正 `APNS_KEY_REFERENCE_INVALID`、1Passwordに届かない・読めない `APNS_KEY_UNAVAILABLE`、1Passwordが回数制限（op の「Too many requests」）で断った `APNS_KEY_RATE_LIMITED`（a500）、値が鍵でない `APNS_KEY_INVALID`。子は落ちず、APNsは未設定（configured=false）、status.errorは平易文。relay・Web Push・端末登録fileはそのまま。fileの読取り失敗は従来どおり |
-| 1Password接続 | `onePasswordKeyReader` は読む時だけ `createOnePasswordSource({autoRetry:false})` を作り、`resolve(reference)` だけを呼んでcloseする。tokenは呼ぶたびに `settings.json` の `onePassword`（enabled時のtokenだけ）を読み、その `op` 呼出しのenvだけに置く。FeatureSettingsが唯一writer |
-| 読み直しの抑え（a500） | `onePasswordKeyReader` は、読めた鍵の値を子のメモリだけに覚え（ディスクへは書かない）、再試行・再apply・同じ子の中では1Passwordを読まない。まだ覚えていない参照だけを1件ずつ読み、最初の拒否で止める。1Passwordが回数制限で断ったら10分間は1Passwordを呼ばず `APNS_KEY_RATE_LIMITED` を返す（10分で自力で解ける。共有アカウントの上限を通知が使い切らないための抑えで、他の失敗には掛けない）。値が鍵でなかった時と、AppleがAPNsの送信で鍵を断った時（`APNS_HTTP_403_INVALIDPROVIDERTOKEN`）は、覚えた値を捨て、次の読込み（設定の保存し直し・子の再起動）で読み直す。参照が変わった時は別の参照として読む（a495b）。鍵を1Password側で入れ替えた時は、子の再起動（module更新を含む）で反映する |
-| 自力の出口 | 直送の `configure` は、子の起動直後の1回目を除き毎回config.jsonを読み直し、鍵は上の覚えが無い分だけ読む。直した後は通知設定を保存し直すか、子の再起動（module更新を含む）で戻る |
-| 秘密の扱い | 鍵の値・参照・tokenはDTO・診断・status・ログへ出さない。KeyObjectはメモリだけ |
-| 互換 | file設定は何も変えずに動く。外部relay（`services/notifications/index.mjs`）も `onePasswordKeyReader(null)` を渡し、鍵ごとにfileかreferenceを選べる。relayはsettings.jsonを持たないので、`op` は起動環境の `OP_SERVICE_ACCOUNT_TOKEN` を使う。relayの鍵の入れ替えはconfig.jsonの書き換えと再起動 |
-| file→1Password | `.p8` の全文を1Passwordのアイテムへ保存→config.jsonの該当keyの `file` を `reference` へ置き換え（keyIdはそのkeyのもの）→通知設定を保存し直す（または子の再起動）→実通知を確認→`.p8` を消す |
-| 配布 | 通知子：変更fileは `src/push-notifications.mjs`（notifications module archive、全src）。IPC・state・parentProtocolは不変なので、notifications moduleの更新だけで入れ替わり、本体の再起動は要らない。外部relay：`services/notifications/index.mjs` はmodule archiveの外の独立サービスで、運営がリポジトリのsourceを更新して `npm ci` 後にサービスを再起動すると入れ替わる（[relay README](../../../../services/notifications/README.md)）。鍵だけを替える時はconfig.jsonの書き換えと再起動 |
-
-### 状態遷移（a507c）
-
-状態は通知の子のメモリだけにある。保持する鍵は参照ごと、止め（hold）は子ごとに1つ。どちらもディスクへ書かない。
-
-```mermaid
-stateDiagram-v2
-  [*] --> 未読: 子の起動（メモリは空）
-  未読 --> 読取中: 読込みが未知の参照を要る（1件ずつ）
-  読取中 --> 保持: 値を読めた（参照ごとに覚える）
-  読取中 --> 未読: 1Passwordに届かない・読めない（APNS_KEY_UNAVAILABLE）
-  読取中 --> 止め: opが回数制限で断った（APNS_KEY_RATE_LIMITED）
-  保持 --> 保持: 再試行・再apply・同じ参照の読込み（1Passwordを呼ばない）
-  保持 --> 未読: 値が鍵でない（APNS_KEY_INVALID）→ 覚えた値を全て捨てる
-  保持 --> 未読: Appleが鍵を断った（APNS_HTTP_403_INVALIDPROVIDERTOKEN）→ 捨てる
-  止め --> 未読: 10分が過ぎた（refusedUntil）
-  止め --> 未読: 子の再起動（メモリごと消える）
-  止め --> 止め: 未知の参照の読込み（1Passwordを呼ばず APNS_KEY_RATE_LIMITED）
-```
-
-| 状態 | 意味 | 入力 → 次の状態 | 自力の出口 |
-| --- | --- | --- | --- |
-| 未読 | その参照の値を知らない | 未知の参照を要る読込み → 読取中 | 状態自体が出口（次の読込みで読む） |
-| 読取中 | `op read` を1件ずつ実行中 | 成功 → 保持／届かない・読めない → 未読／回数制限 → 止め | opの10秒timeoutで必ず結果が出る。最初の失敗で止めて残りは読まない |
-| 保持 | 値を子のメモリに覚えた | 同じ参照 → 呼び出し無しで返す／鍵でない値・Appleの拒否 → 未読 | 捨てる入力は2つだけ。参照が変われば別の参照として読む（未読） |
-| 止め | 回数制限の後、1Passwordを呼ばない | 未知の参照 → 止めのまま拒否（既知の参照は止め中も返す） | 10分（時間）か子の再起動。他の失敗には掛けない。共有アカウントの上限を通知が使い切らないための抑え |
-
-APNsの送信側は別の2状態。provider無し（鍵を得られない、`keyError` 固定code・status.errorは平易文）→ 直送の `configure`（設定の保存し直し・子の再起動）で鍵を読めればprovider有り。provider有り → 鍵が壊れる等で読込みが失敗すれば無しへ戻る。いずれも子は落ちず、relay・Web Push・端末登録fileはそのまま。
+| 送信 | `relayUrl` が設定され、relayの `GET /v1/notifications/status` が `configured:true` を返した時だけ送る。relayUrlが空なら送らない（直送は無い）。端末登録・更新通知・取消の扱いは変えない |
+| 鍵 | サーバーの通知子は鍵を扱わない。`onePasswordKeyReader`・`loadDirect`・`directProvider`・`keyError`・`APNS_KEY_*` は無い |
+| 旧い設定 | `shared/tools/apns/`・`shared/tools/fcm/` と、`settings.json` の `onePassword` は読まない。残っていても無視し、落ちない。旧い `onePassword` の保存値は読み込み時に捨てる（`src/usage/state-compatibility.mjs` の互換） |
+| 初回の移行 | 旧「APNs設定がある個人環境は、初回だけ通知ONへ移行する」は無い。通知のON/OFFと `relayUrl` は保存された設定だけで決まる |
+| 外部relayの鍵 | `services/notifications/index.mjs` の鍵は `{keyId, file}` だけ（`reference` は無い）。`.p8` は運営の起動前の手順がtmpfsへ置く（[relay README](../../../../services/notifications/README.md)「本番の鍵の渡り方」）。relayはsettings.jsonも1Passwordも触らない |
+| 自力の出口 | relayに届かない時は、relayが戻れば次の `configure`（通知設定の保存し直し・子の再起動）で provider 有りに戻る。relayUrlが空の時は、設定にURLを入れれば戻る |
+| 秘密の扱い | 通知子には秘密が渡らない。端末tokenと通知の文面だけがrelayへ行く。診断・statusへ鍵や参照は出さない（持たない） |
+| 配布 | 通知子：変更fileは `src/push-notifications.mjs`・`src/fcm-notifications.mjs`（notifications module archive、全src）。IPC・state・parentProtocolは不変。設定側（usage module）は `onePassword` 機能を外す。通知moduleとusage moduleを1回のリリースで入れる。外部relayの `services/notifications/index.mjs` は `readKeys` を外すだけで、運営が再配置した時に入れ替わる（急がない） |
 
 部品の再起動と制限行の状態（a503）:
 

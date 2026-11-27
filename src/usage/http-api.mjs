@@ -1,7 +1,6 @@
 import { json, readJson } from '../http-response.mjs'
 import { SubscriptionAccessError } from '../subscriptions.mjs'
 import { harnessAuthSlot, HarnessAuthError } from '../harness-auth.mjs'
-import { validateOnePasswordReference } from './onepassword-source.mjs'
 import { backgroundAgentError, backgroundInputValid } from './background-agent-settings.mjs'
 import { cliNotice } from './harness-cli-notice.mjs'
 import { retiredHarness, RETIRED_HARNESS_NOTICE, harnessNoticeFor } from '../retired-harness.mjs'
@@ -150,14 +149,9 @@ export function createUsageApi({ onboarding, internal, notify, harnessAuth, sett
       if (request.method === 'POST' && url.pathname === '/api/secret-requests' && internal) {
         return json(response, 201, { request: await secretRequests.create(await readJson(request, 8192), await context('secrets.create')) })
       }
-      const match = url.pathname.match(/^\/api\/secret-requests\/([a-f0-9-]+)(?:\/(submit|cancel|use|onepassword-items))?$/u)
+      const match = url.pathname.match(/^\/api\/secret-requests\/([a-f0-9-]+)(?:\/(submit|cancel|use))?$/u)
       if (!match) return json(response, 404, { error: 'NOT_FOUND' })
       const [, id, action] = match
-      // Owner-only: titles and op ids of existing SSH Key items for this card's picker; never values.
-      if (action === 'onepassword-items') {
-        if (request.method !== 'GET' || internal) return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
-        return json(response, 200, { items: await secretRequests.onePasswordItems(id, await context('secrets.onePasswordItems')) })
-      }
       if (request.method === 'GET' && !action) return json(response, 200, { request: secretRequests.read ? await secretRequests.read(id, await context('secrets.get')) : secretRequests.get(id) })
       // 席（内側）から出来るのは、依頼したBotが自分の未入力の依頼を取り下げる事と、入力済みの値を自分の席のコマンドへ渡す事だけ。値の登録は、オーナーの画面の専用経路だけが受ける。
       if (internal && request.method === 'POST' && action === 'use') {
@@ -182,10 +176,6 @@ export function createUsageApi({ onboarding, internal, notify, harnessAuth, sett
         return json(response, 400, { error: 'SECRET_REQUEST_INVALID' })
       }
       const body = await readJson(request, 131072)
-      if (action === 'submit' && body?.source === 'onepassword') {
-        try { validateOnePasswordReference(body.reference) }
-        catch { return json(response, 400, { error: 'SECRET_REFERENCE_INVALID' }) }
-      }
       const result = action === 'submit'
         ? await secretRequests.submit(id, body?.source === undefined ? body?.value : body, await context('secrets.submit'))
         : await secretRequests.cancel(id, await context('secrets.cancel'))
