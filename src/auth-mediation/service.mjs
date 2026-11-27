@@ -1,4 +1,4 @@
-import { appendFile } from 'node:fs/promises'
+import { appendFile, readFile } from 'node:fs/promises'
 import { createAuthCore } from './core.mjs'
 import { createItemCache, opRunner } from './items.mjs'
 import { botForCwd } from './identity.mjs'
@@ -41,6 +41,13 @@ export function createAuthMediationService({ policyPath, auditPath, opExe, first
         else await effect('secret.erase', {})
         items.flush()
         return { outcome: 'ok' }
+      }
+      if (params.verb === 'audit') {
+        // The audit file is readable only by the body, so operators read it through this verb (admins only, last N lines, no values are in it).
+        if ((await core.admin(params.botId, 'show')).outcome !== 'ok') return { outcome: 'denied', error: 'Not an administrator.' }
+        const last = Math.min(Math.max(Number.isInteger(params.args?.last) ? params.args.last : 50, 1), 500)
+        const text = await readFile(auditPath, 'utf8').catch(error => error.code === 'ENOENT' ? '' : Promise.reject(error))
+        return { outcome: 'ok', lines: text.split('\n').filter(Boolean).slice(-last) }
       }
       return core.admin(params.botId, params.verb, params.args ?? {})
     }),

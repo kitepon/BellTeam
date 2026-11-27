@@ -90,7 +90,8 @@ export function validateAuthMediationResult(method, value) {
     && (value.env === undefined || value.env && typeof value.env === 'object' && Object.values(value.env).every(str))
     && (value.cache === undefined || ['hit', 'miss'].includes(value.cache)) && (value.exit_code === undefined || value.exit_code === null || Number.isInteger(value.exit_code))
     && (value.stdout === undefined || str(value.stdout)) && (value.stderr === undefined || str(value.stderr)) && (value.truncated === undefined || typeof value.truncated === 'boolean'))
-  else if (method === 'admin') need(authMediationObject(value, ['outcome'], ['error', 'count', 'policy', 'token']) && ['ok', 'denied', 'error'].includes(value.outcome))
+  else if (method === 'admin') need(authMediationObject(value, ['outcome'], ['error', 'count', 'policy', 'token', 'lines']) && ['ok', 'denied', 'error'].includes(value.outcome)
+    && (value.lines === undefined || list(value.lines, str)))
   else if (method === 'status') need(authMediationObject(value, ['state']) && ['ready', 'no-token'].includes(value.state))
   else invalid()
 }

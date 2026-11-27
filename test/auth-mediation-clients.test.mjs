@@ -58,3 +58,9 @@ test('auth exec: a command killed by a signal makes auth die by the same signal'
   const out = await new Promise(resolve => { const c = spawn(AUTH, ['exec', 'sh', '-c', 'kill -TERM $$'], { env: { ...process.env, AUTH_SOCK: m.path } }); c.on('close', (code, signal) => resolve({ code, signal })) })
   assert.deepEqual(out, { code: null, signal: 'SIGTERM' }); m.close()
 })
+
+test('auth-admin audit prints the lines the module returns', async () => {
+  const m = await fakeModule(() => ({ outcome: 'ok', lines: ['{"outcome":"granted"}', '{"outcome":"denied"}'] }))
+  const out = await run(ADMIN, ['audit', '--last', '2'], { AUTH_SOCK: m.path })
+  assert.deepEqual(m.seen[0], { op: 'admin', verb: 'audit', args: { last: 2 } }); assert.equal(out.out.trim().split('\n').length, 2); m.close()
+})
