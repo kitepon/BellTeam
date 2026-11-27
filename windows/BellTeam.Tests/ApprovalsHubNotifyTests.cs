@@ -18,4 +18,14 @@ public sealed class ApprovalsHubNotifyTests
         Assert.True(told > seen, "the last change is told");
         hub.Dispose(); workspace.Dispose();
     }
+
+    // a540-rc: --render-approvals crashed (0xE0434352) when a Tell posted before the teardown ran after hub.Dispose() and model.Dispose(): Connected stays true, Management throws.
+    [Fact]
+    public async Task AReadLinksThatRunsAfterTheHubAndTheWorkspaceWereDisposedDoesNothing()
+    {
+        var workspace = new Workspace(origin => new BellApi(origin, new ApprovalsFixture("connected"))); await workspace.ConnectAsync("http://localhost", listen: false);
+        var hub = new ApprovalsHub(workspace, device: new ApprovalsFixture.Demo().Fill());
+        hub.Dispose(); workspace.Dispose();
+        Assert.Null(Record.Exception(hub.ReadLinks));
+    }
 }
