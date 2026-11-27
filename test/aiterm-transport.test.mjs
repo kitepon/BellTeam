@@ -1478,3 +1478,31 @@ test('a478b: エンジン再起動後の読み手は、休止した機械席に�
   await transport.resumeMachineStreams()
   assert.deepEqual(started, ['s1'])
 })
+
+test('同じ席の待つ配送は、同じ待機processを分け合い、最後の1人が止まると止める', async () => {
+  const runs = []
+  const waitProcess = (process, signal) => new Promise((resolve, reject) => {
+    runs.push({ process, signal })
+    signal.addEventListener('abort', () => reject(Object.assign(new Error('ABORT_ERR'), { code: 'ABORT_ERR' })), { once: true })
+    runs.at(-1).finish = () => resolve({ outcome: 'done', turn_id: 't1' })
+  })
+  const transport = new AitermTransport({ client: { call: async () => ({}) }, handoffContext: noMemory, waitProcess })
+  const receipt = { session_id: 's1', wait_process: { executable: '/node', args: ['--cursor', '0'] } }
+  const [a, b] = [new AbortController(), new AbortController()]
+  const first = transport.waitUntilDone(receipt, a.signal), second = transport.waitUntilDone(receipt, b.signal)
+  const third = transport.waitUntilDone({ ...receipt, wait_process: { executable: '/node', args: ['--cursor', '9'] } })
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(runs.length, 2, 'same session and wait_process: one process; another cursor: its own')
+  a.abort()
+  await assert.rejects(first, { code: 'ABORT_ERR' })
+  assert.equal(runs[0].signal.aborted, false, 'one follower stopping leaves the process for the others')
+  runs[0].finish()
+  assert.deepEqual(await second, { outcome: 'done', turn_id: 't1' })
+  runs[1].finish()
+  assert.deepEqual(await third, { outcome: 'done', turn_id: 't1' })
+  const alone = new AbortController(), only = transport.waitUntilDone(receipt, alone.signal)
+  await new Promise(resolve => setImmediate(resolve))
+  alone.abort()
+  await assert.rejects(only, { code: 'ABORT_ERR' })
+  assert.equal(runs.at(-1).signal.aborted, true, 'the last follower stopping stops the process')
+})
