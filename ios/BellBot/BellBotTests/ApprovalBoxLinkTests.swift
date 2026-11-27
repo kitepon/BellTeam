@@ -26,9 +26,11 @@ final class ApprovalBoxLinkTests: XCTestCase {
         XCTAssertEqual(ApprovalBoxLink.joinState(of: .notJoined(reason: "removed")), .notJoined(reason: "removed"))
         XCTAssertEqual(ApprovalBoxLink.joinState(of: .signingIn(provider: "apple")), .signingIn(provider: "apple"))
         let until = Date(timeIntervalSince1970: 1_800_000_300)
-        XCTAssertEqual(ApprovalBoxLink.joinState(of: .waitingForParent(qrLink: "https://x/y", expiresAt: until)), .waitingForParent(qrLink: "https://x/y", expiresAt: until))
+        XCTAssertEqual(ApprovalBoxLink.joinState(of: .waitingForParent(qrLink: "https://x/y", expiresAt: until, code: nil)), .waitingForParent(qrLink: "https://x/y", expiresAt: until))
         XCTAssertEqual(ApprovalBoxLink.joinState(of: .joined), .joined)
-        XCTAssertEqual(ApprovalBoxLink.joinState(of: .failed(code: "other_account")), .failed(code: "other_account"))
+        XCTAssertEqual(ApprovalBoxLink.joinState(of: .waitingForParent(qrLink: "https://x/y", expiresAt: until, code: "https://x/z")), .waitingForParent(qrLink: "https://x/y", expiresAt: until, code: "https://x/z"))
+        XCTAssertEqual(ApprovalBoxLink.joinState(of: .failed(code: "other_account", words: nil)), .failed(code: "other_account"))
+        XCTAssertEqual(ApprovalBoxLink.joinState(of: .failed(code: "not_answering", words: "部品の文")), .failed(code: "not_answering", words: "部品の文"))
     }
 
     func testAnswerResultsBecomeTheScreensOutcomes() throws {

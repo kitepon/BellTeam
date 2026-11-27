@@ -1,6 +1,6 @@
 # 決裁箱（Approval Box拡張）の描画
 
-[全体図](overview.md) / [機能索引](function-index.md)。この窓は、オーナーの決裁箱（Approval Box）の**子の端末**として、埋め込みの部品 ApprovalBoxClient 0.5.2 で決裁を読み、答える（abx-child-join-apple。契約は [child-join.md](../approval-box-extension/child-join.md)・部品の面は client-component.md 0.5 の9章）。サインイン・端末の承認・決裁の読み書き・SSE・再接続は部品が持ち、この窓は部品の状態を描くだけ。BellTeam のホストは親にならない（どの席も、ほかの端末のつなぎを始めない）。BellTeam のサーバーは、決裁の中身・子の鍵・パスを見ない（工程表とのつながりの口 [/api/approvals/by-*](../approval-box-extension/contract/approvals-contract.md) は ID と状態だけ）。画面・導線・失敗の表示・文言は [screen-spec](../approval-box-extension/screen-spec.md) が正本で、ここでは Apple 側の部品と状態の持ち主だけを書く。部品は login-billing 0.24.1 のローカルの形（LocalForm・KeyholeClient、appId dev.kitepon.approvalbox）の上で子の鍵を持ち、運営のパスは使わない。IDは通信にだけ使い、画面に出さない。
+[全体図](overview.md) / [機能索引](function-index.md)。この窓は、オーナーの決裁箱（Approval Box）の**子の端末**として、埋め込みの部品 ApprovalBoxClient 0.6.0 で決裁を読み、答える（abx-child-join-apple。契約は [child-join.md](../approval-box-extension/child-join.md)・部品の面は client-component.md 0.5 の9章）。サインイン・端末の承認・決裁の読み書き・SSE・再接続は部品が持ち、この窓は部品の状態を描くだけ。BellTeam のホストは親にならない（どの席も、ほかの端末のつなぎを始めない）。BellTeam のサーバーは、決裁の中身・子の鍵・パスを見ない（工程表とのつながりの口 [/api/approvals/by-*](../approval-box-extension/contract/approvals-contract.md) は ID と状態だけ）。画面・導線・失敗の表示・文言は [screen-spec](../approval-box-extension/screen-spec.md) が正本で、ここでは Apple 側の部品と状態の持ち主だけを書く。部品は login-billing 0.25.2 のローカルの形（LocalForm・KeyholeClient、appId dev.kitepon.approvalbox）の上で子の鍵を持ち、運営のパスは使わない。IDは通信にだけ使い、画面に出さない。
 
 ## 入口と置き場所（Owner 2026-11-16：MacとiPhoneで決裁箱が見つからない）
 
@@ -21,11 +21,11 @@ flowchart LR
   Model["Core/Approvals.swift ApprovalsModel（AppStore.approvals）<br/>gate（loading・ready・reconnecting・join・notEntitled・updateRequired）・summary・open・done・sending・notes。summary は部品が持つ決裁から数える（今日の回答・今日来た数・待ち・急ぎ・保留）"]
   Link["Core/PeerApprovals/ApprovalBoxLink.swift（ChildJoinSource を満たす）<br/>State：join・joining・live・reconnecting・notEntitled・updateRequired。部品の @Observable（join.state・client.state・open・closed）を1回追って sync、変わるたびに追い直す"]
   Link -->|"state → gate / decisions → open・done"| Model
-  Link -->|"ApprovalBoxClient（SwiftPM 0.5.2、ab5343f）：requestJoin／cancelJoin／leave・start／stop・retryNow・answer／hold／unhold・attachment"| Comp["埋め込みの部品 ApprovalBoxClient（ChildJoin.make：サインイン Apple／Google・子の鍵・QR・承認待ち・読み・答え・SSE・再接続）"]
+  Link -->|"ApprovalBoxClient（SwiftPM 0.6.0、c4ede6e）：requestJoin／cancelJoin／leave・take（戻りのリンク lbr1）・start／stop・retryNow・answer／hold／unhold・attachment"| Comp["埋め込みの部品 ApprovalBoxClient（ChildJoin.make：サインイン Apple／Google・子の鍵・QR・承認待ち・読み・答え・SSE・再接続）"]
   Comp -->|"https://approval-box.kitepon.dev（auth/v1・/pc/v1・/v1）"| AB["Approval Box（Nayuta）"]
-  Comp -.->|"login-billing 0.24.1（部品の依存）"| LB["LoginBilling 0.24.1：LocalForm・KeyholeClient・子の鍵（appId dev.kitepon.approvalbox）。購入なし"]
+  Comp -.->|"login-billing 0.25.2（部品の依存）"| LB["LoginBilling 0.25.2：LocalForm・KeyholeClient・子の鍵（appId dev.kitepon.approvalbox）。購入なし"]
   Comp --> Link
-  Link -->|"joinState(of:)：部品の JoinState → ChildJoinState"| CJ["Core/PeerApprovals/ChildJoin.swift：ChildJoinState・ポート ChildJoinSource（requestJoin／cancelJoin／leave）・ChildJoinView・接続中の ChildJoinLiveBlock・ChildJoinWords"]
+  Link -->|"joinState(of:)：部品の JoinState → ChildJoinState"| CJ["Core/PeerApprovals/ChildJoin.swift：ChildJoinState・ポート ChildJoinSource（requestJoin／cancelJoin／leave／take）・ChildJoinView・参加コードの区画 JoinCodeBlock・接続中の ChildJoinLiveBlock・ChildJoinWords"]
   Link -->|"record(_:)：Decision → PeerDecisionRecord（変わった時だけ・添付の原本は SHA-256 を照合して端末のメモリへ）"| Rec["Core/PeerApprovals/PeerDecisionRecord.swift（画面が読む1つの形）"]
   Rec --> Model
   Model --> Screen["ApprovalsScreen：待ち／保留／済み・出どころの絞り込み（外部だけ。BellTeamの出どころは、工程とのつながりを足す時に加える）・今日の回答の輪<br/>ApprovalCard"]
@@ -40,7 +40,9 @@ flowchart LR
 
 **データの持ち主**：子の鍵と接続の記録は部品が自分の Keychain（service `dev.kitepon.loginbilling.keyholes.approvalbox`・`dev.kitepon.loginbilling.local.approvalbox`）に持ち、BellTeam のサインインの置き場とは別。アプリ側のコードは鍵・パス・レジストリを持たない。この窓の決裁（`decisions`）と添付の原本（`blobs`）は、部品の `open`・`closed` から作った端末のメモリの写しだけで、ファイルには書かない（履歴のフォルダは無い）。画面が読むのは `PeerDecisionRecord` 1つの形。「アカウントを削除」の1段目 `removePass` は `leave()`（この端末が親のつなぎ一覧から外れる）、2段目 `deleteLocalData` は決裁と添付の写しを捨てる（[account-deletion.md](account-deletion.md)）。BellTeam のサインインは別の形で、どちらにも触れない。
 
-**状態**（child-join.md）：`join`＝つなぎ前（`joinState` が notJoined〔reason removed を含む〕・signingIn・waitingForParent〔QR と期限〕・failed のどれかで、`ChildJoinView` が描く）。つないだ後は `joining`（まだ決裁を受け取っていない）・`live`・`reconnecting`（部品の再接続。待ち間隔は部品が持ち（1秒から2倍で60秒まで、ゆらぎ20%）、回数の上限は無い。「今すぐ試す」は `retryNow` で待っている次の1回を直ちに実行する）・`notEntitled`（「Approval Boxの契約が必要です。契約はApproval Boxのアプリで行います。」価格もボタンも無し、「確かめ直す」）・`updateRequired`（「この版では、決裁箱をまだ使えません。アプリを更新してください。」）。つなぎを外す（`leave`）と `join` に戻り、部品は stop する。BellTeam の host は子としてだけつながる：親の承認は決裁箱の親の端末が行い、この窓には承認の画面が無い（`ChildJoinView` の QR を親が読む）。Approval Box が完成したとナユタが言うまで公開しない。
+**状態**（child-join.md）：`join`＝つなぎ前（`joinState` が notJoined〔reason removed を含む〕・signingIn・waitingForParent〔QR・期限・参加コード〕・failed〔コードと、ある時は部品の文〕のどれかで、`ChildJoinView` が描く）。つないだ後は `joining`（まだ決裁を受け取っていない）・`live`・`reconnecting`（部品の再接続。待ち間隔は部品が持ち（1秒から2倍で60秒まで、ゆらぎ20%）、回数の上限は無い。「今すぐ試す」は `retryNow` で待っている次の1回を直ちに実行する）・`notEntitled`（「Approval Boxの契約が必要です。契約はApproval Boxのアプリで行います。」価格もボタンも無し、「確かめ直す」）・`updateRequired`（「この版では、決裁箱をまだ使えません。アプリを更新してください。」）。つなぎを外す（`leave`）と `join` に戻り、部品は stop する。BellTeam の host は子としてだけつながる：親の承認は決裁箱の親の端末が行い、この窓には承認の画面が無い（`ChildJoinView` の QR を親が読むか、参加コードを親へ貼る）。Approval Box が完成したとナユタが言うまで公開しない。
+
+**参加コード（login-billing 1.60、同じ電話が親の時）**：`waitingForParent` の QR の下に、ラベル「参加コード」・コードの文字（3行で省略）・「コードをコピー」（コピーは10分で消える）を出す。コードはサインインの証を含むので、打たせず、画面とクリップボードだけに置く。iPhone・iPad は先頭に「決裁箱で開く」（コードのリンクを開く）と電話向けの文、貼り付け欄「決裁箱でコピーしたリンクを、ここに貼り付けてください」＋「このリンクでつなぐ」を出し、QR の案内文は出さない（Android #2714 と同じ文）。Mac は QR の案内文を残し、開くボタンも貼り付け欄も無い。部品がコードを返さない時は、今まで通り QR の案内文だけ。戻りのリンク（lbr1）は、貼り付けたものも、このアプリで開いたものも `take` へ渡す（[login-billing.md](login-billing.md)「開いたリンク」）。貼ったリンクを受けない時は「このリンクではつなげませんでした。決裁箱でリンクをコピーし直して、貼り付けてください。」を出し、待ちは続く。`failed` は `other_account` が自分の文、部品の文（`local_network_denied`・`not_answering`・`unreachable_same_wifi`）があればそのまま、ほかは「つなげませんでした。もう一度つないでください。」。制限：決裁箱の「戻る」ボタンはまだ BellTeam へ戻らない（login-billing の直し待ち）ので、コピーと貼り付けで戻す。
 
 決裁箱の一覧の最後（つなぎを外すの下）に、本体の `GET /api/approvals/seat-link`・`POST …/start`・`POST …/stop` だけから描く区画「決裁箱につなぐ」（`SeatLinkSection`、言葉は `SeatLinkWords`＝契約 seat-approval-card.md 第4版の表のまま。BellTeamと決裁箱の唯一のつなぎで、AIの申請と許可待ちの連絡の両方が使う）を置く：none＝文と「つなぐ」、waiting＝QR・ラベル付きで選べる「コード」（`code`、8文字）と「確認コード」（`typedSecret`、16文字）・QRで読む手順とコードを打つ手順の2文・「HH:MMまで（JST）」・「やめる」（2秒ごとに読み直す。確認コードが無いとつなぎは鍵を結べないので、2つとも必ず出す）、linked＝緑のバッジ「つながっています」と文、removed＝灰のバッジ「つなぎが外れています」・「もう一度つなぐ」、failed／本体が答えられない（503・403・読めない）＝赤のバッジ「つなげませんでした」・「もう一度つなぐ」。本体が404を返す（経路が無い古い本体）時は区画を描かない。トークンも決裁箱への経路も持たない。
 

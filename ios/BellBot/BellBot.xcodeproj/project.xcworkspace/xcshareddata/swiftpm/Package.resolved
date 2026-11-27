@@ -6,7 +6,7 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/kitepon/approval-box-apps.git",
       "state" : {
-        "revision" : "ab5343f002a169c31688114b37dcd814b5862367"
+        "revision" : "c4ede6e74034ff645d403622c84e4be985f6eb53"
       }
     },
     {
@@ -30,8 +30,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/kitepon/login-billing.git",
       "state" : {
-        "revision" : "305245fabef32f400474cfca4c3e6e2af8085a17",
-        "version" : "0.24.1"
+        "revision" : "6300607163cd8415bba4b657ba2ff10d509e1125",
+        "version" : "0.25.2"
       }
     },
     {

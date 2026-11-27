@@ -2,6 +2,7 @@ import ApprovalBoxClient
 import AuthenticationServices
 import CryptoKit
 import Foundation
+import LoginBilling
 import Observation
 
 /// What a write came to: the screen shows a sentence for each (draft and choice stay on anything but `.accepted`).
@@ -21,7 +22,7 @@ enum ApprovalWriteOutcome: Equatable {
     }
 }
 
-/// The 決裁箱 window's link to the Owner's Approval Box as a CHILD device (child-join.md, abx-child-join-apple): the embedded client component (ApprovalBoxClient 0.5.0) joins, reads and answers;
+/// The 決裁箱 window's link to the Owner's Approval Box as a CHILD device (child-join.md, abx-child-join-apple): the embedded client component (ApprovalBoxClient 0.6.0) joins, reads and answers;
 /// this class only draws its states for the window. BellTeam's own sign-in is never touched, and BellTeam's server never sees the child's key. A BellTeam host is never a parent.
 @MainActor
 final class ApprovalBoxLink: ObservableObject, ChildJoinSource {
@@ -64,6 +65,12 @@ final class ApprovalBoxLink: ObservableObject, ChildJoinSource {
     func requestJoin(provider: String) async { client?.requestJoin(provider: provider); sync() }
     func cancelJoin() async { client?.cancelJoin(); sync() }
     func leave() async { await client?.leave(); sync() }
+    /// Only while a request is open: after a join the library would swallow another link's refusal.
+    func take(_ link: String) async throws {
+        guard let client, case .waitingForParent = joinState else { throw LoginBillingError(code: "qr_invalid") }
+        try await client.take(link)
+        sync()
+    }
 
     // MARK: Entry points
 
@@ -165,9 +172,9 @@ final class ApprovalBoxLink: ObservableObject, ChildJoinSource {
         switch s {
         case .notJoined(let reason): .notJoined(reason: reason)
         case .signingIn(let provider): .signingIn(provider: provider)
-        case .waitingForParent(let qr, let until): .waitingForParent(qrLink: qr, expiresAt: until)
+        case .waitingForParent(let qr, let until, let code): .waitingForParent(qrLink: qr, expiresAt: until, code: code)
         case .joined: .joined
-        case .failed(let code): .failed(code: code)
+        case .failed(let code, let words): .failed(code: code, words: words)
         }
     }
 

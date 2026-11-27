@@ -43,6 +43,16 @@ enum AccountDeletion {
     }
 }
 
+/// The words around a pasted join code and its return link, the same as Windows, Linux and Android.
+enum ApproveCodeWords {
+    static let paste = "コードを貼り付ける"
+    static let use = "このコードで承認する"
+    static let returnLead = "相手の端末には直接届きませんでした。次のリンクで、QRを出している端末に戻ってください。"
+    static let returnOpen = "リンクを開く"
+    static let returnCopy = "リンクをコピー"
+    static let notACode = "QRが正しくありません。相手の画面で新しいQRを出してください。"
+}
+
 struct StoreAccountCard: View {
     @EnvironmentObject private var appStore: AppStore
     var body: some View { Content(account: appStore.localAccount) }
@@ -51,6 +61,7 @@ struct StoreAccountCard: View {
         @ObservedObject var account: LocalAccount
         @State private var scanning = false
         @State private var deleting = false
+        @State private var pasted = ""
         @EnvironmentObject private var appStore: AppStore
 
         var body: some View {
@@ -110,6 +121,7 @@ struct StoreAccountCard: View {
                         .accessibilityLabel("確認用のQRコード")
                 }
                 Text(LocalAccount.qrGuidance).font(BellTheme.secondaryFont).accessibilityIdentifier("store-qr-guidance")
+                if let code = request.code { JoinCodeBlock(code: code, hint: JoinCodeWords.ownHint) }
                 ProgressView("スマホの返事を待っています（\(request.expiresAt.formatted(date: .omitted, time: .shortened))まで）")
                 Button("やめる") { account.cancelRequest() }.buttonStyle(.bordered).accessibilityIdentifier("store-request-cancel")
             } else {
@@ -135,11 +147,52 @@ struct StoreAccountCard: View {
                     .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
                 Button("QRを読み取る", systemImage: "qrcode.viewfinder") { scanning = true }
                     .buttonStyle(.bordered).disabled(account.busy).accessibilityIdentifier("store-scan")
+                paste
             }
             #endif
         }
+
+        /// 1.60: the wanting device's code, pasted, goes the way a scanned text goes.
+        @ViewBuilder private var paste: some View {
+            TextField(ApproveCodeWords.paste, text: $pasted)
+                .textFieldStyle(.roundedBorder).textInputAutocapitalization(.never).autocorrectionDisabled()
+                .accessibilityIdentifier("store-code-field")
+            Button(ApproveCodeWords.use) {
+                let text = pasted.trimmingCharacters(in: .whitespacesAndNewlines)
+                pasted = ""
+                Task { await account.approvePasted(text) }
+            }
+            .buttonStyle(.bordered).disabled(account.busy || pasted.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .accessibilityIdentifier("store-code-use")
+        }
     }
 
+}
+
+/// 1.60: the LAN did not take this phone's answer: the link goes back to the wanting device, opened (same phone) or copied (another). The camera's link can start an answer on any screen, so the root holds this too.
+struct LocalReturnSheet: View {
+    let back: LocalAccount.Return
+    let onClose: () -> Void
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(ApproveCodeWords.returnLead).font(.headline).accessibilityIdentifier("store-return-lead")
+            if let words = back.words { Text(words).font(.subheadline).foregroundStyle(BellTheme.muted) }
+            HStack {
+                if let url = URL(string: back.link) {
+                    Button(ApproveCodeWords.returnOpen) { openURL(url) }.buttonStyle(.bellPrimary).fixedSize().accessibilityIdentifier("store-return-open")
+                }
+                Button(ApproveCodeWords.returnCopy) {
+                    UIPasteboard.general.setItems([["public.utf8-plain-text": back.link]], options: [.expirationDate: Date().addingTimeInterval(600)])
+                }
+                .buttonStyle(.bordered).accessibilityIdentifier("store-return-copy")
+            }
+            Button("閉じる", role: .cancel) { onClose() }.buttonStyle(.bordered).accessibilityIdentifier("store-return-close")
+        }
+        .padding(24)
+        .presentationDetents([.medium, .large])
+    }
 }
 
 /// 返事の前の確認。自分で始めたものだけ承認してもらう。QRの読み取りでもカメラからのリンクでも出るので、画面でなく根（RootView）が持つ。

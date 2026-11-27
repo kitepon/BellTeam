@@ -236,7 +236,7 @@ private struct RootView: View {
                 ConnectionFailureView(detail: message)
             }
         } }
-        .modifier(LocalLinkHost(account: store.localAccount))
+        .modifier(LocalLinkHost(account: store.localAccount, openChild: { try await store.approvals.link.take($0) }))
         // The first screen needs the device's own store read before any server: start it here, not after the server answers.
         .task {
             #if DEBUG
@@ -246,7 +246,7 @@ private struct RootView: View {
             #endif
             await store.localAccount.start()
             #if DEBUG
-            if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-first-screen-qr") { store.localAccount.setPreviewRequest("lbq4:preview") }
+            if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-first-screen-qr") { store.localAccount.setPreviewRequest("lbq4:preview", code: "https://login-billing.kitepon.dev/join/dev.kitepon.bellbot#lbc1:preview-not-a-real-code") }
             #endif
         }
         .sheet(isPresented: $store.updatePresented) { UpdateView(updates: store.updates).bellEditorSheet() }
@@ -266,18 +266,20 @@ private struct RootView: View {
 /// The phone camera opens the app from the billing QR's link (https://login-billing.kitepon.dev/join/…): the link goes to the library's answer, and its confirmation sheet lives here, on any screen.
 private struct LocalLinkHost: ViewModifier {
     @ObservedObject var account: LocalAccount
+    let openChild: (String) async throws -> Void
 
     func body(content: Content) -> some View {
         content
-            .onOpenURL { url in Task { await account.open(link: url) } }
+            .onOpenURL { url in Task { await account.open(link: url, child: openChild) } }
             .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
-                if let url = activity.webpageURL { Task { await account.open(link: url) } }
+                if let url = activity.webpageURL { Task { await account.open(link: url, child: openChild) } }
             }
             .sheet(item: Binding(get: { account.approval }, set: { if $0 == nil { account.answer(false) } })) { _ in
                 LocalApprovalSheet { account.answer($0) }
             }
+            .sheet(item: $account.returnLink) { back in LocalReturnSheet(back: back) { account.returnLink = nil } }
             .alert(item: $account.outcome) { result in
-                Alert(title: Text(result.isError ? "承認できませんでした" : "別の端末を承認しました"), message: Text(result.code.map { "\(result.text)（\($0)）" } ?? result.text), dismissButton: .default(Text("閉じる")))
+                Alert(title: Text(result.title ?? (result.isError ? "承認できませんでした" : "別の端末を承認しました")), message: Text(result.code.map { "\(result.text)（\($0)）" } ?? result.text), dismissButton: .default(Text("閉じる")))
             }
     }
 }
@@ -425,7 +427,7 @@ private struct ChildJoinPreview: View {
         let value: ChildJoinState = switch state {
         case "removed": .notJoined(reason: "removed")
         case "signingin": .signingIn(provider: "apple")
-        case "waiting": .waitingForParent(qrLink: "https://login-billing.kitepon.dev/join/dev.kitepon.approvalbox#lbq4:preview", expiresAt: Date().addingTimeInterval(300))
+        case "waiting": .waitingForParent(qrLink: "https://login-billing.kitepon.dev/join/dev.kitepon.approvalbox#lbq4:preview", expiresAt: Date().addingTimeInterval(300), code: "https://login-billing.kitepon.dev/join/dev.kitepon.approvalbox#lbc1:preview-not-a-real-code")
         case "failed": .failed(code: "other_account")
         case "live": .joined
         default: .notJoined(reason: nil)

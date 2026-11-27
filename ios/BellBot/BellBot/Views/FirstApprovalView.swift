@@ -95,6 +95,7 @@ struct FirstApprovalView: View {
                         .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
                 }
                 Text(LocalAccount.qrGuidance).font(.subheadline.weight(.semibold)).accessibilityIdentifier("first-screen-qr-guidance")
+                if let code = request.code { JoinCodeBlock(code: code, hint: JoinCodeWords.ownHint) }
                 Button("やめる") { account.cancelRequest() }.buttonStyle(.bordered).accessibilityIdentifier("first-screen-cancel")
             }
             .frame(maxWidth: .infinity)
