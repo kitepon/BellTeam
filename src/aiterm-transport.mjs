@@ -1301,7 +1301,7 @@ export class AitermTransport {
         const { steered, follower } = tracking
         followed = tracking.followed
         if (followed) {
-          job.nativeCompletion = this.waitUntilDone(delivery.receipt, job.controller.signal).then(async native => {
+          job.nativeCompletion = this.waitUntilDone(delivery.receipt, job.controller.signal, delivery.session).then(async native => {
             job.nativeTerminal = true
             // a333: a stop in flight decides first; a confirmed stop must not be followed by a completion finish (checkpoint() does the same).
             await job.stopping()?.catch(() => {})
@@ -1529,7 +1529,7 @@ export class AitermTransport {
       ? this.followInterim(delivery.session, delivery.receipt, onInterim, { from: delivery.steer?.interimFrom, client: job.native?.client }) : null
     let completion
     try {
-      completion = await (nativeCompletion ?? this.waitUntilDone(delivery.receipt, job.controller.signal))
+      completion = await (nativeCompletion ?? this.waitUntilDone(delivery.receipt, job.controller.signal, delivery.session))
     } catch (error) {
       void reportExecutionFailure(this.reportError, job.bot.id, 'delivery_wait', error, {
         jobId: job.id, groupId: job.info?.groupId, stopRequested: job.stopRequested,
@@ -2296,7 +2296,7 @@ export class AitermTransport {
   }
 
   // signalは、追うのをやめた時に待ちのprocessを止める（watchTurn）。
-  // A watched seat turn (seat_turns row) has no session_id of its own: the watch passes its seat, so it queues behind the deliveries' waits too.
+  // The caller passes the seat it knows: a dispatch receipt or a seat_turns turn may carry no session_id, and a wait without a key skips the queue (Z213 live: launch wait + queued DM wait at once).
   async waitUntilDone(receipt, signal = null, session = receipt.session_id) {
     const release = await this.#takeSeatWait(session, signal)
     try { return await this.#followTurn(receipt, signal) } finally { release() }
