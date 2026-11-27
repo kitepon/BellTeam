@@ -1479,32 +1479,38 @@ test('a478b: エンジン再起動後の読み手は、休止した機械席に�
   assert.deepEqual(started, ['s1'])
 })
 
-test('同じ席の待つ配送は、同じ待機processを分け合い、最後の1人が止まると止める', async () => {
+test('同じ席の待つ配送は、待ちのprocessを同時に1つだけ持つ（前の配送の待ちが終わってから次を始める）', async () => {
   const runs = []
   const waitProcess = (process, signal) => new Promise((resolve, reject) => {
-    runs.push({ process, signal })
-    signal.addEventListener('abort', () => reject(Object.assign(new Error('ABORT_ERR'), { code: 'ABORT_ERR' })), { once: true })
-    runs.at(-1).finish = () => resolve({ outcome: 'done', turn_id: 't1' })
+    const run = { process, signal, finish: () => resolve({ outcome: 'done', turn_id: process.args.at(-1) }) }
+    runs.push(run)
+    signal?.addEventListener('abort', () => reject(Object.assign(new Error('ABORT_ERR'), { code: 'ABORT_ERR' })), { once: true })
   })
   const transport = new AitermTransport({ client: { call: async () => ({}) }, handoffContext: noMemory, waitProcess })
-  const receipt = { session_id: 's1', wait_process: { executable: '/node', args: ['--cursor', '0'] } }
-  const [a, b] = [new AbortController(), new AbortController()]
-  const first = transport.waitUntilDone(receipt, a.signal), second = transport.waitUntilDone(receipt, b.signal)
-  const third = transport.waitUntilDone({ ...receipt, wait_process: { executable: '/node', args: ['--cursor', '9'] } })
-  await new Promise(resolve => setImmediate(resolve))
-  assert.equal(runs.length, 2, 'same session and wait_process: one process; another cursor: its own')
-  a.abort()
-  await assert.rejects(first, { code: 'ABORT_ERR' })
-  assert.equal(runs[0].signal.aborted, false, 'one follower stopping leaves the process for the others')
+  const receipt = input => ({ session_id: 's1', wait_process: { executable: '/node', args: ['--cursor', '0', '--input', input] } })
+  const tick = () => new Promise(resolve => setImmediate(resolve))
+  const [a, b, c] = [new AbortController(), new AbortController(), new AbortController()]
+  const first = transport.waitUntilDone(receipt('A'), a.signal), second = transport.waitUntilDone(receipt('B'), b.signal), third = transport.waitUntilDone(receipt('C'), c.signal)
+  const other = transport.waitUntilDone({ ...receipt('X'), session_id: 's2' })
+  await tick()
+  assert.equal(runs.length, 2, 'one process for seat s1 (its own inputs differ), one for seat s2')
+  b.abort()
+  await assert.rejects(second, { code: 'ABORT_ERR' })
+  assert.equal(runs.length, 2, 'a queued wait that stops never starts a process')
   runs[0].finish()
-  assert.deepEqual(await second, { outcome: 'done', turn_id: 't1' })
+  assert.deepEqual(await first, { outcome: 'done', turn_id: 'A' })
+  await tick()
+  assert.equal(runs.length, 3, 'the next queued wait starts when the earlier one is done')
+  assert.equal(runs[2].process.args.at(-1), 'C')
+  runs[2].finish()
+  assert.deepEqual(await third, { outcome: 'done', turn_id: 'C' })
   runs[1].finish()
-  assert.deepEqual(await third, { outcome: 'done', turn_id: 't1' })
-  const alone = new AbortController(), only = transport.waitUntilDone(receipt, alone.signal)
-  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(await other, { outcome: 'done', turn_id: 'X' })
+  const alone = new AbortController(), only = transport.waitUntilDone(receipt('D'), alone.signal)
+  await tick()
   alone.abort()
   await assert.rejects(only, { code: 'ABORT_ERR' })
-  assert.equal(runs.at(-1).signal.aborted, true, 'the last follower stopping stops the process')
+  assert.equal(runs.at(-1).signal.aborted, true, 'a running wait that stops stops its process')
 })
 
 test('行は動いているのに追う手が無い席は、ターンごとに1回、理由をstderrへ残す', async t => {
