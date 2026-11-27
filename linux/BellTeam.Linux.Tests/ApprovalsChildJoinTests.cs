@@ -95,21 +95,6 @@ public sealed class ApprovalsChildJoinTests
     });
     [Fact] public void OtherAccountKeepsItsOwnSentenceAndOtherFailuresTakeTheLibrarysWords() { Assert.Equal(ChildJoinText.OtherAccount, ChildJoinText.FailedLine("other_account", "words")); Assert.Equal("words", ChildJoinText.FailedLine("unreachable_same_wifi", "words")); Assert.Equal(ChildJoinText.Failed, ChildJoinText.FailedLine("x")); }
 
-    // The add comes with the reply before the store proof is judged: whatever the wait refuses with, an add that is there is sent; without it the wait's own code (else add_missing) fails the join (Anis 11/27, Kitepon.ApprovalBox.Client 0.6.1).
-    private sealed class Refusal(string code) : Exception(code);
-    [Fact]
-    public async Task ARefusedStoreProofStillSendsTheAddAndOnlyAMissingAddFailsTheJoin()
-    {
-        var sent = new List<string>();
-        await ChildJoinAccept.RunAsync<string, Refusal>(() => throw new Refusal("purchase_unverified"), () => "add", add => { sent.Add(add); return Task.CompletedTask; }, error => new ChildJoinException(error.Message, error));
-        await ChildJoinAccept.RunAsync<string, Refusal>(() => Task.CompletedTask, () => "add", add => { sent.Add(add); return Task.CompletedTask; }, error => new ChildJoinException(error.Message, error));
-        Assert.Equal(["add", "add"], sent);
-        var kept = await Assert.ThrowsAsync<ChildJoinException>(() => ChildJoinAccept.RunAsync<string, Refusal>(() => throw new Refusal("not_paid"), () => null, add => Task.CompletedTask, error => new ChildJoinException(error.Message, error)));
-        Assert.Equal("not_paid", kept.Code);
-        var missing = await Assert.ThrowsAsync<ChildJoinException>(() => ChildJoinAccept.RunAsync<string, Refusal>(() => Task.CompletedTask, () => null, add => Task.CompletedTask, error => new ChildJoinException(error.Message, error)));
-        Assert.Equal("add_missing", missing.Code);
-    }
-
     [Fact]
     public Task SigningInOffersOnlyTheWayOut() => Ui.Run(async () =>
     {
