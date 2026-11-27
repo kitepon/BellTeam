@@ -241,11 +241,11 @@ Ports used, nothing else: (1) this module's own pairing manager (the P3 object: 
 ```mermaid
 stateDiagram-v2
   [*] --> Idle
-  Idle --> Waiting: tool call, state none or removed (start, 5 minutes)
+  Idle --> Waiting: tool call, state none or removed (start; valid until the waiting line's expiresAt, 7 days for the peer-channel pairing)
   Waiting --> Waiting: tool call again (the same pairing, one more post)
   Waiting --> Linked: Owner scanned and confirmed
-  Waiting --> Idle: 5 minutes passed (state failed): the tool starts a new one
+  Waiting --> Idle: expiresAt passed (state failed): the tool starts a new one
   Linked --> [*]: the tool answers linked and posts nothing
 ```
 
-Failure handling: the pairing does not start (daemon not available, `PAIR_NO_WAITING_LINE`): the tool answers `not_started` with the module's reason and posts nothing (the reason is the connector's own failed code when its `pair --json` line carries one, as a plain slug: `server_flag_off` = the Approval Box server shows no peer-channel, found 2026-11-27 when PC_OFFER read off on the server; else `unavailable`, `no_waiting_line`, `rejected`, `expired`); the post to the Owner fails: the tool answers `post_failed`, the pairing stays waiting and the next call posts again (it never starts a second pairing while one waits); the QR expires unseen: the next call issues a new one. Nothing here is a guard: every state leaves by the next call or by the 5-minute expiry. Protection named: the secrets of the waiting view go only to the Owner's own conversation; the tool result, the logs and every seat see none of them.
+Failure handling: the pairing does not start (daemon not available, `PAIR_NO_WAITING_LINE`): the tool answers `not_started` with the module's reason and posts nothing (the reason is the connector's own failed code when its `pair --json` line carries one, as a plain slug: `server_flag_off` = the Approval Box server shows no peer-channel, found 2026-11-27 when PC_OFFER read off on the server; else `unavailable`, `no_waiting_line`, `rejected`, `expired`); the post to the Owner fails: the tool answers `post_failed`, the pairing stays waiting and the next call posts again (it never starts a second pairing while one waits); the QR expires unseen: the next call issues a new one. Nothing here is a guard: every state leaves by the next call or by the expiry. The expiry is the connector's own `expiresAt` (read 2026-11-27: 7 days; the message prints date and time in JST, never the clock alone). Protection named: the secrets of the waiting view go only to the Owner's own conversation; the tool result, the logs and every seat see none of them.

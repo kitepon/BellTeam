@@ -24,7 +24,7 @@ test('P8: a waiting view posts one image with the codes to the Owner; the tool a
   const result = await createSeatLinkQr({ pairing: { start: async () => WAITING }, post: async value => { posts.push(value) } }).show()
   assert.deepEqual(result, { outcome: 'posted', expiresAt: WAITING.expiresAt })
   assert.equal(posts.length, 1); assert.equal(posts[0].image.mime, 'image/png')
-  assert.match(posts[0].message, /ABCD-EFGH/u); assert.match(posts[0].message, /WXYZ1234QRST5678/u); assert.match(posts[0].message, /23:30まで有効/u)
+  assert.match(posts[0].message, /ABCD-EFGH/u); assert.match(posts[0].message, /WXYZ1234QRST5678/u); assert.match(posts[0].message, /11\/27 23:30まで有効/u)
   const text = JSON.stringify(result)
   assert.ok(!text.includes('ABCD-EFGH') && !text.includes('WXYZ1234QRST5678') && !text.includes('PC1PAIR'))
 })
