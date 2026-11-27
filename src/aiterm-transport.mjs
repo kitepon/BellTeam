@@ -2274,40 +2274,37 @@ export class AitermTransport {
     return { path, temporary: true, attachment: { name: plainLine(file.name, 200), mime: plainLine(file.mime, 100), size: bytes.length } }
   }
 
-  // wait-contract.md "同じ待機を追う者は1つのprocessを分け合う": a busy seat's queued deliveries all follow the same turn with the same
-  // wait_process, so one process serves them all (memory stays flat as the queue grows). The last follower to stop stops the process.
-  #turnWaits = new Map()
-  async #sharedWait(receipt, signal) {
-    const key = JSON.stringify([receipt.session_id, receipt.wait_process])
-    let shared = this.#turnWaits.get(key)
-    if (!shared) {
-      const stop = new AbortController(), forget = () => { if (this.#turnWaits.get(key) === shared) this.#turnWaits.delete(key) }
-      // The session goes along: a remote seat's wait is `ssh ... '<aiterm-wait command>'` (one string, or base64 on Windows), so --session is not an argument of it.
-      shared = { stop, followers: 0, forget, result: this.waitProcess(receipt.wait_process, stop.signal, { session: receipt.session_id }) }
-      shared.result.then(forget, forget)
-      this.#turnWaits.set(key, shared)
-    }
-    shared.followers++
-    let onAbort
-    try {
-      const stopped = signal ? new Promise((_, reject) => signal.addEventListener('abort', onAbort = () => reject(Object.assign(new Error('ABORT_ERR'), { code: 'ABORT_ERR', name: 'AbortError' })), { once: true })) : null
-      stopped?.catch(() => {})
-      if (signal?.aborted) onAbort()
-      return await (stopped ? Promise.race([shared.result, stopped]) : shared.result)
-    } finally {
-      signal?.removeEventListener('abort', onAbort)
-      if (--shared.followers === 0) {
-        shared.forget(); shared.stop.abort()
-        // A stop is confirmed only once the process is gone (seat-process.mjs), so the last follower waits for it.
-        await shared.result.catch(() => {})
-      }
-    }
+  // wait-contract.md "席ごとに待ちのprocessは同時に1つ": a busy seat's queued deliveries each have their own wait (own --input / --input-ref), but
+  // their turns end in order, so a later one starts its process only when the earlier ones are done. A wait reads the seat's event log from a
+  // cursor, so starting late loses nothing; memory stays at one wait process per seat however long the queue is.
+  #seatWaits = new Map() // session_id -> tail of the seat's wait queue
+  #takeSeatWait(session, signal) {
+    if (typeof session !== 'string') return Promise.resolve(() => {})
+    const before = this.#seatWaits.get(session) ?? Promise.resolve()
+    let release
+    const mine = new Promise(resolve => { release = resolve })
+    const tail = before.then(() => mine)
+    this.#seatWaits.set(session, tail)
+    const done = () => { release(); if (this.#seatWaits.get(session) === tail) this.#seatWaits.delete(session) }
+    const aborted = () => Object.assign(new Error('ABORT_ERR'), { code: 'ABORT_ERR', name: 'AbortError' })
+    return new Promise((resolve, reject) => {
+      const onAbort = () => { done(); reject(aborted()) }
+      signal?.addEventListener('abort', onAbort, { once: true })
+      if (signal?.aborted) return onAbort()
+      before.then(() => { signal?.removeEventListener('abort', onAbort); resolve(done) })
+    })
   }
 
   // signalは、追うのをやめた時に待ちのprocessを止める（watchTurn）。
   async waitUntilDone(receipt, signal = null) {
+    const release = await this.#takeSeatWait(receipt.session_id, signal)
+    try { return await this.#followTurn(receipt, signal) } finally { release() }
+  }
+
+  async #followTurn(receipt, signal) {
     while (!signal?.aborted) {
-      const result = await this.#sharedWait(receipt, signal)
+      // The session goes along: a remote seat's wait is `ssh ... '<aiterm-wait command>'` (one string, or base64 on Windows), so --session is not an argument of it.
+      const result = await this.waitProcess(receipt.wait_process, signal, { session: receipt.session_id })
       const recoveryFailure = recoverableTurnFailure(receipt, result)
       if (result.outcome === 'done') { this.workState.completedTurn(result); return result }
       if (result.outcome === 'timeout' || result.outcome === 'running') continue
