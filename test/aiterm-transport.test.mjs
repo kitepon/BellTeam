@@ -1506,3 +1506,17 @@ test('同じ席の待つ配送は、同じ待機processを分け合い、最後�
   await assert.rejects(only, { code: 'ABORT_ERR' })
   assert.equal(runs.at(-1).signal.aborted, true, 'the last follower stopping stops the process')
 })
+
+test('行は動いているのに追う手が無い席は、ターンごとに1回、理由をstderrへ残す', async t => {
+  const lines = []
+  const write = process.stderr.write
+  process.stderr.write = chunk => { lines.push(String(chunk)); return true }
+  t.after(() => { process.stderr.write = write })
+  const transport = new AitermTransport({ client: { async call(name) { if (name === 'pty_list') return seatTurns(runningTurn('turn-x')); throw new Error(`unexpected ${name}`) } }, handoffContext: noMemory })
+  const bot = { id: 'bot-a', session: 'bot-a', harness: 'codex', project: '/bots/bot-a' }
+  await transport.watchSeatTurns([bot], { allowNew: () => false })
+  await transport.watchSeatTurns([bot], { allowNew: () => false })
+  process.stderr.write = write
+  assert.deepEqual(lines.filter(line => line.includes('seat turn not watched')).map(line => line.trim()),
+    ['BellTeam seat turn not watched: bot-a bot-a turn=turn-x reason=not_accepting codex=undefined interim_from=v1:900:b:900'])
+})
