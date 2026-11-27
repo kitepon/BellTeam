@@ -81,6 +81,30 @@ test('facade: own work reads working in currentWork and runningState; an older e
   assert.equal(transport.runningState('b1'), 'idle')
 })
 
+test('facade: the engine runningState is the one judgment; currentWork names the reason; an older engine falls back to the old formula', () => {
+  let judged = 'working', native = 'idle', own = null
+  const idle = { state: 'idle', summary: null, summaryStatus: 'missing', summaryUpdatedAt: null, observedAt: '2026-11-13T01:00:00.000Z', source: null }
+  const controller = { dispatch() {}, close() {}, project: ({ method }) => {
+    if (method === 'transport.runningState') { if (judged === 'older') return idle; return judged }
+    if (method === 'transport.currentTurn') return { state: native, turnId: null, startedAt: null }
+    if (method === 'transport.ownWork') return own
+    return idle
+  } }
+  const { transport } = createExecutionFacade({ getController: () => controller, client: {}, membersAdmission: {}, requestStop() {}, watchQueue: () => () => {} })
+  assert.equal(transport.runningState('b1'), 'working', 'the engine judgment is returned as it is')
+  judged = 'idle'; own = { kind: 'background', detail: 'x', since: null }
+  assert.equal(transport.runningState('b1'), 'idle', 'no second formula over the engine judgment')
+  judged = 'older'
+  assert.equal(transport.runningState('b1'), 'working', 'an older engine: the old formula (own work)')
+  // currentWork: the engine says working through own work; the reason is the own work, not a turn
+  const workingByOwn = { ...idle, state: 'working' }
+  const c2 = { dispatch() {}, close() {}, project: ({ method }) => method === 'transport.currentWork' ? workingByOwn : method === 'transport.currentTurn' ? { state: 'idle', turnId: null } : method === 'transport.ownWork' ? own : idle }
+  const t2 = createExecutionFacade({ getController: () => c2, client: {}, membersAdmission: {}, requestStop() {}, watchQueue: () => () => {} }).transport
+  assert.deepEqual(t2.currentWork({ id: 'b1' }).reason, { kind: 'background', detail: 'x', since: null })
+  own = null
+  assert.equal(t2.currentWork({ id: 'b1' }).reason.kind, 'turn', 'working with nothing named: a followed turn')
+})
+
 test('facade: a turn BellTeam itself follows reads working before the native read does (a485); only false counts', () => {
   let native = 'idle', follows = null
   const controller = { dispatch() {}, close() {}, project: ({ method }) => {
