@@ -1,5 +1,7 @@
 # 決裁箱拡張: link-engine feed from the hosted daemon (design v0.4, a490g)
 
+> **2026-11-28: SUPERSEDED, kept as history.** The body keeps no hosted daemon (Owner through Tronie: Approval Box stays standalone; [decision-port.md](decision-port.md)). The daemon feed, the parent effects `daemon.decisions.list` / `daemon.decisions.read` and the daemon merge of the app routes (section 5a) are removed. The link engine reads `/v1` only.
+
 > **2026-11-24: read with [client-v0.5.md](client-v0.5.md).** The link engine feed below is unchanged and does not depend on any screen: until the Approval Box app moves to `/pc/v1` the F1 stream with the connection session (README) is the source; the hosted daemon is needed only for this feed after the move.
 
 Owner of this module: Delta (bot-ae42e3e9). Extends [peer-channel-v0.2.md](peer-channel-v0.2.md) section 4a. Design only; no code before it is adopted and the diagrams ship with the code.

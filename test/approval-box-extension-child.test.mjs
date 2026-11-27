@@ -13,7 +13,7 @@ const raw = (id, extra = {}) => ({ id, title: '請求を同じにするか', con
   source: { client: 'claude-code', session_label: 'ブレッディ / billing', requester: 'ブレッディ', requester_bot_id: 'bot-823b56e9', via: 'connector' }, ...extra })
 
 // A fake Approval Box + a fake parent. calls records every effect; `server` answers /v1 paths.
-function harness({ decisions = [], session = { token: 'kss_x', expiresAt: null }, cards = [], me = ME, pairing = null, rowsText = null, daemon = null, bookText = null, seatMessage = null, now = () => Date.parse('2026-11-15T03:00:00Z') } = {}) {
+function harness({ decisions = [], session = { token: 'kss_x', expiresAt: null }, cards = [], me = ME, pairing = null, rowsText = null, bookText = null, seatMessage = null, now = () => Date.parse('2026-11-15T03:00:00Z') } = {}) {
   const calls = [], writes = new Map(), files = new Map(), box = { decisions: new Map(decisions.map(d => [d.id, d])), me, hits: [] }
   let stored = session && JSON.stringify(session)
   const client = {
@@ -41,8 +41,6 @@ function harness({ decisions = [], session = { token: 'kss_x', expiresAt: null }
     if (method === 'session.get') return stored ? { value: stored } : null
     if (method === 'session.put') { stored = params.value; return { ok: true } }
     if (method === 'session.erase') { stored = null; return { ok: true } }
-    if (method === 'daemon.decisions.list') { if (!daemon) throw new Error('unexpected effect'); return [...daemon.keys()].map(id => ({ id })) } // a490g: the hosted daemon's list
-    if (method === 'daemon.decisions.read') { if (!daemon) throw new Error('unexpected effect'); return daemon.get(params.id) ?? null }
     if (method === 'seat.message') { if (!seatMessage) throw new Error('unexpected effect'); return seatMessage(params) }
     if (method === 'members.list') return [{ id: 'bot-823b56e9', name: 'ブレッディ' }]
     if (method === 'lattice.charts') return [{ projectId: 'bellteam', name: 'BellTeam開発', createdBy: 'bot-7b140b27', coordinator: true }]
@@ -117,67 +115,6 @@ test('refresh: an external decision causes no Lattice write at all', async () =>
   assert.deepEqual(h.calls.filter(([method]) => method === 'lattice.ownerTask' || method === 'lattice.link'), [])
 })
 
-// a490g: what the daemon holds (seats' and the body's decisions), shaped as the parent effect returns it (no context, no history).
-const held = (id, extra = {}) => ({ id, title: '請求を同じにするか', status: 'pending', version: 1, urgency: 'normal', sessionLabel: 'ブレッディ / billing', requester: 'ブレッディ', cancelReason: null,
-  createdAt: '2026-11-15T01:00:00Z', updatedAt: '2026-11-15T01:00:00Z', options: [{ id: 'o1', label: '同じにする' }, { id: 'o2', label: '別にする' }], answer: null, ...extra })
-
-test('daemon feed: a decision only the daemon holds becomes a task (BellTeam by roster name) and its answer finishes it; the /v1 side stays empty', async () => {
-  const daemon = new Map([['K-DDDD', held('K-DDDD')]])
-  const h = harness({ decisions: [], daemon })
-  await h.core.refresh({ since: 0 }, h.effect)
-  assert.equal([...h.writes.values()][0].input.tasks[0].task_id, 'dec-k-dddd') // the first decision task rides in `plan create`
-  assert.ok(h.calls.some(([method]) => method === 'lattice.link'))
-  assert.ok(!h.box.hits.some(hit => hit.includes('K-DDDD')), 'no /v1 read of a daemon-listed id')
-  const cards = [{ id: 'approval-box/dec-k-dddd', plan: 'approval-box', taskId: 'dec-k-dddd', state: 'ready', lane: 'approval-box', title: 't' }]
-  const row = { decisionId: 'K-DDDD', projectId: 'bellteam', plan: 'approval-box', taskId: 'dec-k-dddd', state: 'linked', attached: false, sessionLabel: 'ブレッディ / billing', handledVersion: 1, updatedAt: '2026-11-15T01:00:00Z' }
-  const answered = new Map([['K-DDDD', held('K-DDDD', { status: 'answered', version: 2, answer: { optionId: 'o1', text: null, answeredAt: '2026-11-15T02:00:00Z' } })]])
-  const g = harness({ decisions: [], daemon: answered, cards, rowsText: JSON.stringify({ version: 1, rows: [row] }) })
-  await g.core.refresh({ since: 0 }, g.effect)
-  assert.deepEqual([...g.writes.keys()].map(key => key.split(' ').slice(0, 2).join(' ')), ['todo start', 'todo done'])
-  assert.match([...g.writes.keys()][1], /同じにする/u)
-})
-
-test('daemon feed: a linked row whose decision left the daemon list is still read by id; an unreadable daemon never stops the /v1 feed', async () => {
-  const answeredOld = held('K-OLDD', { status: 'answered', version: 2, answer: { optionId: 'o2', text: null, answeredAt: '2026-11-14T02:00:00Z' } })
-  const records = new Map([['K-OLDD', answeredOld]])
-  const cards = [{ id: 'approval-box/dec-k-oldd', plan: 'approval-box', taskId: 'dec-k-oldd', state: 'ready', lane: 'approval-box', title: 't' }]
-  const row = { decisionId: 'K-OLDD', projectId: 'bellteam', plan: 'approval-box', taskId: 'dec-k-oldd', state: 'linked', attached: false, sessionLabel: 'x', handledVersion: 1, updatedAt: '2026-11-14T01:00:00Z' }
-  const h = harness({ decisions: [], daemon: { keys: () => [], get: id => records.get(id) }, cards, rowsText: JSON.stringify({ version: 1, rows: [row] }) })
-  await h.core.refresh({ since: 0 }, h.effect)
-  assert.deepEqual([...h.writes.keys()].map(key => key.split(' ').slice(0, 2).join(' ')), ['todo start', 'todo done'])
-  const plain = harness({ decisions: [raw('K-AAAA')] }) // no daemon effects at all: the effect throws, the /v1 feed still creates its task
-  await plain.core.refresh({ since: 0 }, plain.effect)
-  assert.equal([...plain.writes.values()][0].input.tasks[0].task_id, 'dec-k-aaaa')
-})
-
-// a490j: BellTeam's own view also shows what the hosted daemon holds (PC_OFFER on: new decisions live there); answering those happens on a device.
-test('view from the daemon: list merges both sources in contract order, get falls back, summary counts both, the cursor page adds nothing', async () => {
-  const daemon = new Map([['K-DDDD', held('K-DDDD', { urgency: 'high', createdAt: '2026-11-15T02:00:00Z' })], ['K-DONE', held('K-DONE', { status: 'answered', version: 2, answer: { optionId: 'o1', text: null, answeredAt: '2026-11-15T02:30:00Z' } })]])
-  const h = harness({ decisions: [raw('K-AAAA')], daemon })
-  const page = await h.core.list({ status: ['pending', 'held'] }, h.effect)
-  assert.deepEqual(page.items.map(item => item.id), ['K-DDDD', 'K-AAAA'], '急ぎ first, then older first; the answered one is not in the pending list')
-  assert.equal(page.items[0].origin.kind, 'bellteam') // roster-name match (no requester_bot_id in the daemon record)
-  const answered = await h.core.list({ status: ['answered'] }, h.effect)
-  assert.ok(answered.items.some(item => item.id === 'K-DONE'))
-  const paged = await h.core.list({ status: ['pending', 'held'], cursor: 'c1' }, h.effect)
-  assert.ok(!paged.items.some(item => item.id === 'K-DDDD'))
-  assert.equal((await h.core.get({ id: 'K-DDDD' }, h.effect)).id, 'K-DDDD')
-  assert.equal((await h.core.get({ id: 'K-CCCC' }, harness({ decisions: [], daemon: new Map([['K-CCCC', held('K-CCCC', { context: '背景の本文' })]]) }).effect)).context ?? '', '背景の本文')
-  await assert.rejects(() => h.core.get({ id: 'K-NONE' }, h.effect), { code: 'APPROVALS_NOT_FOUND' })
-  const summary = await h.core.summary({}, h.effect)
-  assert.equal(summary.pending, 2); assert.equal(summary.urgent, 1)
-})
-
-test('view from the daemon: answer, hold and unhold of a daemon-only decision answer "on a device", a /v1 decision is unchanged', async () => {
-  const h = harness({ decisions: [raw('K-AAAA')], daemon: new Map([['K-DDDD', held('K-DDDD')]]) })
-  for (const call of [() => h.core.answer({ id: 'K-DDDD', optionId: 'o1', version: 1, idempotencyKey: 'abcdefgh' }, h.effect), () => h.core.hold({ id: 'K-DDDD' }, h.effect), () => h.core.unhold({ id: 'K-DDDD' }, h.effect)])
-    await assert.rejects(call, { code: 'APPROVALS_ANSWER_ON_DEVICE', status: 409 })
-  assert.deepEqual(approvalsWireError({ code: 'APPROVALS_ANSWER_ON_DEVICE' }, 'x'), { code: 'APPROVALS_ANSWER_ON_DEVICE', status: 409, outcome: 'x' })
-  const done = await h.core.answer({ id: 'K-AAAA', optionId: 'o1', version: 1, idempotencyKey: 'abcdefgh' }, h.effect)
-  assert.equal(done.outcome, 'answered')
-  await assert.rejects(() => h.core.answer({ id: 'K-NONE', optionId: 'o1', version: 1, idempotencyKey: 'abcdefgh' }, h.effect), { code: 'APPROVALS_NOT_FOUND' })
-})
-
 test('byDecision: ids and state of a linked decision, null for none; never calls Approval Box', async () => {
   const row = { decisionId: 'K-AAAA', projectId: 'bellteam', plan: 'approval-box', taskId: 'dec-k-aaaa', state: 'answered', attached: true, sessionLabel: 'x', handledVersion: 1, updatedAt: '2026-11-15T01:00:00Z' }
   const h = harness({ decisions: [], rowsText: JSON.stringify({ version: 1, rows: [row] }) })
@@ -188,13 +125,6 @@ test('byDecision: ids and state of a linked decision, null for none; never calls
   validateApprovalsResult('byDecision', null)
   validateApprovalsRequest('byDecision', { id: 'K-AAAA' }, { generation: 'g1' })
   assert.throws(() => validateApprovalsRequest('byDecision', { id: 'nope' }, { generation: 'g1' }), { code: 'APPROVALS_INVALID' })
-  validateApprovalsEffect('daemon.decisions.list', {}); validateApprovalsEffect('daemon.decisions.read', { id: 'K-AAAA' })
-  assert.throws(() => validateApprovalsEffect('daemon.decisions.read', { id: 'x' }))
-  validateApprovalsEffectResult('daemon.decisions.list', [{ id: 'K-AAAA' }])
-  validateApprovalsEffectResult('daemon.decisions.read', held('K-AAAA')); validateApprovalsEffectResult('daemon.decisions.read', null)
-  validateApprovalsEffectResult('daemon.decisions.read', { ...held('K-AAAA'), context: '本文' })
-  assert.throws(() => validateApprovalsEffectResult('daemon.decisions.read', { ...held('K-AAAA'), context: 'x'.repeat(20001) }), { code: 'APPROVALS_IPC_INVALID' })
-  assert.throws(() => validateApprovalsEffectResult('daemon.decisions.read', { ...held('K-AAAA'), attachments: [] }), { code: 'APPROVALS_IPC_INVALID' })
 })
 
 test('connect: the request code opens the hosted page, the poll hands over the session once, the child stores it with session.put', async () => {
@@ -284,20 +214,6 @@ test('http: owner only, JSON and Idempotency-Key required for answers, errors be
   assert.equal((await call(api, 'POST', '/api/approvals/K-AAAA/answer', { headers: { 'idempotency-key': 'abcdefgh-1' }, body: {} })).status, 415)
 })
 
-test('http: the seat-link routes are the three calls of the parent, Owner only, and 503 without the slot', async () => {
-  const calls = []
-  const pairing = { get: async () => (calls.push('get'), { state: 'none' }), start: async () => (calls.push('start'), { state: 'waiting', code: 'C', qrText: 'u', expiresAt: 'e' }), stop: async () => (calls.push('stop'), { state: 'none' }) }
-  const api = createApprovalsApi({ facade: { pairing }, internal: false })
-  assert.deepEqual((await call(api, 'GET', '/api/approvals/seat-link')).body, { state: 'none' })
-  assert.equal((await call(api, 'POST', '/api/approvals/seat-link/start')).body.code, 'C')
-  assert.deepEqual((await call(api, 'POST', '/api/approvals/seat-link/stop')).body, { state: 'none' })
-  assert.deepEqual(calls, ['get', 'start', 'stop'])
-  assert.equal((await call(api, 'POST', '/api/approvals/seat-link')).status, 405)
-  assert.equal((await call(api, 'GET', '/api/approvals/seat-link/start')).status, 405)
-  assert.equal((await call(createApprovalsApi({ facade: { pairing }, internal: true }), 'GET', '/api/approvals/seat-link')).status, 403)
-  assert.equal((await call(createApprovalsApi({ facade: {}, internal: false }), 'GET', '/api/approvals/seat-link')).status, 503)
-})
-
 test('http: an attachment is sandboxed and only images are inline (the sender may not be ours)', async () => {
   const serve = async contentType => {
     const { out, response } = reply()
@@ -357,13 +273,11 @@ test('A4: a failed send keeps the id for the next tick; a permanent refusal is r
   assert.equal((await gone.core.get({ id: 'K-AAAA' }, gone.effect)).delivery, 'unknown') // a refusal never turns into delivered
 })
 
-test('A1: the catch-up finds an answer whose event was missed (answered list), and the hosted daemon source relays by requester name', async () => {
+test('A1: the catch-up finds an answer whose event was missed (answered list)', async () => {
   const seat = sent()
-  const daemon = new Map([['K-DAEM', { id: 'K-DAEM', title: 't', status: 'answered', version: 2, urgency: 'normal', options: [{ id: 'o1', label: '同じにする' }], sessionLabel: 'ブレッディ / billing', requester: 'ブレッディ',
-    answer: { optionId: 'o1', text: null, answeredAt: '2026-11-15T02:00:00Z' }, cancelReason: null, createdAt: '2026-11-15T01:00:00Z', updatedAt: '2026-11-15T02:00:00Z' }]])
-  const h = harness({ decisions: [answeredRaw('K-AAAA')], daemon, bookText: BOOK, seatMessage: seat.fn })
+  const h = harness({ decisions: [answeredRaw('K-AAAA')], bookText: BOOK, seatMessage: seat.fn })
   await h.core.refresh({ since: 0 }, h.effect)
-  assert.deepEqual(seat.log.map(item => /K-[A-Z]{4}/u.exec(item.message)[0]).sort(), ['K-AAAA', 'K-DAEM'])
+  assert.deepEqual(seat.log.map(item => /K-[A-Z]{4}/u.exec(item.message)[0]).sort(), ['K-AAAA'])
 })
 
 test('seat.message: the protocol takes {target, message} and answers {delivery, deliveryId, code?}', () => {

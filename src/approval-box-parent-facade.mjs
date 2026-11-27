@@ -35,9 +35,7 @@ export function createApprovalsFacade({ controller, pairing = null, decisions = 
   }
   return {
     ...Object.fromEntries(ROOTS.map(method => [method, (params = {}) => send(method, params)])),
-    // seat-approval-card.md: the body's own QR pairing for seat cards; the daemon holds it, the child never sees it.
-    // seats-on-hosted-daemon.md: P3 (the one pairing, the routes under /api/approvals/seat-link) and P1 (approvals.decisions, file/read/cancel/capabilities/connection).
-    pairing,
+    // decision-port.md: P1 (approvals.decisions, file/read/cancel); the backend is execution's, the facade only carries it.
     decisions,
     // The loop starts with the process and ends at close; a new subscriber only speeds the next tick up.
     start: () => { if (!timer && !running) arm(0) },

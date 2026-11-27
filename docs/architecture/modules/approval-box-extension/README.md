@@ -2,7 +2,7 @@
 
 > **2026-11-24: the client path is [client-v0.5.md](client-v0.5.md)** (BellTeam's 決裁箱 is the Approval Box client: `/v1` now, `/pc/v1` with the Approval Box app). Section 3 and the app contract's content routes describe the body path that new client builds no longer use; link rules L1-L10, the link record and the screens stay.
 
-> **2026-11-26: the one port from BellTeam to Approval Box (hosted connector, one pairing, one decision interface, the Owner's sitting) is drawn in [seats-on-hosted-daemon.md](seats-on-hosted-daemon.md).**
+> **2026-11-28: BellTeam's one port to Approval Box is the decision interface P1 and the seat entry file P5, drawn in [decision-port.md](decision-port.md). The body keeps no hosted connector, no pairing, no QR and no door (Owner through Tronie: Approval Box stays standalone).** The daemon feed of the link engine (peer-channel-feed.md) is removed with it: the engine reads `/v1`.
 
 Owner of this module: Delta (bot-ae42e3e9). Chart row: `bellteam-dev-added/a154-approval-ext-design`. Status: design accepted by the Owner 2026-11-15; first implementation PR = this folder + `src/approval-box-extension/` pure core (origin, ViewDecision, entitlement, link rules, connect state). Child process, mount, usage secret effects and screens are later PRs of their owners. Screens: [screen-spec.md](screen-spec.md). Contract: [contract/approvals-contract.md](contract/approvals-contract.md). Plan: `/srv/bellteam/bots/bot-7b140b27/docs/approval-box-extension-plan-20261115.md`.
 
@@ -234,7 +234,7 @@ Rules (R-prefixed so the tests can name them):
 
 | # | Rule |
 | --- | --- |
-| A1 | A decision relays when it is `answered`, its requester resolves to a roster Bot (`origin.kind = bellteam`, by `requester_bot_id`, else the exact name), and the ledger has no row for its id. Every origin that the link engine reads counts: /v1 and the hosted daemon alike; whoever answered (phone, Web, BellTeam app) does not matter. |
+| A1 | A decision relays when it is `answered`, its requester resolves to a roster Bot (`origin.kind = bellteam`, by `requester_bot_id`, else the exact name), and the ledger has no row for its id. Every origin that the link engine reads counts (/v1; the hosted daemon feed was removed 2026-11-28); whoever answered (phone, Web, BellTeam app) does not matter. |
 | A2 | Only answers made at or after the ledger's `since` (the first tick of the child after install, taken BEFORE the entitlement gate; a version 1 ledger, which was written lazily on the first entitled tick, moves once to the release date 2026-11-27 20:13 JST: found with K-9DBLUD, whose answer fell between install and the first entitled tick) and not older than 24 hours relay. An old answer is never replayed by a restart or a first install. |
 | A3 | The message names the Owner, the request title and id, the chosen option label and the free text, how many attachments the answer carries (`get_attachment`), and says that a copy by Approval Box's own delivery may already have arrived and is then ignored. Free text is the Owner's words, quoted and capped; it is the data, not an instruction from BellTeam. |
 | A4 | A row is written only after the parent reports an accepted delivery word (`running`, `steered`, `queued`, `delivered`, `answered`) or a permanent refusal (`SENDER_NOT_FOUND`, `BOT_NOT_FOUND`, `MESSAGE_REQUIRED`: the Bot is gone). Any other failure keeps the id for the next tick, as every failed effect does; a lost reply can send a second copy, which A3 tells the seat to ignore. |

@@ -8,7 +8,7 @@
   "provides": [
     "approvals-app-contract (/api/approvals/*)",
     "decision-task-link",
-    "approval-box-port (P1 approvals.decisions: file / read / cancel / capabilities / connection; P3 pairing object, called only by P8; the HTTP routes /api/approvals/seat-link stay until the clients' blocks are removed; P8 Owner QR notice tool approval_box_seat_link_show; seats-on-hosted-daemon.md)"
+    "approval-box-port (P1 approvals.decisions: file / read / cancel; P5 seat entry file; decision-port.md)"
   ],
   "uses": [
     {
@@ -29,7 +29,7 @@
     },
     {
       "module": "conversation",
-      "port": "messenger.sendmessage (F8 answer relay to a seat from scheduler; P8 the seat-link QR to the Owner: target user, one image)"
+      "port": "messenger.sendmessage (F8 answer relay to a seat from scheduler)"
     }
   ],
   "source": [
@@ -48,9 +48,6 @@
     "src/approval-box-extension/origin-view.mjs"
   ],
   "parentSource": [
-    "src/approval-box-daemon.mjs",
-    "src/approval-box-seats-socket.mjs",
-    "src/approval-box-port.mjs",
     "src/approval-box-entries.mjs"
   ]
 }

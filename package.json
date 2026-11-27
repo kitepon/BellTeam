@@ -10,8 +10,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",
     "croner": "^10.0.1",
-    "jose": "6.2.13",
-    "qrcode-generator": "^2.0.4"
+    "jose": "6.2.13"
   },
   "engines": {
     "node": ">=24"

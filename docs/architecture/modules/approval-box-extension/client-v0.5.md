@@ -19,8 +19,8 @@ Why it exists: on 2026-11-24 the Owner's iPhone showed 0 decisions and 「再接
 | Body routes `/api/approvals` list, one, answer, hold, unhold, attachments, events, summary (F1/F2/F5) | served | still served, **not used by new client builds**; removed by task a490h2 only after every client reports the new path and old builds are gone (section 9) | Delta |
 | Body routes `by-decision`, `by-task`, `connection`, `connect` | served | **unchanged** (section 6) | Delta |
 | F6 entitlement gate | body gates `/api/approvals/*` | Approval Box gates (402 on every route but `GET /me`); the body gate stays for the body routes above only | Delta |
-| Link engine feed | F1 stream with the F7 session, plus the hosted daemon union (feed v0.4) | **unchanged** until the app moves; then the daemon only (feed v0.4 section 6) | Delta, Molly |
-| Hosted daemon, `/pc/v1` pairing | needed for the Owner's view | needed only for the link engine feed after the move; **no longer needed for any screen** | Molly, Nayuta |
+| Link engine feed | F1 stream with the F7 session, plus the hosted daemon union (feed v0.4) | F1 stream only (the daemon union was removed 2026-11-28, decision-port.md) | Delta, Molly |
+| Hosted daemon, `/pc/v1` pairing | needed for the Owner's view | removed 2026-11-28: the body keeps no hosted daemon; **not needed for any screen** | Molly, Nayuta |
 | Web view | dropped (browser holds no device keys) | possible again through the `v1` adapter (needs Nayuta's origin allowance, question Q2) | Admi |
 
 ## 3. Function diagram

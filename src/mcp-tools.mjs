@@ -11,8 +11,6 @@ import { deleteBotTool, runDeleteBotTool } from './members/deletion.mjs'
 import { terminalTools, callTerminalTool } from './terminals-mcp.mjs'
 import { latticeTools, latticeToolHandlers } from './lattice/mcp.mjs'
 import { runningExclusionTools, callRunningExclusionTool } from './running-exclusions-mcp.mjs'
-import { approvalBoxDaemonTools, callApprovalBoxDaemonTool } from './approval-box-daemon-mcp.mjs'
-import { seatLinkTools, callSeatLinkTool } from './approval-box-parent-mcp.mjs'
 import { authMediationTools, authMediationToolHandlers } from './auth-mediation/mcp.mjs'
 
 export const bellTeamTools = Object.freeze([
@@ -116,8 +114,6 @@ export const bellTeamTools = Object.freeze([
   ...terminalTools,
   ...latticeTools,
   ...runningExclusionTools,
-  ...approvalBoxDaemonTools,
-  ...seatLinkTools,
   ...authMediationTools(objectSchema),
 ])
 
@@ -180,8 +176,6 @@ async function runBellTeamTool(context) {
     return { ...result, bot: { ...result.bot, currentWork: readCurrentWork(context, bot), currentWorkBinding: readCurrentWorkBinding(context.currentWorkBinding, bot) } }
   }
   if (name === 'list_models') return getModels(args.harness)
-  if (seatLinkTools.some(tool => tool.name === name)) return callSeatLinkTool({ name, args, from, fork: Boolean(context.fork), approvalBoxDaemon: context.approvalBoxDaemon?.(), messenger })
-  if (approvalBoxDaemonTools.some(tool => tool.name === name)) return callApprovalBoxDaemonTool({ name, args, from, fork: Boolean(context.fork), approvalBoxDaemon: context.approvalBoxDaemon?.() })
   // 認証仲介: the seat Bot ID is the one the caller resolved (no Bot ID in the arguments); fork seats are refused (secret exposure and project writes from read-only inquiries); a module that is not serving answers outcome error.
   if (Object.hasOwn(authMediationToolHandlers, name)) {
     if (context.fork) throw Object.assign(new Error('AUTH_MEDIATION_NOT_ALLOWED'), { code: 'AUTH_MEDIATION_NOT_ALLOWED', status: 403 })
