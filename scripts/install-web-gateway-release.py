@@ -95,7 +95,7 @@ def snapshot(source_dir, name, target, limit):
 def verify(archive, bundle, expected, component='web-gateway'):
     if component not in ('web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics', 'execution', 'conversation', 'work-graph', 'lattice', 'approval-box-extension', 'auth-mediation'):
         fail('GATEWAY_INSTALL_COMPONENT')
-    verifier = {'web-gateway':'verify-web-gateway.py','notifications':'verify-notifications.py','members':'verify-members.py','memory':'verify-memory.py','usage':'verify-usage.py','diagnostics':'verify-diagnostics.py','execution':'verify-execution.py','conversation':'verify-conversation.py','work-graph':'verify-work-graph.py','lattice':'verify-lattice.py','approval-box-extension':'verify-approval-box-extension.py'}[component]
+    verifier = f'verify-{component}.py'  # one name rule; the dict that stood here missed 'auth-mediation' (KeyError -> HOST_UPDATE_EXECUTION_FAILED, 11-27)
     child = subprocess.Popen(['/usr/bin/python3', '/app/scripts/' + verifier, str(archive), str(bundle), str(expected)],
                              env={'PATH': '/usr/local/bin:/usr/bin:/bin'}, stdin=subprocess.DEVNULL,
                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True, close_fds=True)
