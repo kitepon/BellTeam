@@ -49,7 +49,7 @@ internal sealed partial class ApprovalsWindow : Window, IPageBack
         hub.Changed += OnHub; hub.DeviceChanged += OnDevice;
         Activated += (_, _) => hub.ReadLinks();
         AddHandler(KeyDownEvent, (_, e) => { if (e.Key == Key.Escape && Back()) e.Handled = true; }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
-        Closed += (_, _) => { hub.Changed -= OnHub; hub.DeviceChanged -= OnDevice; life.Cancel(); connectLoop?.Cancel(); seatLoop?.Cancel(); if (ReferenceEquals(Current, this)) Current = null; };
+        Closed += (_, _) => { hub.Changed -= OnHub; hub.DeviceChanged -= OnDevice; life.Cancel(); connectLoop?.Cancel(); if (ReferenceEquals(Current, this)) Current = null; };
         hub.ReadLinks();
         Render();
     }
@@ -146,7 +146,7 @@ internal sealed partial class ApprovalsWindow : Window, IPageBack
 
     // ---- 工程表との連携 (Delta 2026-11-23): the one BellTeam-to-Approval Box connection the server-side link engine needs (entitlement through /v1/me). Not a gate on the list.
     internal Task OpenLinkForRenderAsync() => OpenLinkAsync();
-    private async Task OpenLinkAsync() { linkOpen = true; connectNote = null; Render(); await ReadConnectionAsync(); await ReadSeatLinkAsync(); }
+    private async Task OpenLinkAsync() { linkOpen = true; connectNote = null; Render(); await ReadConnectionAsync(); }
     private async Task ReadConnectionAsync()
     {
         try

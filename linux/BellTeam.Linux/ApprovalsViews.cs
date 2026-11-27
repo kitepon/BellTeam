@@ -93,8 +93,7 @@ internal sealed partial class ApprovalsWindow
                 Add("戻る", false, () => { linkOpen = false; Render(); }); break;
         }
         stack.Children.Add(buttons);
-        if (JoinedBlock() is { } joined) stack.Children.Add(joined);   // this device's join state, then (when it is on main) 「決裁箱につなぐ」
-        if (SeatLinkSection() is { } seat) stack.Children.Add(seat);
+        if (JoinedBlock() is { } joined) stack.Children.Add(joined);   // this device's join state
         var card = Glass(stack, 22, new Thickness(26, 24)); card.MaxWidth = 520; card.HorizontalAlignment = HorizontalAlignment.Center; card.VerticalAlignment = VerticalAlignment.Center;
         return card;
     }
