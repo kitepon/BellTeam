@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-27T14:22:05Z",
-  "expiresAt": "2026-12-04T14:22:05Z",
+  "publishedAt": "2026-11-27T14:39:12Z",
+  "expiresAt": "2026-12-04T14:39:12Z",
   "releases": [
     {
       "componentId": "usage",
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "53b1105033352ca05272ecc9dcb10d6eccc5129c",
-      "versionId": "sha256:6f1764016b9e9ef28f4631017d84e5cbb07458fa794facfced5a3d0e8e74f08d",
+      "sourceCommit": "3432023fe0b0dbe85e722af0d250e31536d3fea3",
+      "versionId": "sha256:8eb8271deee1d09bc220380abdb9712bb1b97467bb841cd54f5791e4aa00210c",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6f1764016b9e9ef28f4631017d84e5cbb07458fa794facfced5a3d0e8e74f08d"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:8eb8271deee1d09bc220380abdb9712bb1b97467bb841cd54f5791e4aa00210c"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -722,21 +722,22 @@
         "containerUpdate": 1
       },
       "changes": [
-        "プッシュ通知は中継だけを使い、BellTeam は 1Password を読まなくなります（設定の 1Password 項目と、端末の鍵の 1Password 選択も消えます）。",
-        "決裁箱の拡張の持ち主の席から、オーナーの会話へペアリングの QR を送るツールが加わります。"
+        "本体のイメージの Aiterm が 0.70.120 になります（動いている席の自分の待機状態が確定せず、ラピさんが「不明」に見えた不具合の修正）。端末側の ~/.aiterm の版が、コンテナの版へ戻されなくなります。",
+        "プッシュ通知は中継だけを使い、BellTeam は 1Password を読まなくなります。",
+        "決裁箱拡張の持ち主の席から、オーナーの会話へペアリングの QR を送るツールが加わります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "53b1105033352ca05272ecc9dcb10d6eccc5129c",
-      "versionId": "sha256:6f1764016b9e9ef28f4631017d84e5cbb07458fa794facfced5a3d0e8e74f08d",
+      "sourceCommit": "3432023fe0b0dbe85e722af0d250e31536d3fea3",
+      "versionId": "sha256:8eb8271deee1d09bc220380abdb9712bb1b97467bb841cd54f5791e4aa00210c",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6f1764016b9e9ef28f4631017d84e5cbb07458fa794facfced5a3d0e8e74f08d"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:8eb8271deee1d09bc220380abdb9712bb1b97467bb841cd54f5791e4aa00210c"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -745,8 +746,9 @@
         "containerUpdate": 1
       },
       "changes": [
-        "プッシュ通知は中継だけを使い、BellTeam は 1Password を読まなくなります（設定の 1Password 項目と、端末の鍵の 1Password 選択も消えます）。",
-        "決裁箱の拡張の持ち主の席から、オーナーの会話へペアリングの QR を送るツールが加わります。"
+        "本体のイメージの Aiterm が 0.70.120 になります（動いている席の自分の待機状態が確定せず、ラピさんが「不明」に見えた不具合の修正）。端末側の ~/.aiterm の版が、コンテナの版へ戻されなくなります。",
+        "プッシュ通知は中継だけを使い、BellTeam は 1Password を読まなくなります。",
+        "決裁箱拡張の持ち主の席から、オーナーの会話へペアリングの QR を送るツールが加わります。"
       ]
     },
     {
