@@ -245,9 +245,12 @@ struct LatticeChartSummary: Decodable, Equatable, Identifiable {
     var activeMembers: [String]?
     var updatedAt: String?
     var state: String?
+    /// true = this chart's 催促 (nudge) is on (list row only; missing on an older server = no badge).
+    var reminders: Bool?
 
     var id: String { projectId }
     var isCoordinator: Bool { coordinator == true }
+    var nudgeOn: Bool { reminders == true }
     var done: Int { counts?.done ?? 0 }
     var total: Int { counts?.total ?? 0 }
     var connections: Int { counts?.connections ?? 0 }
