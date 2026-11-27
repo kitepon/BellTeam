@@ -86,7 +86,7 @@ function classify(error, target) {
 // Trony ruling (2026-11-09 16:1x JST): ONE launch path. Execution passes the returned `terminal` + `cwd` to Aiterm's own
 // agent_launch; send/wait/transcript go through Aiterm like a local seat. terminals opens a remote process only for
 // reachability (open -> close) and C8 upkeep (version/update/install, login for codex/grok), never for a seat.
-export function createTerminalConnection({ registry, secrets, native, now = () => new Date(), probeDelays = { first: 30_000, max: 300_000 } } = {}) {
+export function createTerminalConnection({ registry, secrets, native, keyReader = null, now = () => new Date(), probeDelays = { first: 30_000, max: 300_000 } } = {}) {
   if (!registry?.target || typeof secrets?.withResolved !== 'function' || typeof native?.connect !== 'function') throw new TypeError('Invalid terminal connection configuration')
   const wanted = new Map() // terminalId -> probe state
   const maintenance = new Map()
@@ -164,7 +164,14 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
     return binding
   }
 
+  // keyReader (terminal-keys-via-authmed): an owned secret terminal's key is read and loaded by the 認証仲介 loader, never by this parent;
+  // availability is the reader's answer (no Mika source), the revision only a label for Aiterm.
+  const mediated = target => target.keySource === 'secret' && keyReader?.owns?.(target.terminalId) === true
+
   async function handleOf(handle, context) {
+    if (context.purpose === 'terminal.ssh' && keyReader?.owns?.(context.terminalId) === true) {
+      try { const state = await keyReader.available(context.terminalId); return { handle, revision: state?.revision, available: state?.available === true } } catch { return null }
+    }
     try { return await secrets.credential(handle, context) } catch { return null }
   }
 
@@ -172,6 +179,12 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
   // before a launch. The value exists only inside Mika's callback and goes to Aiterm's stdin.
   async function loadKey(target, binding, current, extra) {
     if (!binding.credential) return
+    if (mediated(target)) {
+      try { await keyReader.load({ terminalId: target.terminalId, memberId: null, ref: binding.ref, ...binding.credential }) } catch { throw Object.assign(new Error('x'), { code: 'CREDENTIAL_NOT_LOADED' }) }
+      if (!current()) throw failure('TERMINAL_UNAVAILABLE')
+      if (extra) extra.agent = { outcome: 'loaded' } // the loader's one run also loaded the per-terminal agent
+      return
+    }
     // expectedRevision (Mika, as Molly #813 uses it): bytes of a newer revision are never labelled with the target's revision.
     await secrets.withResolved(target.sshKeyRef, { terminalId: target.terminalId, memberId: null, purpose: 'terminal.ssh', expectedRevision: binding.credential.revision },
       async key => {
