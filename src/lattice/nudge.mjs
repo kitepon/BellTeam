@@ -61,7 +61,8 @@ export function nudgeMessage(entries) {
 // `warned`: the reassign warnings already delivered (key = chart/plan/task/lane/state -> creator), so one task's warning reaches its creator once
 // and again only when the task changes (b25, Shiratsuru: three warnings in minutes, each delivery starting a turn). The in-prompt tasks repeat by
 // design (the Owner's nudge); only the creator warning is once. shortcut: kept in memory per child generation, so a child restart warns once more; upgrade if restarts get frequent.
-export async function nudgeSweep(charts, { laneOf, log, effect, warned = new Map(), news = null }) {
+// `promptedAt`: when each Bot was last prompted (fairness among Claude seats under the cap; shortcut: per child generation, a restart forgets it).
+export async function nudgeSweep(charts, { laneOf, log, effect, warned = new Map(), news = null, promptedAt = new Map() }) {
   const lanes = new Map(), orphans = new Set(), current = new Set(), out = { charts: charts.length, prompted: 0, skipped: 0, failed: 0 }
   const record = await news?.read().catch(error => (log(`lattice-news-record ${error?.code ?? 'FAILED'}`), null)) ?? null, seen = new Set()
   let recordDirty = false
@@ -100,19 +101,31 @@ export async function nudgeSweep(charts, { laneOf, log, effect, warned = new Map
   if (!lanes.size) { await flush(); return out }
   // Only 'working' proves the Bot is running (script/CI waits included, bellteam-running); unknown or a failed read is prompted.
   const turns = await effect('turns.read', { botIds: [...lanes.keys()] }).then(value => value.turns, () => ({}))
-  for (const [bot, entries] of lanes) {
+  // Claude cap (README L15, Owner 2026-11-28 rate-limit order): a Claude seat is started only while fewer than `cap` Claude seats work; a failed read means no cap.
+  const read = await effect('claude.load', {}).catch(() => null)
+  const load = Array.isArray(read?.claude) && Array.isArray(read.working) && read.cap >= 1 ? read : null // an old body or a failed read: no cap
+  const claude = new Set(load?.claude ?? [])
+  let places = load ? load.cap - load.working.length : Infinity
+  // Fairest first: the Bot prompted longest ago (never prompted first); the order only matters under the cap.
+  const order = [...lanes].sort(([a], [b]) => (promptedAt.get(a) ?? 0) - (promptedAt.get(b) ?? 0))
+  let capped = 0
+  for (const [bot, entries] of order) {
     if (turns[bot] === 'working') { out.skipped++; continue }
+    if (claude.has(bot) && places <= 0) { out.skipped++; capped++; continue }
     // The sends run one by one (a wake can take long), so the batch read above can be stale: a Bot that started a turn since then reads again just before its own send (a481, Mint 2026-11-21).
     const now = await effect('turns.read', { botIds: [bot] }).then(value => value.turns[bot], () => turns[bot])
     if (now === 'working') { out.skipped++; continue }
     const value = await effect('messages.send', { from: 'scheduler', target: bot, message: nudgeMessage(entries) }).catch(() => null)
     if (['running', 'steered', 'queued', 'delivered', 'answered'].includes(value?.delivery)) {
       out.prompted++
+      promptedAt.set(bot, Date.now())
+      if (claude.has(bot)) places--
       for (const entry of entries) { if (entry.key) warned.set(entry.key, bot); if (entry.newsKey) { record[entry.newsKey] = entry.next; recordDirty = true } }
       await flush()
     }
     else { out.failed++; log(`lattice-nudge-send ${bot} not accepted`) }
   }
+  if (capped) log(`lattice-nudge-cap ${load.working.length}/${load.cap}`)
   await flush()
   return out
 }

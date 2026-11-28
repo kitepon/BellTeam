@@ -1,7 +1,7 @@
 export const LATTICE_PROTOCOL_VERSION = 1
 export const LATTICE_STATE_COMPATIBILITY = Object.freeze({ state: 'none' })
 export const LATTICE_METHODS = Object.freeze(['charts', 'chart', 'history', 'refresh', 'run', 'deliver', 'nudge', 'blockers', 'unblock', 'link', 'ownerTask'])
-export const LATTICE_EFFECTS = Object.freeze(['members.list', 'messages.send', 'turns.read', 'decisions.file', 'decisions.read', 'decisions.cancel'])
+export const LATTICE_EFFECTS = Object.freeze(['members.list', 'messages.send', 'turns.read', 'claude.load', 'decisions.file', 'decisions.read', 'decisions.cancel'])
 // An Approval Box decision id (README L18-L19).
 export const LATTICE_DECISION_ID = /^K-[A-Z0-9]{4,16}$/u
 export const LATTICE_PROJECT_ID = /^[a-z0-9][a-z0-9-]{0,62}$/u
@@ -68,7 +68,7 @@ export function validateLatticeRequest(method, params, context) {
 const sendText = (value, max) => str(value) && value.length >= 1 && value.length <= max
 export function validateLatticeEffect(method, params) {
   if (!LATTICE_EFFECTS.includes(method)) throw latticeError('LATTICE_INVALID')
-  if (method === 'members.list' ? !latticeObject(params, [])
+  if (method === 'members.list' || method === 'claude.load' ? !latticeObject(params, [])
     : method === 'decisions.file' ? !latticeObject(params, ['title', 'context', 'options', 'requester', 'session_label']) || !sendText(params.title, 120)
       || !sendText(params.context, 20000) || !sendText(params.requester, 60) || !sendText(params.session_label, 200)
       || !Array.isArray(params.options) || params.options.length < 2 || params.options.length > 6
@@ -91,6 +91,8 @@ export function validateLatticeEffectResult(method, value) {
     && strOrNull(value.deliveryId) && (value.code === undefined || sendText(value.code, 128)))
   else if (method === 'turns.read') need(latticeObject(value, ['turns']) && plain(value.turns)
     && Object.values(value.turns).every(state => ['working', 'idle', 'unknown'].includes(state)))
+  else if (method === 'claude.load') need(latticeObject(value, ['cap', 'claude', 'working']) && Number.isInteger(value.cap) && value.cap >= 1
+    && list(value.claude, id => sendText(id, 128)) && list(value.working, id => sendText(id, 128)))
   else if (method === 'decisions.file') need(latticeObject(value, ['decisionId', 'existing']) && str(value.decisionId)
     && LATTICE_DECISION_ID.test(value.decisionId) && typeof value.existing === 'boolean')
   else if (method === 'decisions.read') need(latticeObject(value, ['status'], ['answer']) && ['pending', 'held', 'answered', 'cancelled'].includes(value.status)

@@ -335,6 +335,20 @@ test('turns.read: runningState counts a command wait; a missing method falls bac
   assert.deepEqual(await createLatticeEffects({ bots: {}, transport: { currentTurn: () => ({ state: 'working' }) } })('turns.read', { botIds: ['w'] }), { turns: { w: 'working' } })
 })
 
+test('claude.load: the Claude seats that work now and the cap (LATTICE_CLAUDE_CAP, default 5); deleting and other harnesses are left out', async () => {
+  const bots = { listForClient: async () => [{ id: 'c1', harness: 'claude' }, { id: 'c2', harness: 'claude' }, { id: 'c3', harness: 'claude', deleting: true }, { id: 'k1', harness: 'codex' }] }
+  const transport = { runningState: id => id === 'c1' || id === 'k1' ? 'working' : 'idle' }
+  const saved = process.env.LATTICE_CLAUDE_CAP
+  try {
+    delete process.env.LATTICE_CLAUDE_CAP
+    assert.deepEqual(await createLatticeEffects({ bots, transport })('claude.load', {}), { cap: 5, claude: ['c1', 'c2'], working: ['c1'] })
+    process.env.LATTICE_CLAUDE_CAP = '3'
+    assert.equal((await createLatticeEffects({ bots, transport })('claude.load', {})).cap, 3)
+    process.env.LATTICE_CLAUDE_CAP = 'x'
+    assert.equal((await createLatticeEffects({ bots, transport })('claude.load', {})).cap, 5, 'an unreadable cap is the default')
+  } finally { if (saved === undefined) delete process.env.LATTICE_CLAUDE_CAP; else process.env.LATTICE_CLAUDE_CAP = saved }
+})
+
 test('messages.send runs the messenger in the actor scope named by from, outside any request scope', async () => {
   const { AsyncLocalStorage } = await import('node:async_hooks')
   const scope = new AsyncLocalStorage(), seen = []

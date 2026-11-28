@@ -199,11 +199,19 @@ export function createLatticeEffects({ bots, messenger, transport, decisions = n
       color: text(item.color), avatarVersion: text(item.avatarVersion), deleting: item.deleting === true })) }
     // Nudge (README L15): only 'working' means running; anything else, or no turn port, reads 'unknown'.
     // runningState = turn or own CLI work, never a schedule (Owner 2026-11-14, a72); older bodies fall back to currentTurn.
-    if (method === 'turns.read') return { turns: Object.fromEntries(await Promise.all(params.botIds.map(async id => {
+    const turnOf = async id => {
       const state = await Promise.resolve().then(() => transport?.runningState ? transport.runningState(id)
         : Promise.resolve(transport?.currentTurn?.(id)).then(turn => turn?.state)).then(state => state, () => null)
-      return [id, ['working', 'idle'].includes(state) ? state : 'unknown']
-    }))) }
+      return ['working', 'idle'].includes(state) ? state : 'unknown'
+    }
+    if (method === 'turns.read') return { turns: Object.fromEntries(await Promise.all(params.botIds.map(async id => [id, await turnOf(id)]))) }
+    // Claude cap (README L15, Owner 2026-11-28): the Claude seats and how many work now, from BellTeam's own facts; the cap is LATTICE_CLAUDE_CAP (default 5).
+    if (method === 'claude.load') {
+      const claude = (await bots.listForClient()).filter(item => item.harness === 'claude' && item.deleting !== true).map(item => text(item.id))
+      const states = await Promise.all(claude.map(turnOf))
+      const cap = Number.parseInt(process.env.LATTICE_CLAUDE_CAP ?? '', 10)
+      return { cap: cap >= 1 ? cap : 5, claude, working: claude.filter((id, i) => states[i] === 'working') }
+    }
     if (method === 'decisions.file' || method === 'decisions.read' || method === 'decisions.cancel') {
       if (!decisions) throw Object.assign(new Error('LATTICE_DECISIONS_UNAVAILABLE'), { code: 'LATTICE_DECISIONS_UNAVAILABLE', status: 503 })
       return decisions[method.slice('decisions.'.length)](params)
