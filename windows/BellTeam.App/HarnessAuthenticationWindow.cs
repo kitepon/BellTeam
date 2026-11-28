@@ -36,7 +36,7 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
         this.accountLabel = accountLabel; this.limitLine = limitLine; this.signedOut = signedOut;
         installer = new(api, harness.Id, harness.Install, Token); installer.Changed += InstallChanged;
         this.confirm = confirm ?? (warning => new AuthenticationConfirmationWindow(warning) { Owner = host ?? this }.ShowDialog() == true);
-        SaveButton.Visibility = Visibility.Collapsed; CloseButton.Content = "閉じる"; Body.MaxWidth = 650;
+        SaveButton.Visibility = Visibility.Collapsed; CloseButton.Content = AppStrings.ApprovalsWindow_NotUsable_1; Body.MaxWidth = 650;
         Deactivated += (_, _) => { input.Clear(); StopReading(); }; Closed += (_, _) => { input.Clear(); StopReading(); };
         Activated += (_, _) => UpdatePolling(); timer.Tick += async (_, _) => await PollAsync(); Render();
     }
@@ -86,21 +86,21 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
         if (limitLine is not null) card.Children.Add(SettingsUi.Text("\u26A0 " + limitLine, 13, SettingsUi.Orange, null, new Thickness(0, 0, 0, 10)));
         var detail = SettingsUi.Text(progress.Detail, 14, progress.Tone == SettingsTone.Green ? SettingsUi.Ink : SettingsUi.ToneBrush(progress.Tone)); System.Windows.Automation.AutomationProperties.SetAutomationId(detail, "harness-auth-status"); card.Children.Add(detail);
         if (progress.Stage == AuthenticationStage.Done)
-            card.Children.Add(SettingsUi.Text((slot is null && harness.Id != "claude" ? harness.UsageText + "。" : "") + "メンバーが認証の誤りで止まった時や、別のアカウントに替える時に認証し直します。", 13, SettingsUi.Muted, null, new Thickness(0, 10, 0, 0)));
+            card.Children.Add(SettingsUi.Text(AppStrings.HarnessAuthenticationWindow_Render_2((slot is null && harness.Id != "claude" ? AppStrings.HarnessAuthenticationWindow_Render_1(harness.UsageText) : "")), 13, SettingsUi.Muted, null, new Thickness(0, 10, 0, 0)));
         var blocked = pollingFailed || Status.Text.Length != 0;
         switch (progress.Stage)
         {
-            case AuthenticationStage.Checking: card.Children.Add(SettingsUi.Text("確認しています…", 13, SettingsUi.Secondary, null, new Thickness(0, 10, 0, 0))); break;
+            case AuthenticationStage.Checking: card.Children.Add(SettingsUi.Text(AppStrings.HarnessAuthenticationWindow_Render_3, 13, SettingsUi.Secondary, null, new Thickness(0, 10, 0, 0))); break;
             case AuthenticationStage.Unknown: card.Children.Add(Refresh()); break;
-            case AuthenticationStage.NeedsLogin: AddStart("認証する", quiet: false); if (blocked) card.Children.Add(Refresh()); break;
-            case AuthenticationStage.Failed: AddStart("認証し直す", quiet: false); card.Children.Add(Refresh()); break;
+            case AuthenticationStage.NeedsLogin: AddStart(AppStrings.HarnessAuthenticationWindow_Render_4, quiet: false); if (blocked) card.Children.Add(Refresh()); break;
+            case AuthenticationStage.Failed: AddStart(AppStrings.HarnessAuthenticationWindow_Render_5, quiet: false); card.Children.Add(Refresh()); break;
             case AuthenticationStage.WaitingSite or AuthenticationStage.WaitingCode or AuthenticationStage.SendingCode:
                 Instructions(); if (blocked) card.Children.Add(Refresh()); AddCancel(); break;
             // An older server without the typed stage reads as confirming; its raw input stays reachable while this window started the login.
             case AuthenticationStage.Confirming: if (Authentication?.AuthUi is null) Instructions(); if (blocked) card.Children.Add(Refresh()); AddCancel(); break;
             default:
-                if (CanStart) AddStart("認証し直す", quiet: true);
-                else card.Children.Add(SettingsUi.Text(string.IsNullOrEmpty(harness.StartWarning) ? "このAIは認証済みの間は入り直せません。" : harness.StartWarning, 13, SettingsUi.Muted, null, new Thickness(0, 10, 0, 0)));
+                if (CanStart) AddStart(AppStrings.HarnessAuthenticationWindow_Render_5, quiet: true);
+                else card.Children.Add(SettingsUi.Text(string.IsNullOrEmpty(harness.StartWarning) ? AppStrings.HarnessAuthenticationWindow_Render_7 : harness.StartWarning, 13, SettingsUi.Muted, null, new Thickness(0, 10, 0, 0)));
                 if (blocked) card.Children.Add(Refresh());
                 break;
         }
@@ -130,13 +130,13 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
         }
         Button Refresh()
         {
-            var refresh = SettingsUi.Capsule("状態を更新", SettingsUi.Fill, SettingsUi.Ink, 8, 13, new Thickness(12, 6, 12, 6)); refresh.HorizontalAlignment = HorizontalAlignment.Left; refresh.Margin = new Thickness(0, 10, 0, 0); refresh.FontWeight = FontWeights.Normal;
+            var refresh = SettingsUi.Capsule(AppStrings.GoalViews_Render_10, SettingsUi.Fill, SettingsUi.Ink, 8, 13, new Thickness(12, 6, 12, 6)); refresh.HorizontalAlignment = HorizontalAlignment.Left; refresh.Margin = new Thickness(0, 10, 0, 0); refresh.FontWeight = FontWeights.Normal;
             System.Windows.Automation.AutomationProperties.SetAutomationId(refresh, "harness-auth-refresh"); refresh.Click += async (_, _) => { Status.Text = ""; await InitializeAsync(); }; return refresh;
         }
         void AddCancel()
         {
             if (!SessionOpen) return;
-            var cancel = SettingsUi.Capsule("やめる", SettingsUi.Fill, SettingsUi.Ink, 8, 13, new Thickness(12, 6, 12, 6)); cancel.HorizontalAlignment = HorizontalAlignment.Left; cancel.Margin = new Thickness(0, 10, 0, 0); cancel.FontWeight = FontWeights.Normal; cancel.IsEnabled = !Busy;
+            var cancel = SettingsUi.Capsule(AppStrings.ApprovalsWindow_DeviceStrip_1, SettingsUi.Fill, SettingsUi.Ink, 8, 13, new Thickness(12, 6, 12, 6)); cancel.HorizontalAlignment = HorizontalAlignment.Left; cancel.Margin = new Thickness(0, 10, 0, 0); cancel.FontWeight = FontWeights.Normal; cancel.IsEnabled = !Busy;
             System.Windows.Automation.AutomationProperties.SetAutomationId(cancel, "harness-auth-cancel");
             cancel.Click += async (_, _) => await PerformAsync(async () => { await api.CancelAsync(harness.Id, Token, slot: slot); Started = false; return await api.StatusAsync(harness.Id, Token, slot: slot); });
             card.Children.Add(cancel);
@@ -150,8 +150,8 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
                 // An older server without the typed stage: the raw input and keys, while this window started the login.
                 if (auth.InputRequired && Started)
                 {
-                    System.Windows.Automation.AutomationProperties.SetName(input, "認証に必要な入力"); input.Margin = new Thickness(0, 10, 0, 0); card.Children.Add(input);
-                    var send = new Button { Content = "入力を送る", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 10, 0, 6) }; card.Children.Add(send);
+                    System.Windows.Automation.AutomationProperties.SetName(input, AppStrings.HarnessAuthenticationWindow_Render_10); input.Margin = new Thickness(0, 10, 0, 0); card.Children.Add(input);
+                    var send = new Button { Content = AppStrings.HarnessAuthenticationWindow_Render_11, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 10, 0, 6) }; card.Children.Add(send);
                     send.Click += (_, _) => { if (input.Password.Length == 0) return; var text = input.Password; input.Clear(); _ = PerformAsync(() => api.InputAsync(harness.Id, text, null, Token, slot: slot)); };
                     var keys = new WrapPanel(); card.Children.Add(keys);
                     foreach (var key in new[] { "Enter", "Up", "Down", "Tab" }) { var button = new Button { Content = key }; button.Click += (_, _) => _ = PerformAsync(() => api.InputAsync(harness.Id, null, key, Token, slot: slot)); keys.Children.Add(button); }
@@ -162,9 +162,9 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
                 return;
             }
             if (Uri.TryCreate(ui.Url ?? auth.Url, UriKind.Absolute, out var address) && address.Scheme == "https") card.Children.Add(OpenSite(address));
-            else if (ui.Stage is "open_url" or "device_code" or "paste_code") card.Children.Add(SettingsUi.Text("公式サイトのURLを確認できません。状態を更新してください。", 12, SettingsUi.Red, null, new Thickness(0, 10, 0, 0)));
+            else if (ui.Stage is "open_url" or "device_code" or "paste_code") card.Children.Add(SettingsUi.Text(AppStrings.HarnessAuthenticationWindow_Render_12, 12, SettingsUi.Red, null, new Thickness(0, 10, 0, 0)));
             if (!string.IsNullOrEmpty(ui.UserCode ?? auth.UserCode)) AddUserCode(ui.UserCode ?? auth.UserCode!);
-            if (pollingFailed || !ui.CanRespond) { if (ui.Input is not null) card.Children.Add(SettingsUi.Text("操作の対象を確認できません。状態を更新してください。", 12, SettingsUi.Red, null, new Thickness(0, 10, 0, 0))); input.Clear(); return; }
+            if (pollingFailed || !ui.CanRespond) { if (ui.Input is not null) card.Children.Add(SettingsUi.Text(AppStrings.HarnessAuthenticationWindow_Render_13, 12, SettingsUi.Red, null, new Thickness(0, 10, 0, 0))); input.Clear(); return; }
             if (ui.Stage == "select")
                 foreach (var choice in ui.Choices ?? [])
                 {
@@ -173,8 +173,8 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
                 }
             if (ui.Stage == "paste_code" && ui.Input == "authorization_code")
             {
-                System.Windows.Automation.AutomationProperties.SetName(input, "認証コード"); input.Margin = new Thickness(0, 10, 0, 0); input.IsEnabled = !Busy; card.Children.Add(input);
-                var send = SettingsUi.MainButton(sending ? "送っています…" : "認証コードを送る"); send.IsEnabled = !Busy; System.Windows.Automation.AutomationProperties.SetAutomationId(send, "harness-auth-submit"); card.Children.Add(send);
+                System.Windows.Automation.AutomationProperties.SetName(input, AppStrings.HarnessAuthenticationWindow_Render_14); input.Margin = new Thickness(0, 10, 0, 0); input.IsEnabled = !Busy; card.Children.Add(input);
+                var send = SettingsUi.MainButton(sending ? AppStrings.HarnessAuthenticationWindow_Render_15 : AppStrings.HarnessAuthenticationWindow_Render_16); send.IsEnabled = !Busy; System.Windows.Automation.AutomationProperties.SetAutomationId(send, "harness-auth-submit"); card.Children.Add(send);
                 send.Click += async (_, _) =>
                 {
                     if (input.Password.Length == 0) return;
@@ -187,14 +187,14 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
         }
         Button OpenSite(Uri address)
         {
-            var link = SettingsUi.Capsule("公式サイトを開く", Brushes.Transparent, SettingsUi.Violet, 8, 13, new Thickness(0, 4, 0, 4)); link.HorizontalAlignment = HorizontalAlignment.Left; link.Margin = new Thickness(0, 10, 0, 0);
+            var link = SettingsUi.Capsule(AppStrings.HarnessAuthenticationWindow_Render_17, Brushes.Transparent, SettingsUi.Violet, 8, 13, new Thickness(0, 4, 0, 4)); link.HorizontalAlignment = HorizontalAlignment.Left; link.Margin = new Thickness(0, 10, 0, 0);
             System.Windows.Automation.AutomationProperties.SetAutomationId(link, "harness-auth-link");
-            link.Click += (_, _) => { try { Process.Start(new ProcessStartInfo(address.AbsoluteUri) { UseShellExecute = true }); } catch (Exception error) { Status.Text = "公式サイトを開けませんでした。" + error.Message; } };
+            link.Click += (_, _) => { try { Process.Start(new ProcessStartInfo(address.AbsoluteUri) { UseShellExecute = true }); } catch (Exception error) { Status.Text = AppStrings.HarnessAuthenticationWindow_Render_18(error.Message); } };
             return link;
         }
         void AddUserCode(string code)
         {
-            card.Children.Add(SettingsUi.Text("利用者コード", 12, SettingsUi.Secondary, null, new Thickness(0, 10, 0, 2)));
+            card.Children.Add(SettingsUi.Text(AppStrings.HarnessAuthenticationWindow_Render_19, 12, SettingsUi.Secondary, null, new Thickness(0, 10, 0, 2)));
             var value = new TextBox { Text = code, IsReadOnly = true, BorderThickness = new Thickness(0), Background = Brushes.Transparent, FontFamily = new FontFamily("Consolas"), FontSize = 18 };
             System.Windows.Automation.AutomationProperties.SetAutomationId(value, "harness-auth-code"); card.Children.Add(value);
         }
@@ -215,8 +215,8 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
     }
     private void Apply(HarnessAuthenticationResponse next)
     {
-        if (next.Harness != harness.Id) throw new BellApiException("別のAIの認証状態が返されました。");
-        if (next.Slot is { } answered && answered != (slot ?? "1st")) throw new BellApiException("別のアカウントの認証状態が返されました。");
+        if (next.Harness != harness.Id) throw new BellApiException(AppStrings.HarnessAuthenticationWindow_Apply_1);
+        if (next.Slot is { } answered && answered != (slot ?? "1st")) throw new BellApiException(AppStrings.HarnessAuthenticationWindow_Apply_2);
         var changed = Authentication != next.Auth; Authentication = next.Auth; loaded = true;
         // A login finished here replaces the signed-out credentials the row reported.
         if (Authentication?.Status == "authenticated") { if (Started) signedOut = false; Started = false; }
@@ -243,11 +243,11 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
 }
 public sealed class AuthenticationConfirmationWindow : EditorWindow
 {
-    public AuthenticationConfirmationWindow(string warning) : base("AIの認証をやり直しますか？")
+    public AuthenticationConfirmationWindow(string warning) : base(AppStrings.HarnessAuthenticationWindow_AuthenticationConfirmationWindow_1)
     {
         Width = 700; Height = 330; MinHeight = 280;
-        Heading("AIの認証をやり直しますか？"); Body.Children.Add(SecretCard.CardBody(warning));
-        CloseButton.Content = "始めない"; CloseButton.IsCancel = true;
-        SaveButton.Content = "今の認証を手放して始める"; SaveButton.Click += (_, _) => DialogResult = true;
+        Heading(AppStrings.HarnessAuthenticationWindow_AuthenticationConfirmationWindow_1); Body.Children.Add(SecretCard.CardBody(warning));
+        CloseButton.Content = AppStrings.HarnessAuthenticationWindow_AuthenticationConfirmationWindow_3; CloseButton.IsCancel = true;
+        SaveButton.Content = AppStrings.HarnessAuthenticationWindow_AuthenticationConfirmationWindow_4; SaveButton.Click += (_, _) => DialogResult = true;
     }
 }

@@ -30,7 +30,7 @@ public sealed class WorkGraphWindow : Window
     internal WorkGraphWindow(Workspace workspace, Func<string, Task> openMember, Func<double>? clock = null)
     {
         this.workspace = workspace; this.openMember = openMember; this.clock = clock;
-        Title = "相関図"; Width = 960; Height = 640; UseLayoutRounding = true;
+        Title = AppStrings.WorkGraphView_GetNameCore_1; Width = 960; Height = 640; UseLayoutRounding = true;
         SetResourceReference(StyleProperty, typeof(Window)); SetResourceReference(BackgroundProperty, "ConversationBackground");
         Origin = workspace.Server;
         Graph = NewGraph();
@@ -93,7 +93,7 @@ public sealed class WorkGraphWindow : Window
     {
         openError = null; Refresh();
         try { await open(botId); }
-        catch (Exception error) { openError = "メインの窓を開けませんでした: " + error.Message; Refresh(); }
+        catch (Exception error) { openError = AppStrings.WorkGraphWindow_OpenAsync_1(error.Message); Refresh(); }
     }
 
     private void Refresh()

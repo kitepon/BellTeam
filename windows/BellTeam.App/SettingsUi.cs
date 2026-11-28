@@ -13,7 +13,7 @@ public static class SettingsPageInfo
     public static IReadOnlyList<SettingsPage[]> Groups => SettingsPages.Groups;
     public static string Title(SettingsPage page) => SettingsPages.Title(page);
     // The Mac line is about the App Store subscription; Windows sells nothing (a485), so 利用と課金 keeps its own line.
-    public static string Detail(SettingsPage page) => page == SettingsPage.Billing ? "料金と、サーバーとAIの契約" : SettingsPages.Detail(page);
+    public static string Detail(SettingsPage page) => page == SettingsPage.Billing ? AppStrings.SettingsUi_Detail_1 : SettingsPages.Detail(page);
     // Segoe Fluent Icons code points standing in for the Mac SF Symbols.
     public static string Glyph(SettingsPage page) => page switch
     {

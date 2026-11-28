@@ -29,15 +29,15 @@ internal sealed class OnePasswordView
     private readonly TextBlock chevron = Glyph("", 11, Muted);
     private readonly StackPanel steps = new() { Margin = new Thickness(18, 10, 0, 4) };
     private readonly Border guideSection = new() { Background = Brushes.White, CornerRadius = new CornerRadius(10), Padding = new Thickness(20, 12, 20, 12), Margin = new Thickness(0, 14, 0, 0) };
-    private readonly (Grid Row, System.Windows.Controls.Primitives.ToggleButton Switch) toggleParts = SettingsUi.SwitchRow("1Passwordと連携する");
+    private readonly (Grid Row, System.Windows.Controls.Primitives.ToggleButton Switch) toggleParts = SettingsUi.SwitchRow(AppStrings.OnePasswordView_toggleParts_1);
     private System.Windows.Controls.Primitives.ToggleButton toggle => toggleParts.Switch;
     private readonly Border tokenRow;
     private readonly TextBlock resultLine = Text("", 13, Muted), errorLine = Text("", 12, Red);
-    private readonly Button save = Capsule("保存して連携を確かめる", Violet, Brushes.White, 8, 13, new Thickness(18, 8, 18, 8));
+    private readonly Button save = Capsule(AppStrings.OnePasswordView_save_1, Violet, Brushes.White, 8, 13, new Thickness(18, 8, 18, 8));
     private readonly GroupCard saveGroup = new();
     private readonly Border resultRow, errorRow;
     private readonly StackPanel content = new(), loadFailure = new();
-    private readonly TextBlock loadingLine = Text("読み込んでいます…", 13, Secondary, null, new Thickness(0, 10, 0, 0));
+    private readonly TextBlock loadingLine = Text(AppStrings.FeatureEditor_InitializeAsync_1, 13, Secondary, null, new Thickness(0, 10, 0, 0));
     private readonly TextBlock loadErrorLine = Text("", 12, Red, null, new Thickness(0, 6, 0, 0));
 
     public Task Ready { get; }
@@ -45,7 +45,7 @@ internal sealed class OnePasswordView
     {
         this.workspace = workspace; this.token = token; this.setBusy = setBusy; this.changed = changed; current = first;
         token.Register(ClearToken);
-        System.Windows.Automation.AutomationProperties.SetName(password, TokenField?.Label ?? "サービスアカウントのトークン");
+        System.Windows.Automation.AutomationProperties.SetName(password, TokenField?.Label ?? AppStrings.OnePasswordView_OnePasswordView_1);
         password.PasswordChanged += (_, _) => hint.Visibility = password.Password.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
         hint.IsHitTestVisible = false; hint.VerticalAlignment = VerticalAlignment.Center;
         toggle.Checked += (_, _) => enabled = true; toggle.Unchecked += (_, _) => enabled = false;
@@ -55,21 +55,21 @@ internal sealed class OnePasswordView
 
         var guideHead = new Grid { Background = Brushes.Transparent, Cursor = System.Windows.Input.Cursors.Hand };
         guideHead.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(18) }); guideHead.ColumnDefinitions.Add(new ColumnDefinition());
-        guideHead.Children.Add(chevron); var guideTitle = Text("作り方を見る", 13); Grid.SetColumn(guideTitle, 1); guideHead.Children.Add(guideTitle);
+        guideHead.Children.Add(chevron); var guideTitle = Text(AppStrings.OnePasswordView_OnePasswordView_2, 13); Grid.SetColumn(guideTitle, 1); guideHead.Children.Add(guideTitle);
         guideHead.MouseLeftButtonUp += (_, _) => { guideOpen = !guideOpen; Refresh(); };
-        System.Windows.Automation.AutomationProperties.SetName(guideHead, "作り方を見る");
+        System.Windows.Automation.AutomationProperties.SetName(guideHead, AppStrings.OnePasswordView_OnePasswordView_2);
         guideSection.Child = new StackPanel { Children = { guideHead, steps } };
 
         var tokenGrid = new Grid(); tokenGrid.Children.Add(password); tokenGrid.Children.Add(hint); tokenRow = Row(tokenGrid, 40);
-        var group = new GroupCard(Row(toggleParts.Row, 40), tokenRow, Row(Text("貼ったトークンは保存後、画面には表示されません。会話にも送られません。", 12, Muted), 36));
+        var group = new GroupCard(Row(toggleParts.Row, 40), tokenRow, Row(Text(AppStrings.OnePasswordView_OnePasswordView_4, 12, Muted), 36));
         resultRow = Row(resultLine, 36); errorRow = Row(errorLine, 30);
         saveGroup.Add(resultRow); saveGroup.Add(Row(save, 46)); saveGroup.Add(errorRow);
 
         content.Children.Add(connectionCard); content.Children.Add(guideSection);
-        content.Children.Add(FormSection("サービスアカウントのトークン", group)); content.Children.Add(new StackPanel { Margin = new Thickness(0, 22, 0, 0), Children = { saveGroup } });
-        var reload = Capsule("再読み込み", Fill, Ink, 8, 13, new Thickness(12, 6, 12, 6)); reload.HorizontalAlignment = HorizontalAlignment.Left; reload.Margin = new Thickness(0, 8, 0, 0); reload.FontWeight = FontWeights.Normal;
+        content.Children.Add(FormSection(AppStrings.OnePasswordView_OnePasswordView_1, group)); content.Children.Add(new StackPanel { Margin = new Thickness(0, 22, 0, 0), Children = { saveGroup } });
+        var reload = Capsule(AppStrings.OnePasswordView_OnePasswordView_6, Fill, Ink, 8, 13, new Thickness(12, 6, 12, 6)); reload.HorizontalAlignment = HorizontalAlignment.Left; reload.Margin = new Thickness(0, 8, 0, 0); reload.FontWeight = FontWeights.Normal;
         reload.Click += async (_, _) => await LoadAsync();
-        loadFailure.Children.Add(Text("設定を読み込めませんでした", 15, Ink, FontWeights.SemiBold)); loadFailure.Children.Add(loadErrorLine); loadFailure.Children.Add(reload);
+        loadFailure.Children.Add(Text(AppStrings.OnePasswordView_OnePasswordView_7, 15, Ink, FontWeights.SemiBold)); loadFailure.Children.Add(loadErrorLine); loadFailure.Children.Add(reload);
         form.Children.Add(content); form.Children.Add(loadFailure); form.Children.Add(loadingLine);
         Ready = LoadAsync();
     }
@@ -84,7 +84,7 @@ internal sealed class OnePasswordView
         loading = true; Refresh();
         try
         {
-            var item = (await workspace.Planning.FeaturesAsync(token)).FirstOrDefault(feature => feature.Id == OnePasswordItem.Id) ?? throw new BellApiException("1Password連携の設定が見つかりません。");
+            var item = (await workspace.Planning.FeaturesAsync(token)).FirstOrDefault(feature => feature.Id == OnePasswordItem.Id) ?? throw new BellApiException(AppStrings.OnePasswordView_LoadAsync_1);
             token.ThrowIfCancellationRequested();
             current = item; enabled = item.Enabled || item.Status == "unconfigured"; guideOpen = OnePasswordItem.State(item) != OnePasswordState.Connected;
             result = result.Refreshed(item); loaded = true; errorText = null; changed?.Invoke(item);
@@ -111,12 +111,12 @@ internal sealed class OnePasswordView
         finally { values.Clear(); }
         try
         {
-            var item = (await workspace.Planning.FeaturesAsync(token)).FirstOrDefault(feature => feature.Id == OnePasswordItem.Id) ?? throw new BellApiException("1Password連携の設定が見つかりません。");
+            var item = (await workspace.Planning.FeaturesAsync(token)).FirstOrDefault(feature => feature.Id == OnePasswordItem.Id) ?? throw new BellApiException(AppStrings.OnePasswordView_LoadAsync_1);
             // The badge follows the re-read item; the guide opens or folds only when the connection state changes.
             if ((OnePasswordItem.State(item) == OnePasswordState.Connected) != (OnePasswordItem.State(current) == OnePasswordState.Connected)) guideOpen = OnePasswordItem.State(item) != OnePasswordState.Connected;
             current = item; result = result.Refreshed(item); changed?.Invoke(item);
         }
-        catch (Exception error) { errorText = "保存しました。表示を更新できませんでした（" + error.Message + "）"; }
+        catch (Exception error) { errorText = AppStrings.OnePasswordView_SaveAsync_2(error.Message); }
         saving = false; setBusy(false); Refresh();
     }
 
@@ -136,12 +136,12 @@ internal sealed class OnePasswordView
         }
         toggle.IsChecked = enabled;
         tokenRow.Visibility = TokenField is null ? Visibility.Collapsed : Visibility.Visible;
-        hint.Text = TokenField?.Configured == true ? "登録済み・変更するときだけ入力" : "ops_で始まるトークンを貼る"; hint.Visibility = password.Password.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+        hint.Text = TokenField?.Configured == true ? AppStrings.FeatureEditor_InitializeAsync_6 : AppStrings.OnePasswordView_Refresh_2; hint.Visibility = password.Password.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
         // An empty line takes no height.
         resultLine.Text = result.Text; resultLine.Foreground = result.Kind switch { OnePasswordResultKind.Connected => Green, OnePasswordResultKind.Failed => Red, _ => Muted };
         saveGroup.SetVisible(resultRow, result.Kind != OnePasswordResultKind.None);
         errorLine.Text = errorText ?? ""; saveGroup.SetVisible(errorRow, errorText is not null);
-        save.Content = saving ? "連携を確かめています…" : "保存して連携を確かめる"; save.IsEnabled = !loading && !saving;
+        save.Content = saving ? AppStrings.OnePasswordView_Refresh_3 : AppStrings.OnePasswordView_save_1; save.IsEnabled = !loading && !saving;
     }
 
     private Button LinkButton(string label, Uri url)
@@ -152,7 +152,7 @@ internal sealed class OnePasswordView
         button.Click += (_, _) =>
         {
             try { Process.Start(new ProcessStartInfo(url.AbsoluteUri) { UseShellExecute = true }); }
-            catch (Exception error) { errorText = "ページを開けませんでした。" + error.Message; Refresh(); }
+            catch (Exception error) { errorText = AppStrings.OnePasswordView_LinkButton_1(error.Message); Refresh(); }
         };
         return button;
     }

@@ -28,7 +28,7 @@ public sealed partial class SettingsWindow
     private static Button OpenLink(string label, string url, Action<string> failed)
     {
         var button = Capsule(label, Fill, Ink, 8, 13, new Thickness(12, 6, 12, 6)); button.HorizontalAlignment = HorizontalAlignment.Left; button.Margin = new Thickness(0, 8, 0, 0); button.FontWeight = FontWeights.Normal;
-        button.Click += (_, _) => { try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); } catch (Exception error) { failed("ページを開けませんでした。" + error.Message); } };
+        button.Click += (_, _) => { try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); } catch (Exception error) { failed(AppStrings.OnePasswordView_LinkButton_1(error.Message)); } };
         return button;
     }
     private static TextBlock Loading(string text) => Text(text, 13, Secondary, null, new Thickness(0, 10, 0, 0));
@@ -38,50 +38,50 @@ public sealed partial class SettingsWindow
     private async Task ProfilePageAsync(CancellationToken token)
     {
         var page = NewPage(SettingsPage.Profile);
-        var content = new StackPanel(); page.Children.Add(content); content.Children.Add(Loading("読み込んでいます…"));
+        var content = new StackPanel(); page.Children.Add(content); content.Children.Add(Loading(AppStrings.FeatureEditor_InitializeAsync_1));
         try
         {
             var api = workspace.Planning;
             var original = (await api.OwnerAsync(token)).Owner; token.ThrowIfCancellationRequested();
             UpdateProfileRow(original); content.Children.Clear();
             var avatar = new AvatarPicker(original.Avatar, name: original.Name, quiet: true) { HorizontalAlignment = HorizontalAlignment.Center }; InitialLoads.Add(avatar.LoadAsync());
-            var name = Field("名前", original.Name); var profile = Field("プロフィール", original.Profile, multiline: true);
-            content.Children.Add(FormSection("あなた", new GroupCard(Row(avatar, 0), Row(name.Element), Row(profile.Element))));
-            var x = Field("XのURL", original.XUrl); var github = Field("GitHubのURL", original.GithubUrl);
+            var name = Field(AppStrings.MemberEditors_Build_1, original.Name); var profile = Field(AppStrings.MemberEditors_Build_18, original.Profile, multiline: true);
+            content.Children.Add(FormSection(AppStrings.SettingsEditors_profileName_1, new GroupCard(Row(avatar, 0), Row(name.Element), Row(profile.Element))));
+            var x = Field(AppStrings.SettingsPages_ProfilePageAsync_5, original.XUrl); var github = Field(AppStrings.SettingsPages_ProfilePageAsync_6, original.GithubUrl);
             var group = new GroupCard(Row(x.Element), Row(github.Element));
             var links = new List<(TextBox Label, TextBox Url)>();
-            group.Add(Row(IconButtonRow("\uE710", "リンクを追加", Violet, () => AddLink(new("", "")))));
+            group.Add(Row(IconButtonRow("\uE710", AppStrings.SettingsPages_ProfilePageAsync_7, Violet, () => AddLink(new("", "")))));
             void AddLink(OwnerLink value)
             {
-                var label = Field("名前", value.Label); var url = Field("URL", value.Url);
+                var label = Field(AppStrings.MemberEditors_Build_1, value.Label); var url = Field("URL", value.Url);
                 var fields = new StackPanel(); fields.Children.Add(label.Element); fields.Children.Add(new Border { Height = 1, Background = Hairline, Margin = new Thickness(0, 8, 0, 8) }); fields.Children.Add(url.Element);
                 var line = new Grid(); line.ColumnDefinitions.Add(new ColumnDefinition()); line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); line.Children.Add(fields);
-                var delete = Capsule("\uE74D", Brushes.Transparent, Red, 8, 14, new Thickness(8, 4, 8, 4)); delete.FontFamily = Icons; delete.Margin = new Thickness(8, 0, 0, 0); delete.VerticalAlignment = VerticalAlignment.Center; System.Windows.Automation.AutomationProperties.SetName(delete, "リンクを削除");
+                var delete = Capsule("\uE74D", Brushes.Transparent, Red, 8, 14, new Thickness(8, 4, 8, 4)); delete.FontFamily = Icons; delete.Margin = new Thickness(8, 0, 0, 0); delete.VerticalAlignment = VerticalAlignment.Center; System.Windows.Automation.AutomationProperties.SetName(delete, AppStrings.SettingsPages_ProfilePageAsync_9);
                 Grid.SetColumn(delete, 1); line.Children.Add(delete);
                 var holder = Row(line); links.Add((label.Box, url.Box));
                 delete.Click += (_, _) => { links.Remove((label.Box, url.Box)); group.Remove(holder); };
                 group.Insert(group.Count - 1, holder);
             }
             foreach (var link in original.Links) AddLink(link);
-            content.Children.Add(FormSection("リンク", group));
-            var save = MainButton("保存"); content.Children.Add(save);
+            content.Children.Add(FormSection(AppStrings.SettingsPages_ProfilePageAsync_10, group));
+            var save = MainButton(AppStrings.EditorForm_SaveLabel_1); content.Children.Add(save);
             var notice = new StackPanel(); content.Children.Add(notice);
             save.Click += async (_, _) =>
             {
                 if (Busy) return;
                 notice.Children.Clear();
-                if (string.IsNullOrWhiteSpace(name.Box.Text)) { notice.Children.Add(Banner("名前を入力してください。")); return; }
-                Busy = true; save.IsEnabled = false; save.Content = "保存しています…";
+                if (string.IsNullOrWhiteSpace(name.Box.Text)) { notice.Children.Add(Banner(AppStrings.SettingsPages_ProfilePageAsync_12)); return; }
+                Busy = true; save.IsEnabled = false; save.Content = AppStrings.SettingsPages_ProfilePageAsync_13;
                 try
                 {
                     var edited = original with { Name = name.Box.Text, Profile = profile.Box.Text, Avatar = avatar.Value, XUrl = x.Box.Text, GithubUrl = github.Box.Text, Links = links.Select(link => new OwnerLink(link.Label.Text, link.Url.Text)).ToArray() };
                     var changes = edited.ChangesFrom(original);
                     if (changes.Count != 0) { await api.SaveOwnerAsync(changes, Token); original = edited; UpdateProfileRow(edited); }
-                    var saved = Text("", 14, Green, null, new Thickness(0, 10, 0, 0)); saved.Inlines.Add(new System.Windows.Documents.Run("\uE73E ") { FontFamily = Icons }); saved.Inlines.Add("保存しました"); notice.Children.Add(saved);
+                    var saved = Text("", 14, Green, null, new Thickness(0, 10, 0, 0)); saved.Inlines.Add(new System.Windows.Documents.Run("\uE73E ") { FontFamily = Icons }); saved.Inlines.Add(AppStrings.SettingsPages_ProfilePageAsync_14); notice.Children.Add(saved);
                 }
                 catch (OperationCanceledException) when (Token.IsCancellationRequested) { }
-                catch (Exception error) { notice.Children.Add(Banner("プロフィールを保存できませんでした。入力は残っています。\n" + ErrorText(error))); }
-                finally { Busy = false; save.IsEnabled = true; save.Content = "保存"; }
+                catch (Exception error) { notice.Children.Add(Banner(AppStrings.SettingsPages_ProfilePageAsync_15(ErrorText(error)))); }
+                finally { Busy = false; save.IsEnabled = true; save.Content = AppStrings.EditorForm_SaveLabel_1; }
             };
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
@@ -93,8 +93,8 @@ public sealed partial class SettingsWindow
     private async Task RulesPageAsync(CancellationToken token)
     {
         var page = NewPage(SettingsPage.Rules);
-        var edit = MainButton("編集する"); edit.IsEnabled = false; page.Children.Add(edit);
-        var content = new StackPanel(); page.Children.Add(content); content.Children.Add(Loading("読み込んでいます…"));
+        var edit = MainButton(AppStrings.SettingsPages_RulesPageAsync_1); edit.IsEnabled = false; page.Children.Add(edit);
+        var content = new StackPanel(); page.Children.Add(content); content.Children.Add(Loading(AppStrings.FeatureEditor_InitializeAsync_1));
         try
         {
             var text = (await workspace.Planning.RulesAsync(token)).Text; token.ThrowIfCancellationRequested();
@@ -102,7 +102,7 @@ public sealed partial class SettingsWindow
             RulesSaved(text);
             content.Children.Clear();
             var document = UserRulesDocument.Parse(text);
-            if (document.IsEmpty) content.Children.Add(Text("まだ決まりがありません。「編集する」から書き足せます。", 14, Secondary, null, new Thickness(0, 14, 0, 0)));
+            if (document.IsEmpty) content.Children.Add(Text(AppStrings.SettingsPages_RulesPageAsync_3, 14, Secondary, null, new Thickness(0, 14, 0, 0)));
             foreach (var section in document.Sections)
                 foreach (var rule in section.Rules)
                 {
@@ -124,8 +124,8 @@ public sealed partial class SettingsWindow
         catch (Exception error)
         {
             if (rulesText is null) { rulesUnreadable = true; RefreshRows(); }
-            content.Children.Clear(); content.Children.Add(Banner("決まりを読み込めませんでした。" + error.Message));
-            var again = Capsule("読み直す", Fill, Ink, 8, 13, new Thickness(12, 6, 12, 6)); again.HorizontalAlignment = HorizontalAlignment.Left; again.Margin = new Thickness(0, 10, 0, 0); again.FontWeight = FontWeights.Normal;
+            content.Children.Clear(); content.Children.Add(Banner(AppStrings.SettingsPages_RulesPageAsync_4(error.Message)));
+            var again = Capsule(AppStrings.ApprovalsWindow_Toolbar_15, Fill, Ink, 8, 13, new Thickness(12, 6, 12, 6)); again.HorizontalAlignment = HorizontalAlignment.Left; again.Margin = new Thickness(0, 10, 0, 0); again.FontWeight = FontWeights.Normal;
             again.Click += (_, _) => Reopen(); content.Children.Add(again);
         }
     }
@@ -136,22 +136,22 @@ public sealed partial class SettingsWindow
         var form = NewPage(null, scroll: false);
         var head = new Grid(); head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); head.ColumnDefinitions.Add(new ColumnDefinition());
         head.Children.Add(Tile(SettingsPage.Rules, 36));
-        var words = new StackPanel { Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center }; words.Children.Add(Text("チームの決まり", 16, Ink, FontWeights.SemiBold)); words.Children.Add(Text("全文を書き換えます。チーム全員が、あなたについて守る指示です。", 13, Secondary, null, new Thickness(0, 2, 0, 0)));
+        var words = new StackPanel { Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center }; words.Children.Add(Text(AppStrings.SettingsPages_OpenRulesEditor_1, 16, Ink, FontWeights.SemiBold)); words.Children.Add(Text(AppStrings.SettingsPages_OpenRulesEditor_2, 13, Secondary, null, new Thickness(0, 2, 0, 0)));
         Grid.SetColumn(words, 1); head.Children.Add(words); form.Children.Add(head);
-        var box = Field("決まりの全文", original, multiline: true, minHeight: 360);
-        form.Children.Add(FormSection("決まりの全文", new GroupCard(Row(box.Element))));
-        var save = MainButton("保存"); form.Children.Add(save);
+        var box = Field(AppStrings.SettingsPages_OpenRulesEditor_3, original, multiline: true, minHeight: 360);
+        form.Children.Add(FormSection(AppStrings.SettingsPages_OpenRulesEditor_3, new GroupCard(Row(box.Element))));
+        var save = MainButton(AppStrings.EditorForm_SaveLabel_1); form.Children.Add(save);
         var notice = new StackPanel(); form.Children.Add(notice);
         save.Click += async (_, _) =>
         {
             if (Busy) return;
-            notice.Children.Clear(); Busy = true; save.IsEnabled = false; save.Content = "保存しています…"; box.Box.IsReadOnly = true;
+            notice.Children.Clear(); Busy = true; save.IsEnabled = false; save.Content = AppStrings.SettingsPages_ProfilePageAsync_13; box.Box.IsReadOnly = true;
             try { RulesSaved((await workspace.Planning.SaveRulesAsync(box.Box.Text, Token)).Text); Busy = false; Reopen(); return; }
             catch (OperationCanceledException) when (Token.IsCancellationRequested) { return; }
-            catch (Exception error) { notice.Children.Add(Banner("決まりを保存できませんでした。入力は残っています。プロフィールには影響しません。\n" + ErrorText(error))); }
-            Busy = false; save.IsEnabled = true; save.Content = "保存"; box.Box.IsReadOnly = false;
+            catch (Exception error) { notice.Children.Add(Banner(AppStrings.SettingsPages_OpenRulesEditor_7(ErrorText(error)))); }
+            Busy = false; save.IsEnabled = true; save.Content = AppStrings.EditorForm_SaveLabel_1; box.Box.IsReadOnly = false;
         };
-        ShowSubPage("チームの決まり", new ScrollViewer { Content = form, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled }, Reopen);
+        ShowSubPage(AppStrings.SettingsPages_OpenRulesEditor_1, new ScrollViewer { Content = form, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled }, Reopen);
     }
 
     // ---- AIの認証 ----
@@ -166,7 +166,7 @@ public sealed partial class SettingsWindow
 
     private async Task LoadHarnessesAsync(StackPanel list, CancellationToken token)
     {
-        list.Children.Clear(); list.Children.Add(Loading("AIの種類を確認しています。"));
+        list.Children.Clear(); list.Children.Add(Loading(AppStrings.SettingsPages_LoadHarnessesAsync_1));
         try
         {
             var api = new HarnessAuthenticationApi(workspace.Management.Api);
@@ -182,8 +182,8 @@ public sealed partial class SettingsWindow
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception error)
         {
-            list.Children.Clear(); list.Children.Add(Text("AIの種類を確認できませんでした。\n" + error.Message, 13, Red, null, new Thickness(0, 10, 0, 0)));
-            var retry = Capsule("一覧を更新", Fill, Ink, 8, 13, new Thickness(12, 6, 12, 6)); retry.HorizontalAlignment = HorizontalAlignment.Left; retry.Margin = new Thickness(0, 10, 0, 0); retry.FontWeight = FontWeights.Normal;
+            list.Children.Clear(); list.Children.Add(Text(AppStrings.SettingsPages_LoadHarnessesAsync_2(error.Message), 13, Red, null, new Thickness(0, 10, 0, 0)));
+            var retry = Capsule(AppStrings.SettingsPages_LoadHarnessesAsync_3, Fill, Ink, 8, 13, new Thickness(12, 6, 12, 6)); retry.HorizontalAlignment = HorizontalAlignment.Left; retry.Margin = new Thickness(0, 10, 0, 0); retry.FontWeight = FontWeights.Normal;
             retry.Click += (_, _) => _ = LoadHarnessesAsync(list, token); list.Children.Add(retry);
         }
     }
@@ -249,10 +249,10 @@ public sealed partial class SettingsWindow
         Task Reload() => LoadClaudeAsync(host, harness, auth, token, reloadAll);
         Button Retry()
         {
-            var retry = Capsule("一覧を更新", Fill, Ink, 8, 13, new Thickness(12, 6, 12, 6)); retry.HorizontalAlignment = HorizontalAlignment.Left; retry.Margin = new Thickness(0, 10, 0, 0); retry.FontWeight = FontWeights.Normal;
+            var retry = Capsule(AppStrings.SettingsPages_LoadHarnessesAsync_3, Fill, Ink, 8, 13, new Thickness(12, 6, 12, 6)); retry.HorizontalAlignment = HorizontalAlignment.Left; retry.Margin = new Thickness(0, 10, 0, 0); retry.FontWeight = FontWeights.Normal;
             retry.Click += (_, _) => _ = Reload(); return retry;
         }
-        void Failed(string message) { host.Children.Clear(); host.Children.Add(Text("Claudeのアカウントを確認できませんでした。\n" + message, 13, Red, null, new Thickness(0, 10, 0, 0))); host.Children.Add(Retry()); }
+        void Failed(string message) { host.Children.Clear(); host.Children.Add(Text(AppStrings.SettingsPages_LoadClaudeAsync_2(message), 13, Red, null, new Thickness(0, 10, 0, 0))); host.Children.Add(Retry()); }
         AccountsResponse? list;
         try { list = await accounts.ReadAsync(token); token.ThrowIfCancellationRequested(); }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
@@ -261,7 +261,7 @@ public sealed partial class SettingsWindow
         {
             var (single, oldReady) = AuthRow(harness.Name, [(harness.UsageText, Muted)], harness, auth, null, false, null, null, token); host.Children.Add(single); await oldReady; return;
         }
-        if (list.Claude is not { } claude) { Failed("アカウントの一覧にClaudeの項目がありません。"); return; }
+        if (list.Claude is not { } claude) { Failed(AppStrings.SettingsPages_LoadClaudeAsync_3); return; }
         var now = DateTimeOffset.Now;
         // Mac ClaudeAccountsCard: the harness name with its member count on the right, the both-limited lines, then the slots as rows.
         var heading = new Grid { Margin = new Thickness(0, 6, 0, 0) }; heading.ColumnDefinitions.Add(new ColumnDefinition()); heading.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -282,7 +282,7 @@ public sealed partial class SettingsWindow
             lines.Add((AccountText.SlotUsers(seats, "claude", slot.Slot) is { } count ? AccountText.SlotUsersLine(count) : AccountText.SeatsCount(slot), Muted));
             var limit = AccountText.LimitLine(claude, slot, now); if (limit is not null) lines.Add((limit, Orange));
             // The contract asks that the Owner sees a slot whose history could not be shared (harness-accounts `history: separate`); the Mac has no line for it yet.
-            if (slot.History == "separate") lines.Add(("会話の履歴は1つ目のアカウントと分かれています", Muted));
+            if (slot.History == "separate") lines.Add((AppStrings.SettingsPages_LoadClaudeAsync_4, Muted));
             var (row, state) = AuthRow(AccountText.SlotName(slot.Slot), lines, harness, auth, slot.Slot == "1st" ? null : slot.Slot, slot.SignedOutAt is not null, AccountText.Login(slot), limit, token, showInstall: false);
             host.Children.Add(row); ready.Add(state);
         }
@@ -320,28 +320,28 @@ public sealed partial class SettingsWindow
         void Render()
         {
             form.Children.Clear();
-            if (loading) { form.Children.Add(Loading("モデル候補を読み込んでいます…")); return; }
+            if (loading) { form.Children.Add(Loading(AppStrings.SettingsPages_SummaryPageAsync_1)); return; }
             var draft = new BackgroundAgentSelection(harness, model, effort); var problem = BackgroundAgentChoices.Problem(catalog, draft);
             var efforts = BackgroundAgentChoices.Efforts(catalog, harness, model);
             if (record.Notice is { } retired) form.Children.Add(Text(retired, 13, Orange, null, new Thickness(20, 0, 20, 4)));
-            var clis = BackgroundAgentChoices.Harnesses.Select(item => new FormOption(item.Id, item.Label)).ToList(); if (harness.Length == 0) clis.Insert(0, new("", "選んでください"));
+            var clis = BackgroundAgentChoices.Harnesses.Select(item => new FormOption(item.Id, item.Label)).ToList(); if (harness.Length == 0) clis.Insert(0, new("", AppStrings.SettingsPages_SummaryPageAsync_2));
             var cli = Picker("CLI", clis.ToArray(), harness, value => { harness = value; model = ""; effort = ""; Render(); });
-            var models = new List<FormOption> { new("", "選んでください") }; models.AddRange(BackgroundAgentChoices.Models(catalog, harness).Select(item => new FormOption(item.Id, item.Label)));
-            if (model.Length != 0 && models.All(item => item.Id != model)) models.Add(new(model, $"{model}（現在の候補にありません）"));
-            var modelPicker = Picker("モデル", models.ToArray(), model, value => { model = value; if (!BackgroundAgentChoices.Efforts(catalog, harness, value).Contains(effort)) effort = ""; Render(); });
-            var effortOptions = new List<FormOption> { new("", efforts.Length == 0 ? "CLIの既定（エフォート指定なし）" : "選んでください") }; effortOptions.AddRange(efforts.Select(item => new FormOption(item, EffortText.Label(item))));
-            if (effort.Length != 0 && effortOptions.All(item => item.Id != effort)) effortOptions.Add(new(effort, $"{effort}（現在の候補にありません）"));
-            var effortPicker = Picker("エフォート", effortOptions.ToArray(), effort, value => { effort = value; Render(); });
-            form.Children.Add(FormSection(null, new GroupCard(cli, modelPicker, effortPicker), "保存しても、要約がすぐ作られるとは限りません。要約の状態はメンバー一覧で確かめてください。"));
+            var models = new List<FormOption> { new("", AppStrings.SettingsPages_SummaryPageAsync_2) }; models.AddRange(BackgroundAgentChoices.Models(catalog, harness).Select(item => new FormOption(item.Id, item.Label)));
+            if (model.Length != 0 && models.All(item => item.Id != model)) models.Add(new(model, AppStrings.SettingsPages_SummaryPageAsync_4(model)));
+            var modelPicker = Picker(AppStrings.MemberEditors_ModelPicker_2, models.ToArray(), model, value => { model = value; if (!BackgroundAgentChoices.Efforts(catalog, harness, value).Contains(effort)) effort = ""; Render(); });
+            var effortOptions = new List<FormOption> { new("", efforts.Length == 0 ? AppStrings.SettingsPages_SummaryPageAsync_6 : AppStrings.SettingsPages_SummaryPageAsync_2) }; effortOptions.AddRange(efforts.Select(item => new FormOption(item, EffortText.Label(item))));
+            if (effort.Length != 0 && effortOptions.All(item => item.Id != effort)) effortOptions.Add(new(effort, AppStrings.SettingsPages_SummaryPageAsync_4(effort)));
+            var effortPicker = Picker(AppStrings.MemberEditors_ModelPicker_3, effortOptions.ToArray(), effort, value => { effort = value; Render(); });
+            form.Children.Add(FormSection(null, new GroupCard(cli, modelPicker, effortPicker), AppStrings.SettingsPages_SummaryPageAsync_10));
             if (problem is not null) form.Children.Add(Text(problem, 13, Red, null, new Thickness(20, 10, 20, 0)));
-            if (record.Selection is { } stored && stored != draft) form.Children.Add(Text("保存されている設定：" + BackgroundAgentRecord.Describe(stored), 13, Muted, null, new Thickness(20, 10, 20, 0)));
-            var save = MainButton(saving ? "保存しています…" : "保存"); save.IsEnabled = !saving && problem is null;
+            if (record.Selection is { } stored && stored != draft) form.Children.Add(Text(AppStrings.SettingsPages_SummaryPageAsync_11(BackgroundAgentRecord.Describe(stored)), 13, Muted, null, new Thickness(20, 10, 20, 0)));
+            var save = MainButton(saving ? AppStrings.SettingsPages_ProfilePageAsync_13 : AppStrings.EditorForm_SaveLabel_1); save.IsEnabled = !saving && problem is null;
             save.Click += async (_, _) => await SaveAsync(draft); form.Children.Add(save);
             if (savedText is not null) form.Children.Add(Text(savedText, 13, Muted, null, new Thickness(20, 10, 20, 0)));
             if (errorText is not null)
             {
                 form.Children.Add(Text(errorText, 13, Red, null, new Thickness(20, 12, 20, 0)));
-                var reload = Capsule("再読み込み", Fill, Ink, 8, 13, new Thickness(12, 6, 12, 6)); reload.HorizontalAlignment = HorizontalAlignment.Left; reload.Margin = new Thickness(20, 8, 0, 0); reload.FontWeight = FontWeights.Normal; reload.IsEnabled = !loading;
+                var reload = Capsule(AppStrings.OnePasswordView_OnePasswordView_6, Fill, Ink, 8, 13, new Thickness(12, 6, 12, 6)); reload.HorizontalAlignment = HorizontalAlignment.Left; reload.Margin = new Thickness(20, 8, 0, 0); reload.FontWeight = FontWeights.Normal; reload.IsEnabled = !loading;
                 reload.Click += async (_, _) => await LoadAsync(); form.Children.Add(reload);
             }
         }
@@ -350,7 +350,7 @@ public sealed partial class SettingsWindow
             loading = true; Render();
             try
             {
-                var current = await workspace.Planning.BackgroundAgentAsync(token) ?? throw new BellApiException("このサーバーの版では設定できません。");
+                var current = await workspace.Planning.BackgroundAgentAsync(token) ?? throw new BellApiException(AppStrings.SettingsPages_SummaryPageAsync_15);
                 catalog = (await workspace.Management.Api.GetAsync<ModelsResponse>("/api/models", token)).Models; token.ThrowIfCancellationRequested();
                 record = current;
                 // A retired stored choice starts the form empty so the user picks one of the four; nothing is saved until they do.
@@ -366,7 +366,7 @@ public sealed partial class SettingsWindow
         {
             if (saving || Busy) return;
             saving = true; Busy = true; errorText = null; savedText = null; Render();
-            try { record = await workspace.Planning.SaveBackgroundAgentAsync(record, draft, Token); savedText = "保存しました。"; backgroundAgent = record; RefreshRows(); }
+            try { record = await workspace.Planning.SaveBackgroundAgentAsync(record, draft, Token); savedText = AppStrings.SettingsPages_SummaryPageAsync_16; backgroundAgent = record; RefreshRows(); }
             catch (OperationCanceledException) when (Token.IsCancellationRequested) { return; }
             catch (Exception error)
             {
@@ -397,9 +397,9 @@ public sealed partial class SettingsWindow
     private async Task FeaturesPageAsync(CancellationToken token)
     {
         var page = NewPage(SettingsPage.Features);
-        var card = new StackPanel(); card.Children.Add(Text("未設定の機能は無効です。案内役との会話でも設定できます。", 14, Muted));
+        var card = new StackPanel(); card.Children.Add(Text(AppStrings.SettingsPages_FeaturesPageAsync_1, 14, Muted));
         var holder = Card(card); holder.Margin = new Thickness(0, 6, 0, 0); page.Children.Add(holder);
-        var line = Loading("読み込んでいます…"); card.Children.Add(line);
+        var line = Loading(AppStrings.FeatureEditor_InitializeAsync_1); card.Children.Add(line);
         try
         {
             var list = await workspace.Planning.FeaturesAsync(token); token.ThrowIfCancellationRequested(); card.Children.Remove(line);
@@ -410,7 +410,7 @@ public sealed partial class SettingsWindow
                 var names = new StackPanel { VerticalAlignment = VerticalAlignment.Center }; names.Children.Add(Text(feature.Title, 14, Ink));
                 if (feature.ApplyFailed) names.Children.Add(Text(feature.ErrorMessage, 12, Red, null, new Thickness(0, 3, 0, 0)));
                 grid.Children.Add(names);
-                var (badgeText, tone) = feature.ApplyFailed ? ("失敗", SettingsTone.Orange) : feature.Status == "enabled" ? ("使用中", SettingsTone.Green) : feature.Status == "disabled" ? ("オフ", SettingsTone.Gray) : ("未設定", SettingsTone.Gray);
+                var (badgeText, tone) = feature.ApplyFailed ? (AppStrings.SettingsPages_FeaturesPageAsync_3, SettingsTone.Orange) : feature.Status == "enabled" ? (AppStrings.SettingsPages_FeaturesPageAsync_4, SettingsTone.Green) : feature.Status == "disabled" ? (AppStrings.LatticeReminders_Draw_2, SettingsTone.Gray) : (AppStrings.FeatureEditor_InitializeAsync_7, SettingsTone.Gray);
                 var badge = SettingsUi.Badge(badgeText, tone); badge.Margin = new Thickness(10, 0, 0, 0); Grid.SetColumn(badge, 1); grid.Children.Add(badge);
                 var chevron = Glyph("\uE76C", 12, Secondary); chevron.Margin = new Thickness(10, 0, 0, 0); Grid.SetColumn(chevron, 2); grid.Children.Add(chevron);
                 var row = FillRow(grid, () => _ = OpenFeatureAsync(feature)); System.Windows.Automation.AutomationProperties.SetName(row, feature.Title); card.Children.Add(row);
@@ -439,9 +439,9 @@ public sealed partial class SettingsWindow
         FeatureSetting? feature;
         try { features = await workspace.Planning.FeaturesAsync(token); feature = features.FirstOrDefault(item => item.Id == OnePasswordItem.Id); token.ThrowIfCancellationRequested(); }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
-        catch (Exception error) { form.Children.Add(Banner("1Passwordの設定を読み込めませんでした。" + error.Message)); return; }
+        catch (Exception error) { form.Children.Add(Banner(AppStrings.SettingsPages_OnePasswordPageAsync_1(error.Message))); return; }
         RefreshRows();
-        if (feature is null) { form.Children.Add(Text("このサーバーの版では1Passwordと連携できません。", 14, Secondary, null, new Thickness(0, 10, 0, 0))); return; }
+        if (feature is null) { form.Children.Add(Text(AppStrings.SettingsPages_OnePasswordPageAsync_2, 14, Secondary, null, new Thickness(0, 10, 0, 0))); return; }
         var view = onePassword = new OnePasswordView(workspace, feature, form, token, busy => Busy = busy, item => { features = [.. (features ?? []).Where(other => other.Id != item.Id), item]; RefreshRows(); });
         EventHandler clear = (_, _) => view.ClearToken(); Deactivated += clear; token.Register(() => Deactivated -= clear);
         await view.Ready;
@@ -459,20 +459,20 @@ public sealed partial class SettingsWindow
     private Task NotificationsPage()
     {
         var page = NewPage(SettingsPage.Notifications);
-        if (notifications is null) { page.Children.Add(Text("この画面では通知を設定できません。", 14, Secondary, null, new Thickness(0, 6, 0, 0))); return Task.CompletedTask; }
+        if (notifications is null) { page.Children.Add(Text(AppStrings.SettingsPages_NotificationsPage_1, 14, Secondary, null, new Thickness(0, 6, 0, 0))); return Task.CompletedTask; }
         var area = new StackPanel(); page.Children.Add(area);
         void Render()
         {
             RefreshRows(); area.Children.Clear();
             if (notifications.Enabled)
             {
-                area.Children.Add(Text("アプリが起きている間、メンバーからの連絡をこのPCの通知で知らせます。", 14, Secondary, null, new Thickness(0, 6, 0, 0)));
-                var off = Capsule("この端末で受け取るのをやめる", Brushes.Transparent, Red, 8, 13, new Thickness(0, 4, 0, 4)); off.HorizontalAlignment = HorizontalAlignment.Left; off.Margin = new Thickness(0, 10, 0, 0);
+                area.Children.Add(Text(AppStrings.SettingsPages_NotificationsPage_2, 14, Secondary, null, new Thickness(0, 6, 0, 0)));
+                var off = Capsule(AppStrings.SettingsPages_NotificationsPage_3, Brushes.Transparent, Red, 8, 13, new Thickness(0, 4, 0, 4)); off.HorizontalAlignment = HorizontalAlignment.Left; off.Margin = new Thickness(0, 10, 0, 0);
                 off.Click += async (_, _) => { off.IsEnabled = false; await notifications.SetEnabledAsync(false); Render(); };
                 area.Children.Add(off); return;
             }
-            var receive = MainButton("この端末で受け取る");
-            receive.Click += async (_, _) => { receive.IsEnabled = false; receive.Content = "登録しています…"; await notifications.SetEnabledAsync(true); Render(); };
+            var receive = MainButton(AppStrings.SettingsPages_NotificationsPage_4);
+            receive.Click += async (_, _) => { receive.IsEnabled = false; receive.Content = AppStrings.SettingsPages_NotificationsPage_5; await notifications.SetEnabledAsync(true); Render(); };
             area.Children.Add(receive);
             if (notifications.Error is { } error) area.Children.Add(Banner(error));
         }
@@ -485,11 +485,11 @@ public sealed partial class SettingsWindow
     {
         var page = NewPage(SettingsPage.Connection);
         var host = new Uri(workspace.Server).Host; var cloudflare = workspace.AuthMode == "cloudflare";
-        page.Children.Add(FormSection("いまの接続", new GroupCard(Row(LabeledRow("サーバー", host.Length == 0 ? "未設定" : host)), Row(LabeledRow("ログイン方法", cloudflare ? "Cloudflare Access" : "同じネットワークから直接")))));
+        page.Children.Add(FormSection(AppStrings.SettingsPages_ConnectionPageAsync_1, new GroupCard(Row(LabeledRow(AppStrings.SettingsPages_ConnectionPageAsync_2, host.Length == 0 ? AppStrings.FeatureEditor_InitializeAsync_7 : host)), Row(LabeledRow(AppStrings.SettingsPages_ConnectionPageAsync_4, cloudflare ? "Cloudflare Access" : AppStrings.SettingsPages_ConnectionPageAsync_5)))));
         // B15: changing the server also stops this PC's notifications, so it asks first.
-        Action? change = changeServer is null ? null : () => { if (new ConfirmationWindow("接続", "接続先を変えますか？ この端末の通知も止まります。サーバーの会話や設定は消えません。", "接続先を変える") { Owner = DialogOwner }.ShowDialog() == true) changeServer(); };
-        page.Children.Add(FormSection(null, new GroupCard(Row(IconButtonRow("\uE895", "別のサーバーにつなぎ直す", Violet, change))), "接続先を選び直す画面に戻ります。サーバーにある会話や設定は消えません。"));
-        if (cloudflare) page.Children.Add(FormSection(null, new GroupCard(Row(IconButtonRow("", "ログアウト", Red, signOut)))));
+        Action? change = changeServer is null ? null : () => { var ask = new ConfirmationWindow(AppStrings.LatticeWindow_LatticeChartPage_3, AppStrings.SettingsPages_ConnectionPageAsync_2_2, AppStrings.SettingsPages_ConnectionPageAsync_3) { Owner = DialogOwner }; if (ask.ShowDialog() == true) changeServer(); };
+        page.Children.Add(FormSection(null, new GroupCard(Row(IconButtonRow("\uE895", AppStrings.SettingsPages_ConnectionPageAsync_6, Violet, change))), AppStrings.SettingsPages_ConnectionPageAsync_7));
+        if (cloudflare) page.Children.Add(FormSection(null, new GroupCard(Row(IconButtonRow("", AppStrings.SettingsPages_ConnectionPageAsync_8, Red, signOut)))));
     }
 
     // ---- 表示 ----
@@ -499,10 +499,10 @@ public sealed partial class SettingsWindow
         var store = new SettingsStore(SettingsStore.UserDirectory); var notice = new StackPanel();
         ConversationOpening current;
         try { current = store.Load().ConversationOpening; }
-        catch (Exception error) { current = ConversationOpening.Rise; notice.Children.Add(Banner("このPCの設定を読み取れませんでした。" + error.Message)); }
-        var group = new GroupCard(Row(Text("会話の開き方", 13)));
+        catch (Exception error) { current = ConversationOpening.Rise; notice.Children.Add(Banner(AppStrings.SettingsPages_DisplayPage_1(error.Message))); }
+        var group = new GroupCard(Row(Text(AppStrings.SettingsPages_DisplayPage_2, 13)));
         var checks = new Dictionary<ConversationOpening, TextBlock>();
-        foreach (var (option, label) in new[] { (ConversationOpening.Rise, "下から順に浮き上がる"), (ConversationOpening.Fade, "フェードインだけ") })
+        foreach (var (option, label) in new[] { (ConversationOpening.Rise, AppStrings.SettingsEditors_DisplayChoiceText_2), (ConversationOpening.Fade, AppStrings.SettingsEditors_DisplayChoiceText_1) })
         {
             var line = new Grid { Background = Brushes.Transparent, Cursor = System.Windows.Input.Cursors.Hand }; line.ColumnDefinitions.Add(new ColumnDefinition()); line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             line.Children.Add(Text(label, 13)); var check = Glyph("", 14, Violet); check.Visibility = option == current ? Visibility.Visible : Visibility.Hidden; Grid.SetColumn(check, 1); line.Children.Add(check); checks[option] = check;
@@ -511,11 +511,11 @@ public sealed partial class SettingsWindow
             {
                 notice.Children.Clear();
                 try { store.Save(store.Load() with { ConversationOpening = option }); DisplayPreference.Current = option; foreach (var (key, mark) in checks) mark.Visibility = key == option ? Visibility.Visible : Visibility.Hidden; }
-                catch (Exception error) { notice.Children.Add(Banner("この設定を保存できませんでした。" + error.Message)); }
+                catch (Exception error) { notice.Children.Add(Banner(AppStrings.SettingsPages_DisplayPage_5(error.Message))); }
             };
             group.Add(Row(line));
         }
-        page.Children.Add(FormSection("会話の開き方", group, "会話を開き直すと反映します。")); page.Children.Add(notice);
+        page.Children.Add(FormSection(AppStrings.SettingsPages_DisplayPage_2, group, AppStrings.SettingsPages_DisplayPage_7)); page.Children.Add(notice);
         return Task.CompletedTask;
     }
 
@@ -526,8 +526,8 @@ public sealed partial class SettingsWindow
         var page = NewPage(SettingsPage.Billing);
         var account = new AccountView(AccountStore.Local, deleteAccount is null ? null : AskDeleteAccount); lifetime!.Token.Register(account.Dispose);
         var notice = new StackPanel(); var card = new StackPanel(); card.Children.Add(account);
-        card.Children.Add(OpenLink("プライバシー方針", PrivacyPolicyUrl, message => { notice.Children.Clear(); notice.Children.Add(Banner(message)); }));
-        card.Children.Add(OpenLink("サポート", SupportUrl, message => { notice.Children.Clear(); notice.Children.Add(Banner(message)); }));
+        card.Children.Add(OpenLink(AppStrings.SettingsPages_BillingPage_1, PrivacyPolicyUrl, message => { notice.Children.Clear(); notice.Children.Add(Banner(message)); }));
+        card.Children.Add(OpenLink(AppStrings.SettingsPages_BillingPage_2, SupportUrl, message => { notice.Children.Clear(); notice.Children.Add(Banner(message)); }));
         card.Children.Add(notice);
         var holder = Card(card); holder.Margin = new Thickness(0, 16, 0, 0); page.Children.Add(holder);
         return Task.CompletedTask;
@@ -551,7 +551,7 @@ public sealed partial class SettingsWindow
     {
         var page = NewPage(SettingsPage.About);
         // B16: the server is shown on 接続 only.
-        page.Children.Add(FormSection(null, new GroupCard(Row(LabeledRow("アプリの版", VersionText)))));
+        page.Children.Add(FormSection(null, new GroupCard(Row(LabeledRow(AppStrings.SettingsPages_AboutPage_1, VersionText)))));
         return Task.CompletedTask;
     }
 
@@ -565,27 +565,27 @@ public sealed partial class SettingsWindow
             area.Children.Clear(); var group = new GroupCard();
             if (current is { } now)
             {
-                var toggle = Switch("#FF3B30"); toggle.IsChecked = now.Paused; toggle.IsEnabled = !updating; System.Windows.Automation.AutomationProperties.SetName(toggle, "全員のAIを止める");
+                var toggle = Switch("#FF3B30"); toggle.IsChecked = now.Paused; toggle.IsEnabled = !updating; System.Windows.Automation.AutomationProperties.SetName(toggle, AppStrings.SettingsPages_StopPageAsync_1);
                 var title = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
                 var mark = new Grid { Width = 16, Height = 16 }; mark.Children.Add(new System.Windows.Shapes.Ellipse { Fill = Red }); mark.Children.Add(new Border { Width = 6, Height = 6, CornerRadius = new CornerRadius(1), Background = Brushes.White });
-                title.Children.Add(mark); title.Children.Add(Text("全員のAIを止める", 13, Red, FontWeights.SemiBold, new Thickness(8, 0, 0, 0)));
+                title.Children.Add(mark); title.Children.Add(Text(AppStrings.SettingsPages_StopPageAsync_1, 13, Red, FontWeights.SemiBold, new Thickness(8, 0, 0, 0)));
                 var line = new Grid(); line.ColumnDefinitions.Add(new ColumnDefinition()); line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); line.Children.Add(title); Grid.SetColumn(toggle, 1); line.Children.Add(toggle);
                 toggle.Click += async (_, _) => await SetAsync(toggle.IsChecked == true);
                 group.Add(Row(line)); group.Add(Row(Text(now.StatusText, 14, now.Alert ? Red : Secondary)));
                 if (now.UnconfirmedText is { } members) group.Add(Row(Text(members, 14, Red)));
-                if (now.CanRefresh) { var refresh = Capsule("状態を更新", Brushes.Transparent, Violet, 8, 13, new Thickness(0, 4, 0, 4)); refresh.HorizontalAlignment = HorizontalAlignment.Left; refresh.IsEnabled = !loading && !updating; refresh.Click += async (_, _) => await ReadAsync(); group.Add(Row(refresh)); }
+                if (now.CanRefresh) { var refresh = Capsule(AppStrings.GoalViews_Render_10, Brushes.Transparent, Violet, 8, 13, new Thickness(0, 4, 0, 4)); refresh.HorizontalAlignment = HorizontalAlignment.Left; refresh.IsEnabled = !loading && !updating; refresh.Click += async (_, _) => await ReadAsync(); group.Add(Row(refresh)); }
             }
             else if (!loading)
             {
-                var failure = new StackPanel(); failure.Children.Add(Banner("全体停止の状態を読み込めませんでした。接続を確かめて、再確認してください。"));
+                var failure = new StackPanel(); failure.Children.Add(Banner(AppStrings.SettingsPages_StopPageAsync_4));
                 if (readError is not null) failure.Children.Add(Text(readError, 12, Secondary, null, new Thickness(0, 4, 0, 0)));
                 group.Add(Row(failure));
-                var again = Capsule("状態を再確認", Brushes.Transparent, Violet, 8, 13, new Thickness(0, 4, 0, 4)); again.HorizontalAlignment = HorizontalAlignment.Left; again.Click += async (_, _) => await ReadAsync(); group.Add(Row(again));
+                var again = Capsule(AppStrings.SettingsPages_StopPageAsync_5, Brushes.Transparent, Violet, 8, 13, new Thickness(0, 4, 0, 4)); again.HorizontalAlignment = HorizontalAlignment.Left; again.Click += async (_, _) => await ReadAsync(); group.Add(Row(again));
             }
-            if (loading || updating) group.Add(Row(Text("読み込んでいます…", 13, Secondary)));
-            if (actionNote is not null) { var failure = new StackPanel(); failure.Children.Add(Banner("操作できませんでした。少し待ってから、もう一度試してください。")); failure.Children.Add(Text(actionNote, 12, Secondary, null, new Thickness(0, 4, 0, 0))); group.Add(Row(failure)); }
-            if (current is not null && readError is not null) group.Add(Row(Banner("状態を更新できませんでした。" + readError)));
-            area.Children.Add(FormSection(null, group, "ONにすると全メンバーへ停止の指示を送り、新しい依頼を受け付けなくなります。会話を読むことはできます。"));
+            if (loading || updating) group.Add(Row(Text(AppStrings.FeatureEditor_InitializeAsync_1, 13, Secondary)));
+            if (actionNote is not null) { var failure = new StackPanel(); failure.Children.Add(Banner(AppStrings.SettingsPages_StopPageAsync_7)); failure.Children.Add(Text(actionNote, 12, Secondary, null, new Thickness(0, 4, 0, 0))); group.Add(Row(failure)); }
+            if (current is not null && readError is not null) group.Add(Row(Banner(AppStrings.SettingsPages_StopPageAsync_8(readError))));
+            area.Children.Add(FormSection(null, group, AppStrings.SettingsPages_StopPageAsync_9));
         }
         async Task ReadAsync()
         {

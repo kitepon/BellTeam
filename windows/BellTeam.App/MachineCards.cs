@@ -94,13 +94,13 @@ public sealed class MachineEntry(Workspace workspace) : ContentControl
         var botId = member.Sender?.Id;
         if (entry.Truncated && !raw.ContainsKey(id) && botId is not null)
         {
-            var more = new Button { Content = "全文を読み込む", Padding = new Thickness(10, 3, 10, 3), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 4, 0, 0) };
+            var more = new Button { Content = AppStrings.MachineCards_Opened_1, Padding = new Thickness(10, 3, 10, 3), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 4, 0, 0) };
             var failure = new TextBlock { FontSize = 12, Foreground = Red, TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed };
             more.Click += async (_, _) =>
             {
                 more.IsEnabled = false; failure.Visibility = Visibility.Collapsed;
                 try { raw[id] = box.Text = await workspace.MachineLineAsync(botId, entry.Seq); more.Visibility = Visibility.Collapsed; }
-                catch (Exception error) { failure.Text = "全文を読み込めませんでした。" + error.Message; failure.Visibility = Visibility.Visible; more.IsEnabled = true; }
+                catch (Exception error) { failure.Text = AppStrings.MachineCards_Opened_2(error.Message); failure.Visibility = Visibility.Visible; more.IsEnabled = true; }
             };
             panel.Children.Add(more); panel.Children.Add(failure);
         }
@@ -136,16 +136,16 @@ public sealed class MachineRequestCard(Workspace workspace) : StackPanel
         if (entry.View == "question") DrawQuestions(request); else DrawApproval(entry, request);
         Children.Add(error);
     }
-    private string Heading(MachineEvent entry) => sender + (entry.View == "question" ? " · 選んでほしいこと" : " · 許可の確認");
+    private string Heading(MachineEvent entry) => sender + (entry.View == "question" ? AppStrings.MachineCards_Heading_1 : AppStrings.MachineCards_Heading_2);
 
     private void DrawApproval(MachineEvent entry, MachineRequest request)
     {
-        var what = (entry.Tool?.Name ?? entry.Title ?? "道具") + (string.IsNullOrWhiteSpace(entry.Tool?.Summary) ? "" : "\n" + entry.Tool!.Summary);
+        var what = (entry.Tool?.Name ?? entry.Title ?? AppStrings.MachineCards_DrawApproval_1) + (string.IsNullOrWhiteSpace(entry.Tool?.Summary) ? "" : "\n" + entry.Tool!.Summary);
         Children.Add(SecretCard.CardBody(what));
-        if (request.Status == "answered") { Children.Add(SecretCard.CardStatus("\uE73E", request.Decision == "deny" ? "却下しました" : "許可しました", strong: true)); return; }
-        if (request.Status != "pending") { Children.Add(SecretCard.CardText("席はこの許可を待たなくなりました。", muted: true)); return; }
-        var allow = new Button { Content = "許可", FontWeight = FontWeights.SemiBold, Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0) }; allow.SetResourceReference(StyleProperty, "PrimaryButton");
-        var deny = new Button { Content = "却下", FontWeight = FontWeights.SemiBold, Padding = new Thickness(16, 6, 16, 6) };
+        if (request.Status == "answered") { Children.Add(SecretCard.CardStatus("\uE73E", request.Decision == "deny" ? AppStrings.MachineCards_DrawApproval_2 : AppStrings.MachineCards_DrawApproval_3, strong: true)); return; }
+        if (request.Status != "pending") { Children.Add(SecretCard.CardText(AppStrings.MachineCards_DrawApproval_4, muted: true)); return; }
+        var allow = new Button { Content = AppStrings.MachineCards_DrawApproval_5, FontWeight = FontWeights.SemiBold, Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0) }; allow.SetResourceReference(StyleProperty, "PrimaryButton");
+        var deny = new Button { Content = AppStrings.MachineCards_DrawApproval_6, FontWeight = FontWeights.SemiBold, Padding = new Thickness(16, 6, 16, 6) };
         allow.Click += async (_, _) => await SendAsync(request, null, "allow"); deny.Click += async (_, _) => await SendAsync(request, null, "deny");
         inputs.Add(allow); inputs.Add(deny);
         Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0), Children = { allow, deny } });
@@ -160,18 +160,18 @@ public sealed class MachineRequestCard(Workspace workspace) : StackPanel
             if (q > 0) Children.Add(new Border { Height = 20 });
             if (!string.IsNullOrWhiteSpace(question.Header)) Children.Add(SecretCard.CardText(question.Header!, bold: true, size: 13, muted: true));
             Children.Add(SecretCard.CardBody(question.Question));
-            if (request.Status == "answered") { Children.Add(SecretCard.CardStatus("\uE73E", "回答: " + AnswerText(question, request.Answers?.ElementAtOrDefault(q)), strong: true)); continue; }
-            if (request.Status != "pending") { Children.Add(SecretCard.CardText("席はこの問いを待たなくなりました。", muted: true)); continue; }
+            if (request.Status == "answered") { Children.Add(SecretCard.CardStatus("\uE73E", AppStrings.MachineCards_DrawQuestions_1(AnswerText(question, request.Answers?.ElementAtOrDefault(q))), strong: true)); continue; }
+            if (request.Status != "pending") { Children.Add(SecretCard.CardText(AppStrings.MachineCards_DrawQuestions_2, muted: true)); continue; }
             DrawChoices(request, q, question);
         }
         if (request.Status != "pending") return;
         // One single-choice question: pressing a choice answers at once. Otherwise the Owner picks, then 送る.
-        send = new Button { Content = "送る", FontWeight = FontWeights.SemiBold, Padding = new Thickness(16, 6, 16, 6), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0), IsEnabled = false }; send.SetResourceReference(StyleProperty, "PrimaryButton");
+        send = new Button { Content = AppStrings.MachineCards_DrawQuestions_3, FontWeight = FontWeights.SemiBold, Padding = new Thickness(16, 6, 16, 6), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0), IsEnabled = false }; send.SetResourceReference(StyleProperty, "PrimaryButton");
         send.Click += async (_, _) => await SendAsync(request, Collect(request), null);
         inputs.Add(send); Children.Add(send);
     }
     private static string AnswerText(MachineQuestion question, MachineAnswer? answer) =>
-        string.Join("、", (answer?.Indexes ?? []).Select(i => question.Options.FirstOrDefault(o => o.Index == i)?.Label ?? i.ToString()).Concat(answer?.Other is { Length: > 0 } other ? [other] : []));
+        string.Join(AppStrings.ApprovalsWindow_Answered_5, (answer?.Indexes ?? []).Select(i => question.Options.FirstOrDefault(o => o.Index == i)?.Label ?? i.ToString()).Concat(answer?.Other is { Length: > 0 } other ? [other] : []));
 
     private void DrawChoices(MachineRequest request, int q, MachineQuestion question)
     {
@@ -197,7 +197,7 @@ public sealed class MachineRequestCard(Workspace workspace) : StackPanel
         Children.Add(list);
         if (!question.AllowOther) { others.Add(null!); return; }
         other = new TextBox { AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MaxHeight = 110, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, FontSize = 14, Padding = new Thickness(8, 6, 8, 6) };
-        var placeholder = new TextBlock { Text = "その他（文章で答える）", FontSize = 14, Foreground = Muted, Margin = new Thickness(9, 7, 0, 0), IsHitTestVisible = false, VerticalAlignment = VerticalAlignment.Top };
+        var placeholder = new TextBlock { Text = AppStrings.MachineCards_DrawChoices_1, FontSize = 14, Foreground = Muted, Margin = new Thickness(9, 7, 0, 0), IsHitTestVisible = false, VerticalAlignment = VerticalAlignment.Top };
         other.TextChanged += (_, _) =>
         {
             placeholder.Visibility = other.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -248,7 +248,7 @@ public sealed class MachineRequestCard(Workspace workspace) : StackPanel
         }
         catch (Exception failure)
         {
-            error.Text = "操作の結果を確認できませんでした。現在の状態を更新して確認してください。\n" + failure.Message; error.Visibility = Visibility.Visible;
+            error.Text = AppStrings.MachineCards_SendAsync_1(failure.Message); error.Visibility = Visibility.Visible;
             foreach (var control in inputs) control.IsEnabled = true;
         }
         finally { sending = false; if (current?.Request is { Status: "pending" } pending) Changed(pending); }

@@ -443,6 +443,17 @@ flowchart TD
 - **サーバーの答えが無い・読めない時**（デルタ、a490h2）：BellTeamのサーバーの一覧・答え・保留・添付・eventsは、新しい版は呼ばない。端末が「つなぎ直し中」の行は、ランタイム自身の理由（例外文）を出さず、固定の1行「つなぎ直しています」だけを出す（client-v0.5 §7）。
 
 
+## 画面の文言（多言語対応 第1段）
+
+この変更が触るのは**画面に出る文言の置き場（UIの文言資源）だけ**である。機能・入出力・データと状態の持ち主・接続・失敗の扱いは変わらず、Coreの公開APIと返す文言も同じ（日本語の出力は1バイトも変わらない）。
+
+- 画面の文言はコードにもXAMLにも書かず、.NETの資源ファイル（`.resx`）に置く。原文は日本語（既定の言語＝`NeutralResourcesLanguage("ja")`）。コードとXAMLは型付きの取り出し口を呼ぶ：Core（`windows/BellTeam.Core/Resources/Strings.resx`＋`CoreStrings`）、App（`windows/BellTeam.App/Resources/Strings.resx`＋`AppStrings`。XAMLは`{x:Static i18n:AppStrings.Key}`）。取り出し口は`scripts/i18n`が作る生成物で、文言を直す時は`.resx`を直す。
+- 言語はOSの設定に従う（`CultureInfo.CurrentUICulture`。アプリ内の言語選択は置かない）。他の言語の訳は`Strings.<言語>.resx`として足す（第2段）。足されるまでは、どのOSの言語でも日本語が出る。
+- 日付・時刻・数値は`CurrentCulture`の書式で出す（型は資源の`Pattern_*`など。第1段のCoreの分）。
+- 文言を組み立てる連結・補間は`{0}`・`{1}`の書式文字列にした。各項目の`<comment>`に、使われている場所（ファイル・行・部品）と、その部品の幅・折り返し・文字の大きさの指定、日本語の文字数を`scripts/i18n --annotate`で書く（コードの分と、XAMLの属性の分）。レイアウトは言語によって変えず、訳す側がこの枠に収める（オーナー裁定2026-11-28）。
+- 比較・照合に使う日本語は文言ではなくデータなので`scripts/i18n/allowlist.txt`に置く。`ApprovalsFixture.cs`などの試験・描画用の見本データ（`*Fixture.cs`）は画面の文言ではないので許可表で外す。新しい日本語の文字列がコードに入ると`NoHardCodedTextTests`（`windows/BellTeam.App`も対象）が失敗する。
+- 見た目は変えない：描画の場面（`--render-approvals`・`--render-lattice`・`--render-startup`の51場面）を変更前後で比べ、画像がバイト単位で一致した。
+
 ## 変更時の手順
 
 変更前に[全体図](architecture/feature-map.md)からこの図、呼出元と接続先の図へ辿り、機能・入出力・状態所有・接続・失敗の扱いを確認して図の変更要否を決める。全caller、データ、test、fixture、設定、exportまで影響範囲を確認する。必要な図と接続情報はコードと同じ差分で更新し、図を変えない場合は既存図に収まる理由を変更説明に記す。全体図の生成と直接境界の検証は[共通手順](architecture/module-ownership.md)に従う。

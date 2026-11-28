@@ -38,9 +38,9 @@ public sealed class MessageCard : ContentControl
     private Border? contentBorder;
     private MarkdownView? contentBody;
     // Bubble actions (a303, the same row on every platform): three small icons at the bubble's bottom right, always visible. Reply and forward act as the right-click menu does; copy puts the message text on the clipboard.
-    private readonly Button replyButton = ActionIcon("", "返信", "このメッセージに返信");
-    private readonly Button forwardButton = ActionIcon("", "転送", "このメッセージを転送");
-    private readonly Button copyButton = ActionIcon("", "コピー", "このメッセージをコピー");
+    private readonly Button replyButton = ActionIcon("", AppStrings.MessageCard_replyButton_1, AppStrings.MessageCard_replyButton_2);
+    private readonly Button forwardButton = ActionIcon("", AppStrings.ForwardView_SaveLabel_2, AppStrings.MessageCard_forwardButton_2);
+    private readonly Button copyButton = ActionIcon("", AppStrings.MessageCard_copyButton_1, AppStrings.MessageCard_copyButton_2);
     private readonly StackPanel actions = new() { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
     private Grid? footer;
     private SecretCard? secret;
@@ -58,8 +58,8 @@ public sealed class MessageCard : ContentControl
     {
         var violet = Frozen(Color.FromRgb(0x61, 0x47, 0xD4));
         var mark = new System.Windows.Shapes.Path { Data = Geometry.Parse("M6,13 L6,7 L1.5,1.5 M6,7 L10.5,1.5"), Stroke = violet, StrokeThickness = 1.6, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, StrokeLineJoin = PenLineJoin.Round, Width = 12, Height = 14, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 5, 0) };
-        var label = new TextBlock { Text = "分身", FontSize = 14, FontWeight = FontWeights.SemiBold, Foreground = violet, VerticalAlignment = VerticalAlignment.Center };
-        System.Windows.Automation.AutomationProperties.SetName(label, "分身");
+        var label = new TextBlock { Text = AppStrings.MessageCard_ForkBadge_1, FontSize = 14, FontWeight = FontWeights.SemiBold, Foreground = violet, VerticalAlignment = VerticalAlignment.Center };
+        System.Windows.Automation.AutomationProperties.SetName(label, AppStrings.MessageCard_ForkBadge_1);
         return new Border { Background = Frozen(Color.FromArgb(191, 0xE8, 0xE0, 0xFF)), CornerRadius = new CornerRadius(99), Padding = new Thickness(8, 2, 8, 2), Margin = new Thickness(0, 0, 6, 0), Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { mark, label } } };
     }
     public MessageCard()
@@ -134,14 +134,14 @@ public sealed class MessageCard : ContentControl
         if (machine is not null) machine.Update(message, BotName(message.Sender?.Id, message));
         else if (layout is not null) UpdateRow(message);
         else if (secret is not null || question is not null) UpdateRequest(message);
-        else if (peerLabel is not null) peerLabel.Text = $"{message.PeerName ?? "メンバー"}との連絡";
+        else if (peerLabel is not null) peerLabel.Text = AppStrings.MessageCard_Render_2(message.PeerName ?? AppStrings.MemberEditors_Build_11);
     }
 
     // "<name>との連絡 ›": the message itself opens in the 「メンバー間の連絡」 sheet.
     private void BuildPeer(TimelineMessage message)
     {
         layout = null;
-        var label = new TextBlock { FontSize = 14, Foreground = Muted, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0), Text = $"{message.PeerName ?? "メンバー"}との連絡" };
+        var label = new TextBlock { FontSize = 14, Foreground = Muted, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0), Text = AppStrings.MessageCard_Render_2(message.PeerName ?? AppStrings.MemberEditors_Build_11) };
         var capsule = new Border { Background = new SolidColorBrush(Color.FromArgb(191, 255, 255, 255)), CornerRadius = new CornerRadius(99), Padding = new Thickness(15, 9, 15, 9), Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { Glyph("", 13, Muted), label, Glyph("", 10, Muted) } } };
         var button = new Button { Content = capsule, Padding = new Thickness(0), Margin = new Thickness(0), HorizontalAlignment = HorizontalAlignment.Center, Cursor = System.Windows.Input.Cursors.Hand };
         button.SetResourceReference(StyleProperty, "QuietButton"); button.Padding = new Thickness(0); button.Margin = new Thickness(0);
@@ -187,14 +187,14 @@ public sealed class MessageCard : ContentControl
         quoteButton.SetResourceReference(StyleProperty, "QuietButton"); quoteButton.Padding = new Thickness(0); quoteButton.Margin = new Thickness(0);
         quoteButton.Click += (_, _) => { if (Message.ReplyTo is { Available: true } quote) _ = Workspace.JumpToAsync(quote); };
         var menu = new ContextMenu();
-        var reply = new MenuItem { Header = "返信" }; reply.Click += (_, _) => Workspace.StartQuote(Message);
+        var reply = new MenuItem { Header = AppStrings.MessageCard_replyButton_1 }; reply.Click += (_, _) => Workspace.StartQuote(Message);
         // 引用して返信: only the selected part of this message's text is quoted (reply.md "Quoting a selected part"). The text is rendered markup, so no raw offset is known and none is sent.
-        var part = new MenuItem { Header = "引用して返信" };
+        var part = new MenuItem { Header = AppStrings.MessageCard_BuildRow_2 };
         part.Click += (_, _) => Workspace.StartQuote(Message, new QuoteSelection(body.Selection.Text));
-        menu.Items.Add(part); menu.Items.Add(reply); menu.Items.Add(new MenuItem { Header = "コピー", Command = System.Windows.Input.ApplicationCommands.Copy, CommandTarget = body });
+        menu.Items.Add(part); menu.Items.Add(reply); menu.Items.Add(new MenuItem { Header = AppStrings.MessageCard_copyButton_1, Command = System.Windows.Input.ApplicationCommands.Copy, CommandTarget = body });
         menu.Opened += (_, _) => { reply.IsEnabled = Timeline.IsQuotable(Message); part.IsEnabled = reply.IsEnabled && !body.Selection.IsEmpty && !string.IsNullOrWhiteSpace(body.Selection.Text); };
         body.ContextMenu = menu;
-        var forward = new MenuItem { Header = "転送" }; forward.Click += (_, _) => (Window.GetWindow(this) as MainWindow)?.ShowForwardSheet(Message);
+        var forward = new MenuItem { Header = AppStrings.ForwardView_SaveLabel_2 }; forward.Click += (_, _) => (Window.GetWindow(this) as MainWindow)?.ShowForwardSheet(Message);
         menu.Items.Insert(2, forward); menu.Opened += (_, _) => forward.IsEnabled = Timeline.IsForwardable(Message);
         originMark = new TextBlock { FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = Frozen(Color.FromRgb(0x61, 0x47, 0xD4)) };
         contentBody = new MarkdownView { FontSize = 18, Margin = new Thickness(-5, 0, -5, 0), ContextMenu = menu };
@@ -268,7 +268,7 @@ public sealed class MessageCard : ContentControl
         UpdateAccent();
         images!.Update(hasStack ? [] : urls, outgoing); images.Visibility = urls.Length == 1 ? Visibility.Visible : Visibility.Collapsed;
         var count = message.ImageCount ?? 1;
-        imageLabel!.Text = count > 1 ? $"画像{count}枚" : "画像";
+        imageLabel!.Text = count > 1 ? AppStrings.MessageCard_UpdateRow_1(count) : AppStrings.MemberEditors_Build_12;
         imagePlaceholder!.Visibility = message.Image == true && urls.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
         // A forwarded or shared row: the Owner's comment in the bubble's own text, the content as a quoted block (forward.md "History").
         var origin = message.Origin is { Kind.Length: > 0 } known ? known : null;
@@ -289,7 +289,7 @@ public sealed class MessageCard : ContentControl
             quoteText!.Text = Timeline.QuoteBody(quote);
             quoteNote!.Text = Timeline.QuoteNote(quote) ?? ""; quoteNote.Visibility = quoteNote.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
             quoteButton.IsHitTestVisible = quoteButton.Focusable = quote.Available;
-            System.Windows.Automation.AutomationProperties.SetName(quoteButton, quote.Available ? $"返信先 {quoteName.Text}: {quoteText.Text}。押すと元のメッセージへ移動します。" : quoteNote.Text.Length == 0 ? Timeline.UnavailableQuote : quoteText.Text + "。" + Timeline.UnavailableQuote);
+            System.Windows.Automation.AutomationProperties.SetName(quoteButton, quote.Available ? AppStrings.MessageCard_UpdateRow_3(quoteName.Text, quoteText.Text) : quoteNote.Text.Length == 0 ? Timeline.UnavailableQuote : AppStrings.MessageCard_UpdateRow_4(quoteText.Text, Timeline.UnavailableQuote));
         }
         // The gate reads the row as sent (a marked answer is drawn from a copy without its machine_event).
         replyButton.Visibility = Timeline.IsQuotable(Message) ? Visibility.Visible : Visibility.Collapsed;

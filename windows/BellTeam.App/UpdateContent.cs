@@ -67,7 +67,7 @@ public sealed class UpdateContent : UserControl, IDisposable
         {
             try { await center.ReadAsync(request, Token); }
             catch (OperationCanceledException) when (Token.IsCancellationRequested) { return; }
-            catch (Exception error) { actionMessage = "更新の結果を確認できません。同じ要求を照会し直します。更新は送り直しません。" + error.Message; }
+            catch (Exception error) { actionMessage = AppStrings.UpdateContent_RequeryAsync_1(error.Message); }
         }
     }
 
@@ -76,7 +76,7 @@ public sealed class UpdateContent : UserControl, IDisposable
         choosing = false; plan = null; actionMessage = null; Busy = true; Render();
         try { plan = await center.PlanAsync(componentId, Token); confirmedRestart = false; }
         catch (OperationCanceledException) when (Token.IsCancellationRequested) { }
-        catch (Exception error) { actionMessage = "更新計画を取得できませんでした。" + error.Message; }
+        catch (Exception error) { actionMessage = AppStrings.UpdateContent_PlanAsync_1(error.Message); }
         finally { Busy = false; Render(); }
     }
     private async Task ExecuteAsync(UpdatePlan target)
@@ -202,20 +202,20 @@ public sealed class UpdateContent : UserControl, IDisposable
         Grid.SetColumn(texts, 1); row.Children.Add(texts); column.Children.Add(row);
         if (actionMessage is not null)
         {
-            var note = new Border { Background = Tint(GreyColor, .12), CornerRadius = new CornerRadius(10), Padding = new Thickness(10), Margin = new Thickness(0, 16, 0, 0), Child = InfoLine("\uE946", "操作を完了できませんでした。内容は「詳細」で確認できます。", SettingsUi.Ink, 12) };
+            var note = new Border { Background = Tint(GreyColor, .12), CornerRadius = new CornerRadius(10), Padding = new Thickness(10), Margin = new Thickness(0, 16, 0, 0), Child = InfoLine("\uE946", AppStrings.UpdateContent_HeroCard_1, SettingsUi.Ink, 12) };
             System.Windows.Automation.AutomationProperties.SetAutomationId(note, "update-message"); column.Children.Add(note);
         }
         void Choose() { if (candidates.Length == 1) _ = PlanAsync(candidates[0].Id); else { choosing = true; Render(); } }
         void Add(Button button, string id) { button.Margin = new Thickness(0, 16, 0, 0); System.Windows.Automation.AutomationProperties.SetAutomationId(button, id); column.Children.Add(button); }
-        if (kind == UpdateKind.Available && plan is null) Add(Pill("更新する", true, Choose, CanStartPlan), "update-start");
-        else if (kind == UpdateKind.Failed && plan is null && candidates.Length > 0) Add(Pill("もう一度更新する", true, Choose, CanStartPlan), "update-start");
+        if (kind == UpdateKind.Available && plan is null) Add(Pill(AppStrings.UpdateContent_HeroCard_2, true, Choose, CanStartPlan), "update-start");
+        else if (kind == UpdateKind.Failed && plan is null && candidates.Length > 0) Add(Pill(AppStrings.UpdateContent_HeroCard_3, true, Choose, CanStartPlan), "update-start");
         else if (kind is UpdateKind.Unreachable or UpdateKind.Unconfirmed or UpdateKind.Failed or UpdateKind.Unknown)
         {
-            Add(Pill("状況を確認", false, () => { actionMessage = null; _ = RefreshAsync(); }), "update-refresh");
+            Add(Pill(AppStrings.UpdateContent_HeroCard_4, false, () => { actionMessage = null; _ = RefreshAsync(); }), "update-refresh");
             // An unconfirmed result still lets the owner pick a fresh plan; the same plan is refused by UpdateCenter.PlanAsync.
             if (kind == UpdateKind.Unconfirmed && plan is null && CanStartPlan && candidates.Length > 0)
             {
-                var another = SettingsUi.Capsule("別の更新を選ぶ", Brushes.Transparent, SettingsUi.Violet, 8, 13, new Thickness(8, 6, 8, 6)); another.HorizontalAlignment = HorizontalAlignment.Center;
+                var another = SettingsUi.Capsule(AppStrings.UpdateContent_HeroCard_5, Brushes.Transparent, SettingsUi.Violet, 8, 13, new Thickness(8, 6, 8, 6)); another.HorizontalAlignment = HorizontalAlignment.Center;
                 another.Click += (_, _) => Choose(); Add(another, "update-another-plan");
             }
         }
@@ -224,7 +224,7 @@ public sealed class UpdateContent : UserControl, IDisposable
 
     private FrameworkElement Chooser()
     {
-        var column = new StackPanel(); column.Children.Add(Label("どれを更新しますか", 15, SettingsUi.Ink, FontWeights.SemiBold, new Thickness(0, 0, 0, 4)));
+        var column = new StackPanel(); column.Children.Add(Label(AppStrings.UpdateContent_Chooser_1, 15, SettingsUi.Ink, FontWeights.SemiBold, new Thickness(0, 0, 0, 4)));
         foreach (var item in candidates)
         {
             var grid = new Grid(); grid.ColumnDefinitions.Add(new ColumnDefinition()); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -233,14 +233,14 @@ public sealed class UpdateContent : UserControl, IDisposable
             choice.Click += (_, _) => _ = PlanAsync(id); System.Windows.Automation.AutomationProperties.SetName(choice, item.Name);
             System.Windows.Automation.AutomationProperties.SetAutomationId(choice, "update-choose-" + item.Id); column.Children.Add(choice);
         }
-        var cancel = SettingsUi.Capsule("やめる", Brushes.Transparent, SettingsUi.Violet, 8, 13, new Thickness(0, 6, 8, 2)); cancel.HorizontalAlignment = HorizontalAlignment.Left; cancel.Click += (_, _) => { choosing = false; Render(); };
+        var cancel = SettingsUi.Capsule(AppStrings.ApprovalsWindow_DeviceStrip_1, Brushes.Transparent, SettingsUi.Violet, 8, 13, new Thickness(0, 6, 8, 2)); cancel.HorizontalAlignment = HorizontalAlignment.Left; cancel.Click += (_, _) => { choosing = false; Render(); };
         column.Children.Add(cancel);
         return Card(column);
     }
 
     private FrameworkElement Confirmation(UpdatePlan target)
     {
-        var names = string.Join("、", target.Targets.Select(item => UpdateScreen.ComponentName(inventory, item.ComponentId)));
+        var names = string.Join(AppStrings.ApprovalsWindow_Answered_5, target.Targets.Select(item => UpdateScreen.ComponentName(inventory, item.ComponentId)));
         var ready = CanStartPlan && target.Compatibility.Compatible && target.Capability.Supported && target.ExpiresAt > DateTimeOffset.UtcNow;
         var wording = UpdateScreen.PlanWording(target);
         var column = new StackPanel();
@@ -248,15 +248,15 @@ public sealed class UpdateContent : UserControl, IDisposable
         column.Children.Add(Label(names, 14, SettingsUi.Ink, FontWeights.SemiBold, new Thickness(0, 12, 0, 0)));
         if (wording.ServerPlan is not null) { var raw = Label(wording.ServerPlan, 11.5, SettingsUi.Muted, null, new Thickness(0, 12, 0, 0), mono: true); System.Windows.Automation.AutomationProperties.SetAutomationId(raw, "update-server-plan"); column.Children.Add(raw); }
         var impact = InfoLine(target.Impact.ContainerRestart ? "\uE769" : "\uE946", target.Impact.Description, SettingsUi.Muted); impact.Margin = new Thickness(0, 12, 0, 0); column.Children.Add(impact);
-        if (!target.Compatibility.Compatible || !target.Capability.Supported) column.Children.Add(Label("この更新は、今の状態では適用できません。時間をおいて確認してください。", 13, SettingsUi.Ink, null, new Thickness(0, 12, 0, 0)));
+        if (!target.Compatibility.Compatible || !target.Capability.Supported) column.Children.Add(Label(AppStrings.UpdateContent_Confirmation_2, 13, SettingsUi.Ink, null, new Thickness(0, 12, 0, 0)));
         if (target.Impact.ContainerRestart)
         {
-            var toggle = new CheckBox { Content = "会話と処理が一時止まることを確認しました", IsChecked = confirmedRestart, FontSize = 13, Foreground = SettingsUi.Ink, Margin = new Thickness(0, 12, 0, 0), VerticalContentAlignment = VerticalAlignment.Center };
+            var toggle = new CheckBox { Content = AppStrings.UpdateContent_Confirmation_3, IsChecked = confirmedRestart, FontSize = 13, Foreground = SettingsUi.Ink, Margin = new Thickness(0, 12, 0, 0), VerticalContentAlignment = VerticalAlignment.Center };
             toggle.Click += (_, _) => { confirmedRestart = toggle.IsChecked == true; Render(); };
             System.Windows.Automation.AutomationProperties.SetAutomationId(toggle, "update-restart-confirm"); column.Children.Add(toggle);
         }
         var buttons = new Grid { Margin = new Thickness(0, 12, 0, 0) }; buttons.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); buttons.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) }); buttons.ColumnDefinitions.Add(new ColumnDefinition());
-        buttons.Children.Add(Pill("やめる", false, () => { plan = null; Render(); }));
+        buttons.Children.Add(Pill(AppStrings.ApprovalsWindow_DeviceStrip_1, false, () => { plan = null; Render(); }));
         var go = Pill(wording.Button, true, () => _ = ExecuteAsync(target), ready && (!target.Impact.ContainerRestart || confirmedRestart)); Grid.SetColumn(go, 2);
         System.Windows.Automation.AutomationProperties.SetAutomationId(go, "update-execute"); buttons.Children.Add(go);
         column.Children.Add(buttons);
@@ -266,7 +266,7 @@ public sealed class UpdateContent : UserControl, IDisposable
     private FrameworkElement AttentionBanner((UpdateComponent Component, UpdatePartStatus Status)[] parts)
     {
         var column = new StackPanel();
-        column.Children.Add(InfoLine("\uE7BA", "確認が必要な機能があります", Solid(RedColor), 15));
+        column.Children.Add(InfoLine("\uE7BA", AppStrings.UpdateContent_AttentionBanner_1, Solid(RedColor), 15));
         ((Grid)column.Children[0]).Children.OfType<TextBlock>().Last().FontWeight = FontWeights.SemiBold;
         foreach (var part in parts)
         {
@@ -290,7 +290,7 @@ public sealed class UpdateContent : UserControl, IDisposable
     private FrameworkElement PartList()
     {
         var section = new StackPanel();
-        section.Children.Add(Label("機能", 12, SettingsUi.Secondary, FontWeights.SemiBold, new Thickness(6, 0, 0, 8)));
+        section.Children.Add(Label(AppStrings.UpdateContent_PartList_1, 12, SettingsUi.Secondary, FontWeights.SemiBold, new Thickness(6, 0, 0, 8)));
         var rows = new StackPanel(); var components = inventory!.Components;
         for (var index = 0; index < components.Length; index++)
         {
@@ -322,7 +322,7 @@ public sealed class UpdateContent : UserControl, IDisposable
 
     private FrameworkElement ChangeList(string[] changes)
     {
-        var column = new StackPanel(); column.Children.Add(Label("更新内容", 15, SettingsUi.Ink, FontWeights.SemiBold));
+        var column = new StackPanel(); column.Children.Add(Label(AppStrings.UpdateContent_ChangeList_1, 15, SettingsUi.Ink, FontWeights.SemiBold));
         foreach (var change in changes)
         {
             var line = InfoLine("✦", change, SettingsUi.Ink); line.Margin = new Thickness(0, 10, 0, 0);
@@ -337,73 +337,73 @@ public sealed class UpdateContent : UserControl, IDisposable
         {
             var item = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
             item.Children.Add(Label(UpdateScreen.ComponentName(inventory, job.Target.ModuleId), 13, SettingsUi.Ink, FontWeights.SemiBold));
-            item.Children.Add(Label("状態: " + job.State, 13));
-            item.Children.Add(Label("ジョブID: " + job.JobId, 11.5, SettingsUi.Muted, null, null, mono: true));
+            item.Children.Add(Label(AppStrings.UpdateContent_JobRows_1(job.State), 13));
+            item.Children.Add(Label(AppStrings.UpdateContent_JobRows_2(job.JobId), 11.5, SettingsUi.Muted, null, null, mono: true));
             if (job.Reason is { } reason) item.Children.Add(Label(reason.Code + " / " + reason.Message, 13, Solid(RedColor)));
             System.Windows.Automation.AutomationProperties.SetAutomationId(item, "update-job-" + job.JobId); yield return item;
         }
     }
     private FrameworkElement JobList(UpdateJob[] jobs)
     {
-        var column = new StackPanel(); column.Children.Add(Label("ジョブの状態", 15, SettingsUi.Ink, FontWeights.SemiBold));
+        var column = new StackPanel(); column.Children.Add(Label(AppStrings.UpdateContent_JobList_1, 15, SettingsUi.Ink, FontWeights.SemiBold));
         foreach (var row in JobRows(jobs)) column.Children.Add(row);
         return Card(column, 16);
     }
     private FrameworkElement ProblemList(UpdateProblem[] problems)
     {
-        var column = new StackPanel(); column.Children.Add(Label("機能の問題", 15, SettingsUi.Ink, FontWeights.SemiBold));
+        var column = new StackPanel(); column.Children.Add(Label(AppStrings.UpdateContent_ProblemList_1, 15, SettingsUi.Ink, FontWeights.SemiBold));
         foreach (var problem in problems)
         {
             var item = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
-            item.Children.Add(Label($"{UpdateScreen.ComponentName(inventory, problem.ModuleId)} · 再起動の繰り返し · {(problem.Status == "resolved" ? "解決済み" : "問題あり")}", 13, SettingsUi.Ink, FontWeights.SemiBold));
-            item.Children.Add(Label($"再起動回数: {problem.Count} / 集計期間（秒）: {problem.WindowSeconds}", 13));
-            item.Children.Add(Label($"直近の終了コード: {(problem.LastExit.Code?.ToString() ?? "未観測")} / シグナル: {problem.LastExit.Signal ?? "未観測"}", 13));
-            item.Children.Add(Label("直近の理由: " + problem.LastReason, 13));
+            item.Children.Add(Label(AppStrings.UpdateContent_ProblemList_4(UpdateScreen.ComponentName(inventory, problem.ModuleId), (problem.Status == "resolved" ? AppStrings.UpdateContent_ProblemList_2 : AppStrings.UpdateContent_ProblemList_3)), 13, SettingsUi.Ink, FontWeights.SemiBold));
+            item.Children.Add(Label(AppStrings.UpdateContent_ProblemList_5(problem.Count, problem.WindowSeconds), 13));
+            item.Children.Add(Label(AppStrings.UpdateContent_ProblemList_8((problem.LastExit.Code?.ToString() ?? AppStrings.UpdateContent_ProblemList_6), problem.LastExit.Signal ?? AppStrings.UpdateContent_ProblemList_6), 13));
+            item.Children.Add(Label(AppStrings.UpdateContent_ProblemList_9(problem.LastReason), 13));
             System.Windows.Automation.AutomationProperties.SetAutomationId(item, "update-problem-" + problem.Fingerprint); column.Children.Add(item);
         }
         return Card(column, 16);
     }
 
     // ---- 詳細 (technical values; closed by default) ----
-    private static string Reason(string? code) => code is null ? "" : "（" + code + "）";
+    private static string Reason(string? code) => code is null ? "" : AppStrings.RequestCards_RefreshKeys_1(code);
     private FrameworkElement Details(UpdateJob[] jobs, UpdateRequest[] requests)
     {
         var lines = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
         void Line(string text, bool heading = false) => lines.Children.Add(Label(text, heading ? 13 : 11.5, heading ? SettingsUi.Ink : SettingsUi.Muted, heading ? FontWeights.SemiBold : null, new Thickness(0, heading ? 14 : 3, 0, 0), mono: !heading));
-        if (actionMessage is not null) Line("お知らせ: " + actionMessage);
+        if (actionMessage is not null) Line(AppStrings.UpdateContent_Details_1(actionMessage));
         // An unreadable inventory (for example 503 UNREADABLE) shows the reason as is; no state is made up.
-        if (readError is not null) Line("取得エラー: " + readError);
-        if (inventory?.Notice is { } notice) Line("サーバー: " + notice.Message + Reason(notice.Code));
+        if (readError is not null) Line(AppStrings.UpdateContent_Details_2(readError));
+        if (inventory?.Notice is { } notice) Line(AppStrings.UpdateContent_Details_3(notice.Message, Reason(notice.Code)));
         foreach (var component in inventory?.Components ?? [])
         {
             Line(component.Name, true); Line(component.Description);
-            Line($"稼働中: {UpdateScreen.Label(component.Current)} / 公開版: {UpdateScreen.Label(component.Published)}");
-            Line("比較: " + UpdateScreen.ComparisonText(component.Comparison.State) + Reason(component.Comparison.Reason));
-            if (component.Capability.Reason is { } why) Line($"更新: できません（{why}）");
-            if (component.Availability.Available == false) Line("利用: できません" + Reason(component.Availability.Reason));
-            if (component.Part?.LatestJob is { } job) { Line($"最新のジョブ: {job.JobId} / {job.Kind} / {job.State} / {job.Outcome} / {job.At}"); if (job.Reason is { } reason) Line(reason.Code + " / " + reason.Message); }
+            Line(AppStrings.UpdateContent_Details_4(UpdateScreen.Label(component.Current), UpdateScreen.Label(component.Published)));
+            Line(AppStrings.UpdateContent_Details_5(UpdateScreen.ComparisonText(component.Comparison.State), Reason(component.Comparison.Reason)));
+            if (component.Capability.Reason is { } why) Line(AppStrings.UpdateContent_Details_6(why));
+            if (component.Availability.Available == false) Line(AppStrings.UpdateContent_Details_7(Reason(component.Availability.Reason)));
+            if (component.Part?.LatestJob is { } job) { Line(AppStrings.UpdateContent_Details_8(job.JobId, job.Kind, job.State, job.Outcome, job.At)); if (job.Reason is { } reason) Line(reason.Code + " / " + reason.Message); }
         }
-        if (Parts().Length > 0 && jobs.Length > 0) { Line("ジョブの記録", true); foreach (var row in JobRows(jobs)) lines.Children.Add(row); }
+        if (Parts().Length > 0 && jobs.Length > 0) { Line(AppStrings.UpdateContent_Details_9, true); foreach (var row in JobRows(jobs)) lines.Children.Add(row); }
         void Operation(UpdateOperation? value, string title)
         {
             if (value is null) return;
-            Line(title, true); Line("要求ID: " + value.RequestId);
-            Line($"{UpdateScreen.PhaseText(value.Phase)} / 受付: {UpdateScreen.AdmissionText(value.Admission)} / 実行: {UpdateScreen.OutcomeText(value.Execution)} / 稼働確認: {UpdateScreen.OutcomeText(value.Verification)}");
+            Line(title, true); Line(AppStrings.UpdateContent_Details_10(value.RequestId));
+            Line(AppStrings.UpdateContent_Details_11(UpdateScreen.PhaseText(value.Phase), UpdateScreen.AdmissionText(value.Admission), UpdateScreen.OutcomeText(value.Execution), UpdateScreen.OutcomeText(value.Verification)));
             if (value.Error is { } error) Line(error.Code + ": " + error.Message);
         }
-        Operation(current, "今回の更新"); if (inventory?.PreviousOperation is { } previous && previous.RequestId != current?.RequestId) Operation(previous, "前回の更新");
-        if (plan is { } open) { Line("計画ID: " + open.PlanId); Line("有効期限: " + open.ExpiresAt.LocalDateTime); }
+        Operation(current, AppStrings.UpdateContent_Details_12); if (inventory?.PreviousOperation is { } previous && previous.RequestId != current?.RequestId) Operation(previous, AppStrings.UpdateContent_Details_13);
+        if (plan is { } open) { Line(AppStrings.UpdateContent_Details_14(open.PlanId)); Line(AppStrings.UpdateContent_Details_15(open.ExpiresAt.LocalDateTime)); }
         if (requests.Length > 0)
         {
-            Line("保持している操作結果", true);
+            Line(AppStrings.UpdateContent_Details_16, true);
             foreach (var request in requests)
             {
-                Line("要求ID: " + request.RequestId); Line("計画ID: " + request.PlanId);
-                if (request.Result is { } result) Line($"{UpdateScreen.PhaseText(result.Phase)} / 受付: {UpdateScreen.AdmissionText(result.Admission)}");
+                Line(AppStrings.UpdateContent_Details_10(request.RequestId)); Line(AppStrings.UpdateContent_Details_14(request.PlanId));
+                if (request.Result is { } result) Line(AppStrings.UpdateContent_Details_19(UpdateScreen.PhaseText(result.Phase), UpdateScreen.AdmissionText(result.Admission)));
                 if (request.Rejection is { } note) Line(note);
             }
         }
-        var expander = new Expander { Header = "詳細", Content = lines, IsExpanded = detailsOpen, Template = DisclosureTemplate, FontSize = 13, Foreground = SettingsUi.Ink, Margin = new Thickness(4, 0, 4, 0) };
+        var expander = new Expander { Header = AppStrings.GoalViews_Details_1, Content = lines, IsExpanded = detailsOpen, Template = DisclosureTemplate, FontSize = 13, Foreground = SettingsUi.Ink, Margin = new Thickness(4, 0, 4, 0) };
         expander.Expanded += (_, _) => detailsOpen = true; expander.Collapsed += (_, _) => detailsOpen = false;
         System.Windows.Automation.AutomationProperties.SetAutomationId(expander, "update-details");
         return expander;

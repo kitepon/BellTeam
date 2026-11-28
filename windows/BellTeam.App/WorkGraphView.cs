@@ -68,7 +68,7 @@ public sealed class WorkGraphCanvas : FrameworkElement
         try { await Model.RunAsync(opener, source.Token); }
         catch (OperationCanceledException) when (source.IsCancellationRequested) { }
         // A bug in the model is shown, not swallowed: the stream is not retried.
-        catch (Exception error) { fault = "相関図でエラーが起きました: " + error.Message; }
+        catch (Exception error) { fault = AppStrings.WorkGraphView_RunAsync_1(error.Message); }
         finally
         {
             if (ReferenceEquals(cancel, source)) { cancel = null; CompositionTarget.Rendering -= OnRendering; }
@@ -123,11 +123,11 @@ public sealed class WorkGraphCanvas : FrameworkElement
     {
         var next = Model.Connection switch
         {
-            WorkGraphConnection.Unsupported => ("このサーバーでは相関図をまだ使えません", (string?)null),
+            WorkGraphConnection.Unsupported => (AppStrings.WorkGraphView_UpdateStatus_1, (string?)null),
             WorkGraphConnection.Failed => (Model.FailedMessage, null),
-            WorkGraphConnection.Reconnecting => (null, "再接続中…"),
-            WorkGraphConnection.Unreadable => (null, "相関図の応答を読めませんでした。再接続しています…"),
-            WorkGraphConnection.Live when Model.Degraded => (null, "一部の情報を取得できていません"),
+            WorkGraphConnection.Reconnecting => (null, AppStrings.WorkGraphView_UpdateStatus_2),
+            WorkGraphConnection.Unreadable => (null, AppStrings.WorkGraphView_UpdateStatus_3),
+            WorkGraphConnection.Live when Model.Degraded => (null, AppStrings.WorkGraphView_UpdateStatus_4),
             _ => (null, null)
         };
         if (fault is not null) next = (fault, null);
@@ -401,7 +401,7 @@ public sealed class WorkGraphCanvas : FrameworkElement
         var glow = new RadialGradientBrush(Color.FromArgb(20, 0x61, 0x47, 0xD4), Color.FromArgb(0, 0x61, 0x47, 0xD4)) { RadiusX = 0.5, RadiusY = 0.5 };
         glow.GradientStops[0].Offset = 0.55; glow.Freeze();
         context.DrawEllipse(glow, null, center, 160, 160);
-        var text = new FormattedText("いま動いているメンバーはいません", System.Globalization.CultureInfo.GetCultureInfo("ja-JP"), FlowDirection.LeftToRight, new Typeface(new FontFamily("Yu Gothic UI"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal), NameFontSize, WorkGraphText.Muted, Dpi);
+        var text = new FormattedText(AppStrings.WorkGraphView_DrawEmpty_1, System.Globalization.CultureInfo.GetCultureInfo("ja-JP"), FlowDirection.LeftToRight, new Typeface(new FontFamily("Yu Gothic UI"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal), NameFontSize, WorkGraphText.Muted, Dpi);
         context.DrawText(text, new Point(center.X - text.Width / 2, center.Y - text.Height / 2));
         context.Pop();
     }
@@ -509,11 +509,11 @@ public sealed class WorkGraphCanvas : FrameworkElement
         {
             if (!Model.Bodies.TryGetValue(item.Id, out var body)) return null;
             var minutes = Math.Max(0, (int)((Model.Clock() - body.ActiveSince) / 60));
-            return body.Node.Working ? $"{body.Node.Name}、作業中、{minutes}分前から" : $"{body.Node.Name}、依頼の相手";
+            return body.Node.Working ? AppStrings.WorkGraphView_Describe_1(body.Node.Name, minutes) : AppStrings.WorkGraphView_Describe_2(body.Node.Name);
         }
         if (!Model.Lines.TryGetValue(item.Id, out var line)) return null;
         string Name(string id) => Model.Bodies.TryGetValue(id, out var body) ? body.Node.Name : id;
-        var sentence = $"{Name(line.Edge.From)}から{Name(line.Edge.To)}へ依頼";
+        var sentence = AppStrings.WorkGraphView_Describe_3(Name(line.Edge.From), Name(line.Edge.To));
         return line.Edge.ChipText is { } label ? $"{sentence}: {label}" : sentence;
     }
 
@@ -535,7 +535,7 @@ internal sealed class WorkGraphPeer(WorkGraphCanvas owner) : FrameworkElementAut
 {
     protected override AutomationControlType GetAutomationControlTypeCore() => AutomationControlType.Group;
     protected override string GetClassNameCore() => nameof(WorkGraphCanvas);
-    protected override string GetNameCore() => "相関図";
+    protected override string GetNameCore() => AppStrings.WorkGraphView_GetNameCore_1;
     protected override List<AutomationPeer>? GetChildrenCore() => owner.Items().Select(item => (AutomationPeer)new WorkGraphItemPeer(owner, item)).ToList();
 }
 
@@ -544,7 +544,7 @@ internal sealed class WorkGraphItemPeer(WorkGraphCanvas owner, WorkGraphItem ite
     protected override string GetNameCore() => owner.Describe(item) ?? "";
     protected override AutomationControlType GetAutomationControlTypeCore() => item.IsMember ? AutomationControlType.Button : AutomationControlType.Text;
     protected override string GetClassNameCore() => item.IsMember ? "WorkGraphMember" : "WorkGraphRequest";
-    protected override string GetHelpTextCore() => item.IsMember ? "チャットを開く" : "";
+    protected override string GetHelpTextCore() => item.IsMember ? AppStrings.WorkGraphView_GetHelpTextCore_1 : "";
     protected override string GetAutomationIdCore() => (item.IsMember ? "work-graph-member-" : "work-graph-edge-") + item.Id;
     protected override Rect GetBoundingRectangleCore() => owner.Bounds(item) ?? Rect.Empty;
     protected override bool IsOffscreenCore() => owner.Bounds(item) is null;

@@ -39,7 +39,7 @@ internal sealed class SingleInstance : IDisposable
         catch (OperationCanceledException) when (stop.IsCancellationRequested) { }
         catch (Exception error)
         {
-            System.Windows.Application.Current.Dispatcher.Invoke(() => System.Windows.MessageBox.Show("既存の窓を開く接続に失敗しました。" + error.Message, "BellTeam"));
+            System.Windows.Application.Current.Dispatcher.Invoke(() => System.Windows.MessageBox.Show(AppStrings.SingleInstance_ListenAsync_1(error.Message), "BellTeam"));
         }
     }
     public void Dispose() { stop.Cancel(); stop.Dispose(); if (IsPrimary) mutex.ReleaseMutex(); mutex.Dispose(); }

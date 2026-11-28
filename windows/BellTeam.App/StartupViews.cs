@@ -14,12 +14,12 @@ namespace BellTeam.App;
 // The files the Mac app bundles for its server setup screen; the project embeds the same sources.
 internal static class EmbeddedAsset
 {
-    public static Stream Open(string name) => typeof(EmbeddedAsset).Assembly.GetManifestResourceStream(name) ?? throw new InvalidOperationException($"組み込みの資料 {name} が見つかりません。");
+    public static Stream Open(string name) => typeof(EmbeddedAsset).Assembly.GetManifestResourceStream(name) ?? throw new InvalidOperationException(AppStrings.StartupViews_Open_1(name));
     public static string Text(string name) { using var reader = new StreamReader(Open(name), Encoding.UTF8); return reader.ReadToEnd(); }
     public static Uri ProductUrl(string key)
     {
         using var product = JsonDocument.Parse(Text("product.json"));
-        return new Uri(product.RootElement.GetProperty(key).GetString() ?? throw new InvalidOperationException($"product.json に {key} がありません。"));
+        return new Uri(product.RootElement.GetProperty(key).GetString() ?? throw new InvalidOperationException(AppStrings.StartupViews_ProductUrl_1(key)));
     }
     public static BitmapImage Icon(int pixelWidth)
     {
@@ -89,7 +89,7 @@ internal static class MacUi
     public static void OpenUrl(Uri address, Action<string> failed)
     {
         try { Process.Start(new ProcessStartInfo(address.AbsoluteUri) { UseShellExecute = true }); }
-        catch (Exception error) { failed("ブラウザーを開けませんでした。" + error.Message); }
+        catch (Exception error) { failed(AppStrings.StartupViews_OpenUrl_1(error.Message)); }
     }
 }
 
@@ -122,7 +122,7 @@ internal sealed class StartupOpeningView : StartupBackdrop
     {
         var stack = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
         stack.Children.Add(new Spinner { Width = 20, Height = 20, Stroke = MacUi.Secondary, HorizontalAlignment = HorizontalAlignment.Center });
-        stack.Children.Add(MacUi.Text("BellTeamを開いています", 11, MacUi.Secondary, margin: new Thickness(0, 8, 0, 0)));
+        stack.Children.Add(MacUi.Text(AppStrings.StartupViews_StartupOpeningView_1, 11, MacUi.Secondary, margin: new Thickness(0, 8, 0, 0)));
         Children.Add(stack);
     }
 }
@@ -144,20 +144,20 @@ internal sealed class StartupFailureView : StartupBackdrop
         tile.Children.Add(SettingsUi.Tile("\uE701", Color.FromRgb(0xFF, 0x95, 0x00), 64));
         tile.Children.Add(new TextBlock { Text = "!", FontSize = 20, FontWeight = FontWeights.Bold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 14, 8) });
         stack.Children.Add(tile);
-        var title = MacUi.Text("BellTeamにつながりません", 22, MacUi.Ink, FontWeights.Bold, new Thickness(0, 18, 0, 0)); title.TextAlignment = TextAlignment.Center; stack.Children.Add(title);
-        var hint = MacUi.Text("サーバーが動いているか、この端末が同じネットワークにいるかを確かめてから、もう一度試してください。", 14, MacUi.Muted, margin: new Thickness(0, 8, 0, 0)); hint.TextAlignment = TextAlignment.Center; stack.Children.Add(hint);
+        var title = MacUi.Text(AppStrings.StartupViews_StartupFailureView_1, 22, MacUi.Ink, FontWeights.Bold, new Thickness(0, 18, 0, 0)); title.TextAlignment = TextAlignment.Center; stack.Children.Add(title);
+        var hint = MacUi.Text(AppStrings.StartupViews_StartupFailureView_2, 14, MacUi.Muted, margin: new Thickness(0, 8, 0, 0)); hint.TextAlignment = TextAlignment.Center; stack.Children.Add(hint);
         if (!string.IsNullOrEmpty(host))
         {
             var server = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 8, 0, 0) };
             var icon = MacUi.Glyph("\uE774", 12, MacUi.Muted); icon.Margin = new Thickness(0, 0, 6, 0); server.Children.Add(icon);
-            server.Children.Add(new TextBlock { Text = "接続先 " + host, FontSize = 12, Foreground = MacUi.Muted, VerticalAlignment = VerticalAlignment.Center }); stack.Children.Add(server);
+            server.Children.Add(new TextBlock { Text = AppStrings.StartupViews_StartupFailureView_3(host), FontSize = 12, Foreground = MacUi.Muted, VerticalAlignment = VerticalAlignment.Center }); stack.Children.Add(server);
         }
-        again = MacUi.Primary("もう一度試す", Retry); again.Margin = new Thickness(0, 18, 0, 0); stack.Children.Add(again);
-        change = MacUi.Bordered("接続先を変更", () => { if (confirmChange()) changeServer(); }); change.HorizontalAlignment = HorizontalAlignment.Center; change.Margin = new Thickness(0, 10, 0, 0); stack.Children.Add(change);
+        again = MacUi.Primary(AppStrings.StartupViews_StartupFailureView_4, Retry); again.Margin = new Thickness(0, 18, 0, 0); stack.Children.Add(again);
+        change = MacUi.Bordered(AppStrings.OnboardingView_Render_7, () => { if (confirmChange()) changeServer(); }); change.HorizontalAlignment = HorizontalAlignment.Center; change.Margin = new Thickness(0, 10, 0, 0); stack.Children.Add(change);
         if (!string.IsNullOrEmpty(message))
         {
             var detail = new TextBox { Text = message, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, FontSize = 12, Foreground = MacUi.Secondary, BorderThickness = new Thickness(0), Background = Brushes.Transparent, Padding = new Thickness(0) };
-            var disclosure = TerminalParts.Disclosure("詳細", detail, false, _ => { }); disclosure.Margin = new Thickness(10, 14, 10, 0); stack.Children.Add(disclosure);
+            var disclosure = TerminalParts.Disclosure(AppStrings.GoalViews_Details_1, detail, false, _ => { }); disclosure.Margin = new Thickness(10, 14, 10, 0); stack.Children.Add(disclosure);
         }
         var card = MacUi.Card(stack, new Thickness(28)); card.MaxWidth = 460; card.Margin = new Thickness(24); card.HorizontalAlignment = HorizontalAlignment.Center; card.VerticalAlignment = VerticalAlignment.Center;
         Children.Add(card);
@@ -165,9 +165,9 @@ internal sealed class StartupFailureView : StartupBackdrop
     private void Retry() { if (!retrying) _ = RetryAsync(); }
     private async Task RetryAsync()
     {
-        retrying = true; again.IsEnabled = change.IsEnabled = false; MacUi.Relabel(again, "接続しています…");
+        retrying = true; again.IsEnabled = change.IsEnabled = false; MacUi.Relabel(again, AppStrings.ShareWindow_ShareWindow_12);
         try { await retry(); }
-        finally { retrying = false; again.IsEnabled = change.IsEnabled = true; MacUi.Relabel(again, "もう一度試す"); }
+        finally { retrying = false; again.IsEnabled = change.IsEnabled = true; MacUi.Relabel(again, AppStrings.StartupViews_StartupFailureView_4); }
     }
 }
 
@@ -185,30 +185,30 @@ internal sealed class ServerSetupView : StartupBackdrop
         this.connect = connect; address.Text = initial; error.Visibility = Visibility.Collapsed;
         var column = new StackPanel();
         column.Children.Add(Portrait(106, 30));
-        column.Children.Add(MacUi.Text("BellTeamを始める", 37, MacUi.Ink, FontWeights.Bold, new Thickness(0, 22, 0, 0)));
-        column.Children.Add(MacUi.Text("自分のPCやサーバーでBellTeamを動かし、このアプリから接続して使います。", 13, MacUi.Muted, margin: new Thickness(0, 22, 0, 0)));
+        column.Children.Add(MacUi.Text(AppStrings.OnboardingView_Render_1, 37, MacUi.Ink, FontWeights.Bold, new Thickness(0, 22, 0, 0)));
+        column.Children.Add(MacUi.Text(AppStrings.StartupViews_ServerSetupView_2, 13, MacUi.Muted, margin: new Thickness(0, 22, 0, 0)));
         var guide = new Grid(); guide.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); guide.ColumnDefinitions.Add(new ColumnDefinition()); guide.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var box = MacUi.Glyph("", 17); box.Margin = new Thickness(0, 0, 16, 0); guide.Children.Add(box);
-        var words = new StackPanel { VerticalAlignment = VerticalAlignment.Center }; words.Children.Add(MacUi.Text("はじめて使う", 13, MacUi.Ink, FontWeights.Bold)); words.Children.Add(MacUi.Text("Dockerの準備からアプリへの接続まで", 11, MacUi.Ink, margin: new Thickness(0, 6, 0, 0)));
+        var words = new StackPanel { VerticalAlignment = VerticalAlignment.Center }; words.Children.Add(MacUi.Text(AppStrings.StartupViews_ServerSetupView_3, 13, MacUi.Ink, FontWeights.Bold)); words.Children.Add(MacUi.Text(AppStrings.StartupViews_ServerSetupView_4, 11, MacUi.Ink, margin: new Thickness(0, 6, 0, 0)));
         Grid.SetColumn(words, 1); guide.Children.Add(words);
         var chevron = MacUi.Glyph("", 12); Grid.SetColumn(chevron, 2); guide.Children.Add(chevron);
-        var guideButton = MacUi.Bare(MacUi.Card(guide, new Thickness(20)), openGuide, "はじめて使う"); guideButton.Margin = new Thickness(0, 22, 0, 0);
+        var guideButton = MacUi.Bare(MacUi.Card(guide, new Thickness(20)), openGuide, AppStrings.StartupViews_ServerSetupView_3); guideButton.Margin = new Thickness(0, 22, 0, 0);
         System.Windows.Automation.AutomationProperties.SetAutomationId(guideButton, "server-installation-guide"); column.Children.Add(guideButton);
-        column.Children.Add(MacUi.Text("サーバーを用意済みの方", 13, MacUi.Ink, FontWeights.Bold, new Thickness(0, 30, 0, 0)));
-        column.Children.Add(MacUi.Text("同じマシンならhttp://localhost:18891、iPhone・iPadならLAN上のBellTeamのURLを入力してください。外部接続はHTTPSを使います。", 13, MacUi.Muted, margin: new Thickness(0, 22, 0, 0)));
-        var field = new Grid(); var placeholder = MacUi.Text("BellTeamの接続先URL", 13, new SolidColorBrush(Color.FromRgb(0xC4, 0xC4, 0xC8))); placeholder.IsHitTestVisible = false; placeholder.VerticalAlignment = VerticalAlignment.Center;
+        column.Children.Add(MacUi.Text(AppStrings.StartupViews_ServerSetupView_6, 13, MacUi.Ink, FontWeights.Bold, new Thickness(0, 30, 0, 0)));
+        column.Children.Add(MacUi.Text(AppStrings.StartupViews_ServerSetupView_7, 13, MacUi.Muted, margin: new Thickness(0, 22, 0, 0)));
+        var field = new Grid(); var placeholder = MacUi.Text(AppStrings.StartupViews_ServerSetupView_8, 13, new SolidColorBrush(Color.FromRgb(0xC4, 0xC4, 0xC8))); placeholder.IsHitTestVisible = false; placeholder.VerticalAlignment = VerticalAlignment.Center;
         field.Children.Add(address); field.Children.Add(placeholder);
         void ShowPlaceholder() => placeholder.Visibility = address.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
         address.TextChanged += (_, _) => ShowPlaceholder(); ShowPlaceholder();
-        System.Windows.Automation.AutomationProperties.SetName(address, "BellTeamの接続先URL"); System.Windows.Automation.AutomationProperties.SetAutomationId(address, "server-address");
+        System.Windows.Automation.AutomationProperties.SetName(address, AppStrings.StartupViews_ServerSetupView_8); System.Windows.Automation.AutomationProperties.SetAutomationId(address, "server-address");
         address.KeyDown += (_, args) => { if (args.Key == System.Windows.Input.Key.Enter) { args.Handled = true; Continue(); } };
         var card = MacUi.Card(field, new Thickness(18)); card.Margin = new Thickness(0, 22, 0, 0); column.Children.Add(card);
         column.Children.Add(error);
         var go = new Grid { Height = 60 }; var arrow = MacUi.Glyph("", 15, Brushes.White); arrow.HorizontalAlignment = HorizontalAlignment.Right;
-        var label = MacUi.Text("続ける", 17, Brushes.White, FontWeights.SemiBold); label.VerticalAlignment = VerticalAlignment.Center; go.Children.Add(label); go.Children.Add(arrow);
+        var label = MacUi.Text(AppStrings.StartupViews_ServerSetupView_10, 17, Brushes.White, FontWeights.SemiBold); label.VerticalAlignment = VerticalAlignment.Center; go.Children.Add(label); go.Children.Add(arrow);
         var fill = new Border { Child = go, Background = MacUi.ProminentFill, CornerRadius = new CornerRadius(20), Padding = new Thickness(23, 0, 23, 0) };
         // The Mac screenshot shows the default button's grey plate behind the custom label.
-        var plate = new Border { Child = MacUi.Bare(fill, Continue, "続ける"), Background = MacUi.ButtonFill, CornerRadius = new CornerRadius(6), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(0, 22, 0, 0) };
+        var plate = new Border { Child = MacUi.Bare(fill, Continue, AppStrings.StartupViews_ServerSetupView_10), Background = MacUi.ButtonFill, CornerRadius = new CornerRadius(6), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(0, 22, 0, 0) };
         column.Children.Add(plate);
         Children.Add(Scroll(column, 460, new Thickness(30, 68, 30, 40)));
     }
@@ -224,7 +224,7 @@ internal sealed class ServerSetupView : StartupBackdrop
 // Windows has no share sheet: the Mac "share" buttons become "open the repository in the browser" and "copy the guide URL" (and the wash is the Mac BellBackground).
 internal sealed class ServerGuideView : ScrollViewer
 {
-    public static string AiRequest => EmbeddedAsset.ProductUrl("repositoryUrl").AbsoluteUri + "\nこれセットアップしたい";
+    public static string AiRequest => AppStrings.StartupViews_AiRequest_1(EmbeddedAsset.ProductUrl("repositoryUrl").AbsoluteUri);
     private readonly Action<string> copy;
     private readonly Action<Uri> open;
     private readonly Button copyRequest;
@@ -243,18 +243,18 @@ internal sealed class ServerGuideView : ScrollViewer
         var head = new Grid(); head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); head.ColumnDefinitions.Add(new ColumnDefinition());
         head.Children.Add(SettingsUi.Tile("\u2726", Color.FromRgb(0x61, 0x47, 0xD4), 40, symbol: true));
         var words = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) }; Grid.SetColumn(words, 1);
-        words.Children.Add(MacUi.Text("AIにセットアップを任せる", 15, MacUi.Ink, FontWeights.Bold)); words.Children.Add(MacUi.Text("GitHubのURLと依頼文を、PCを操作できるAIへ渡します。", 13, MacUi.Muted, margin: new Thickness(0, 2, 0, 0)));
+        words.Children.Add(MacUi.Text(AppStrings.StartupViews_ServerGuideView_1, 15, MacUi.Ink, FontWeights.Bold)); words.Children.Add(MacUi.Text(AppStrings.StartupViews_ServerGuideView_2, 13, MacUi.Muted, margin: new Thickness(0, 2, 0, 0)));
         head.Children.Add(words); intro.Children.Add(head);
         var actions = new Grid { Margin = new Thickness(0, 14, 0, 0) }; actions.ColumnDefinitions.Add(new ColumnDefinition()); actions.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        copyRequest = MacUi.Primary("URLと依頼文をコピー", () => Copy(AiRequest, copyRequest!), "\uE8C8");
+        copyRequest = MacUi.Primary(AppStrings.StartupViews_ServerGuideView_3, () => Copy(AiRequest, copyRequest!), "\uE8C8");
         System.Windows.Automation.AutomationProperties.SetAutomationId(copyRequest, "server-ai-request-copy"); actions.Children.Add(copyRequest);
-        var repository = MacUi.Bordered("GitHubをブラウザーで開く", () => this.open(EmbeddedAsset.ProductUrl("repositoryUrl")), "\uE8A7"); repository.Margin = new Thickness(10, 0, 0, 0); repository.VerticalAlignment = VerticalAlignment.Center; Grid.SetColumn(repository, 1); actions.Children.Add(repository);
+        var repository = MacUi.Bordered(AppStrings.StartupViews_ServerGuideView_4, () => this.open(EmbeddedAsset.ProductUrl("repositoryUrl")), "\uE8A7"); repository.Margin = new Thickness(10, 0, 0, 0); repository.VerticalAlignment = VerticalAlignment.Center; Grid.SetColumn(repository, 1); actions.Children.Add(repository);
         intro.Children.Add(actions); column.Children.Add(MacUi.Card(intro, new Thickness(18)));
         column.Children.Add(failure);
         var body = new MarkdownView { FontSize = 18, Source = EmbeddedAsset.Text("server-installation.md"), Margin = new Thickness(0, 22, 0, 0) };
         System.Windows.Automation.AutomationProperties.SetAutomationId(body, "server-installation-content"); column.Children.Add(body);
-        var pc = MacUi.Primary("PCで読む手順と配布ファイルを開く", () => this.open(EmbeddedAsset.ProductUrl("serverGuideUrl"))); pc.Margin = new Thickness(0, 22, 0, 0); column.Children.Add(pc);
-        copyGuide = MacUi.Bordered("この手順のURLをコピー", () => Copy(EmbeddedAsset.ProductUrl("serverGuideUrl").AbsoluteUri, copyGuide!), "\uE8C8"); copyGuide.Margin = new Thickness(0, 12, 0, 0); column.Children.Add(copyGuide);
+        var pc = MacUi.Primary(AppStrings.StartupViews_ServerGuideView_5, () => this.open(EmbeddedAsset.ProductUrl("serverGuideUrl"))); pc.Margin = new Thickness(0, 22, 0, 0); column.Children.Add(pc);
+        copyGuide = MacUi.Bordered(AppStrings.StartupViews_ServerGuideView_6, () => Copy(EmbeddedAsset.ProductUrl("serverGuideUrl").AbsoluteUri, copyGuide!), "\uE8C8"); copyGuide.Margin = new Thickness(0, 12, 0, 0); column.Children.Add(copyGuide);
         Content = column;
     }
     private void Fail(string message) { failure.Text = message; failure.Visibility = Visibility.Visible; }
@@ -262,8 +262,8 @@ internal sealed class ServerGuideView : ScrollViewer
     private void Copy(string text, Button button)
     {
         try { copy(text); failure.Visibility = Visibility.Collapsed; }
-        catch (Exception error) { Fail("コピーできませんでした。" + error.Message); return; }
-        MacUi.Relabel(button, "コピーしました", "\uE73E");
+        catch (Exception error) { Fail(AppStrings.StartupViews_Copy_1(error.Message)); return; }
+        MacUi.Relabel(button, AppStrings.ApprovalsWindow_Answered_7, "\uE73E");
     }
 }
 
@@ -283,15 +283,15 @@ internal sealed class LoginView : StartupBackdrop
         glow.Children.Add(new Border { Width = 182, Height = 182, CornerRadius = new CornerRadius(51), BorderBrush = Brushes.White, BorderThickness = new Thickness(3), Child = portrait, Effect = new DropShadowEffect { Color = Color.FromRgb(0x61, 0x47, 0xD4), Opacity = 0.22, BlurRadius = 30, ShadowDepth = 17, Direction = 270 } });
         middle.Children.Add(glow);
         var title = MacUi.Text("BellTeam", 48, MacUi.Ink, FontWeights.Bold); title.TextAlignment = TextAlignment.Center; middle.Children.Add(title);
-        var tagline = MacUi.Text("いつでも、あなたのチームと。", 17, MacUi.Muted, FontWeights.Medium, new Thickness(0, 12, 0, 0)); tagline.TextAlignment = TextAlignment.Center; middle.Children.Add(tagline);
+        var tagline = MacUi.Text(AppStrings.StartupViews_LoginView_1, 17, MacUi.Muted, FontWeights.Medium, new Thickness(0, 12, 0, 0)); tagline.TextAlignment = TextAlignment.Center; middle.Children.Add(tagline);
         frame.Children.Add(middle);
         var bottom = new StackPanel(); Grid.SetRow(bottom, 1);
         var row = new Grid { Height = 60 }; var lockIcon = MacUi.Glyph("", 17, Brushes.White); lockIcon.HorizontalAlignment = HorizontalAlignment.Left;
-        var text = MacUi.Text("ログインして始める", 17, Brushes.White, FontWeights.SemiBold); text.Margin = new Thickness(26, 0, 0, 0); text.VerticalAlignment = VerticalAlignment.Center;
+        var text = MacUi.Text(AppStrings.StartupViews_LoginView_2, 17, Brushes.White, FontWeights.SemiBold); text.Margin = new Thickness(26, 0, 0, 0); text.VerticalAlignment = VerticalAlignment.Center;
         var arrow = MacUi.Glyph("", 15, Brushes.White); arrow.HorizontalAlignment = HorizontalAlignment.Right; row.Children.Add(lockIcon); row.Children.Add(text); row.Children.Add(arrow);
         var fill = new Border { Child = row, Background = MacUi.ProminentFill, CornerRadius = new CornerRadius(20), Padding = new Thickness(23, 0, 23, 0), Effect = new DropShadowEffect { Color = Color.FromRgb(0x61, 0x47, 0xD4), Opacity = 0.22, BlurRadius = 16, ShadowDepth = 8, Direction = 270 } };
-        bottom.Children.Add(MacUi.Bare(fill, openLogin, "ログインして始める"));
-        var caption = MacUi.Text("Cloudflare Accessで安全に接続します", 10, MacUi.Muted, margin: new Thickness(0, 18, 0, 0)); caption.TextAlignment = TextAlignment.Center; bottom.Children.Add(caption);
+        bottom.Children.Add(MacUi.Bare(fill, openLogin, AppStrings.StartupViews_LoginView_2));
+        var caption = MacUi.Text(AppStrings.StartupViews_LoginView_4, 10, MacUi.Muted, margin: new Thickness(0, 18, 0, 0)); caption.TextAlignment = TextAlignment.Center; bottom.Children.Add(caption);
         bottom.Children.Add(error); frame.Children.Add(bottom); Children.Add(frame);
     }
     public void ShowError(string message) { error.Text = message; error.Visibility = Visibility.Visible; }

@@ -364,6 +364,18 @@ internal static class Annotator
                 list.Add($"{rel}:{line} {Member(node)}: {Host(node)}");
             }
         }
+        // XAML: Attr="{x:Static i18n:Class.Key}" sits in a start tag; its width/wrap/size attributes are the room the text has.
+        foreach (var xf in Directory.EnumerateFiles(o.Root, "*.xaml", SearchOption.AllDirectories).Where(f => !f.Contains("\\obj\\") && !f.Contains("/obj/")))
+        {
+            var xrel = Path.GetRelativePath(o.Root, xf).Replace('\\', '/'); var xtext = File.ReadAllText(xf);
+            foreach (Match m in Regex.Matches(xtext, @"(?<attr>[A-Za-z:.]+)=""\{x:Static i18n:" + Regex.Escape(o.Class) + @"\.(?<key>\w+)\}"""))
+            {
+                var open = xtext.LastIndexOf('<', m.Index); var tag = Regex.Match(xtext[open..], @"^<(?<n>[\w:.]+)(?<a>[^>]*)");
+                var attrs = Regex.Matches(tag.Groups["a"].Value, @"([\w:.]+)=""([^""]*)""").Where(a => a.Groups[1].Value is "x:Name" || Interesting.Contains(a.Groups[1].Value)).Select(a => a.Groups[1].Value + "=" + a.Groups[2].Value);
+                var line = xtext[..m.Index].Count(c => c == '\n') + 1; var xkey = m.Groups["key"].Value;
+                (sites.TryGetValue(xkey, out var xl) ? xl : sites[xkey] = []).Add($"{xrel}:{line} <{tag.Groups["n"].Value}> {m.Groups["attr"].Value}; {{{string.Join(", ", attrs)}}}");
+            }
+        }
         foreach (var e in catalog.ByKey.Values)
         {
             var baseComment = e.Comment.Contains(" | sites: ") ? e.Comment[..e.Comment.IndexOf(" | sites: ", StringComparison.Ordinal)] : e.Comment;

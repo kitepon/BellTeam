@@ -77,7 +77,7 @@ public sealed class MarkdownView : RichTextBox
             case ThematicBreakBlock: return new Paragraph(new Run("────────────────")) { Foreground = Brushes.LightGray };
             // 参照リンクの定義はリンクへ解決済みで、本文としては描かない。
             case LinkReferenceDefinitionGroup: return new Section { Margin = new Thickness(0) };
-            default: throw new NotSupportedException($"Markdownの表示に未対応の要素があります: {block.GetType().Name}");
+            default: throw new NotSupportedException(AppStrings.MarkdownView_Render_1(block.GetType().Name));
         }
     }
     private static Paragraph Paragraph(LeafBlock block)
@@ -108,10 +108,10 @@ public sealed class MarkdownView : RichTextBox
                 return span;
             case LinkInline link:
                 var content = Children(link);
-                if (link.IsImage) content.Inlines.Add(new Run("（画像）"));
+                if (link.IsImage) content.Inlines.Add(new Run(AppStrings.ForwardView_ForwardView_2));
                 return RenderLink(link.Url, content);
             case ContainerInline container: return Children(container);
-            default: throw new NotSupportedException($"Markdownの表示に未対応の要素があります: {inline.GetType().Name}");
+            default: throw new NotSupportedException(AppStrings.MarkdownView_Render_1(inline.GetType().Name));
         }
     }
     private static Span Children(ContainerInline container)
@@ -125,7 +125,7 @@ public sealed class MarkdownView : RichTextBox
         hyperlink.RequestNavigate += (_, args) =>
         {
             try { Process.Start(new ProcessStartInfo(args.Uri.AbsoluteUri) { UseShellExecute = true }); }
-            catch (Exception error) { MessageBox.Show("リンクを開けませんでした。" + error.Message, "BellTeam"); }
+            catch (Exception error) { MessageBox.Show(AppStrings.MarkdownView_RenderLink_1(error.Message), "BellTeam"); }
             args.Handled = true;
         };
         return hyperlink;

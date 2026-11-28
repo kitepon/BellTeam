@@ -28,8 +28,8 @@ public sealed partial class SettingsWindow
 
     private void OpenTerminalEditor()
     {
-        if (AvatarHost.Of(pane) is not { } host) { workspace.ReportActionError("この画面では開けません。"); return; }
+        if (AvatarHost.Of(pane) is not { } host) { workspace.ReportActionError(AppStrings.SettingsTerminals_OpenTerminalEditor_1); return; }
         var view = new TerminalEditorView(workspace, workspace.Terminals, null) { Closer = host.CloseSheet };
-        host.OpenSheet("端末を追加", view);
+        host.OpenSheet(AppStrings.App_xaml_OnStartup_17, view);
     }
 }

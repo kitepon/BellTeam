@@ -28,7 +28,7 @@ public sealed class AvatarTile : Border
         var key = entry?.AvatarUrl ?? entry?.Bot?.Avatar;
         if (shown is { } was && (entry is null || string.IsNullOrEmpty(key) || was.Target != entry.Target || was.Workspace != workspace)) { image.Source = null; shown = null; }
         ToolTip = null;
-        System.Windows.Automation.AutomationProperties.SetName(this, (entry?.Name ?? "") + "の写真");
+        System.Windows.Automation.AutomationProperties.SetName(this, AppStrings.AvatarTile_LoadAsync_1((entry?.Name ?? "")));
         label.Text = entry?.Target.IsRoom == true ? "" : entry?.Initial ?? ""; roomSymbol.Visibility = entry?.Target.IsRoom == true ? Visibility.Visible : Visibility.Collapsed;
         var accent = BellColors.Accent(entry?.Bot?.Color);
         Background = new LinearGradientBrush(Color.FromArgb(190, accent.R, accent.G, accent.B), accent, 45);
@@ -38,14 +38,14 @@ public sealed class AvatarTile : Border
             if (entry?.Bot?.Avatar is { Length: > 0 } inline)
             {
                 try { var bitmap = await ImageCodec.DecodeAsync(Convert.FromBase64String(inline[(inline.IndexOf(',') + 1)..])); if (Entry?.Bot?.Avatar == inline) { image.Source = bitmap; shown = (entry.Target, key, workspace); label.Text = ""; } }
-                catch (Exception error) { ToolTip = "画像を読み込めませんでした。" + error.Message; label.Text = "!"; }
+                catch (Exception error) { ToolTip = AppStrings.AvatarEditor_LoadAsync_2(error.Message); label.Text = "!"; }
             }
             return;
         }
         try { var bitmap = await workspace.AvatarAsync(url); if (Entry?.AvatarUrl == url && Workspace == workspace) { image.Source = bitmap; shown = (entry!.Target, key, workspace); label.Text = ""; roomSymbol.Visibility = Visibility.Collapsed; } }
         catch (Exception error)
         {
-            if (Entry?.AvatarUrl == url && Workspace == workspace) { label.Text = "!"; ToolTip = "画像を読み込めませんでした。" + error.Message; System.Windows.Automation.AutomationProperties.SetName(this, entry.Name + "の画像を読み込めませんでした。"); }
+            if (Entry?.AvatarUrl == url && Workspace == workspace) { label.Text = "!"; ToolTip = AppStrings.AvatarEditor_LoadAsync_2(error.Message); System.Windows.Automation.AutomationProperties.SetName(this, AppStrings.AvatarTile_LoadAsync_4(entry.Name)); }
         }
     }
     internal static Geometry CreateRoomSymbol()

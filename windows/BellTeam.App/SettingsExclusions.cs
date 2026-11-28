@@ -35,20 +35,20 @@ public sealed partial class SettingsWindow
             if (note is not null) area.Children.Add(Banner(note));
             if (exclusions is null)
             {
-                if (reading || failure is null && readError is null) { area.Children.Add(Loading("読み込んでいます…")); return; }
+                if (reading || failure is null && readError is null) { area.Children.Add(Loading(AppStrings.FeatureEditor_InitializeAsync_1)); return; }
                 if (failure == RunningExclusionsRead.OldServer) { area.Children.Add(Text(RunningExclusions.OldServer, 14, Secondary, null, new Thickness(4, 6, 0, 0))); return; }
             }
             if (readError is not null)
             {
-                var retry = Capsule("読み直す", Brushes.Transparent, Violet, 8, 13, new Thickness(0, 4, 0, 4)); retry.HorizontalAlignment = HorizontalAlignment.Left; retry.Click += (_, _) => _ = ReadAsync();
-                var failed = new StackPanel(); failed.Children.Add(Banner((exclusions is null ? "一覧を読み込めませんでした。" : "最新の一覧を読み込めませんでした。前に読んだ一覧を表示しています。") + "自動で読み直します。"));
+                var retry = Capsule(AppStrings.ApprovalsWindow_Toolbar_15, Brushes.Transparent, Violet, 8, 13, new Thickness(0, 4, 0, 4)); retry.HorizontalAlignment = HorizontalAlignment.Left; retry.Click += (_, _) => _ = ReadAsync();
+                var failed = new StackPanel(); failed.Children.Add(Banner(AppStrings.SettingsExclusions_ExclusionsPageAsync_5((exclusions is null ? AppStrings.SettingsExclusions_ExclusionsPageAsync_3 : AppStrings.SettingsExclusions_ExclusionsPageAsync_4))));
                 failed.Children.Add(Text(readError, 12, Secondary, null, new Thickness(0, 4, 0, 4))); failed.Children.Add(retry); area.Children.Add(failed);
             }
             if (exclusions is not { } list) return;
             var entries = RunningExclusions.Entries(list, MemberName); var pending = RunningExclusions.Pending(list, MemberName);
             if (entries.Count == 0 && pending.Count == 0) { area.Children.Add(FormSection(null, new GroupCard(Row(Text(RunningExclusions.Empty, 14, Secondary))))); return; }
-            if (entries.Count > 0) { var group = new GroupCard(); foreach (var row in entries) group.Add(Row(ExclusionRow(row, removing, id => _ = RemoveAsync(id, row.Summary)))); area.Children.Add(FormSection("数えない処理", group)); }
-            if (pending.Count > 0) { var group = new GroupCard(); foreach (var row in pending) group.Add(Row(ExclusionRow(row, null, null))); area.Children.Add(FormSection("承認を待っている提案", group, "承認箱で答えると一覧に反映します。")); }
+            if (entries.Count > 0) { var group = new GroupCard(); foreach (var row in entries) group.Add(Row(ExclusionRow(row, removing, id => _ = RemoveAsync(id, row.Summary)))); area.Children.Add(FormSection(AppStrings.SettingsExclusions_ExclusionsPageAsync_6, group)); }
+            if (pending.Count > 0) { var group = new GroupCard(); foreach (var row in pending) group.Add(Row(ExclusionRow(row, null, null))); area.Children.Add(FormSection(AppStrings.SettingsExclusions_ExclusionsPageAsync_7, group, AppStrings.SettingsExclusions_ExclusionsPageAsync_8)); }
         }
         // One read at a time: a read asked for while one runs is done once more after it; a waiting retry is cut short.
         async Task ReadAsync()
@@ -79,7 +79,8 @@ public sealed partial class SettingsWindow
         async Task RemoveAsync(string id, string summary)
         {
             if (removing is not null) return;
-            if (new ConfirmationWindow("稼働中に数えない処理", $"「{summary}」を一覧から外しますか？ 外すと、この処理が動いている席は仕事中に数えます。", "外す") { Owner = DialogOwner }.ShowDialog() != true) return;
+            var ask = new ConfirmationWindow(AppStrings.SettingsExclusions_ExclusionsPageAsync_1, AppStrings.SettingsExclusions_ExclusionsPageAsync_2(summary), AppStrings.ApprovalsWindow_LinkPanel_8) { Owner = DialogOwner };
+            if (ask.ShowDialog() != true) return;
             removing = id; note = null; Render();
             // Sent once; whatever the answer, the list is read again to show what the server holds.
             try { await workspace.Management.Api.RemoveAsync(id, token); }
@@ -97,14 +98,14 @@ public sealed partial class SettingsWindow
         var tile = Tile(row.Child ? "✦" : "", row.Child ? Color.FromRgb(0xAF, 0x52, 0xDE) : Color.FromRgb(0x8E, 0x8E, 0x93), 30, row.Child); tile.VerticalAlignment = VerticalAlignment.Top; grid.Children.Add(tile);
         var text = new StackPanel { Margin = new Thickness(12, 0, 8, 0) };
         text.Children.Add(Text(row.Summary, 14, Ink, FontWeights.SemiBold));
-        if (row.Scope.Length > 0) text.Children.Add(Text($"対象 {row.Scope}", 12, Secondary, null, new Thickness(0, 2, 0, 0)));
+        if (row.Scope.Length > 0) text.Children.Add(Text(AppStrings.SettingsExclusions_ExclusionRow_1(row.Scope), 12, Secondary, null, new Thickness(0, 2, 0, 0)));
         text.Children.Add(Text(row.When, 12, Secondary, null, new Thickness(0, 2, 0, 0)));
         if (row.Reason is { } reason) text.Children.Add(Text(reason, 12.5, Muted, null, new Thickness(0, 4, 0, 0)));
         Grid.SetColumn(text, 1); grid.Children.Add(text);
         if (row.Id is { } id && remove is not null)
         {
-            var button = Capsule(removing == id ? "外しています…" : "外す", Brushes.Transparent, Red, 8, 13, new Thickness(10, 4, 10, 4)); button.IsEnabled = removing is null; button.VerticalAlignment = VerticalAlignment.Center;
-            System.Windows.Automation.AutomationProperties.SetName(button, $"外す、{row.Summary}"); System.Windows.Automation.AutomationProperties.SetAutomationId(button, "exclusion-remove");
+            var button = Capsule(removing == id ? AppStrings.SettingsExclusions_ExclusionRow_2 : AppStrings.ApprovalsWindow_LinkPanel_8, Brushes.Transparent, Red, 8, 13, new Thickness(10, 4, 10, 4)); button.IsEnabled = removing is null; button.VerticalAlignment = VerticalAlignment.Center;
+            System.Windows.Automation.AutomationProperties.SetName(button, AppStrings.LatticeStopsView_RowElement_10(row.Summary)); System.Windows.Automation.AutomationProperties.SetAutomationId(button, "exclusion-remove");
             button.Click += (_, _) => remove(id); Grid.SetColumn(button, 2); grid.Children.Add(button);
         }
         System.Windows.Automation.AutomationProperties.SetName(grid, row.Label);

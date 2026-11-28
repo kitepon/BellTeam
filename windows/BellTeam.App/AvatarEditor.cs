@@ -25,7 +25,7 @@ internal static class AvatarHost
     public static async Task<BitmapSource> DecodeAsync(string dataUrl)
     {
         var comma = dataUrl.IndexOf(',');
-        if (comma < 0 || !dataUrl.StartsWith("data:image/", StringComparison.Ordinal)) throw new InvalidDataException("アバターの形式が一致しません。");
+        if (comma < 0 || !dataUrl.StartsWith("data:image/", StringComparison.Ordinal)) throw new InvalidDataException(AppStrings.AvatarEditor_DecodeAsync_1);
         return await ImageCodec.DecodeAsync(Convert.FromBase64String(dataUrl[(comma + 1)..]));
     }
 }
@@ -47,7 +47,7 @@ public sealed class AvatarPicker : StackPanel
     // Set only when the picker keeps the source and crop (a new member's 小画像): what the create sends beside the rendered image.
     public AvatarSelection? Selection { get; private set; }
     public event Action<AvatarCropOutcome>? Chosen;
-    public AvatarPicker(string value, Func<byte[], Task<BitmapSource>>? decode = null, string name = "B", string color = "violet", bool isRoom = false, bool quiet = false, string changeLabel = "写真を変更", bool keepSelection = false, AvatarVariant variant = AvatarVariant.Small)
+    public AvatarPicker(string value, Func<byte[], Task<BitmapSource>>? decode = null, string name = "B", string color = "violet", bool isRoom = false, bool quiet = false, string? changeLabel = null, bool keepSelection = false, AvatarVariant variant = AvatarVariant.Small)
     {
         var size = quiet ? 74 : 80; image.Width = image.Height = size;
         this.decode = decode ?? ImageCodec.DecodeAsync; this.variant = variant; this.keepSelection = keepSelection;
@@ -56,28 +56,28 @@ public sealed class AvatarPicker : StackPanel
             : new TextBlock { Text = name.Length == 0 ? "B" : System.Globalization.StringInfo.GetNextTextElement(name), FontSize = 34, FontWeight = FontWeights.Bold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
         var portrait = new Grid { Width = size, Height = size, Clip = new RectangleGeometry(new Rect(0, 0, size, size), size * .31, size * .31) }; portrait.Children.Add(placeholder); portrait.Children.Add(image);
         tile = new Border { Child = portrait, Background = new SolidColorBrush(BellColors.Accent(color)), CornerRadius = new CornerRadius(size * .31), HorizontalAlignment = HorizontalAlignment.Center }; Children.Add(tile); Children.Add(status);
-        var choose = new Button { Content = changeLabel, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 10, 0, 2) };
+        var choose = new Button { Content = changeLabel ?? AppStrings.AvatarEditor_AvatarPicker_1_2, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 10, 0, 2) };
         choose.Click += async (_, _) => await ChooseAsync();
         ChooseButton = choose;
         var hideEmpty = new Style(typeof(TextBlock)); hideEmpty.Triggers.Add(new Trigger { Property = TextBlock.TextProperty, Value = "", Setters = { new Setter(VisibilityProperty, Visibility.Collapsed) } }); status.Style = hideEmpty;
         choose.SetResourceReference(StyleProperty, "QuietButton"); choose.FontSize = 12; choose.Padding = new Thickness(6, 2, 6, 2); choose.Margin = new Thickness(0, 6, 0, 0); choose.FontWeight = FontWeights.Normal;
         Children.Add(choose);
         if (!quiet) { status.FontSize = 12; status.Foreground = Brushes.Firebrick; status.HorizontalAlignment = HorizontalAlignment.Center; return; }
-        var remove = new Button { Content = "写真を取り外す", HorizontalAlignment = HorizontalAlignment.Center, FontSize = 12 };
+        var remove = new Button { Content = AppStrings.AvatarEditor_AvatarPicker_1, HorizontalAlignment = HorizontalAlignment.Center, FontSize = 12 };
         remove.SetResourceReference(StyleProperty, "QuietButton");
-        remove.Click += (_, _) => { Value = ""; Selection = null; image.Source = null; placeholder.Visibility = Visibility.Visible; status.Text = "保存すると写真を取り外します。"; };
+        remove.Click += (_, _) => { Value = ""; Selection = null; image.Source = null; placeholder.Visibility = Visibility.Visible; status.Text = AppStrings.AvatarEditor_AvatarPicker_2; };
         remove.Padding = new Thickness(6, 1, 6, 1); remove.Margin = new Thickness(0, 0, 0, 2); remove.FontWeight = FontWeights.Normal; remove.Foreground = Brushes.SlateGray;
         Children.Add(remove);
     }
     private async Task ChooseAsync()
     {
-        var file = new OpenFileDialog { Filter = "画像|*.png;*.jpg;*.jpeg;*.webp;*.gif" };
+        var file = new OpenFileDialog { Filter = AppStrings.AvatarActions_ChangeAsync_1 };
         var host = AvatarHost.Of(this);
         if ((host?.OwnerWindow is { } owner ? file.ShowDialog(owner) : file.ShowDialog()) != true) return;
         try
         {
             var loaded = await ImageCodec.ReadAsync(file.FileName);
-            var outcome = await (host ?? throw new InvalidOperationException("画像の調整画面を開けません。")).CropAsync(loaded.Preview, variant, null, keepSelection);
+            var outcome = await (host ?? throw new InvalidOperationException(AppStrings.AvatarEditor_ChooseAsync_2)).CropAsync(loaded.Preview, variant, null, keepSelection);
             if (outcome is null) return;
             Value = outcome.DataUrl; Selection = outcome.Selection; await LoadAsync(); Chosen?.Invoke(outcome);
         }
@@ -97,11 +97,11 @@ public sealed class AvatarPicker : StackPanel
         if (requested.Length == 0) { image.Source = null; placeholder.Visibility = Visibility.Visible; return; }
         try
         {
-            var comma = requested.IndexOf(','); if (comma < 0 || !requested.StartsWith("data:image/", StringComparison.Ordinal)) throw new InvalidDataException("アバターの形式が一致しません。");
+            var comma = requested.IndexOf(','); if (comma < 0 || !requested.StartsWith("data:image/", StringComparison.Ordinal)) throw new InvalidDataException(AppStrings.AvatarEditor_DecodeAsync_1);
             var bitmap = await decode(Convert.FromBase64String(requested[(comma + 1)..]));
             if (Value == requested) { image.Source = bitmap; placeholder.Visibility = Visibility.Collapsed; status.Text = ""; }
         }
-        catch (Exception error) { if (Value == requested) status.Text = "画像を読み込めませんでした。" + error.Message; }
+        catch (Exception error) { if (Value == requested) status.Text = AppStrings.AvatarEditor_LoadAsync_2(error.Message); }
     }
 }
 
@@ -125,13 +125,13 @@ public sealed class AvatarCropView : Grid
         preview.Clip = new RectangleGeometry(new Rect(0, 0, 320, 320), 57.6, 57.6); preview.Children.Add(image); image.Source = original; preview.Cursor = Cursors.SizeAll;
         var muted = SettingsUi.Muted; var ink = SettingsUi.Ink;
         var column = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-        column.Children.Add(new TextBlock { Text = "画像をドラッグして、使いたい部分を枠に合わせてね。", FontSize = 13, Foreground = muted, TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 0, 0, 20) });
+        column.Children.Add(new TextBlock { Text = AppStrings.AvatarEditor_AvatarCropView_1, FontSize = 13, Foreground = muted, TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 0, 0, 20) });
         var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
         var clipped = new Border { Child = preview, Width = 320, Height = 320, CornerRadius = new CornerRadius(57.6) }; row.Children.Add(clipped);
         var controls = new StackPanel { Width = 240, Margin = new Thickness(28, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
-        controls.Children.Add(new TextBlock { Text = "拡大・縮小", FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = ink, Margin = new Thickness(0, 0, 0, 12) });
+        controls.Children.Add(new TextBlock { Text = AppStrings.AvatarEditor_AvatarCropView_2, FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = ink, Margin = new Thickness(0, 0, 0, 12) });
         var zoom = new Slider { Minimum = 1, Maximum = 3, Value = crop.Zoom }; zoom.SetResourceReference(StyleProperty, "MacSlider"); ZoomSlider = zoom;
-        System.Windows.Automation.AutomationProperties.SetName(zoom, "アバター画像の拡大・縮小"); System.Windows.Automation.AutomationProperties.SetName(preview, "アバター画像の切り抜き位置");
+        System.Windows.Automation.AutomationProperties.SetName(zoom, AppStrings.AvatarEditor_AvatarCropView_3); System.Windows.Automation.AutomationProperties.SetName(preview, AppStrings.AvatarEditor_AvatarCropView_4);
         zoom.ValueChanged += (_, args) => { crop.SetZoom(args.NewValue); Update(); }; controls.Children.Add(zoom); controls.Children.Add(error);
         row.Children.Add(controls); column.Children.Add(row); Children.Add(column);
         SetResourceReference(BackgroundProperty, "ConversationBackground");
@@ -144,10 +144,10 @@ public sealed class AvatarCropView : Grid
     public AvatarCropOutcome? TryUse()
     {
         string render;
-        try { render = Encode(original, crop); } catch (Exception) { error.Text = "写真を読み込めませんでした。"; return null; }
+        try { render = Encode(original, crop); } catch (Exception) { error.Text = AppStrings.AvatarEditor_TryUse_1; return null; }
         if (!wantsSelection) return new(render, null);
         var source = EncodeSource(original);
-        if (source is null) { error.Text = "元画像を保存できませんでした。別の画像を選んでください。"; return null; }
+        if (source is null) { error.Text = AppStrings.AvatarEditor_TryUse_2; return null; }
         return new(render, new AvatarSelection(render, source, crop.Rect));
     }
     public string ErrorText => error.Text;

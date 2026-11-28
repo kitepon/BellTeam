@@ -3,10 +3,13 @@
 file:linux/BellTeam.Linux/*Fixture.cs|fake-server sample data for the render hooks and tests
 file:linux/BellTeam.Linux/*Render.cs|screenshot render hooks (--render-*): sample content and CLI usage, not app UI
 file:linux/BellTeam.Linux/Launcher*.cs|command-line render hooks: usage text and the sample names they draw
+file:windows/BellTeam.App/*Fixture.cs|fake-server sample data for the --render-* hooks and tests
 linux/BellTeam.Linux/ApprovalsDetail.cs|https?://[^\s)）」』]+
 linux/BellTeam.Linux/ApprovalsHub.cs|今日
 linux/BellTeam.Linux/AvatarEditor.cs|写真を変更
 linux/BellTeam.Linux/MessageCard.cs|配達失敗
 linux/BellTeam.Linux/UpdateContent.cs|[a-f0-9]{40,64}|sha256:|\b(?:commit|schema|API|CLI)\b|開発者
+windows/BellTeam.App/MessageCard.cs|配達失敗
+windows/BellTeam.App/UpdateContent.cs|[a-f0-9]{40,64}|sha256:|\b(?:commit|schema|API|CLI)\b|開発者
 windows/BellTeam.Core/Approvals.cs|今日
 windows/BellTeam.Core/Workspace.cs|未設定
