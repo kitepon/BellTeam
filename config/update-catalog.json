@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-28T11:42:35Z",
-  "expiresAt": "2026-12-05T11:42:35Z",
+  "publishedAt": "2026-11-28T11:48:51Z",
+  "expiresAt": "2026-12-05T11:48:51Z",
   "releases": [
     {
       "componentId": "usage",
@@ -749,8 +749,8 @@
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "d9bf1255ffd585cc2fbecdb9e25e7e2ccae814f8",
-      "versionId": "6c3da8277ccf05863e78758060cf95bd114184cc89978f6e5147e4e2aa702a00",
+      "sourceCommit": "295ace145c570edf1540fe7fb320020f50586cf6",
+      "versionId": "38fe57eb6c3319ae65fb8b827aa1b647cb4e37190715a2b6c752f1e50f62e05f",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -758,16 +758,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T113556Z/lattice-d9bf1255ffd585cc2fbecdb9e25e7e2ccae814f8-linux-amd64.tar.gz",
-          "bytes": 15369721,
-          "sha256": "6c3da8277ccf05863e78758060cf95bd114184cc89978f6e5147e4e2aa702a00"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T114824Z/lattice-295ace145c570edf1540fe7fb320020f50586cf6-linux-amd64.tar.gz",
+          "bytes": 15369709,
+          "sha256": "38fe57eb6c3319ae65fb8b827aa1b647cb4e37190715a2b6c752f1e50f62e05f"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T113556Z/lattice-d9bf1255ffd585cc2fbecdb9e25e7e2ccae814f8-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10855,
-          "sha256": "174d9c9f15371b03070bc4eeaf27f51ce4de3b193aaca548d77cbc360a213b86"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T114824Z/lattice-295ace145c570edf1540fe7fb320020f50586cf6-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11125,
+          "sha256": "5b48926fb19096b4841deffabe5b9964e4b9286c1019326f10e56e80125a844c"
         },
-        "signerCommit": "d9bf1255ffd585cc2fbecdb9e25e7e2ccae814f8"
+        "signerCommit": "295ace145c570edf1540fe7fb320020f50586cf6"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -779,13 +779,13 @@
         }
       },
       "changes": [
-        "工程表の毎分の見回りが、Claude の席の起動数に上限（既定 5）を設けられるようになります。"
+        "工程表の毎分の見回りが、Claude の席の起動数に上限（既定 5）を設け、変化のないカードを 1・5・15 分と間隔を空けて見るようになります。見回りの文面も短くなります。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "d9bf1255ffd585cc2fbecdb9e25e7e2ccae814f8",
-      "versionId": "b60c961994d0d0bba408c448f888bf8d16767fff477a206339754cce76f7ea57",
+      "sourceCommit": "295ace145c570edf1540fe7fb320020f50586cf6",
+      "versionId": "aa38f94ac78caf1cf738e8777131957dacd0a76135e5900252c75d01d6f16696",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -793,16 +793,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T113556Z/lattice-d9bf1255ffd585cc2fbecdb9e25e7e2ccae814f8-linux-arm64.tar.gz",
-          "bytes": 15369721,
-          "sha256": "b60c961994d0d0bba408c448f888bf8d16767fff477a206339754cce76f7ea57"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T114824Z/lattice-295ace145c570edf1540fe7fb320020f50586cf6-linux-arm64.tar.gz",
+          "bytes": 15369709,
+          "sha256": "aa38f94ac78caf1cf738e8777131957dacd0a76135e5900252c75d01d6f16696"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T113556Z/lattice-d9bf1255ffd585cc2fbecdb9e25e7e2ccae814f8-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10855,
-          "sha256": "f7120df8d09f8e0d885efd8848310c3e7240a5220a899e5994ece092ce848db0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T114824Z/lattice-295ace145c570edf1540fe7fb320020f50586cf6-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10839,
+          "sha256": "fdc02ae0323c36418a4645f85d23ea7c45cea03b5908891988af58ef8481a5d7"
         },
-        "signerCommit": "d9bf1255ffd585cc2fbecdb9e25e7e2ccae814f8"
+        "signerCommit": "295ace145c570edf1540fe7fb320020f50586cf6"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -814,7 +814,7 @@
         }
       },
       "changes": [
-        "工程表の毎分の見回りが、Claude の席の起動数に上限（既定 5）を設けられるようになります。"
+        "工程表の毎分の見回りが、Claude の席の起動数に上限（既定 5）を設け、変化のないカードを 1・5・15 分と間隔を空けて見るようになります。見回りの文面も短くなります。"
       ]
     },
     {
