@@ -120,3 +120,21 @@ test('caller sockets: an ordinary caller is 0666 in a 0755 folder; a restricted 
     assert.equal(JSON.parse(answer).outcome, 'granted'); assert.equal(frames[0].via, 'caller-socket'); assert.equal(frames[0].unit, join(share, 'callers', 'bellteam-push', 'bellteam-push.sock'))
   } finally { relay.kill('SIGTERM'); body.close() }
 })
+
+test('relay: unfinished request lines are capped in memory; beyond the cap a caller gets busy (and can retry), a finished line frees its share', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'relay-')), bodyPath = join(dir, 'body.sock')
+  const body = createServer(c => { let buf = ''; c.on('data', d => { buf += d; if (buf.includes('\n')) c.end(JSON.stringify({ outcome: 'granted' }) + '\n') }) })
+  await new Promise(r => body.listen(bodyPath, r))
+  const relay = spawn(RELAY, [], { env: { ...process.env, AUTH_RELAY_DIR: join(dir, 'share'), AUTH_RELAY_BODY: bodyPath, AUTH_RELAY_SEAT_UID: String(process.getuid()), AUTH_RELAY_MAX_PENDING: '200000' } })
+  const holders = []
+  try {
+    await new Promise(resolve => relay.stdout.once('data', resolve))
+    const open = () => new Promise(resolve => { const c = connect(join(dir, 'share', 'container.sock')); c.on('connect', () => { c.write('x'.repeat(150000)); setTimeout(() => resolve(c), 150) }); c.on('error', () => {}) })
+    holders.push(await open()) // 150000 unfinished
+    const second = await open(); holders.push(second); let answer = ''; second.on('data', d => { answer += d }); await new Promise(r => setTimeout(r, 300))
+    assert.match(answer, /busy/u) // 300000 > 200000
+    holders[0].destroy(); await new Promise(r => setTimeout(r, 300)) // the share is freed
+    const ok = await new Promise((resolve, reject) => { const c = connect(join(dir, 'share', 'container.sock')); let out = ''; c.on('connect', () => c.write(line({ op: 'exec', command: ['a'], cwd: '/' }))); c.on('data', d => { out += d }); c.on('end', () => resolve(out)); c.on('error', reject) })
+    assert.equal(JSON.parse(ok).outcome, 'granted')
+  } finally { holders.forEach(c => c.destroy()); relay.kill('SIGTERM'); body.close() }
+})

@@ -16,17 +16,50 @@ CALLERS = ("mmobank", "auctionbot", "reminderbot", "reminderbot-public", "yuihom
 RESTRICTED = {"bellteam-push": 0o660}
 
 
-def read_line(conn, limit, seconds):
+# A client line can be 13 MiB and every connection has its own thread: what clients hold in memory at one moment is capped (64 MiB of unfinished request lines) and so are the open run streams (8).
+# Beyond it the caller gets "busy" and may retry; nothing is lost or half done. Stops many slow big lines from filling the relay's memory.
+MAX_PENDING_BYTES, MAX_STREAMS = int(os.environ.get("AUTH_RELAY_MAX_PENDING", 64 << 20)), 8
+pending, pending_lock, streams = 0, threading.Lock(), threading.BoundedSemaphore(MAX_STREAMS)
+
+
+class Busy(Exception):
+    pass
+
+
+def read_line(conn, limit, seconds, charge=False):
+    global pending
     conn.settimeout(seconds)
-    data = b""
-    while b"\n" not in data:
-        chunk = conn.recv(65536)
-        if not chunk:
-            raise ValueError("closed")
-        data += chunk
-        if len(data) > limit:
-            raise ValueError("too long")
-    return data.split(b"\n", 1)[0]
+    data, held = b"", 0
+    try:
+        while b"\n" not in data:
+            chunk = conn.recv(65536)
+            if not chunk:
+                raise ValueError("closed")
+            data += chunk
+            if len(data) > limit:
+                raise ValueError("too long")
+            if charge:
+                with pending_lock:
+                    if pending + len(chunk) > MAX_PENDING_BYTES:
+                        raise Busy()
+                    pending += len(chunk)
+                held += len(chunk)
+        return data.split(b"\n", 1)[0]
+    finally:
+        if held:
+            with pending_lock:
+                pending -= held
+
+
+def drain(conn):
+    try:
+        conn.shutdown(socket.SHUT_WR)
+        conn.settimeout(1)
+        for _ in range(64):
+            if not conn.recv(65536):
+                break
+    except OSError:
+        pass
 
 
 def reply(conn, obj):
@@ -93,9 +126,13 @@ def open_run_listener():
 def handle(conn, via, unit=None):
     with conn:
         try:
-            request = json.loads(read_line(conn, MAX_REQUEST, READ_SECONDS))
+            request = json.loads(read_line(conn, MAX_REQUEST, READ_SECONDS, charge=True))
             if not isinstance(request, dict):
                 raise ValueError("not an object")
+        except Busy:
+            reply(conn, {"outcome": "error", "error": "The module is busy; try again."})
+            drain(conn)  # read and drop what the client still sends, so closing does not reset the connection before it reads the answer
+            return
         except (ValueError, OSError):
             return reply(conn, {"outcome": "error", "error": "Bad request."})
         peer = None
@@ -110,6 +147,7 @@ def handle(conn, via, unit=None):
             if request.get("op") == "admin":
                 peer["program"] = program_of(pid)
         listener = path = None
+        held_stream = False
         try:
             body = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             body.settimeout(BODY_SECONDS)
@@ -119,6 +157,9 @@ def handle(conn, via, unit=None):
                 if unit:
                     frame["unit"] = unit  # the caller socket's own path: its identity
                 if request.get("op") == "run":
+                    if not streams.acquire(blocking=False):
+                        return reply(conn, {"outcome": "error", "error": "The module is busy; try again."})
+                    held_stream = True
                     listener, path = open_run_listener()  # the module child joins this socket; the client's line cannot name it
                     frame["stream"] = path
                 body.sendall(json.dumps(frame).encode() + b"\n")
@@ -136,6 +177,8 @@ def handle(conn, via, unit=None):
         except (OSError, ValueError):
             reply(conn, {"outcome": "error", "error": "The authentication module is not running."})
         finally:
+            if held_stream:
+                streams.release()
             if listener:
                 listener.close()
                 try:
