@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-28T01:40:36Z",
-  "expiresAt": "2026-12-05T01:40:36Z",
+  "publishedAt": "2026-11-28T02:09:32Z",
+  "expiresAt": "2026-12-05T02:09:32Z",
   "releases": [
     {
       "componentId": "usage",
@@ -821,8 +821,8 @@
     },
     {
       "componentId": "approval-box-extension",
-      "sourceCommit": "7f1fdbf16a3e6019bf7c5a110b00d7095f5c6d33",
-      "versionId": "6b24fa722a3fbcbeae76c0eec68e7a6df0920ed7c1eb440563bce278a0392972",
+      "sourceCommit": "bda8b38d1f045148609ed9b548532f1ed8687087",
+      "versionId": "7578bdcc2c145ff91ee710e0b4f3a5f5e018b9b419c6c06cefe8e61337b43c73",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -830,16 +830,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T013257Z/approval-box-extension-7f1fdbf16a3e6019bf7c5a110b00d7095f5c6d33-linux-amd64.tar.gz",
-          "bytes": 3719023,
-          "sha256": "6b24fa722a3fbcbeae76c0eec68e7a6df0920ed7c1eb440563bce278a0392972"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T020904Z/approval-box-extension-bda8b38d1f045148609ed9b548532f1ed8687087-linux-amd64.tar.gz",
+          "bytes": 3716960,
+          "sha256": "7578bdcc2c145ff91ee710e0b4f3a5f5e018b9b419c6c06cefe8e61337b43c73"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T013257Z/approval-box-extension-7f1fdbf16a3e6019bf7c5a110b00d7095f5c6d33-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11139,
-          "sha256": "15452a76539ab5fb088a6fc21faed9f14eafc6f7ebe50975cbc560e5b7d161ee"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T020904Z/approval-box-extension-bda8b38d1f045148609ed9b548532f1ed8687087-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11284,
+          "sha256": "b2697c623a7185a6ae5a448171d3fa43e7e62c80b523fcf51fa7a255b5e2b0fd"
         },
-        "signerCommit": "7f1fdbf16a3e6019bf7c5a110b00d7095f5c6d33"
+        "signerCommit": "bda8b38d1f045148609ed9b548532f1ed8687087"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -851,13 +851,13 @@
         }
       },
       "changes": [
-        "旦那の持ち場の工程を決裁箱へ申請として出す処理（走査は60秒ごとに3件）が加わります。"
+        "旦那の持ち場の工程の自動の申請を止めます。先に出した申請は、「作り直します」の理由で取り消されます。"
       ]
     },
     {
       "componentId": "approval-box-extension",
-      "sourceCommit": "7f1fdbf16a3e6019bf7c5a110b00d7095f5c6d33",
-      "versionId": "4e6fe35a63504f9938da8b57929519ff4498bbc5602f6031f06406b53e8dcb95",
+      "sourceCommit": "bda8b38d1f045148609ed9b548532f1ed8687087",
+      "versionId": "7a577522916c45e2a94fd28cd8b5deebb243f8e8476d48d143bace197a5e116e",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -865,16 +865,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T013257Z/approval-box-extension-7f1fdbf16a3e6019bf7c5a110b00d7095f5c6d33-linux-arm64.tar.gz",
-          "bytes": 3719023,
-          "sha256": "4e6fe35a63504f9938da8b57929519ff4498bbc5602f6031f06406b53e8dcb95"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T020904Z/approval-box-extension-bda8b38d1f045148609ed9b548532f1ed8687087-linux-arm64.tar.gz",
+          "bytes": 3716960,
+          "sha256": "7a577522916c45e2a94fd28cd8b5deebb243f8e8476d48d143bace197a5e116e"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T013257Z/approval-box-extension-7f1fdbf16a3e6019bf7c5a110b00d7095f5c6d33-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11186,
-          "sha256": "f04b624f65d5a57c00712a98a295c4ee454465eef7e6bec62e5c02c2064eb3c0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T020904Z/approval-box-extension-bda8b38d1f045148609ed9b548532f1ed8687087-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11280,
+          "sha256": "33a7c79276754413d851cb7733fbccb841d361456d3abec2f9c0a89e330ba0db"
         },
-        "signerCommit": "7f1fdbf16a3e6019bf7c5a110b00d7095f5c6d33"
+        "signerCommit": "bda8b38d1f045148609ed9b548532f1ed8687087"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -886,7 +886,7 @@
         }
       },
       "changes": [
-        "旦那の持ち場の工程を決裁箱へ申請として出す処理（走査は60秒ごとに3件）が加わります。"
+        "旦那の持ち場の工程の自動の申請を止めます。先に出した申請は、「作り直します」の理由で取り消されます。"
       ]
     },
     {
