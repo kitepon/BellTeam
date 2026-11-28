@@ -264,3 +264,24 @@ test('http aws-sigv4 for multipart R2: the query (?uploads, ?partNumber=&uploadI
   assert.equal(sent.headers['x-amz-content-sha256'], createHash('sha256').update(body).digest('hex')); assert.ok(Buffer.from(sent.body).equals(body))
   assert.equal(put.headers['content-range'], 'bytes 0-0/10'); assert.equal(put.headers['accept-ranges'], 'bytes'); assert.equal(put.status, 206)
 })
+
+test('http proxy: the module tunnels to the origin through the item\'s proxy (CONNECT with the proxy login, TLS to the origin), picks the discovered *.nordvpn.com host else the fixed one, GET only, the proxy login never shows', async () => {
+  const { execFileSync } = await import('node:child_process'); const { mkdtemp, readFile } = await import('node:fs/promises'); const { tmpdir } = await import('node:os'); const { join } = await import('node:path')
+  const { createServer: tlsServer } = await import('node:https'); const { createServer: httpServer } = await import('node:http'); const net = await import('node:net'); const { callHttp } = await import('../src/auth-mediation/http.mjs')
+  const dir = await mkdtemp(join(tmpdir(), 'px-')); execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', join(dir, 'k.pem'), '-out', join(dir, 'c.pem'), '-days', '2', '-subj', '/CN=origin.example.com', '-addext', 'subjectAltName=DNS:origin.example.com'], { stdio: 'ignore' })
+  const cert = await readFile(join(dir, 'c.pem')), key = await readFile(join(dir, 'k.pem')), seen = []
+  const origin = tlsServer({ cert, key }, (req, res) => { seen.push(req.method + ' ' + req.url + ' ' + (req.headers['proxy-authorization'] ?? '-')); res.setHeader('x-ratelimit-remaining', '3'); res.end('korea ' + 'pw-proxy-secret') }); await new Promise(r => origin.listen(0, r))
+  const proxy = httpServer(); proxy.on('connect', (req, socket) => { seen.push('CONNECT ' + req.url + ' ' + req.headers['proxy-authorization']); const up = net.connect(origin.address().port, '127.0.0.1', () => { socket.write('HTTP/1.1 200 OK\r\n\r\n'); up.pipe(socket); socket.pipe(up); socket.on('close', () => up.destroy()); up.on('close', () => socket.destroy()) }) }); await new Promise(r => proxy.listen(0, r))
+  const fields = { http_base: 'https://origin.example.com:' + origin.address().port + '/api', http_auth: 'header:x-none', http_secret: 'unused-secret-1', http_methods: 'GET POST', http_proxy_host: '127.0.0.1', http_proxy_port: String(proxy.address().port), http_proxy_user: 'nord-user', http_proxy_password: 'pw-proxy-secret' }
+  try {
+    const r = await callHttp(fields, { method: 'GET', path: '/api/items?x=1' }, async () => { throw new Error('no direct call') }, null, { tls: { ca: cert } })
+    assert.equal(r.status, 200); assert.equal(Buffer.from(r.body, 'base64').toString(), 'korea [redacted]'); assert.equal(r.headers['x-ratelimit-remaining'], '3')
+    assert.equal(seen[0], 'CONNECT origin.example.com:' + origin.address().port + ' Basic ' + Buffer.from('nord-user:pw-proxy-secret').toString('base64')); assert.equal(seen[1], 'GET /api/items?x=1 -')
+    await assert.rejects(callHttp(fields, { method: 'POST', path: '/api/x' }, fetch, null, { tls: { ca: cert } }), /GET only/u)
+    // discovery: a host outside nordvpn.com is never taken, the fixed host stays
+    const discovered = []; const viaApi = { ...fields, http_proxy_discover: 'https://api.example.com/servers' }
+    const fake = async url => { discovered.push(String(url)); return new Response(JSON.stringify([{ hostname: 'evil.example.org' }])) }
+    await callHttp(viaApi, { method: 'GET', path: '/api/items' }, async (u, o) => String(u).includes('/servers') ? fake(u) : (() => { throw new Error('direct') })(), null, { tls: { ca: cert } })
+    assert.equal(discovered.length, 1); assert.equal(seen.filter(l => l.startsWith('CONNECT')).length, 2) // still the fixed 127.0.0.1 proxy
+  } finally { proxy.closeAllConnections(); origin.closeAllConnections(); proxy.close(); origin.close() }
+})

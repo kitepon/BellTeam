@@ -2,6 +2,10 @@
 // (written by Sakura in 1Password), never from the caller. Item fields are lower-case on purpose: the exec transports only return upper-case labels, so none of them ever leaves.
 import { createHash, createHmac, randomUUID, sign as cryptoSign } from 'node:crypto'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { request as httpRequest } from 'node:http'
+import { Agent as HttpsAgent, request as httpsRequest } from 'node:https'
+import { connect as tlsConnect } from 'node:tls'
+import { Readable } from 'node:stream'
 import { dirname } from 'node:path'
 const METHODS = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE']
 const SAFE_REQUEST_HEADER = /^(?:accept|accept-language|content-type|idempotency-key|if-match|if-none-match|if-modified-since|user-agent|stripe-version|x-request-id|x-correlation-id)$/u
@@ -69,6 +73,40 @@ export function sigv4({ method, url, headers, body, accessKey, secret, region, s
   const key = hmac(hmac(hmac(hmac('AWS4' + secret, day), region), service), 'aws4_request')
   const signature = createHmac('sha256', key).update(['AWS4-HMAC-SHA256', stamp, scope, sha256(canonical)].join('\n')).digest('hex')
   return { ...signed, authorization: `AWS4-HMAC-SHA256 Credential=${accessKey}/${scope}, SignedHeaders=${names.join(';')}, Signature=${signature}` }
+}
+
+// Through a proxy (NordVPN Seoul for a Korean-only site): the module opens an HTTP CONNECT tunnel to the proxy with the item's proxy login, speaks TLS to the ORIGIN through it (the proxy never sees the
+// request) and only then sends the request. The proxy host may be found at request time by asking a discovery URL (https, from the item) for the least loaded server; only a *.nordvpn.com
+// name is taken from the answer, so the proxy login can never be sent to a host the answer invented. Item fields: http_proxy_host (fixed or fallback), http_proxy_port (default 89),
+// http_proxy_user, http_proxy_password, optional http_proxy_discover.
+const NORD_HOST = /^[a-z0-9-]+(?:\.[a-z0-9-]+)*\.nordvpn\.com$/u
+async function proxyChoice(fields, fetchImpl) {
+  let host = fields.http_proxy_host
+  if (fields.http_proxy_discover) {
+    try {
+      if (new URL(fields.http_proxy_discover).protocol !== 'https:') throw new Error('plain')
+      const list = await (await fetchImpl(fields.http_proxy_discover, { redirect: 'manual', signal: AbortSignal.timeout(10000) })).json()
+      if (typeof list?.[0]?.hostname === 'string' && NORD_HOST.test(list[0].hostname)) host = list[0].hostname
+    } catch {} // the fixed host is the fallback
+  }
+  const port = Number(fields.http_proxy_port ?? 89)
+  if (!host || !fields.http_proxy_user || !fields.http_proxy_password || !Number.isInteger(port) || port < 1 || port > 65535 || !/^[A-Za-z0-9.-]{1,253}$/u.test(host)) throw refuse('The key item has no usable proxy.')
+  return { host, port, auth: 'Basic ' + Buffer.from(fields.http_proxy_user + ':' + fields.http_proxy_password).toString('base64') }
+}
+export function proxiedFetch(proxy, tlsOptions = {}) {
+  return (url, options) => new Promise((resolve, reject) => {
+    url = new URL(url); const fail = error => reject(error instanceof Error ? error : new Error('proxy'))
+    const connectRequest = httpRequest({ host: proxy.host, port: proxy.port, method: 'CONNECT', path: `${url.hostname}:${url.port || 443}`, headers: { host: `${url.hostname}:${url.port || 443}`, 'proxy-authorization': proxy.auth }, signal: options.signal })
+    connectRequest.on('connect', (answer, socket) => {
+      if (answer.statusCode !== 200) { socket.destroy(); return fail() }
+      const secure = tlsConnect({ socket, servername: url.hostname, ...tlsOptions })
+      const agent = new HttpsAgent({ keepAlive: false }); agent.createConnection = () => secure // the tunnel is this request's only connection
+      const request = httpsRequest({ method: options.method, path: url.pathname + url.search, headers: { host: url.host, ...options.headers }, agent, signal: options.signal })
+      request.on('response', response => resolve(new Response([204, 205, 304].includes(response.statusCode) ? null : Readable.toWeb(response), { status: response.statusCode, headers: response.headers })))
+      request.on('error', fail); request.end(options.body)
+    })
+    connectRequest.on('error', fail); connectRequest.end()
+  })
 }
 
 // ES256 JWT for the item's key (Apple, Google service accounts): signed here, sent as a bearer, never shown.
@@ -151,7 +189,7 @@ const scrubText = (text, secret) => secret.length < 6 ? text : [secret, Buffer.f
 const scrubAll = (text, secrets) => secrets.reduce((out, s) => scrubText(out, s), text)
 const scrub = (buffer, secrets) => Buffer.from(scrubAll(buffer.toString('latin1'), secrets), 'latin1')
 
-export async function callHttp(fields, request, fetchImpl = fetch, rotation = null) {
+export async function callHttp(fields, request, fetchImpl = fetch, rotation = null, proxyDeps = {}) {
   if (fields.http_rotate_path !== undefined) {
     if (!rotation || !/^\/[^\s#?\\]*$/u.test(fields.http_rotate_path)) throw refuse('The key item cannot be refreshed here.')
     let basePath; try { basePath = new URL(fields.http_base).pathname } catch { throw refuse('The key item has no usable base URL.') }
@@ -159,6 +197,12 @@ export async function callHttp(fields, request, fetchImpl = fetch, rotation = nu
     fields = { ...fields, http_secret: await rotated(fields, rotation.item, rotation.state, fetchImpl, rotation.audit) }
   }
   const url = target(fields, request)
+  let proxySecrets = []
+  if (fields.http_proxy_host || fields.http_proxy_discover) {
+    if (request.method !== 'GET') throw refuse('A proxied key allows GET only.')
+    const proxy = await proxyChoice(fields, fetchImpl); proxySecrets = [fields.http_proxy_password, fields.http_proxy_user]
+    fetchImpl = proxiedFetch(proxy, proxyDeps.tls)
+  }
   const headers = {}
   const allowed = (fields.http_allow_headers ?? '').split(',').map(h => h.trim().toLowerCase()).filter(h => /^[a-z0-9-]{1,64}$/u.test(h) && h !== 'authorization' && h !== 'host' && h !== 'content-length') // item-listed extra caller headers
   for (const [name, value] of Object.entries(request.headers ?? {})) if ((SAFE_REQUEST_HEADER.test(name.toLowerCase()) || allowed.includes(name.toLowerCase())) && typeof value === 'string') headers[name.toLowerCase()] = value
@@ -168,13 +212,13 @@ export async function callHttp(fields, request, fetchImpl = fetch, rotation = nu
     // the caller's own short-lived token, only on the listed paths; the module adds nothing
     const own = Object.entries(request.headers ?? {}).find(([name]) => name.toLowerCase() === 'authorization')?.[1]
     if (typeof own !== 'string' || !/^[\x21-\x7e ]{1,2048}$/u.test(own)) throw refuse('This path needs your own Authorization header.')
-    headers.authorization = own; secrets = [own.replace(/^\S+ /u, '')]
+    headers.authorization = own; secrets = [own.replace(/^\S+ /u, ''), ...proxySecrets]
   } else {
     if (/^query:/u.test(fields.http_auth ?? '')) url.searchParams.delete(fields.http_auth.slice(6))
     let added
     if (fields.http_auth === 'oauth2-password') { oauth = await bearerFor(fields, fetchImpl, false); headers.authorization = 'Bearer ' + oauth.token; added = { secrets: oauth.secrets } }
     else added = addCredential(fields, url, headers, request) // after the caller's headers, so it always wins
-    secrets = added.secrets
+    secrets = [...added.secrets, ...proxySecrets]
     if (request.path === '/') { const b = new URL(fields.http_base); if (b.pathname !== '/') secrets = [...secrets, ...b.pathname.split('/').filter(p => p.length >= 16)] } // an exact-base answer must not echo the secret part of the URL
     if (added.form) {
       // OAuth-style token exchange: the module appends its fields to the caller's urlencoded body (never to another content type)
@@ -213,7 +257,7 @@ export async function callHttp(fields, request, fetchImpl = fetch, rotation = nu
   let response = await send(), got = await read(response)
   // The token is invalid when the server says 401, or 200 with result.statusCode 210 (JPO): fetch a new one and repeat the request once; the second answer is returned as it is.
   if (oauth && (response.status === 401 || (response.status === 200 && !got.truncated && /json/iu.test(response.headers.get('content-type') ?? '') && invalidTokenBody(got.buffer)))) {
-    oauth.drop(); oauth = await bearerFor(fields, fetchImpl, true); headers.authorization = 'Bearer ' + oauth.token; secrets = oauth.secrets
+    oauth.drop(); oauth = await bearerFor(fields, fetchImpl, true); headers.authorization = 'Bearer ' + oauth.token; secrets = [...oauth.secrets, ...proxySecrets]
     response = await send(); got = await read(response)
   }
   const shown = Object.fromEntries([...response.headers].filter(([name]) => SHOWN_RESPONSE_HEADERS.includes(name) || SHOWN_RATE_HEADER.test(name)).map(([name, value]) => [name, scrubAll(value, secrets)]))
