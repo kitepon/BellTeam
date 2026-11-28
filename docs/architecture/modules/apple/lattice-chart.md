@@ -154,7 +154,7 @@ screen-specの表をそのまま描く。図がある間は消さない（帯と
 
 ## 試験
 
-- `BellBotTests/LatticeChartTests.swift`：ツリーの配置（a98の後はLatticeStructure。上の「ツリー」の試験の行）・archived（描かない）・過去ログの日ごとの並び・閉じたツリーの数と頁の合流・頁の追記・失敗・旧本体の404（a457）・数（`counted`の札だけ、完了は完了＋取り下げ。a96）・レーンの順・列・接続の行（種類ごとの文・古い順・他の工程表の穴埋め・旧本体）と前工程の札の文・詳細（次の工程の札が渡された幅を超えない＝testFlowLayoutKeepsLongChipsInsideTheProposedWidth。a110）・帯・粒・札の置き場所・時刻・新しい完了・一覧の読み取り・止め一覧の行（並び・時刻・担当の決まり・読み上げ）と外すの答え・詳細の決裁（指揮官の札だけ聞く・状態の語・形違いは出さない。testDecisionAskedOnlyForOwnerCardsAndOnlyKnownShapesShow）。
+- `BellBotTests/LatticeChartTests.swift`：ツリーの配置（a98の後はLatticeStructure。上の「ツリー」の試験の行）・archived（描かない）・過去ログの日ごとの並び・閉じたツリーの数と頁の合流・頁の追記・失敗・旧本体の404（a457）・数（`counted`の札だけ、完了は完了＋取り下げ。a96）・レーンの順・列・詳細の次の工程にカードの`waiters`（別の工程表の待ち手。古い順、取り下げは出さない、押すとその工程表のその札。線・チップ・数には出さない）・接続の行（種類ごとの文・古い順・他の工程表の穴埋め・旧本体）と前工程の札の文・詳細（次の工程の札が渡された幅を超えない＝testFlowLayoutKeepsLongChipsInsideTheProposedWidth。a110）・帯・粒・札の置き場所・時刻・新しい完了・一覧の読み取り・止め一覧の行（並び・時刻・担当の決まり・読み上げ）と外すの答え・詳細の決裁（指揮官の札だけ聞く・状態の語・形違いは出さない。testDecisionAskedOnlyForOwnerCardsAndOnlyKnownShapesShow）。
 - `BellBotUITests/LatticeChartUITests.swift`（iPhone実機、`test/helpers/lattice-ui-server.mjs`＝`BELLTEAM_LATTICE_FIXTURE_URL`）：一覧・工程表・接続・詳細のライト/ダークの写真と、未検証・最後に確認できた状態・名簿にない担当・再接続・読めない工程表。
 - Chart settings UI tests use the same fixture to verify the saved switch, readback after an uncertain write, and the two distinct 404 responses.
 - `BellBotUITests/LatticeTabletUITests.swift`（iPad実機、同じfixture）：縦・横で、工程表（ツリー・担当・過去ログ）を開いたままサイドバーの予定・メンバー・相関図が本物のタッチで効くこと、接続が既定で畳まれ、開いて畳めること。

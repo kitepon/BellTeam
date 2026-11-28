@@ -38,6 +38,8 @@ struct LatticeCard: Decodable, Equatable, Identifiable {
     var counted: Bool?
     /// The card's 接続 (a161): 他条件に接続 and 優先接続, never lines. Missing on an older server = none.
     var connections: [LatticeConnection]?
+    /// Tasks of other charts that wait on this card through a 他条件に接続 (2026-11-28; ref = an `externals[]` id). Missing = none.
+    var waiters: [LatticeWaiter]?
 
     var status: LatticeTaskState { LatticeTaskState(state) }
     /// Open entries only (a settled one is gone; an entry without `state` is open).
@@ -102,6 +104,13 @@ struct LatticeConnection: Decodable, Equatable {
     var reason: String?
     var since: String?
     var agent: String?
+}
+
+/// One waiter of a card (README `cards[].waiters`): a task of another chart that waits on it. Shown only in 詳細, never a line or a chip.
+struct LatticeWaiter: Decodable, Equatable {
+    let ref: String
+    var reason: String?
+    var since: String?
 }
 
 /// The other chart's facts for an open `task` connection (README `externals[]`); every fact may be missing (read it as 読めていません).
@@ -703,7 +712,24 @@ struct LatticeDetail: Equatable {
     let stateText: String
     let previous: [Link]
     let next: [Link]
+    /// Tasks of other charts that wait on this card, after `next` in 次の工程, oldest `since` first (screen-spec 詳細: 次の工程 and the waiters).
+    let waiters: [Waiter]
     let startedText: String
+
+    struct Waiter: Equatable, Identifiable {
+        let id: String
+        let title: String
+        let chart: String
+        let producer: LatticePerson?
+        let status: LatticeTaskState?
+        let stateText: String
+        let reason: String
+        /// Where a tap goes: that chart at that card; nil when the ref names no card.
+        let projectId: String?
+        let cardId: String?
+
+        var accessibilityLabel: String { String(localized: "次の工程：「\(title)」（\(chart)）、\(stateText)") }
+    }
 
     init?(_ snapshot: LatticeChartSnapshot, cardId: String, now: Date) {
         let cards = Dictionary(snapshot.cardList.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
@@ -721,6 +747,23 @@ struct LatticeDetail: Equatable {
         previous = snapshot.edgeList.filter { $0.to == cardId }.compactMap { link($0.from) }
         // A retired successor is not a live next step (Owner 2026-11-16, a185; Web does the same); 前の工程 keeps every card.
         next = snapshot.edgeList.filter { $0.from == cardId }.compactMap { link($0.to) }.filter { $0.status != .retired }
+        let externals = Dictionary(snapshot.externalList.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        // A retired waiter is not sent (a185); dropped here too. Not an edge: nothing is drawn on the chart.
+        let ordered = (card.waiters ?? []).sorted { a, b in
+            let x = LatticeTime.date(a.since)?.timeIntervalSince1970 ?? .infinity, y = LatticeTime.date(b.since)?.timeIntervalSince1970 ?? .infinity
+            return x != y ? x < y : a.ref < b.ref
+        }
+        waiters = ordered.compactMap { waiter in
+            let parts = waiter.ref.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+            let ext = externals[waiter.ref] ?? LatticeExternal(id: waiter.ref, projectId: parts.first.map(String.init), cardId: parts.count > 1 ? String(parts[1]) : nil)
+            let status = ext.state.map { LatticeTaskState($0) }
+            guard status != .retired else { return nil }
+            let person = lookup(ext.producer)
+            return Waiter(id: waiter.ref, title: ext.title ?? LatticeText.otherTask,
+                          chart: ext.chartName.map { String(localized: "\($0)の工程表") } ?? LatticeText.otherChart,
+                          producer: person, status: status, stateText: LatticeText.externalState(ext.state, producer: person),
+                          reason: waiter.reason ?? "", projectId: ext.projectId, cardId: ext.cardId)
+        }
         let started = LatticeTime.jstText(card.startedAt)
         startedText = started.isEmpty ? String(localized: "まだ着手されていません") : String(localized: "着手 \(started) JST")
     }

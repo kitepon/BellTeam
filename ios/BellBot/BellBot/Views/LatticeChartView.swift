@@ -344,7 +344,8 @@ struct LatticeChartScreen: View {
                         }
                         if let id = selected, let detail = LatticeDetail(snapshot.merged(model.history), cardId: id, now: now) {
                             LatticeDetailPanel(detail: detail, compact: false, close: { select(nil) },
-                                               open: { select($0, scroll: true) }, chat: { chat($0) }, loadDecision: loadDecision)
+                                               open: { select($0, scroll: true) }, openExternal: { openCard($0, $1) },
+                                               chat: { chat($0) }, loadDecision: loadDecision)
                                 .frame(width: 350)
                                 .background {
                                     // Opaque: cards behind must not show through the detail (Owner a110).
@@ -622,7 +623,8 @@ struct LatticeChartScreen: View {
             if let detail = LatticeDetail(snapshot.merged(model.history), cardId: selection.id, now: now) {
                 ScrollView {
                     LatticeDetailPanel(detail: detail, compact: true, close: { selected = nil },
-                                       open: { id in selected = id; scrollTarget = id }, chat: { id in selected = nil; chat(id) },
+                                       open: { id in selected = id; scrollTarget = id }, openExternal: { project, card in selected = nil; openCard(project, card) },
+                                       chat: { id in selected = nil; chat(id) },
                                        loadDecision: loadDecision)
                 }
                 .presentationDetents([.height(160), .medium, .large], selection: $detent)
@@ -1569,6 +1571,8 @@ struct LatticeDetailPanel: View {
     let compact: Bool
     let close: () -> Void
     let open: (String) -> Void
+    /// A waiter of another chart: that chart at that card.
+    let openExternal: (String, String) -> Void
     let chat: (String) -> Void
     let loadDecision: (LatticeCard) async -> LatticeDecision?
     @State private var shown = false
@@ -1639,10 +1643,16 @@ struct LatticeDetailPanel: View {
                         VStack(spacing: 6) { ForEach(detail.previous) { link in linkRow(link) } }
                     }
                 }
-                if !detail.next.isEmpty {
-                    section(String(localized: "次の工程 · \(detail.next.count)")) {
-                        LatticeFlowLayout(spacing: 6) {
-                            ForEach(detail.next) { link in linkChip(link) }
+                if !detail.next.isEmpty || !detail.waiters.isEmpty {
+                    section(String(localized: "次の工程 · \(detail.next.count + detail.waiters.count)")) {
+                        if !detail.next.isEmpty {
+                            LatticeFlowLayout(spacing: 6) {
+                                ForEach(detail.next) { link in linkChip(link) }
+                            }
+                        }
+                        if !detail.waiters.isEmpty {
+                            VStack(spacing: 6) { ForEach(detail.waiters) { waiter in waiterRow(waiter) } }
+                                .accessibilityIdentifier("lattice-detail-waiters")
                         }
                     }
                 }
@@ -1696,6 +1706,30 @@ struct LatticeDetailPanel: View {
         }
         .buttonStyle(LatticePressStyle())
         .accessibilityLabel("\(link.title)、\(link.status.badge)")
+    }
+
+    private func waiterRow(_ waiter: LatticeDetail.Waiter) -> some View {
+        Button { if let project = waiter.projectId, let card = waiter.cardId { openExternal(project, card) } } label: {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    LatticeAvatar(person: waiter.producer, size: 18)
+                    Text(waiter.title).font(.system(size: 13, weight: .semibold)).foregroundStyle(LatticePalette.ink).lineLimit(1)
+                    Spacer(minLength: 4)
+                    Text(waiter.stateText).font(.system(size: 11, weight: .semibold)).lineLimit(1)
+                        .foregroundStyle(waiter.status.map { LatticePalette.tone($0, accent: LatticePalette.accent(waiter.producer)) } ?? LatticePalette.muted)
+                }
+                Text(waiter.chart).font(.system(size: 11.5)).foregroundStyle(LatticePalette.muted).lineLimit(1)
+                if !waiter.reason.isEmpty {
+                    Text(verbatim: waiter.reason).font(.system(size: 11.5)).foregroundStyle(LatticePalette.muted).lineLimit(2)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 10).padding(.vertical, 8)
+            .background(LatticePalette.surface.opacity(0.85), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(LatticePalette.line.opacity(0.7), lineWidth: 0.5))
+        }
+        .buttonStyle(LatticePressStyle())
+        .accessibilityLabel(waiter.accessibilityLabel)
     }
 
     private func linkChip(_ link: LatticeDetail.Link) -> some View {

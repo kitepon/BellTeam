@@ -189,6 +189,41 @@ final class LatticeChartTests: XCTestCase {
         XCTAssertNil(LatticeDetail(try snapshot(), cardId: "missing", now: now))
     }
 
+    /// 2026-11-28: 次の工程 also lists the tasks of other charts that wait on the card (card.waiters), after the same-chart successors.
+    func testDetailListsWaitersOfOtherCharts() throws {
+        let json = """
+        {"epoch":"e1","version":1,"projectId":"lattice","state":"verified",
+         "members":[{"botId":"bot-flora","name":"フローラ","color":"violet"}],
+         "cards":[{"id":"p1/a","title":"出す","state":"in-progress","producer":"bot-flora","waiters":[
+           {"ref":"web:p9/z","reason":"公開してから","since":"2026-11-28T03:00:00.000Z"},
+           {"ref":"app:p2/y","reason":"","since":"2026-11-28T01:00:00.000Z"},
+           {"ref":"gone:p3/x","since":"2026-11-28T02:00:00.000Z"},
+           {"ref":"old:p4/w","since":"2026-11-28T04:00:00.000Z"}]},
+          {"id":"p1/b","title":"後続","state":"pending","producer":"bot-flora"},
+          {"id":"p1/c","title":"待たれない","state":"pending"}],
+         "edges":[{"from":"p1/a","to":"p1/b","waiting":true}],
+         "externals":[
+          {"id":"web:p9/z","projectId":"web","cardId":"p9/z","chartName":"Web","title":"画面を直す","state":"done","producer":"bot-flora"},
+          {"id":"app:p2/y","projectId":"app","cardId":"p2/y","chartName":"Apple","title":"ビルドする","state":"pending","producer":"bot-flora"},
+          {"id":"old:p4/w","projectId":"old","cardId":"p4/w","chartName":"旧","title":"消えた","state":"retired"}]}
+        """
+        let snapshot = try JSONDecoder().decode(LatticeChartSnapshot.self, from: Data(json.utf8))
+        let detail = try XCTUnwrap(LatticeDetail(snapshot, cardId: "p1/a", now: now))
+        XCTAssertEqual(detail.next.map(\.id), ["p1/b"], "same-chart successors stay as they are")
+        XCTAssertEqual(detail.waiters.map(\.id), ["app:p2/y", "gone:p3/x", "web:p9/z"], "oldest since first; a retired waiter is not shown")
+        let first = detail.waiters[0]
+        XCTAssertEqual([first.title, first.chart, first.stateText], ["ビルドする", "Appleの工程表", "未着手: 担当 フローラ"])
+        XCTAssertEqual([first.projectId, first.cardId], ["app", "p2/y"], "a tap opens that chart at that card")
+        XCTAssertEqual(first.accessibilityLabel, "次の工程：「ビルドする」（Appleの工程表）、未着手: 担当 フローラ")
+        let unread = detail.waiters[1]
+        XCTAssertEqual([unread.title, unread.chart, unread.stateText], ["ほかの工程表の工程", "ほかの工程表", "読めていません"])
+        XCTAssertEqual(detail.waiters[2].stateText, "完了", "a done waiter reads as done")
+        XCTAssertEqual(detail.waiters[2].reason, "公開してから")
+        XCTAssertTrue(try XCTUnwrap(LatticeDetail(snapshot, cardId: "p1/c", now: now)).waiters.isEmpty, "no waiters = 次の工程 as before")
+        XCTAssertEqual(LatticeConnectionRow.rows(snapshot, now: now).count, 0, "a waiter is no 接続 row, chip or counter")
+        XCTAssertTrue(LatticeLayout(snapshot).lanes.count >= 1 && snapshot.edgeList.count == 1, "no edge and no line for a waiter")
+    }
+
     func testDecisionAskedOnlyForOwnerCardsAndOnlyKnownShapesShow() throws {
         func card(_ json: String) throws -> LatticeCard { try JSONDecoder().decode(LatticeCard.self, from: Data(json.utf8)) }
         let owner = try card(#"{"id":"approval-box/dec-1","plan":"approval-box","taskId":"dec-1","title":"t","state":"ready","producer":"owner"}"#)
