@@ -5,7 +5,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 const METHODS = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE']
 const SAFE_REQUEST_HEADER = /^(?:accept|accept-language|content-type|idempotency-key|if-match|if-none-match|if-modified-since|user-agent|stripe-version|x-request-id|x-correlation-id)$/u
-const SHOWN_RESPONSE_HEADERS = ['content-type', 'content-length', 'etag', 'location', 'retry-after', 'last-modified', 'cache-control', 'x-request-id', 'request-id']
+const SHOWN_RESPONSE_HEADERS = ['content-type', 'content-length', 'etag', 'location', 'retry-after', 'last-modified', 'cache-control', 'x-request-id', 'request-id', 'content-range', 'accept-ranges']
 const SHOWN_RATE_HEADER = /^(?:x-)?ratelimit-[a-z-]{1,40}$/u // quota headers the caller needs for its own backoff
 // 9 MiB in, 11 MiB out (raw): base64 of either stays under the 16 MiB module payload limit.
 export const REQUEST_BODY_MAX = 9 << 20, RESPONSE_BODY_MAX = 11 << 20

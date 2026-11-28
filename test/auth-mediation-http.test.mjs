@@ -254,3 +254,13 @@ test('http exact base: path "/" on a base with a path sends exactly the stored U
   await ask(header, { method: 'POST', path: '/', body: Buffer.from('{}').toString('base64') }); assert.equal(header.seen[0].url, hook); assert.equal(header.seen[0].headers.authorization, 'Bearer stored-value-123')
   assert.equal((await ask(setup({ item: { http_base: 'https://api.example.com/v1', http_auth: 'bearer', http_secret: 'sk_live_abcdef123456' } }), { path: '/' })).outcome, 'granted') // a plain API base: '/' is its own prefix URL, as before
 })
+
+test('http aws-sigv4 for multipart R2: the query (?uploads, ?partNumber=&uploadId=) is signed, listed caller headers (range, x-amz-copy-source) are signed too, content-range and accept-ranges are shown, binary body intact', async () => {
+  const body = Buffer.alloc(6 * 1048576); for (let i = 0; i < body.length; i++) body[i] = (i * 7) & 255
+  const t = setup({ item: { http_base: 'https://acct.r2.example.com/bucket', http_auth: 'aws-sigv4', http_secret: 'r2-secret-key-0123456789', http_aws_access_key: 'AKID', http_methods: 'GET HEAD PUT POST DELETE', http_allow_headers: 'range, x-amz-copy-source' }, answer: () => new Response('x', { status: 206, headers: { 'content-range': 'bytes 0-0/10', 'accept-ranges': 'bytes' } }) })
+  const first = await ask(t, { method: 'POST', path: '/bucket/obj.bin?uploads' }); assert.equal(first.outcome, 'granted', JSON.stringify(first)); assert.equal(t.seen[0].url, 'https://acct.r2.example.com/bucket/obj.bin?uploads')
+  const put = await ask(t, { method: 'PUT', path: '/bucket/obj.bin?partNumber=1&uploadId=U1', headers: { range: 'bytes=0-0', 'x-amz-copy-source': '/bucket/src.bin', 'content-type': 'application/octet-stream' }, body: body.toString('base64') })
+  assert.equal(put.outcome, 'granted', JSON.stringify(put).slice(0, 200)); const sent = t.seen[1]; assert.match(sent.headers.authorization, /SignedHeaders=content-type;host;range;x-amz-content-sha256;x-amz-copy-source;x-amz-date,/u)
+  assert.equal(sent.headers['x-amz-content-sha256'], createHash('sha256').update(body).digest('hex')); assert.ok(Buffer.from(sent.body).equals(body))
+  assert.equal(put.headers['content-range'], 'bytes 0-0/10'); assert.equal(put.headers['accept-ranges'], 'bytes'); assert.equal(put.status, 206)
+})
