@@ -5,9 +5,9 @@ What every BellTeam app shows on its purchase page and how it reads the result. 
 ## Terms
 
 - Price: 980 yen per month, tax included, in every store. First month free in every store (Apple introductory offer, Google Play free trial, Stripe `trial_period_days=30`).
-- Web is free and has no purchase page. A self-hosted server and the Web app never require a subscription.
-- "Same account" means the same BellTeam server. A subscription bought in any store is saved on the server that app is connected to and unlocks every app connected to that server. The server keeps one verdict per store and uses the entitled one (`source` says which). There is no cross-server subscriber id; a different server needs the purchase restored there.
-- Google Play (a157): the Android app buys the Play subscription and sends the purchase token to `POST /api/subscription/google/verify`; the server asks the operator Worker, which reads the purchase from the Play Developer API, and the result joins the other stores like Apple and Stripe. The Android app acknowledges the purchase only after the server says `entitled`.
+- A self-hosted server never requires a subscription. The browser Web UI was retired on 2026-11-22 ([web-gateway](architecture/modules/web/README.md)).
+- "Same account" means the same BellTeam server (or local-form peer confirmation over LAN under a540; no operator Worker since 2026-11-24). A subscription bought in any store unlocks every app connected to that server.
+- Legacy server-side Google Play / Stripe verify routes (`POST /api/subscription/google/verify`, `POST /api/subscription/stripe/*`) remain documented below for compatibility with the pre-2026-11-24 Worker flow; new desktop/Android clients confirm subscriptions locally via QR (`login-billing` local form, [subscription.md](subscription.md)).
 
 ## Options each app lists
 
@@ -18,7 +18,7 @@ Every app lists all three purchase sources, in this order: its own platform's st
 | iPhone / Mac (Apple) | App Store | Google Play | Stripe |
 | Android | Google Play | App Store | Stripe |
 | Windows / Linux | Stripe | App Store | Google Play |
-| Web | no purchase page; free wording only | | |
+| Web (retired 2026-11-22) | retired; gateway returns 410 | | |
 
 Only the first row of each app can be bought on that device. The other two are information rows (Apple and Google Play rules forbid steering to another payment method inside their apps; Windows and Linux have no store of the others).
 

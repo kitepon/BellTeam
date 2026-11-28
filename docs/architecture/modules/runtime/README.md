@@ -2,7 +2,7 @@
 
 責任者：モリー（2026-11-08にエピネルから移管）。
 
-bootstrap、席側短命処理、CLI登録、状態移行、backup/restore、設置と更新実行。OSはエマ、公開はセンチ、本番実行はトロニー。
+bootstrap、席側短命処理、CLI登録、状態移行、backup/restore、設置と更新実行。OSはエマ、配布コードはモリー、製品試験はセンチ、通常main採用gateはエピネル、本番実行はトロニー。
 
 接続の正本は[module.json](module.json)。全体の[機能図](../../feature-map.md)と[担当・変更手順](../../module-ownership.md)から、呼出元と依存先を辿る。
 

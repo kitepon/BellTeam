@@ -3870,7 +3870,7 @@
         "ownerOperationPending": false
       },
       "existingReviewSubmissionChanged": false,
-      "plan": "docs/plan_harness-auth-app-20261006.md",
+      "plan": "docs/archive/plans/plan_harness-auth-app-20261006.md",
       "sourceCommit": "2cc0098d4cb00f3d2fbf5064fdd55647974331d6",
       "archive": {
         "ios": "passed",
