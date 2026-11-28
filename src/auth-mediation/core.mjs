@@ -5,7 +5,7 @@ import { authorize, importV1 } from './policy.mjs'
 import { envReturn, runEnv } from './env.mjs'
 import { botForCwd, callerKey } from './identity.mjs'
 import { useKey, signData, signDigest } from './keyuse.mjs'
-import { callHttp } from './http.mjs'
+import { callHttp, forgetTokens } from './http.mjs'
 import { callGmail } from './gmail.mjs'
 import { sshIdentity, sshSign } from './sshkey.mjs'
 import { sendMail } from './mail.mjs'
@@ -18,7 +18,9 @@ const ENTRY_ONLY = ['grant', 'revoke', 'import'], DECISION_KEYS = ['id', 'role',
 const REFUSALS = { stopped: 'This command is stopped by the operator.', denied: 'This command is not permitted.' }
 
 // store: {read, write}; items: createItemCache; audit: line => Promise; roots: () => {botId: absoluteRoot}.
-export function createAuthCore({ store, items, audit, roots, now = () => new Date(), realpath = fsRealpath, fetchImpl = fetch, mailConnect, imapConnect }) {
+export function createAuthCore({ store, items: itemCache, audit, roots, now = () => new Date(), realpath = fsRealpath, fetchImpl = fetch, mailConnect, imapConnect }) {
+  // A flush (stop, revoke, flush, a new token) also drops the OAuth tokens the http op keeps in memory: the key is a hash of the item, so all of them go (cost: one new token).
+  const items = { ...itemCache, get: (...a) => itemCache.get(...a), flush: name => { itemCache.flush(name); forgetTokens() } }
   // An audit failure never refuses a request (the diagnostic is the caller's); it is swallowed here by design.
   const record = (rec, outcome, extra = {}) => { void Promise.resolve(audit({ ...rec, outcome, ...extra })).catch(() => {}) }
 

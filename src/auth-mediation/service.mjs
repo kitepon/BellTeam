@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { appendFile, readFile } from 'node:fs/promises'
 import { createAuthCore } from './core.mjs'
+import { forgetTokens } from './http.mjs'
 import { createItemCache, opRunner } from './items.mjs'
 import { botForCwd } from './identity.mjs'
 import { createPolicyStore } from './policy.mjs'
@@ -51,7 +52,7 @@ export function createAuthMediationService({ policyPath, auditPath, opExe, first
         const value = params.args?.value
         if (params.verb === 'token.set') await effect('secret.put', { value })
         else await effect('secret.erase', {})
-        items.flush()
+        items.flush(); forgetTokens()
         return { outcome: 'ok' }
       }
       if (params.verb === 'audit') {
