@@ -2,8 +2,8 @@
 // (written by Sakura in 1Password), never from the caller. Item fields are lower-case on purpose: the exec transports only return upper-case labels, so none of them ever leaves.
 import { createHash, createHmac, randomUUID, sign as cryptoSign } from 'node:crypto'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
-import { request as httpRequest } from 'node:http'
 import { Agent as HttpsAgent, request as httpsRequest } from 'node:https'
+import { isIP } from 'node:net'
 import { connect as tlsConnect } from 'node:tls'
 import { Readable } from 'node:stream'
 import { dirname } from 'node:path'
@@ -80,24 +80,28 @@ export function sigv4({ method, url, headers, body, accessKey, secret, region, s
 // request) and only then sends the request. The proxy host may be found at request time by asking a discovery URL (https, from the item) for the least loaded server; only a *.nordvpn.com
 // name is taken from the answer, so the proxy login can never be sent to a host the answer invented. Item fields: http_proxy_host (fixed or fallback), http_proxy_port (default 89),
 // http_proxy_user, http_proxy_password, optional http_proxy_discover.
-const NORD_HOST = /^[a-z0-9-]+(?:\.[a-z0-9-]+)*\.nordvpn\.com$/u
-async function proxyChoice(fields, fetchImpl) {
+// The discovery answer names servers as krNNN.nordvpn.com; their proxy is krNNN.proxy.nordvpn.com (TLS on port 89, certificate *.proxy.nordvpn.com). Anything else is not taken.
+const nordProxyHost = hostname => { const m = /^([a-z]{2}\d{1,5})(?:\.proxy)?\.nordvpn\.com$/u.exec(hostname); return m ? `${m[1]}.proxy.nordvpn.com` : null }
+export async function proxyChoice(fields, fetchImpl) {
   let host = fields.http_proxy_host
   if (fields.http_proxy_discover) {
     try {
       if (new URL(fields.http_proxy_discover).protocol !== 'https:') throw new Error('plain')
       const list = await (await fetchImpl(fields.http_proxy_discover, { redirect: 'manual', signal: AbortSignal.timeout(10000) })).json()
-      if (typeof list?.[0]?.hostname === 'string' && NORD_HOST.test(list[0].hostname)) host = list[0].hostname
+      const found = typeof list?.[0]?.hostname === 'string' ? nordProxyHost(list[0].hostname) : null
+      if (found) host = found
     } catch {} // the fixed host is the fallback
   }
   const port = Number(fields.http_proxy_port ?? 89)
   if (!host || !fields.http_proxy_user || !fields.http_proxy_password || !Number.isInteger(port) || port < 1 || port > 65535 || !/^[A-Za-z0-9.-]{1,253}$/u.test(host)) throw refuse('The key item has no usable proxy.')
   return { host, port, auth: 'Basic ' + Buffer.from(fields.http_proxy_user + ':' + fields.http_proxy_password).toString('base64') }
 }
-export function proxiedFetch(proxy, tlsOptions = {}) {
+// The proxy itself is spoken to over TLS (NordVPN's port 89 is an HTTPS proxy: a plain CONNECT gets no answer), then the origin over a second TLS inside the tunnel.
+export function proxiedFetch(proxy, tlsOptions = {}, proxyTlsOptions = {}) {
   return (url, options) => new Promise((resolve, reject) => {
     url = new URL(url); const fail = error => reject(error instanceof Error ? error : new Error('proxy'))
-    const connectRequest = httpRequest({ host: proxy.host, port: proxy.port, method: 'CONNECT', path: `${url.hostname}:${url.port || 443}`, headers: { host: `${url.hostname}:${url.port || 443}`, 'proxy-authorization': proxy.auth }, signal: options.signal })
+    const proxyAgent = new HttpsAgent({ keepAlive: false }); proxyAgent.createConnection = () => tlsConnect({ host: proxy.host, port: proxy.port, ...(isIP(proxy.host) ? {} : { servername: proxy.host }), ...proxyTlsOptions }) // TLS to the proxy first
+    const connectRequest = httpsRequest({ agent: proxyAgent, method: 'CONNECT', path: `${url.hostname}:${url.port || 443}`, headers: { host: `${url.hostname}:${url.port || 443}`, 'proxy-authorization': proxy.auth }, signal: options.signal })
     connectRequest.on('connect', (answer, socket) => {
       if (answer.statusCode !== 200) { socket.destroy(); return fail() }
       const secure = tlsConnect({ socket, servername: url.hostname, ...tlsOptions })
@@ -246,7 +250,7 @@ export async function callHttp(fields, request, fetchImpl = fetch, rotation = nu
   if (fields.http_proxy_host || fields.http_proxy_discover) {
     if (request.method !== 'GET') throw refuse('A proxied key allows GET only.')
     const proxy = await proxyChoice(fields, fetchImpl); proxySecrets = [fields.http_proxy_password, fields.http_proxy_user]
-    fetchImpl = proxiedFetch(proxy, proxyDeps.tls)
+    fetchImpl = proxiedFetch(proxy, proxyDeps.tls, proxyDeps.proxyTls)
   }
   const headers = {}
   const allowed = (fields.http_allow_headers ?? '').split(',').map(h => h.trim().toLowerCase()).filter(h => /^[a-z0-9-]{1,64}$/u.test(h) && h !== 'authorization' && h !== 'host' && h !== 'content-length') // item-listed extra caller headers
