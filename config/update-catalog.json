@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-28T07:28:02Z",
-  "expiresAt": "2026-12-05T07:28:02Z",
+  "publishedAt": "2026-11-28T07:54:12Z",
+  "expiresAt": "2026-12-05T07:54:12Z",
   "releases": [
     {
       "componentId": "usage",
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "6b154229c944282e7cc622d490dc65f1829a7dc2",
-      "versionId": "sha256:2f66e12a1297119946bb1841b5dde4d3792591d76adeee9aff97c8a660bed47a",
+      "sourceCommit": "dda16a6b1605d5618365c4f3ec2a035e2e81aa15",
+      "versionId": "sha256:18568630132d43ffbcc58419d5736f3f3d339863a1221b5ff7db8f10458302fe",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:2f66e12a1297119946bb1841b5dde4d3792591d76adeee9aff97c8a660bed47a"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:18568630132d43ffbcc58419d5736f3f3d339863a1221b5ff7db8f10458302fe"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -722,20 +722,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "認証仲介の中継に、BugHub 用の呼び出し元が加わり、書きかけの要求行と開いたままの実行の通路に上限、要求行ごとに 30 秒の制限が付きます。"
+        "認証仲介の中継に、ストリーミングの HTTP の通路と、呼び出し元（approval-box、approval-box-test、books）が加わり、実行用のソケットのフォルダを、サービスごとに分けられるようになります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "6b154229c944282e7cc622d490dc65f1829a7dc2",
-      "versionId": "sha256:2f66e12a1297119946bb1841b5dde4d3792591d76adeee9aff97c8a660bed47a",
+      "sourceCommit": "dda16a6b1605d5618365c4f3ec2a035e2e81aa15",
+      "versionId": "sha256:18568630132d43ffbcc58419d5736f3f3d339863a1221b5ff7db8f10458302fe",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:2f66e12a1297119946bb1841b5dde4d3792591d76adeee9aff97c8a660bed47a"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:18568630132d43ffbcc58419d5736f3f3d339863a1221b5ff7db8f10458302fe"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -744,7 +744,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "認証仲介の中継に、BugHub 用の呼び出し元が加わり、書きかけの要求行と開いたままの実行の通路に上限、要求行ごとに 30 秒の制限が付きます。"
+        "認証仲介の中継に、ストリーミングの HTTP の通路と、呼び出し元（approval-box、approval-box-test、books）が加わり、実行用のソケットのフォルダを、サービスごとに分けられるようになります。"
       ]
     },
     {
@@ -889,8 +889,8 @@
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "9adf8f1dfaa85743d1b976224fc3e1c9e15c6ad9",
-      "versionId": "f1d3a51332ef6ff905e3d73b7c6557d34eeb3d5ca12fe81b288de8653d2618cb",
+      "sourceCommit": "dda16a6b1605d5618365c4f3ec2a035e2e81aa15",
+      "versionId": "36464fe0f417fba489c5267bc66cf2291a0838a7ea66b7ec180ddfda858ea09d",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -898,16 +898,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T071943Z/auth-mediation-9adf8f1dfaa85743d1b976224fc3e1c9e15c6ad9-linux-amd64.tar.gz",
-          "bytes": 3733911,
-          "sha256": "f1d3a51332ef6ff905e3d73b7c6557d34eeb3d5ca12fe81b288de8653d2618cb"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T075311Z/auth-mediation-dda16a6b1605d5618365c4f3ec2a035e2e81aa15-linux-amd64.tar.gz",
+          "bytes": 3736965,
+          "sha256": "36464fe0f417fba489c5267bc66cf2291a0838a7ea66b7ec180ddfda858ea09d"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T071943Z/auth-mediation-9adf8f1dfaa85743d1b976224fc3e1c9e15c6ad9-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11085,
-          "sha256": "a16552471fa388141483d00170053f36c9d86faaf15a524e0c95877672b39019"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T075311Z/auth-mediation-dda16a6b1605d5618365c4f3ec2a035e2e81aa15-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11030,
+          "sha256": "a257296cbb75244b663b438492051398e5dced402bdcf4add66bb2c8fd96a234"
         },
-        "signerCommit": "9adf8f1dfaa85743d1b976224fc3e1c9e15c6ad9"
+        "signerCommit": "dda16a6b1605d5618365c4f3ec2a035e2e81aa15"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -919,13 +919,13 @@
         }
       },
       "changes": [
-        "HTTP の経路 '/' を、保存した基準の URL そのものとして扱い、範囲に関する見出しを返し、項目のプロキシ（GET だけ）を通せるようになります。AWS の署名の正規の経路を直します。"
+        "ストリーミングの HTTP（auth serve の受け口）、Google の OAuth2 の更新と再同意の取得、実行用のフォルダの指定を、モジュールの中で行えるようになります。"
       ]
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "9adf8f1dfaa85743d1b976224fc3e1c9e15c6ad9",
-      "versionId": "6ac3c4d337a8f1ae997aabadb5cd474e9f6d0bfb0dfd6c09fd239cc153241d8d",
+      "sourceCommit": "dda16a6b1605d5618365c4f3ec2a035e2e81aa15",
+      "versionId": "d816c21d5aa4e5ba03817eb19934766fd703d8308099e5c5acbef898e3705029",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -933,16 +933,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T071943Z/auth-mediation-9adf8f1dfaa85743d1b976224fc3e1c9e15c6ad9-linux-arm64.tar.gz",
-          "bytes": 3733911,
-          "sha256": "6ac3c4d337a8f1ae997aabadb5cd474e9f6d0bfb0dfd6c09fd239cc153241d8d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T075311Z/auth-mediation-dda16a6b1605d5618365c4f3ec2a035e2e81aa15-linux-arm64.tar.gz",
+          "bytes": 3736965,
+          "sha256": "d816c21d5aa4e5ba03817eb19934766fd703d8308099e5c5acbef898e3705029"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T071943Z/auth-mediation-9adf8f1dfaa85743d1b976224fc3e1c9e15c6ad9-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10889,
-          "sha256": "67834e55730b16506ce9b55801fdf1bc6a7bae0b7a19614d0c17cb9745f5ba8b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T075311Z/auth-mediation-dda16a6b1605d5618365c4f3ec2a035e2e81aa15-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11171,
+          "sha256": "229b1167743e0c8fc67e1aa5112869707b3aaafe5958b2870b271a246a6bb9a1"
         },
-        "signerCommit": "9adf8f1dfaa85743d1b976224fc3e1c9e15c6ad9"
+        "signerCommit": "dda16a6b1605d5618365c4f3ec2a035e2e81aa15"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -954,7 +954,7 @@
         }
       },
       "changes": [
-        "HTTP の経路 '/' を、保存した基準の URL そのものとして扱い、範囲に関する見出しを返し、項目のプロキシ（GET だけ）を通せるようになります。AWS の署名の正規の経路を直します。"
+        "ストリーミングの HTTP（auth serve の受け口）、Google の OAuth2 の更新と再同意の取得、実行用のフォルダの指定を、モジュールの中で行えるようになります。"
       ]
     }
   ],
