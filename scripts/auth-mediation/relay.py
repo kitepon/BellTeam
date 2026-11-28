@@ -10,10 +10,10 @@ SEAT_UID = int(os.environ.get("AUTH_RELAY_SEAT_UID", "1000"))
 MAX_REQUEST, MAX_REPLY, READ_SECONDS, BODY_SECONDS = 13 << 20, 17 << 20, 10, 45  # a request may carry a 9 MiB http body as base64, a reply an 11 MiB response (mail read: 1 MiB)
 SOCKETS = (("container-socket", "container.sock", 0o666), ("host-socket", "host.sock", 0o600))
 # One socket per container caller of key use (wrap / unwrap): callers/<name>/<name>.sock. Whoever can open it is that caller. A new caller is a body train, on purpose.
-CALLERS = ("mmobank", "auctionbot", "reminderbot", "reminderbot-public", "yuihome", "forklore-web", "forklore-mcp", "poly-daily", "ip-mcp", "call-bridge", "x-article-mcp", "bingo", "bellteam-push", "bughub", "approval-box", "approval-box-test", "books")
+CALLERS = ("mmobank", "auctionbot", "reminderbot", "reminderbot-public", "yuihome", "forklore-web", "forklore-mcp", "poly-daily", "ip-mcp", "call-bridge", "x-article-mcp", "bingo", "bellteam-push", "bughub", "approval-box", "approval-box-test", "books", "bellteam-body")
 # A caller whose socket only its own service account may open: socket 0660 and the folder is NOT re-chmodded (the host prepares it once: group = the service group, setgid, 0750;
 # a socket made there inherits that group). Unprepared, the folder is 0750 owned by the relay's uid: only that uid can open it.
-RESTRICTED = {"bellteam-push": 0o660}
+RESTRICTED = {"bellteam-push": 0o660, "bellteam-body": 0o660}
 
 
 # A client line can be 13 MiB and every connection has its own thread: what clients hold in memory at one moment is capped (64 MiB of unfinished request lines) and so are the open run streams (8).
