@@ -364,5 +364,7 @@ test('http qts-session + pin: the module logs in to QTS (base64 password), adds 
     expireNext = true; const e = await call({ method: 'POST', path: '/cgi-bin/disk/qsmart.cgi', body: Buffer.from('func=smartinfo').toString('base64') }); assert.equal(logins, 2); assert.match(Buffer.from(e.body, 'base64').toString(), /Health/u) // renewed once, answer returned
     await assert.rejects(call({ method: 'GET', path: '/cgi-bin/x' }, { ...fields, http_pin_sha256: pin.replace(/^../u, '00') }), /request failed/u) // another certificate is refused
     assert.equal(g.status, 200)
+    const mp = await call({ method: 'POST', path: '/cgi-bin/filemanager/utilRequest.cgi?func=upload', headers: { 'content-type': 'multipart/form-data; boundary=XX' }, body: Buffer.from('--XX\r\nbinary\r\n--XX--\r\n').toString('base64') })
+    assert.equal(mp.status, 200); assert.match(seen.at(-1), /^POST \/cgi-bin\/filemanager\/utilRequest.cgi\?func=upload&sid=SID\d+abcdef --XX\r\nbinary\r\n--XX--\r\n$/u) // multipart: sid in the query, body untouched
   } finally { nas.closeAllConnections(); nas.close() }
 })
