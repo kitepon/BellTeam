@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-28T10:10:06Z",
-  "expiresAt": "2026-12-05T10:10:06Z",
+  "publishedAt": "2026-11-28T10:38:40Z",
+  "expiresAt": "2026-12-05T10:38:40Z",
   "releases": [
     {
       "componentId": "usage",
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "dfae62a59b6ef09896ea52efab19c6bc38466ea6",
-      "versionId": "sha256:458e6510f4b96c30860c25aa59ddc96d719ecdde017510ca757a5191d1ddfc91",
+      "sourceCommit": "b71808a7f29e136873411806d9eb98f993bde353",
+      "versionId": "sha256:6da9730c5929980caa8a06c1b408ddfb8ab01a35f5c661ca0a8c81e925ed0fbd",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:458e6510f4b96c30860c25aa59ddc96d719ecdde017510ca757a5191d1ddfc91"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6da9730c5929980caa8a06c1b408ddfb8ab01a35f5c661ca0a8c81e925ed0fbd"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -722,20 +722,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "BellTeam 本体が通話ブリッジの合言葉を持たなくなり、席の通話ブリッジ MCP は認証仲介モジュールを通ります。工程表の書き込みが保留になった時は、遅れて出た結果が席に届きます。Bot への最初の sendmessage は、宛先の確認を求める 1 回の断りになります。"
+        "BellTeam 本体が、固定アドレスのネットワーク（bellteam_fixed）に付いて起動します。通話ブリッジの取り込み口（役目を終えたもの）が、配布物から外れます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "dfae62a59b6ef09896ea52efab19c6bc38466ea6",
-      "versionId": "sha256:458e6510f4b96c30860c25aa59ddc96d719ecdde017510ca757a5191d1ddfc91",
+      "sourceCommit": "b71808a7f29e136873411806d9eb98f993bde353",
+      "versionId": "sha256:6da9730c5929980caa8a06c1b408ddfb8ab01a35f5c661ca0a8c81e925ed0fbd",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:458e6510f4b96c30860c25aa59ddc96d719ecdde017510ca757a5191d1ddfc91"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6da9730c5929980caa8a06c1b408ddfb8ab01a35f5c661ca0a8c81e925ed0fbd"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -744,7 +744,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "BellTeam 本体が通話ブリッジの合言葉を持たなくなり、席の通話ブリッジ MCP は認証仲介モジュールを通ります。工程表の書き込みが保留になった時は、遅れて出た結果が席に届きます。Bot への最初の sendmessage は、宛先の確認を求める 1 回の断りになります。"
+        "BellTeam 本体が、固定アドレスのネットワーク（bellteam_fixed）に付いて起動します。通話ブリッジの取り込み口（役目を終えたもの）が、配布物から外れます。"
       ]
     },
     {
