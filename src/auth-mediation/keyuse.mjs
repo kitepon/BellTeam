@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
+import { createCipheriv, createDecipheriv, createHmac, createPrivateKey, randomBytes, sign } from 'node:crypto'
 
 // Key use inside the module: the key never leaves, only the result does. One AES-256-GCM operation; no state, so rotation is the caller's (unwrap with the old name, wrap with the new).
 // Blob = base64(nonce 12 B | ciphertext | tag 16 B); aad (the caller's context, e.g. a ledger id) is authenticated, so a blob cannot be moved to another context.
@@ -30,4 +30,20 @@ export function useKey(action, fields, data, aad = '') {
     } catch { throw refuse() }
   }
   throw refuse()
+}
+
+// Sign (F15): a signature or MAC made inside the module. The algorithm is the item's (sign_alg), never the caller's, and the key type must match it.
+// ES* answers the raw r||s form JWT uses. The caller builds what is signed and assembles the result; it never sees the key.
+const SIGNING = { ES256: { hash: 'sha256', curve: 'prime256v1', type: 'ec' }, ES384: { hash: 'sha384', curve: 'secp384r1', type: 'ec' }, RS256: { hash: 'sha256', type: 'rsa' },
+  EdDSA: { hash: null, type: 'ed25519' }, HS256: { hash: 'sha256' }, HS384: { hash: 'sha384' }, HS512: { hash: 'sha512' } }
+export function signData(fields, data) {
+  const spec = SIGNING[fields?.sign_alg]
+  if (!spec || typeof data !== 'string' || !b64.test(data) || data.length > 4096 || !fields.sign_key) throw refuse()
+  const input = Buffer.from(data, 'base64')
+  if (input.length < 1 || input.length > 3072) throw refuse()
+  if (!spec.type) return createHmac(spec.hash, Buffer.from(fields.sign_key, 'utf8')).update(input).digest('base64')
+  let key
+  try { key = createPrivateKey(fields.sign_key) } catch { throw refuse() }
+  if (key.asymmetricKeyType !== spec.type || (spec.curve && key.asymmetricKeyDetails?.namedCurve !== spec.curve)) throw refuse()
+  return sign(spec.hash, input, spec.type === 'ec' ? { key, dsaEncoding: 'ieee-p1363' } : key).toString('base64')
 }

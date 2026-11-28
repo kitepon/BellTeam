@@ -83,7 +83,29 @@ def http_main(argv):
     return 0
 
 
+def sign_main(argv):
+    """auth sign NAME [--data-file FILE|-]: the module signs the bytes (stdin by default) with the key of item "signkey NAME" and answers with the signature only;
+    it is printed as base64 on stdout. The key never leaves the module. Exit: 0 signed, 1 refused, 2 error."""
+    import argparse, base64
+    p = argparse.ArgumentParser(prog="auth sign")
+    p.add_argument("name")
+    p.add_argument("--data-file")
+    a = p.parse_args(argv)
+    data = open(a.data_file, "rb").read() if a.data_file and a.data_file != "-" else sys.stdin.buffer.read()
+    try:
+        resp = ask({"op": "sign", "name": a.name, "data": base64.b64encode(data).decode(), "cwd": os.getcwd()})
+    except (OSError, ValueError):
+        sys.exit("The authentication module is not running.")
+    if resp.get("outcome") != "granted":
+        print(resp.get("error", "Refused."), file=sys.stderr)
+        return 2 if resp.get("outcome") == "error" else 1
+    print(resp["data"])
+    return 0
+
+
 def main():
+    if len(sys.argv) >= 2 and sys.argv[1] == "sign":
+        return sign_main(sys.argv[2:])
     if len(sys.argv) >= 2 and sys.argv[1] == "http":
         return http_main(sys.argv[2:])
     if len(sys.argv) < 3 or sys.argv[1] != "exec":

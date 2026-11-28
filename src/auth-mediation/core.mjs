@@ -4,7 +4,7 @@ import { posix } from 'node:path'
 import { authorize, importV1 } from './policy.mjs'
 import { envReturn, runEnv } from './env.mjs'
 import { botForCwd, callerKey } from './identity.mjs'
-import { useKey } from './keyuse.mjs'
+import { useKey, signData } from './keyuse.mjs'
 import { callHttp } from './http.mjs'
 
 const NOT_REGISTERED = 'This command is not registered.'
@@ -85,14 +85,17 @@ export function createAuthCore({ store, items, audit, roots, now = () => new Dat
   // Same authorize and audit as resolve; the grant command is "wrapkey <name> wrap" or "wrapkey <name> unwrap"; the item is "wrapkey <name>" (field wrap_key).
   async function keyuse(request) {
     const at = now(), policy = await store.read()
-    const caller = { kind: 'unit', folder: request.unit }, name = `wrapkey ${request.name} ${request.action}`
-    const rec = { time: at.toISOString(), request_id: randomUUID(), caller: callerKey(caller), item: name, via: 'caller-socket', cwd: request.unit, aad: request.aad }
-    const verdict = authorize(policy, caller, name, request.unit, at.getTime())
-    if (verdict !== 'granted') { if (verdict === 'stopped') items.flush(`wrapkey ${request.name}`); record(rec, verdict); return { outcome: verdict, error: REFUSALS[verdict] } }
-    const found = await items.get(`wrapkey ${request.name}`, policy.vault, policy.cache_seconds)
+    // wrap / unwrap use the item "wrapkey <name>", sign the item "signkey <name>"; the grant command adds the action. The caller is named by the transport (caller socket unit, host folder, container peer folder).
+    const caller = await identify(request), key = `${request.action === 'sign' ? 'signkey' : 'wrapkey'} ${request.name}`, name = `${key} ${request.action}`
+    const where = request.cwd ?? request.unit
+    const rec = { time: at.toISOString(), request_id: randomUUID(), caller: caller ? callerKey(caller) : null, item: name, via: request.via ?? 'caller-socket', cwd: where, aad: request.aad }
+    if (!caller) { record(rec, 'unknown-caller'); return { outcome: 'unknown-caller', error: 'The caller is not registered.' } }
+    const verdict = authorize(policy, caller, name, where, at.getTime())
+    if (verdict !== 'granted') { if (verdict === 'stopped') items.flush(key); record(rec, verdict); return { outcome: verdict, error: REFUSALS[verdict] } }
+    const found = await items.get(key, policy.vault, policy.cache_seconds)
     if (!found) { record(rec, 'not-registered'); return { outcome: 'not-registered', error: NOT_REGISTERED } }
     const cache = found.hit ? 'hit' : 'miss'
-    try { const data = useKey(request.action, found.fields, request.data, request.aad ?? ''); record(rec, 'granted', { cache }); return { outcome: 'granted', data } }
+    try { const data = request.action === 'sign' ? signData(found.fields, request.data) : useKey(request.action, found.fields, request.data, request.aad ?? ''); record(rec, 'granted', { cache }); return { outcome: 'granted', data } }
     catch { record(rec, 'error', { cache }); return { outcome: 'error', error: `Cannot ${request.action}.` } }
   }
   // Http (F14): the module makes the request with the credential added and returns the response. Grant command "http <name>"; item "http <name>".

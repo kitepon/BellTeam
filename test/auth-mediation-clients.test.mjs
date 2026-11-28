@@ -117,3 +117,13 @@ test('auth http: sends the request with the folder, prints only the response bod
   assert.equal((await run(AUTH, ['http', 'stripe', 'GET', '/denied'], env)).code, 1); assert.equal((await run(AUTH, ['http', 'stripe', 'GET', '/bad'], env)).code, 2)
   m.close()
 })
+
+test('auth sign: sends stdin as base64 with the folder, prints only the signature, 1 for a refusal and 2 for an error', async () => {
+  const m = await fakeModule(req => req.name === 'no' ? { outcome: 'denied', error: 'no' } : req.name === 'bad' ? { outcome: 'error', error: 'Cannot sign.' } : { outcome: 'granted', data: 'c2ln' })
+  const env = { AUTH_SOCK: m.path }
+  const ok = await run(AUTH, ['sign', 'asc'], env, 'abc')
+  assert.equal(ok.code, 0); assert.equal(ok.out.trim(), 'c2ln')
+  assert.deepEqual(m.seen[0], { op: 'sign', name: 'asc', data: Buffer.from('abc').toString('base64'), cwd: process.cwd() })
+  assert.equal((await run(AUTH, ['sign', 'no'], env, 'x')).code, 1); assert.equal((await run(AUTH, ['sign', 'bad'], env, 'x')).code, 2)
+  m.close()
+})
