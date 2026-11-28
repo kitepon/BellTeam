@@ -10,13 +10,15 @@ export function createItemCache({ runOp, now = Date.now }) {
     let out
     try { out = await runOp(['item', 'get', name, '--vault', vault, '--reveal', '--format', 'json']) } catch { return null }
     const fields = Object.fromEntries((JSON.parse(out).fields ?? []).filter(f => f.value && f.purpose !== 'NOTES').map(f => [f.label, f.value]))
-    if (mine === epoch) cache.set(name, { fields, at: now() }) // a flush during the read drops its result
+    // Per key: an item field `cache_seconds` (whole seconds, 0 = never kept) decided by what the key protects; else the policy's. The lower-case label never leaves the module.
+    const own = /^\d{1,5}$/u.test(fields.cache_seconds ?? '') && Number(fields.cache_seconds) <= 86400 ? Number(fields.cache_seconds) : undefined
+    if (mine === epoch && own !== 0) cache.set(name, { fields, at: now(), ttl: own }) // a flush during the read drops its result
     return fields
   }
   return {
     async get(name, vault, ttlSeconds) {
       const hit = cache.get(name)
-      if (hit && now() < hit.at + ttlSeconds * 1000) return { fields: hit.fields, hit: true }
+      if (hit && now() < hit.at + (hit.ttl ?? ttlSeconds) * 1000) return { fields: hit.fields, hit: true }
       const waiting = inflight.get(name)
       if (waiting) { const fields = await waiting; return fields && { fields, hit: true } }
       const task = read(name, vault, ttlSeconds).finally(() => { if (inflight.get(name) === task) inflight.delete(name) }) // a flushed read must not delete a newer read's entry

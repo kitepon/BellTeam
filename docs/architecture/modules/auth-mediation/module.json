@@ -7,7 +7,8 @@
   "provides": [
     "auth-exec (MCP auth_exec; container socket; main-server host socket)",
     "auth-admin (stop, resume, show, flush, audit, token, entry-set)",
-    "grant entry (grant, revoke only from the registered entry program, with the decision record)"
+    "grant entry (grant, revoke only from the registered entry program, with the decision record)",
+    "key use (wrap, unwrap inside the module on a caller socket per container product; the key is never returned)"
   ],
   "uses": [
     {
@@ -47,6 +48,7 @@
     "src/auth-mediation/redact.mjs",
     "src/auth-mediation/identity.mjs",
     "src/auth-mediation/service.mjs",
+    "src/auth-mediation/keyuse.mjs",
     "src/auth-mediation/mcp.mjs",
     "src/auth-mediation-protocol.mjs",
     "src/auth-mediation-ipc.mjs",

@@ -19,9 +19,14 @@ const program = value => value === undefined || value === null || (typeof value 
 
 // One relay frame -> one answer. Pure over the facade, so the mapping is testable without sockets.
 export async function relayAnswer(frame, facade) {
-  if (!frame || typeof frame !== 'object' || !['container-socket', 'host-socket'].includes(frame.via)) return bad()
+  if (!frame || typeof frame !== 'object' || !['container-socket', 'host-socket', 'caller-socket'].includes(frame.via)) return bad()
   const { request, peer } = frame
   if (!request || typeof request !== 'object' || Array.isArray(request)) return bad()
+  if (frame.via === 'caller-socket') {
+    // A container product's own socket: its path is its identity (named by the relay, never by the client's line). Key use only; no exec, no admin.
+    if (!absolute(frame.unit) || (peer !== null && peer !== undefined) || !['wrap', 'unwrap'].includes(request.op)) return bad()
+    return facade.keyuse({ action: request.op, name: request.name, data: request.data, ...(request.aad === undefined ? {} : { aad: request.aad }), unit: frame.unit })
+  }
   const container = frame.via === 'container-socket'
   if (container) {
     // The relay refuses a foreign uid itself; this is the second look, because the endpoint socket is open to the seat uid.

@@ -71,6 +71,10 @@ The body runs as uid 1001 and cannot read a seat's `/proc/PID/cwd`, and the sock
 
 Honest limit: every seat is uid 1000 too, so the 0600 on `host.sock` and the 0666 body socket keep out other users but **not other seats**: a seat can connect and claim a unit folder or a peer cwd. That is the same class as today's "cd into another Bot root and run auth" and as the known bypass (a seat can already read the old token file). It does not make things weaker than the Owner-held bypass, but it is not a gate against seats. It closes only with the separate decision (a dedicated uid for the module, no seat sudo).
 
+## Caller sockets (key use for container products)
+
+A container product of the Owner (MMOBank's server) cannot use host.sock: that socket names the caller by a folder the client claims, so any container that could open it could claim another unit's keys. Instead the relay creates one socket per container caller, `callers/<name>/<name>.sock` under the shared auth-mediation folder (host: `/home/kite/BellTeam/runtime/data/shared/tools/auth-mediation/callers/<name>/<name>.sock`, mode 0666 so a container uid can open it, the folder 0755 so the socket survives a relay restart when only the folder is mounted). The relay names the caller by the socket (unit id = the socket's path in the BellTeam container) and forwards `{via:'caller-socket', unit, request}`; the body endpoint accepts only `wrap` and `unwrap` on it and calls the child's `keyuse`. The callers are a fixed list in `relay.py` (`CALLERS`): a new one is a body train, deliberately. Line protocol: `{"op":"wrap"|"unwrap","name":"<key name>","data":"<base64, wrap 1..1024 bytes>","aad":"<optional, 256 chars>"}` -> `{"outcome":"granted","data":"<base64>"}` or `{"outcome":"denied"|"unknown-caller"|"not-registered"|"error","error":"..."}`.
+
 ## Function map
 
 ```mermaid
@@ -81,6 +85,7 @@ flowchart LR
     Host["main-server unit: auth exec (kite)"]
     Admin["Rai: auth-admin (stop, resume, show, flush, audit, token, entry-set)"]
     Entry["Sakura: grant entry program (body-owned, scripts/auth-mediation/grant)"]
+    Product["Owner's container product (MMOBank server), own caller socket"]
   end
   subgraph Body["body (stable, Molly)"]
     MCP["seat MCP + resolveSeatBotId"]
@@ -98,6 +103,7 @@ flowchart LR
     Audit["audit.jsonl"]
     Policy["policy.json (grants, admins, entry)"]
     Gate["gate: grant / revoke / import only from the registered entry program"]
+    KeyUse["key use: wrap / unwrap inside the module; the key is never returned"]
   end
   Usage["usage secrets: op read token"]
   Members["members.registry: Bot roots"]
@@ -107,10 +113,14 @@ flowchart LR
   Host --> HostSock --> Facade
   Admin --> Facade
   Entry -->|"grant / revoke + decision record, peer program checked"| Facade
+  Product -->|"wrap / unwrap; the socket is its identity"| Facade
   Facade <-->|IPC| Ident --> Auth --> Items --> Env --> Deliver
   Auth --> Policy
   Facade <-->|IPC| Gate --> Policy
   Gate --> Audit
+  Facade <-->|IPC| KeyUse --> Auth
+  KeyUse --> Items
+  KeyUse --> Audit
   Items -->|cache miss only| OP
   Items -->|token inside callback| Usage
   Ident -->|roots| Members
@@ -126,7 +136,7 @@ flowchart LR
 | F1 | Identify | Transport identity (seat Bot ID; peer-derived Bot ID; unit folder) | A caller key `bot:<id>` or `unit:<folder>`. Unknown caller = `unknown-caller`, no secret read. |
 | F2 | Split command | Words before the first `--` (item name) and ARGS | Item name = words joined by one space. ARGS never reach F3. |
 | F3 | Authorize | `policy.json` re-read on every request; `stopped`; grant `{command, cwd?, expires?}` | `denied` / `stopped` before any read. `cwd` restricts a grant to a folder (used to keep today's folder-bound container grants exactly as narrow as before). |
-| F4 | Resolve item | Item name; vault; in-memory cache | Cache hit: no 1Password call. Miss: one `op item get` with the read token; kept for `cache_seconds` (default 3600 = 1 h, Owner 2026-11-27: a value edited in the 1Password app reaches products within an hour; the account is on Business, 50,000 requests a day and 10,000 reads an hour per token, and the 93 grants cost about 2,200 reads a day at this setting). An entry's age is judged against the **current** `cache_seconds` at every lookup, so changing the setting also changes entries already cached. For a 24 h hold (an exhausted quota) set `cache_seconds` with a no-grant `import`; no restart. Missing item or error = `not-registered` / `error`; nothing starts. |
+| F4 | Resolve item | Item name; vault; in-memory cache | Cache hit: no 1Password call. Miss: one `op item get` with the read token; kept for the key's own cache period: an item field `cache_seconds` (whole seconds, 0 = never kept, at most 86400; the lower-case label never leaves the module) decided per key by what it protects (Owner 2026-11-28), else the policy's `cache_seconds` (default 3600 = 1 h, Owner 2026-11-27: a value edited in the 1Password app reaches products within an hour; the account is on Business, 50,000 requests a day and 10,000 reads an hour per token, and the 93 grants cost about 2,200 reads a day at this setting). An entry's age is judged against the **current** `cache_seconds` at every lookup, so changing the setting also changes entries already cached. For a 24 h hold (an exhausted quota) set `cache_seconds` with a no-grant `import`; no restart. Missing item or error = `not-registered` / `error`; nothing starts. |
 | F5 | Build env | Cached item | Fields labelled `VAR`; `credential` to the executable's variable (table: `gh` -> `GH_TOKEN`). Other fields never leave. |
 | F6 | Deliver | Env; transport | Seat MCP: run through `runtime.seat-process`, bounded output (64 KiB each of stdout and stderr, default timeout 600 s, max 3600 s), redact. Sockets: send env. |
 | F7 | Redact (MCP path only) | Returned stdout/stderr and the env values (length >= 6) | Exact matches replaced by `[redacted:VAR]`. Protects the AI conversation and transcripts from secret exposure. |
@@ -134,6 +144,7 @@ flowchart LR
 | F9 | Admin | Admin identity; verb; for grant / revoke / import also the peer program and the decision record (F11) | Rewrites `policy.json` atomically, audits the change, flushes the item cache (stop, revoke, store flush). |
 | F11 | Grant gate | `policy.entry {path, sha256}` (registered by `entry.set`); the peer program `{path, sha256, sealed}` the relay read (A9); `args.decision {id, role, record, need, reason}` | Once an entry is registered, `grant`, `revoke` and `import` run only when the peer program is sealed (its file and every folder above it are owned by root and not group/other-writable, so no seat can edit it), its path equals `entry.path` and its sha256 equals `entry.sha256`; `grant` and `revoke` must also carry `decision.id` and `decision.reason`. Otherwise `denied`, audited, policy untouched. The module judges nothing about the decision itself; it only requires the entry and keeps the record. Without a registered entry the gate is off (a new install). |
 | F12 | Grant entry program | `grant grant|revoke --bot|--unit ... --role --record --need standing|one-off --reason COMMAND` (Sakura's seat-side checks: all four fields, standing = no `--until`, one-off = `--until`) | The one program the gate accepts. Lives at `/app/scripts/auth-mediation/grant` in the image (root-owned: a seat cannot edit it); talks to the container socket itself, because the module identifies the calling process; sends `decision {id, role, record, need, reason}` with the admin request. Prints the decision id. |
+| F13 | Key use (wrap / unwrap) | `keyuse {action: wrap|unwrap, name, data (base64), aad?, unit}`; item `wrapkey <name>` with field `wrap_key` (32 random bytes, base64); grant command `wrapkey <name> wrap` or `wrapkey <name> unwrap` | Same authorize and audit as F3 / F8. The key is read through F4 (its own cache period, 0 = never kept), used for one AES-256-GCM operation with `aad` authenticated, and dropped; the answer holds only `data`: base64(nonce 12 B | ciphertext | tag 16 B) for wrap, the plain bytes for unwrap. No state: the caller stores the key name beside each blob, so rotation is "unwrap with the old name, wrap with the new one". A wrong blob, `aad` or key = `error` "Cannot unwrap." (no detail). Owner ruling 2026-11-28: the broker uses keys inside itself and hands out only results; handing a key to a command as an environment variable is the defect this closes, one use at a time (the exec path stays for uses not yet moved). |
 | F10 | Token custody | `token.set` value on stdin (via `use_secret`), `token.clear` | Stores the read-only 1Password service account token through usage secrets; the child reads it only inside a callback and passes it to the one `op` process as `OP_SERVICE_ACCOUNT_TOKEN`. |
 
 ## Data flow
@@ -149,13 +160,15 @@ flowchart LR
 | A7 | child -> diagnostics | State transitions only (token missing/replaced, `op` failing, child restart); no values | Through `integration.diagnostics`. |
 | A9 | relay -> body -> child (admin only) | `peer.program {path, sha256, sealed}`: the relay reads `/proc/PID/cmdline` (`python3 /abs/script`: the script is the peer's program), hashes the file and checks that nothing seats own is on its path | Not part of the client's line; the relay's client cannot set it. Null when the peer is not `interpreter /abs/script` |
 | A10 | entry program -> child | `admin grant|revoke {…, decision {id, role, record, need, reason}}` | No secret values. The audit keeps `decision` (known keys only, 500 characters each), `target`, `expires`, `grant_cwd` with the verb |
+| A11 | container caller -> its caller socket -> relay -> body -> child (key use only) | `{op: wrap|unwrap, name, data, aad?}`; the relay adds `unit` = the socket's own path and `via: 'caller-socket'` | One socket per container caller (`callers/<name>/<name>.sock`, 0666, relay list in `relay.py`); a caller socket accepts wrap / unwrap only, never exec or admin. Whoever can open that socket is that caller; mount only its folder into the product's container |
+| A12 | child -> 1Password | `op item get "wrapkey <name>"` (same read as F4) | The key field `wrap_key` is lower-case, so the exec transports never return it even if someone grants exec on that item name |
 | A8 | members -> child | Registered Bot roots (for the container socket's peer-cwd match) | `members.registry` read; nothing written. |
 
 Secret values appear only in: the `op` process (during one `op item get`), the child's memory (cache and one request), the socket reply to a granted caller, and the run request to the seat runner. Never in files, argv, DTOs, logs, audit lines or diagnostics.
 
 ## Child protocol (protocol v1, `src/auth-mediation-protocol.mjs`)
 
-Root requests (up to 8 side by side per channel; a long MCP run must not hold up the socket callers; admin verbs are serialized inside the child because they rewrite `policy.json`): `resolve {command[], cwd, via, args?, botId?, unit?, timeoutSec?}` (`mcp` requires `botId`) -> `{outcome, error?, env?, cache?, exit_code?, stdout?, stderr?, truncated?}` (`env` only for the two socket transports; the MCP path returns redacted run output); `admin {botId|cwd, verb, args?, program?}` (verbs grant, revoke, stop, resume, show, flush, import, audit, entry.set, token.set, token.clear; `program {path, sha256, sealed}` is the peer program the relay read) -> `{outcome, error?, count?, policy?}`; `status {}` -> `{state: 'ready'|'no-token'}`.
+Root requests (up to 8 side by side per channel; a long MCP run must not hold up the socket callers; admin verbs are serialized inside the child because they rewrite `policy.json`): `resolve {command[], cwd, via, args?, botId?, unit?, timeoutSec?}` (`mcp` requires `botId`) -> `{outcome, error?, env?, cache?, exit_code?, stdout?, stderr?, truncated?}` (`env` only for the two socket transports; the MCP path returns redacted run output); `admin {botId|cwd, verb, args?, program?}` (verbs grant, revoke, stop, resume, show, flush, import, audit, entry.set, token.set, token.clear; `program {path, sha256, sealed}` is the peer program the relay read) -> `{outcome, error?, count?, policy?}`; `status {}` -> `{state: 'ready'|'no-token'}`; `keyuse {action, name, data, aad?, unit}` -> `{outcome, error?, data?}` (`data` is the only value that leaves: the wrapped blob or the unwrapped bytes, base64).
 
 Effects (valid only inside a pending root call): `members.roots {}` -> `{roots:{botId: absolute root}}`; `secret.get {}` -> `{value}` or `{unavailable:true}`; `secret.put {value}` -> `{stored:true}`; `secret.erase {}` -> `{erased:true}`; `seat.run {botId, cwd, argv, env, timeoutMs}` -> `{exitCode, stdout, stderr, truncated, timedOut}` (the parent starts the command through `runtime.seat-process` with the env on the runner's stdin line, never argv or files). State compatibility `{state:'policy-v2'}`; controls initialize/quiesce/resume/exit; ready carries `versionId`, protocol version and state compatibility.
 
@@ -208,6 +221,7 @@ Request: `Received -> Identified -> Authorized -> ItemResolved -> Delivered`, ea
 | Refuse before any secret read: unknown caller, no grant, expired, stopped | Secret exposure to a caller that was never granted | Admin grant / resume; `expires` passing is a normal refusal, renewed by grant |
 | MCP `cwd` must be a clean path (no `..`, no `//`, no trailing `/`) whose real path is inside the real path of the Bot's own project root | Running a granted command in another Bot's or a system folder (privilege escalation) | The Bot passes a folder inside its project, or none (the facade defaults to the project root) |
 | Fork seats refused on the MCP tool | Secret exposure and project writes from read-only fork inquiries (seat MCP SK04) | The main seat is not a fork |
+| Caller socket = caller identity for a container product; key use only (wrap / unwrap), no exec, no admin; a key item field `wrap_key` never leaves the module | Secret exposure: a container with host.sock could claim any unit and read other units' keys; the master key leaving as an environment variable or file | A new container caller is one name in the relay's list (body train); revoke its grant to stop it. Limit: any process on main-server that can open the socket file acts as that caller (same trust level as the host's own files; closes with the dedicated-uid decision) |
 | Grant, revoke and import only from the registered grant entry program (sealed path, sha256 equal) with the decision record; `entry.set` registers it | Broker keys lent without the grant-decision check (secret exposure, privilege escalation; Owner 2026-11-27) | A changed entry program is re-registered by Rai (`auth-admin entry-set`); `entry.set` is an admin verb and is not gated, so the gate always has a way out. Limit: the gate is a rule, not a wall. Seats share uid 1000 and have sudo, and a seat can still write a frame to the body's relay socket or forge its own process title; this stops the wrong program, an edited program, a removed hook and a slip, not a deliberate forger (closes only with the dedicated uid decision). `shortcut: process identity from /proc cmdline; upgrade with the module's own uid` |
 | Admin only for `admins`; the first administrators come from the body's start environment `AUTH_MEDIATION_ADMINS` (Bot IDs, merged at read time, never from a request) | Privilege escalation (a Bot granting itself secrets) | Owner/Tronie edit the admin list through Rai or Sakura |
 | Output redaction on the MCP path | Secret exposure into AI conversation and transcripts | none needed (a filter, not a stop). Limit: transformed output (encoded, split) is not caught |

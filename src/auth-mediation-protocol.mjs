@@ -1,6 +1,6 @@
 export const AUTH_MEDIATION_PROTOCOL_VERSION = 1
 export const AUTH_MEDIATION_STATE_COMPATIBILITY = Object.freeze({ state: 'policy-v2' })
-export const AUTH_MEDIATION_METHODS = Object.freeze(['resolve', 'admin', 'status'])
+export const AUTH_MEDIATION_METHODS = Object.freeze(['resolve', 'admin', 'keyuse', 'status'])
 export const AUTH_MEDIATION_EFFECTS = Object.freeze(['members.roots', 'secret.get', 'secret.put', 'secret.erase', 'seat.run'])
 export const authMediationError = (code, status = 400) => Object.assign(new Error(code), { code, status, outcome: 'not_accepted' })
 export const authMediationObject = (value, required, optional = []) => value && typeof value === 'object' && !Array.isArray(value)
@@ -31,6 +31,9 @@ export function validateAuthMediationRequest(method, params, context) {
     && (params.botId === undefined || botId(params.botId)) && (params.cwd === undefined || path(params.cwd)) && str(params.verb) && /^[a-z][a-z.-]{0,31}$/u.test(params.verb)
     && (params.args === undefined || params.args && typeof params.args === 'object' && !Array.isArray(params.args))
     && (params.program === undefined || authMediationObject(params.program, ['path', 'sha256', 'sealed']) && path(params.program.path) && /^[a-f0-9]{64}$/u.test(params.program.sha256) && typeof params.program.sealed === 'boolean'))
+  else if (method === 'keyuse') check(authMediationObject(params, ['action', 'name', 'data', 'unit'], ['aad']) && ['wrap', 'unwrap'].includes(params.action)
+    && text(params.name, 128) && /^[A-Za-z0-9][A-Za-z0-9._-]*$/u.test(params.name) && text(params.data, 4096) && /^[A-Za-z0-9+/]+={0,2}$/u.test(params.data)
+    && path(params.unit) && (params.aad === undefined || text(params.aad, 256)))
   else check(authMediationObject(params, []))
 }
 
@@ -93,6 +96,8 @@ export function validateAuthMediationResult(method, value) {
     && (value.stdout === undefined || str(value.stdout)) && (value.stderr === undefined || str(value.stderr)) && (value.truncated === undefined || typeof value.truncated === 'boolean'))
   else if (method === 'admin') need(authMediationObject(value, ['outcome'], ['error', 'count', 'policy', 'token', 'lines']) && ['ok', 'denied', 'error'].includes(value.outcome)
     && (value.lines === undefined || list(value.lines, str)))
+  else if (method === 'keyuse') need(authMediationObject(value, ['outcome'], ['error', 'data']) && OUTCOMES.includes(value.outcome) && (value.error === undefined || str(value.error))
+    && (value.data === undefined || str(value.data) && value.data.length <= 4096))
   else if (method === 'status') need(authMediationObject(value, ['state']) && ['ready', 'no-token'].includes(value.state))
   else invalid()
 }
