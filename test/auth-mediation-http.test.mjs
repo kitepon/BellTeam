@@ -36,7 +36,7 @@ test('http: credential styles basic, header and query; a caller cannot set the c
   assert.equal(header.seen[0].headers['x-api-key'], SECRET)
   const query = setup({ item: { ...ITEM, http_auth: 'query:key' } }); await ask(query, { path: '/v1/x?key=mine&a=1' })
   assert.equal(new URL(query.seen[0].url).searchParams.get('key'), SECRET); assert.equal(new URL(query.seen[0].url).searchParams.get('a'), '1')
-  assert.equal((await ask(setup({ item: { ...ITEM, http_auth: 'none' } }))).outcome, 'error')
+  assert.equal((await ask(setup({ item: { ...ITEM, http_auth: 'bogus' } }))).outcome, 'error')
 })
 
 test('http: the path cannot leave the item\'s origin and prefix; the method must be allowed; redirects are not followed; bodies are capped', async () => {
@@ -45,7 +45,7 @@ test('http: the path cannot leave the item\'s origin and prefix; the method must
     assert.equal((await ask(t, { path })).outcome, 'error', path)
   assert.equal(t.seen.length, 0)
   assert.equal((await ask(t, { method: 'DELETE' })).outcome, 'error'); assert.equal((await ask(t, { method: 'GET', body: Buffer.from('x').toString('base64') })).outcome, 'error')
-  assert.equal((await ask(t, { method: 'POST', body: Buffer.alloc(40000).toString('base64') })).outcome, 'error')
+  assert.equal((await ask(t, { method: 'POST', body: Buffer.alloc(9 * 1048576 + 1).toString('base64') })).outcome, 'error')
   assert.equal((await ask(t, { method: 'POST', body: Buffer.from('a=1').toString('base64') })).outcome, 'granted'); assert.equal(String(t.seen[0].body), 'a=1')
   const redirect = setup({ answer: () => new Response('', { status: 302, headers: { location: 'https://evil.com/' } }) }); const r = await ask(redirect)
   assert.equal(r.status, 302); assert.equal(r.headers.location, 'https://evil.com/'); assert.equal(redirect.seen.length, 1)
@@ -69,9 +69,9 @@ test('http: a path that hides a separator is refused (%2f %5c %00 %2e, any case,
   assert.equal((await ask(t, { path: '/v1/items/a%20b' })).outcome, 'granted')
 })
 
-test('http: a response is cut at 256 KiB and any copy of the credential in it is replaced; the audit never holds headers, bodies or the credential', async () => {
-  const big = setup({ answer: () => new Response('a'.repeat(300000)) }); const r = await ask(big)
-  assert.equal(r.truncated, true); assert.equal(Buffer.from(r.body, 'base64').length, 262144)
+test('http: a response is cut at 11 MiB and any copy of the credential in it is replaced; the audit never holds headers, bodies or the credential', async () => {
+  const big = setup({ answer: () => new Response('a'.repeat(12 * 1048576)) }); const r = await ask(big)
+  assert.equal(r.truncated, true); assert.equal(Buffer.from(r.body, 'base64').length, 11 << 20)
   const echo = setup({ answer: () => new Response('your key is ' + SECRET + '!') }); const e = await ask(echo, { path: '/v1/echo?token=1&b=2' })
   assert.equal(text(e), 'your key is [redacted]!')
   await new Promise(r => setImmediate(r)); const log = JSON.stringify(echo.lines)
@@ -141,4 +141,47 @@ test('http form auth: the module appends its fields to the caller\'s form body, 
   for (const bad of [{ headers: { 'content-type': 'application/json' }, body: body('{}') }, { method: 'GET' }]) assert.equal((await ask(t, { method: 'POST', path: '/token', ...bad })).outcome, 'error')
   assert.equal((await ask(setup({ item: { ...item, http_form_fields: '' } }), { method: 'POST', path: '/token' })).outcome, 'error')
   const echo = setup({ item, answer: () => new Response('{"echo":"sec-abcdef-987","id":"cid-123456"}') }); const e = await ask(echo, { method: 'POST', path: '/token' }); assert.equal(text(e), '{"echo":"[redacted]","id":"[redacted]"}')
+})
+
+const tokenSetup = (answer, extra = {}) => setup({ item: { http_base: 'https://ip.example.jp', http_auth: 'oauth2-password', http_token_path: '/auth/token', http_token_fields: 'grant_type=password&username=u&password=pw-secret-1', http_methods: 'GET', ...extra }, answer })
+const jpoAnswer = ({ stale = 0 } = {}) => { let n = 0; return (url, options) => {
+  if (String(url).endsWith('/auth/token')) return new Response(JSON.stringify({ access_token: 'tok-' + (++n) + '-abcdef', expires_in: 3600 }), { headers: { 'content-type': 'application/json' } })
+  return stale && options.headers.authorization === 'Bearer tok-1-abcdef' ? new Response('{"result":{"statusCode":210}}', { headers: { 'content-type': 'application/json' } }) : new Response('{"result":{"statusCode":100},"tok":"' + options.headers.authorization + '"}', { headers: { 'content-type': 'application/json', 'x-ratelimit-remaining': '9', 'set-cookie': 'a=b' } })
+} }
+test('http oauth2-password: the module fetches the token, keeps it in memory, adds it, and shows nothing of it', async () => {
+  const { forgetTokens } = await import('../src/auth-mediation/http.mjs'); forgetTokens()
+  const t = tokenSetup(jpoAnswer()); const r = await ask(t, { path: '/api/patent/x' }); const r2 = await ask(t, { path: '/api/patent/y' })
+  assert.equal(r.status, 200); assert.equal(text(r), '{"result":{"statusCode":100},"tok":"Bearer [redacted]"}')
+  assert.deepEqual(r.headers, { 'content-type': 'application/json', 'x-ratelimit-remaining': '9' })
+  const posts = t.seen.filter(s => s.url.endsWith('/auth/token')); assert.equal(posts.length, 1); assert.equal(posts[0].body, 'grant_type=password&username=u&password=pw-secret-1'); assert.equal(r2.status, 200)
+  assert.ok(!JSON.stringify(t.lines).includes('pw-secret-1'))
+})
+test('http oauth2-password: on 401 or result.statusCode 210 it renews once and repeats; the second answer is returned as it is', async () => {
+  const { forgetTokens } = await import('../src/auth-mediation/http.mjs'); forgetTokens()
+  const t = tokenSetup(jpoAnswer({ stale: 1 })); const r = await ask(t, { path: '/api/patent/x' })
+  assert.equal(r.status, 200); assert.match(text(r), /"statusCode":100/u); assert.equal(t.seen.filter(s => s.url.endsWith('/auth/token')).length, 2)
+  forgetTokens(); const always = tokenSetup((url) => String(url).endsWith('/auth/token') ? new Response('{"access_token":"tok-zzzzzz"}') : new Response('no', { status: 401 })); const a = await ask(always, { path: '/api/x' })
+  assert.equal(a.status, 401); assert.equal(always.seen.length, 4) // token, call, token, call: no third round
+  forgetTokens(); const bad = tokenSetup(() => new Response('{"error":"x"}', { status: 400 })); const b = await ask(bad, { path: '/api/x' })
+  assert.deepEqual(b, { outcome: 'error', error: 'The token request failed.' })
+})
+test('http none: the base URL is the credential (full secret URL), path / is exactly that URL, and its secret part is scrubbed from what is shown', async () => {
+  const hook = 'https://discord.example.com/api/webhooks/123456789/AbCdEfGhIjKlMnOpQrStUvWxYz0123'
+  const t = setup({ item: { http_base: hook, http_auth: 'none', http_methods: 'POST' }, answer: () => new Response('echo AbCdEfGhIjKlMnOpQrStUvWxYz0123') })
+  const r = await ask(t, { method: 'POST', path: '/', body: Buffer.from('{"content":"hi"}').toString('base64') })
+  assert.equal(t.seen[0].url, hook); assert.equal(text(r), 'echo [redacted]'); assert.equal(t.seen[0].headers.authorization, undefined)
+  assert.equal((await ask(t, { method: 'POST', path: '/other' })).outcome, 'error')
+})
+test('http jwt-es256: the module signs a short-lived ES256 token with the item key and sends it as the bearer', async () => {
+  const { generateKeyPairSync, createVerify } = await import('node:crypto'); const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' })
+  const t = setup({ item: { http_base: 'https://api.example.com', http_auth: 'jwt-es256', http_jwt_key: privateKey.export({ type: 'pkcs8', format: 'pem' }), http_jwt_kid: 'KID1', http_jwt_iss: 'ISS1', http_jwt_aud: 'aud1', http_jwt_ttl: '300', http_jwt_claims: '{"bid":"com.x"}' } })
+  await ask(t, { path: '/v1/apps' }); const [h, c, sig] = t.seen[0].headers.authorization.slice(7).split('.')
+  assert.deepEqual(JSON.parse(Buffer.from(h, 'base64url')), { alg: 'ES256', kid: 'KID1', typ: 'JWT' }); const claims = JSON.parse(Buffer.from(c, 'base64url'))
+  assert.equal(claims.iss, 'ISS1'); assert.equal(claims.aud, 'aud1'); assert.equal(claims.bid, 'com.x'); assert.equal(claims.exp - claims.iat, 300)
+  assert.ok(createVerify('sha256').update(h + '.' + c).verify({ key: publicKey, dsaEncoding: 'ieee-p1363' }, Buffer.from(sig, 'base64url')))
+})
+test('http: item extra headers are set last, listed caller headers pass, others do not', async () => {
+  const t = setup({ item: { ...ITEM, http_extra_headers: '{"X-Api-Version":"2025-01","authorization":"x"}', http_allow_headers: 'x-trace, authorization' } })
+  await ask(t, { headers: { 'X-Trace': 't1', 'X-Api-Version': 'evil', 'X-Other': 'no', Authorization: 'Bearer stolen' } })
+  assert.deepEqual(t.seen[0].headers, { 'x-trace': 't1', 'x-api-version': '2025-01', authorization: 'x' })
 })

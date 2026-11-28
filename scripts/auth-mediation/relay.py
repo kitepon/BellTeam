@@ -7,7 +7,7 @@ import hashlib, json, os, signal, socket, struct, sys, threading
 DIR = os.environ.get("AUTH_RELAY_DIR", "/srv/bellteam/shared/tools/auth-mediation")
 BODY = os.environ.get("AUTH_RELAY_BODY", "/srv/bellteam/state/auth-mediation-relay.sock")
 SEAT_UID = int(os.environ.get("AUTH_RELAY_SEAT_UID", "1000"))
-MAX_REQUEST, MAX_REPLY, READ_SECONDS, BODY_SECONDS = 65536, 4 << 20, 10, 45  # a reply may carry a 1 MiB message as base64 (mail read)
+MAX_REQUEST, MAX_REPLY, READ_SECONDS, BODY_SECONDS = 13 << 20, 17 << 20, 10, 45  # a request may carry a 9 MiB http body as base64, a reply an 11 MiB response (mail read: 1 MiB)
 SOCKETS = (("container-socket", "container.sock", 0o666), ("host-socket", "host.sock", 0o600))
 # One socket per container caller of key use (wrap / unwrap): callers/<name>/<name>.sock. Whoever can open it is that caller. A new caller is a body train, on purpose.
 CALLERS = ("mmobank", "auctionbot", "reminderbot", "reminderbot-public", "yuihome", "forklore-web", "forklore-mcp", "poly-daily", "ip-mcp", "call-bridge", "x-article-mcp")

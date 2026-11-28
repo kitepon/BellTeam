@@ -75,7 +75,7 @@ export function validateAuthMediationRequest(method, params, context) {
     && text(params.path, 2048) && params.path.startsWith('/') && ['container-socket', 'host-socket', 'caller-socket'].includes(params.via)
     && (params.via === 'caller-socket' ? params.unit !== undefined : params.cwd !== undefined) && (params.cwd === undefined || path(params.cwd)) && (params.unit === undefined || path(params.unit))
     && (params.botId === undefined || botId(params.botId)) && (params.timeoutSec === undefined || Number.isInteger(params.timeoutSec) && params.timeoutSec >= 1 && params.timeoutSec <= 60)
-    && (params.body === undefined || text(params.body, 44000) && /^[A-Za-z0-9+/]*={0,2}$/u.test(params.body))
+    && (params.body === undefined || text(params.body, 12583000) && /^[A-Za-z0-9+/]*={0,2}$/u.test(params.body))
     && (params.headers === undefined || params.headers && typeof params.headers === 'object' && !Array.isArray(params.headers) && Object.keys(params.headers).length <= 16
       && Object.entries(params.headers).every(([name, value]) => text(name, 64) && text(value, 1024))))
   else check(authMediationObject(params, []))
@@ -149,7 +149,7 @@ export function validateAuthMediationResult(method, value) {
     && (value.status === undefined || Number.isInteger(value.status) && value.status >= 100 && value.status <= 599) && (value.body === undefined || str(value.body) && value.body.length <= 1200000) && (value.truncated === undefined || typeof value.truncated === 'boolean'))
   else if (method === 'http') need(authMediationObject(value, ['outcome'], ['error', 'status', 'headers', 'body', 'truncated']) && OUTCOMES.includes(value.outcome) && (value.error === undefined || str(value.error))
     && (value.status === undefined || Number.isInteger(value.status) && value.status >= 100 && value.status <= 599) && (value.truncated === undefined || typeof value.truncated === 'boolean')
-    && (value.body === undefined || str(value.body) && value.body.length <= 400000)
+    && (value.body === undefined || str(value.body) && value.body.length <= 15400000)
     && (value.headers === undefined || value.headers && typeof value.headers === 'object' && Object.values(value.headers).every(str)))
   else if (method === 'status') need(authMediationObject(value, ['state']) && ['ready', 'no-token'].includes(value.state))
   else invalid()

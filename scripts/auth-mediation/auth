@@ -77,10 +77,11 @@ def http_main(argv):
     sys.stdout.buffer.flush()
     if resp.get("truncated"):
         print("(response cut at the module's limit)", file=sys.stderr)
-    if resp["status"] >= 400:
-        print(f"HTTP {resp['status']}", file=sys.stderr)
-        return 22
-    return 0
+    print(f"HTTP {resp['status']}", file=sys.stderr)  # every response: a caller must see 200 / 204 / 4xx apart without the body
+    for name, value in resp.get("headers", {}).items():
+        if name == "retry-after" or "ratelimit" in name:
+            print(f"{name}: {value}", file=sys.stderr)
+    return 22 if resp["status"] >= 400 else 0
 
 
 def sign_main(argv):

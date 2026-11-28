@@ -59,7 +59,7 @@ test('the endpoint answers one frame per connection on its unix socket (0666), r
   const ok = JSON.parse(await ask(relay.path, JSON.stringify({ via: 'container-socket', peer, request: { op: 'exec', command: ['gh'] } }) + '\n'))
   assert.equal(ok.outcome, 'granted')
   assert.deepEqual(JSON.parse(await ask(relay.path, 'not json\n')), { outcome: 'error', error: 'Bad request.' })
-  assert.deepEqual(JSON.parse(await ask(relay.path, 'x'.repeat(130 * 1024))), { outcome: 'error', error: 'Bad request.' })
+  assert.deepEqual(JSON.parse(await ask(relay.path, 'x'.repeat(13 * 1024 * 1024 + 1024))), { outcome: 'error', error: 'Bad request.' })
   assert.deepEqual(JSON.parse(await ask(relay.path, JSON.stringify({ via: 'host-socket', peer: null, request: { op: 'exec', command: ['d'], cwd: '/h' } }) + '\n')), { outcome: 'error', error: 'Timed out.' })
   assert.deepEqual(relay.status(), { listening: true, relay: false })
 })
