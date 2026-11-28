@@ -170,7 +170,6 @@ flowchart LR
   m_runtime -->|"context CLI"| m_throughline
   m_runtime -->|"storage: THROUGHLINE_HOME, locate, export"| m_throughline
   m_runtime -->|"harness-entries (approval-box)"| m_approval_box
-  m_runtime -->|"connection export (call-bridge.connection.v1)"| m_bridge
   m_runtime -->|"MCP /mcp"| m_bridge
   m_runtime -->|"registration v1 (item in RTK harness-entries.json)"| m_testgate
   m_runtime -->|"harness-entries.json"| m_rtk
