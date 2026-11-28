@@ -34,7 +34,7 @@ internal static class ApprovalsLook
         ["target"] = "M5 12a7 7 0 1 0 14 0a7 7 0 1 0-14 0 M12 2.5v3.2M12 18.3v3.2M2.5 12h3.2M18.3 12h3.2",
         ["hour"] = "M7 3.5h10M7 20.5h10 M8 3.5c0 4.6 3.2 5.8 4 8.5-.8 2.7-4 3.9-4 8.5M16 3.5c0 4.6-3.2 5.8-4 8.5.8 2.7 4 3.9 4 8.5",
     };
-    private static readonly Dictionary<string, Geometry> Cache = [];
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Geometry> Cache = new();
     private static Geometry Of(string name)
     {
         if (Cache.TryGetValue(name, out var geometry)) return geometry;

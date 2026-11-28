@@ -14,7 +14,7 @@ namespace BellTeam.App;
 public sealed class UpdateContent : UserControl, IDisposable
 {
     private static readonly Color VioletColor = Color.FromRgb(0x61, 0x47, 0xD4), MintColor = Color.FromRgb(0x2E, 0xB3, 0x9E), RedColor = Color.FromRgb(0xFF, 0x3B, 0x30), GreyColor = Color.FromRgb(0x8A, 0x8A, 0x8E);
-    private static readonly Brush Group = new SolidColorBrush(Color.FromRgb(0xF2, 0xF2, 0xF7));
+    private static readonly Brush Group = SecretCard.Frozen(Color.FromRgb(0xF2, 0xF2, 0xF7));
     private readonly Workspace workspace;
     private readonly UpdateCenter center;
     private readonly StackPanel stack = new() { Margin = new Thickness(18, 22, 18, 22), MaxWidth = 620 };
