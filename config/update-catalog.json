@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-28T07:56:19Z",
-  "expiresAt": "2026-12-05T07:56:19Z",
+  "publishedAt": "2026-11-28T08:21:28Z",
+  "expiresAt": "2026-12-05T08:21:28Z",
   "releases": [
     {
       "componentId": "usage",
@@ -889,8 +889,8 @@
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "ef3eeaf5761fad319b185ed8322c442b28f5c8ce",
-      "versionId": "33cfd8b716d8c88a2199abae74b859a0cf60f9a5a120638fe560a87f47cfb80e",
+      "sourceCommit": "e146b2c652467509c8d030d186db042813924e65",
+      "versionId": "2a8603d8e59f29c67a0e48c51d34bfda5c8396f43156007b66600e9b26eda846",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -898,16 +898,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T075550Z/auth-mediation-ef3eeaf5761fad319b185ed8322c442b28f5c8ce-linux-amd64.tar.gz",
-          "bytes": 3737199,
-          "sha256": "33cfd8b716d8c88a2199abae74b859a0cf60f9a5a120638fe560a87f47cfb80e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T082107Z/auth-mediation-e146b2c652467509c8d030d186db042813924e65-linux-amd64.tar.gz",
+          "bytes": 3737540,
+          "sha256": "2a8603d8e59f29c67a0e48c51d34bfda5c8396f43156007b66600e9b26eda846"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T075550Z/auth-mediation-ef3eeaf5761fad319b185ed8322c442b28f5c8ce-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11265,
-          "sha256": "4b6e18de3302b60a2137a0b60f3c7ee4b8657aa7f623b8717fd2066fc9a6efff"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T082107Z/auth-mediation-e146b2c652467509c8d030d186db042813924e65-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11175,
+          "sha256": "5e5c5996ef84a2ab94e0b2fc7e93e06c45889e87aeeec7aece7f4db5f7605efa"
         },
-        "signerCommit": "ef3eeaf5761fad319b185ed8322c442b28f5c8ce"
+        "signerCommit": "e146b2c652467509c8d030d186db042813924e65"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -919,13 +919,13 @@
         }
       },
       "changes": [
-        "ストリーミングの HTTP（auth serve の受け口）、Google の OAuth2 の更新と再同意の取得、実行用のフォルダの指定、プロキシへの TLS 接続を、モジュールの中で行えるようになります。"
+        "Plaud 向けの OAuth2 の更新（更新を 1 回にまとめる、クライアントの ID と秘密は任意、ユーザーエージェント）を、モジュールの中で行えるようになります。"
       ]
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "ef3eeaf5761fad319b185ed8322c442b28f5c8ce",
-      "versionId": "8e50b3c3f70cf6b3e6f7f83237dbcc9a2f8c80316340f8012dea5aabca3c2373",
+      "sourceCommit": "e146b2c652467509c8d030d186db042813924e65",
+      "versionId": "5ffd26e4e0abcc899d2fcdbc3874d1f8c3579b9ca475d7929d99cde599310d16",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -933,16 +933,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T075550Z/auth-mediation-ef3eeaf5761fad319b185ed8322c442b28f5c8ce-linux-arm64.tar.gz",
-          "bytes": 3737199,
-          "sha256": "8e50b3c3f70cf6b3e6f7f83237dbcc9a2f8c80316340f8012dea5aabca3c2373"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T082107Z/auth-mediation-e146b2c652467509c8d030d186db042813924e65-linux-arm64.tar.gz",
+          "bytes": 3737540,
+          "sha256": "5ffd26e4e0abcc899d2fcdbc3874d1f8c3579b9ca475d7929d99cde599310d16"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T075550Z/auth-mediation-ef3eeaf5761fad319b185ed8322c442b28f5c8ce-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11124,
-          "sha256": "9e92c7c335774d14320bf7c7f455071597bd9578b144a0255cbff7e65e601276"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T082107Z/auth-mediation-e146b2c652467509c8d030d186db042813924e65-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11132,
+          "sha256": "aca10feceeeded5bea91b9dac420e80e4d0125fb5455ada45caa138e7cce6450"
         },
-        "signerCommit": "ef3eeaf5761fad319b185ed8322c442b28f5c8ce"
+        "signerCommit": "e146b2c652467509c8d030d186db042813924e65"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -954,7 +954,7 @@
         }
       },
       "changes": [
-        "ストリーミングの HTTP（auth serve の受け口）、Google の OAuth2 の更新と再同意の取得、実行用のフォルダの指定、プロキシへの TLS 接続を、モジュールの中で行えるようになります。"
+        "Plaud 向けの OAuth2 の更新（更新を 1 回にまとめる、クライアントの ID と秘密は任意、ユーザーエージェント）を、モジュールの中で行えるようになります。"
       ]
     }
   ],
