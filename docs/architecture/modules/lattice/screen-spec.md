@@ -16,7 +16,7 @@ Units: `pt` = SwiftUI points = CSS px = WinUI effective pixels. Times in ms. Use
 | **過去ログ** (Owner 2026-11-12) | Third view of the ツリー / 担当 / 過去ログ switch. Every finished card (`done` / `retired`, archived or not), newest `doneAt` first, under JST day headings (今日 / 昨日 / M月D日): state glyph, title, owner face + name (owner rule), finish time HH:MM. Tap opens 詳細. Empty: まだ終わった工程はありません。 The switch shows the count (過去ログ N).  **Closed trees (a457, Owner 2026-11-19 via Tronie: 「既に閉じてるツリーを読むのもやめたらいい」; contract: README `history` route and snapshot `history`)**: the snapshot holds only open trees, so the list is the finished cards of the snapshot plus the finished cards of closed trees, which the app reads from `GET /api/lattice/charts/:id/history` ONLY when 過去ログ is opened (first page on opening, the next page when the list scrolls to its end while `next` is not null; rows merge newest `doneAt` first, a card already in the snapshot is not shown twice; while a page loads the rows already known stay and a small spinner row ends the list; a failed page shows one plain row 「続きを読めませんでした。」 with 読み直す, the rest of the list stays; a 404 from an older server shows only the snapshot's rows). The switch count = finished cards of the snapshot + `history.closed` (missing = 0), so it needs no request. 詳細 of a history row opens the card as the page sent it (no 前の工程 links: a closed tree's edges are not read). The ツリー and 担当 views, counts, 段 and edges are unchanged.|
 | **ブロック一覧** (stops) | Every stop on every chart with 外す (Owner only). Reached from 一覧. Detail in the section ブロック一覧 below |
 | **接続** (formerly 待ちの流れ; a161) | The panel of 他条件に接続 and 優先接続, rows oldest first; rows, empty text and wording are in the section [接続 and ブロック](#接続-and-ブロック-a161). iPhone: these rows come first, as a horizontal card pager above the chart. |
-| **詳細** (card detail) | Sheet over the chart: title, state badge + producer, 設計メモ (`designMemo`, Markdown as plain text), 終了条件, 前の工程 / 次の工程 with their states (tappable), 着手 time. A predecessor on another chart (task a60) is listed in 前の工程 with its chart name (「<chart name>の工程表」); tapping it opens that chart at that card. It is never drawn on the canvas or in ツリー (no line leaves the chart). No notes in v1. |
+| **詳細** (card detail) | Sheet over the chart: title, state badge + producer, 設計メモ (`designMemo`, Markdown as plain text), 終了条件, 前の工程 / 次の工程 with their states (tappable; 次の工程 also lists the tasks of other charts that wait on this card, [below](#詳細-次の工程-and-the-waiters-2026-11-28)), 着手 time. A predecessor on another chart (task a60) is listed in 前の工程 with its chart name (「<chart name>の工程表」); tapping it opens that chart at that card. It is never drawn on the canvas or in ツリー (no line leaves the chart). No notes in v1. |
 
 ### Structure layout (ツリー, task a98)
 
@@ -121,7 +121,7 @@ Every button leads to exactly one next view; every failure view says what happen
 | 接続 row | 工程へ移動 | canvas scrolls/zooms to the awaited card and opens its 詳細; an awaited card on another chart opens that chart at it |
 | 詳細 of an Owner-lane card (`producer` is `owner`) | (shown by itself, no tap) | The app asks the Approval Box extension `GET /api/approvals/by-task?project=<chartId>&plan=<plan>&task=<taskId>` once when the 詳細 opens (not on every snapshot). 200 `{decisionId, status: pending\|held\|answered\|cancelled, title}` -> a 決裁 block under 終了条件: the decision's own `title` (as Approval Box has it) and its state in words 待ち / 保留 / 回答済み / 取り下げ, and the button 決裁を開く. 404, 401, 503, network, bad JSON, or no extension -> no block and nothing else changes (no message, no retry: the next 詳細 asks again). The id never shows |
 | 詳細 | 決裁を開く | The extension's 決裁箱 screen with that decision's 詳細 selected (Apple route `approvals/<decisionId>`; Web: the 工程表 dialog closes and the hash becomes `#approvals/<decisionId>`; Windows/Linux: the extension's window). Delta owns that screen and its way back (工程表で見る) |
-| 詳細 | tap 前の工程 / 次の工程 item | 詳細 of that card, canvas follows; an item on another chart opens that chart and its 詳細 (back to the first chart: the chart switcher) |
+| 詳細 | tap 前の工程 / 次の工程 item | 詳細 of that card, canvas follows; an item on another chart (a predecessor of another chart, or a waiter) opens that chart and its 詳細 (back to the first chart: the chart switcher) |
 | 詳細 | close / swipe down / Esc | 工程表, same scroll position |
 
 Failure and edge views (all leave on their own; the action is optional):
@@ -224,6 +224,19 @@ stateDiagram-v2
 Re-reads: on open, 読み直す / pull-to-refresh, after every 外す answer (any outcome), and on coming back to the foreground; never on a timer while the list is readable (the contract has no stream). An open 工程表 sees a removal through its own chart stream. A re-send after an unknown answer is harmless (`already-gone`).
 
 Accessibility: each row is one element 「ブロック、<title>、<chart name>、担当 <lane>、理由 <reason>、<ブロックした人>が<時刻>にブロックしました」 with the action 外す; the confirm step moves focus to its 外す, やめる returns focus to the row's 外す.
+
+## 詳細: 次の工程 and the waiters (2026-11-28)
+
+Tronie ruling (Owner agreed 2026-11-28): the task a 他条件に接続 points at shows who waits on it, the same way a task shows its successors. Same on every platform (Apple, Web, Windows, Linux): the apps draw only what the card carries and recompute nothing.
+
+| Part | Rule |
+| --- | --- |
+| Data | The card's `waiters[]` ([README](README.md#projection-rules-projectionmjs), L27; Lattice's K11 (b)): `{ref, reason, since}`, `ref` = an `externals[]` entry (title, chart name, producer, state, finished). Missing or empty = none; a client without the field shows 次の工程 as today |
+| Where | In 詳細, under 次の工程, AFTER the same-chart successors (edges), oldest `since` first. The heading and the row style are the 次の工程 ones. No new panel, no canvas line, no 接続 chip or counter (those count the card's own open entries), nothing in ツリー / 担当 / 過去ログ |
+| Row | The waiter's title (else 「ほかの工程表の工程」), under it 「<chart name>の工程表」 (else ほかの工程表), its producer's face and name, its state; the `reason` as one muted line (as written). A `done` waiter reads as done; a `retired` one is not sent, so never shown. State unknown (`null`): 読めていません |
+| Tap | Opens that chart at that card with its 詳細 (the existing external-item route; back: the chart switcher) |
+| Live | A new, settled or reopened waiter, and a waiter's title or state, reach the open 詳細 with the next snapshot (SSE); no refresh button, no timer |
+| Accessibility | 「次の工程：「<title>」（<chart name>の工程表）、<state>」, the same sentence shape as a 次の工程 row |
 
 ## 接続 and ブロック (a161)
 
