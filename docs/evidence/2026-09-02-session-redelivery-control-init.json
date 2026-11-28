@@ -1,10 +1,10 @@
 {
   "cwd": "/Users/kite/Developer/BellTeam",
   "control_id": "session-redelivery-20260902",
-  "objective_ref": "docs/plan_session-redelivery-20260902.md",
+  "objective_ref": "docs/archive/plans/plan_session-redelivery-20260902.md",
   "actor_id": "bell-parent-20260902",
   "document_refs": [
-    "docs/plan_session-redelivery-20260902.md"
+    "docs/archive/plans/plan_session-redelivery-20260902.md"
   ],
   "budget": {
     "max_worker_runs": 0,
@@ -26,7 +26,7 @@
     },
     "decision": {
       "type": "decision",
-      "ref": "docs/plan_session-redelivery-20260902.md",
+      "ref": "docs/archive/plans/plan_session-redelivery-20260902.md",
       "digest": "34ae103f9efcb6e419878108c88a23c5729fbf57121cd2fa88c6a39d6309adc0",
       "observed_at": "2026-09-02T00:00:00.000Z"
     }

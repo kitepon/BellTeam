@@ -1,9 +1,9 @@
 {
   "cwd": "/Users/kite/Developer/BellTeam",
   "control_id": "cursor-cold-start-delivery-20260902",
-  "objective_ref": "docs/plan_cursor-cold-start-delivery-20260902.md",
+  "objective_ref": "docs/archive/plans/plan_cursor-cold-start-delivery-20260902.md",
   "actor_id": "bell-parent-cursor-20260902",
-  "document_refs": ["docs/plan_cursor-cold-start-delivery-20260902.md"],
+  "document_refs": ["docs/archive/plans/plan_cursor-cold-start-delivery-20260902.md"],
   "budget": {
     "max_worker_runs": 0,
     "max_consultations": 0,
@@ -24,7 +24,7 @@
     },
     "decision": {
       "type": "decision",
-      "ref": "docs/plan_cursor-cold-start-delivery-20260902.md",
+      "ref": "docs/archive/plans/plan_cursor-cold-start-delivery-20260902.md",
       "digest": "0e276a0e1f952735c5940844e331332147f669b50924df8264fd68382a547ef1",
       "observed_at": "2026-09-02T11:00:00.000Z"
     }
