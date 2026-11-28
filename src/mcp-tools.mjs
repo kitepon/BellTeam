@@ -196,7 +196,7 @@ async function runBellTeamTool(context) {
     return latticeToolHandlers[name]({ lattice: context.lattice, from, args })
   }
   if (conversationTools.some(tool => tool.name === name))
-    return callConversationTool({ name, args, from, registry, messenger, store, rooms, roomMessenger, deliverMessage, deliverForkInquiry, deliverRoomMessage, listQueued })
+    return callConversationTool({ name, args, from, registry, messenger, store, rooms, roomMessenger, deliverMessage, deliverForkInquiry, deliverRoomMessage, listQueued, sendGate: context.sendGate })
   if (name === 'remember') return withMemoryLengthNotice(await memory.remember({ botId: from, ...args, sourceRef: 'mcp' }), args.content)
   if (name === 'recall_memory') return memory.recallMemory({ botId: from, ...args, ...(context.fork ? { readOnly: true } : {}) })
   if (name === 'revise_memory') return withMemoryLengthNotice(await memory.reviseMemory({ botId: from, ...args }), args.content)

@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 
 import { callBellTeamTool, bellTeamTools, resolveBotImagePath } from '../src/mcp-tools.mjs'
+import { openSendGate } from '../src/conversation/send-gate.mjs'
 
 test('Grokが返す相対画像パスを現在のprojectに対応する最新sessionから解決する', async () => {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-grok-image-'))
@@ -252,7 +253,7 @@ test('Bot内MCPのメッセージ配送はメインサーバーへ集約する',
   ])
   registry.refresh = async () => registry
   const context = {
-    from: 'bot-a', registry, messenger: {}, roomMessenger: {},
+    from: 'bot-a', registry, messenger: {}, roomMessenger: {}, sendGate: openSendGate,
     deliverMessage: async value => { calls.push(['direct', value]); return { delivery: 'queued' } },
     deliverRoomMessage: async value => { calls.push(['room', value]); return { delivery: 'queued' } },
     listQueued: async botId => { calls.push(['list-queued', botId]); return { items: [{ id: 'queue-1' }] } },

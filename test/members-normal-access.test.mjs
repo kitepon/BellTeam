@@ -9,6 +9,7 @@ import { createMembersAssembly } from '../src/members-assembly.mjs'
 import { createBellTeamServer } from '../src/http-server.mjs'
 import { callBellTeamTool } from '../src/mcp-tools.mjs'
 import { BellTeamMessenger } from '../src/messenger.mjs'
+import { openSendGate } from '../src/conversation/send-gate.mjs'
 
 async function fixture(t, { internal = false } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'members-normal-'))
@@ -80,7 +81,7 @@ test('MCP identity and direct contact use fresh reads with eight unrelated AI le
   const result = await callBellTeamTool({ name: 'get_self', from: 'bot-from', registry: f.facade.bots, rooms: f.rooms })
   assert.equal(result.bot.id, 'bot-from')
   const sent = await callBellTeamTool({ name: 'sendmessage', arguments: { target: 'bot-target', message: 'new contact' },
-    from: 'bot-from', registry: f.facade.bots, rooms: f.rooms, messenger: f.messenger })
+    from: 'bot-from', registry: f.facade.bots, rooms: f.rooms, messenger: f.messenger, sendGate: openSendGate })
   assert.equal(sent.delivery, 'running')
   assert.equal(f.sends, 1)
   assert(f.calls.includes('profiles.read') && f.calls.includes('profile.read'))

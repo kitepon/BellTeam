@@ -8,6 +8,7 @@ import { ConversationWriter, deliveryFailureFields } from '../src/conversation-w
 import { conversationTools, callConversationTool } from '../src/mcp-conversation-tools.mjs'
 import { resolveBotImagePath } from '../src/bot-image-path.mjs'
 import { requireRoomMember, requireRepresentative } from '../src/room-access.mjs'
+import { openSendGate } from '../src/conversation/send-gate.mjs'
 
 test('会話writerは保存後に通知し、失敗結果と表示用の言葉を発言に変えない', async t => {
   const root = await mkdtemp(join(tmpdir(), 'conversation-writer-'))
@@ -35,7 +36,7 @@ test('会話writerは保存後に通知し、失敗結果と表示用の言葉�
 test('会話専用MCPは共通入口を編集せず宛先解決と配送窓口を検証できる', async () => {
   const registry = new Map([['bot-a', { id: 'bot-a', name: 'A' }], ['bot-b', { id: 'bot-b', name: 'B' }]])
   const calls = [], args = { target: 'B', message: 'fixture', image: '/fixture.png' }
-  const context = { registry, from: 'bot-a', args, deliverMessage: async value => { calls.push(value); return { delivery: 'steered' } } }
+  const context = { registry, from: 'bot-a', args, sendGate: openSendGate, deliverMessage: async value => { calls.push(value); return { delivery: 'steered' } } }
   assert.deepEqual(await callConversationTool({ ...context, name: 'sendmessage' }), { delivery: 'steered' })
   assert.deepEqual(calls, [{ from: 'bot-a', target: 'bot-b', message: 'fixture', image: { path: '/fixture.png' } }])
   assert.ok(conversationTools.find(tool => tool.name === 'sendmessage').inputSchema.required.includes('message'))
@@ -57,7 +58,7 @@ test('部屋予定も同じ公開資格検証を使える', () => {
 test('sendmessage keeps a remote seat image path as given', async () => {
   const registry = new Map([['bot-r', { id: 'bot-r', name: 'R', terminalId: 'win', projectRoot: 'C:\\p' }], ['bot-b', { id: 'bot-b', name: 'B' }]])
   const calls = []
-  for (const image of ['C:\\Users\\x\\a.png', 'shot.png']) await callConversationTool({ name: 'sendmessage', from: 'bot-r', registry, args: { target: 'B', message: 'm', image }, deliverMessage: async value => { calls.push(value.image) } })
+  for (const image of ['C:\\Users\\x\\a.png', 'shot.png']) await callConversationTool({ name: 'sendmessage', from: 'bot-r', registry, args: { target: 'B', message: 'm', image }, sendGate: openSendGate, deliverMessage: async value => { calls.push(value.image) } })
   assert.deepEqual(calls, [{ path: 'C:\\Users\\x\\a.png' }, { path: 'shot.png' }])
 })
 

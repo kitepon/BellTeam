@@ -13,6 +13,7 @@ import { createBellTeamServer } from '../src/http-server.mjs'
 import { bellTeamTools } from '../src/mcp-tools.mjs'
 import { createSeatCredentials } from '../src/seat-credentials.mjs'
 import { SEAT_HEADER, createRemoteSeatIngress, createSeatMcp, internalApi, seatCandidates } from '../src/seat-mcp.mjs'
+import { openSendGate } from '../src/conversation/send-gate.mjs'
 
 const FORK = 'bot-a-fork-0123456789ab'
 const registry = () => Object.assign(new Map([['bot-a', { id: 'bot-a', name: 'A' }]]), { async refresh() {} })
@@ -37,7 +38,7 @@ test('fork seat: lists every tool and refuses only project-folder writes (Owner 
   const recalled = [], remembered = [], sent = []
   const memory = { recallMemory: async input => { recalled.push(input); return { items: [] } }, remember: async input => { remembered.push(input); return { id: 'm' } } }
   const forkSeat = name => name === FORK ? { botId: 'bot-a', forkId: 'f1' } : null
-  const base = await serve(t, createSeatMcp({ bots, forkSeat, tools: { registry: bots, memory, deliverMessage: async value => { sent.push(value); return { delivery: 'running' } } } }))
+  const base = await serve(t, createSeatMcp({ bots, forkSeat, tools: { registry: bots, memory, sendGate: openSendGate, deliverMessage: async value => { sent.push(value); return { delivery: 'running' } } } }))
   const fork = await connect(t, `${base}/mcp`, FORK)
   assert.deepEqual((await fork.listTools()).tools.map(tool => tool.name), bellTeamTools.map(tool => tool.name))
   const call = (name, args) => fork.callTool({ name, arguments: args }).catch(error => ({ isError: true, content: [{ text: error.message }] }))

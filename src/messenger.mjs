@@ -9,11 +9,14 @@ import { normalizeConversationCallbackError } from './conversation/callbacks.mjs
 import { readImageBytes } from './message-assets.mjs'
 import { jst, replyNotice, requireReplyQuote, requireReplyTo, snapshotReply } from './reply-reference.mjs'
 import { originNotice, requireFiles, resolveOrigin } from './origin-reference.mjs'
+import { RECEIVER_LINE } from './conversation/send-gate.mjs'
 
-export function directEnvelope(from, message, { fork = false, replyTo = null, origin = null } = {}) {
+export function directEnvelope(from, message, { fork = false, replyTo = null, origin = null, answer = false } = {}) {
   const identity = typeof from === 'string' ? { id: from, name: from, position: '', role: '' } : from
   const name = identity.id === 'user' ? 'オーナー' : identity.name
-  return `「${name}${fork ? '（分身）' : ''}」からあなたへ次のメッセージが届いています。\n\n${origin ? originNotice(origin, message) : `${replyNotice(replyTo)}${message}`}`
+  // send-gate.md: a Bot's request carries one line telling the receiver to check it with the owner skill; the Owner's, the scheduler's and a fork's answer relay (answer) do not.
+  const line = answer || ['user', 'scheduler'].includes(identity.id) ? '' : `${RECEIVER_LINE}\n\n`
+  return `「${name}${fork ? '（分身）' : ''}」からあなたへ次のメッセージが届いています。\n\n${line}${origin ? originNotice(origin, message) : `${replyNotice(replyTo)}${message}`}`
 }
 
 // fork-inquiry.md "Inquiry row and fork input": the fork answers in its last reply, which is relayed; a sendmessage would be a 2nd message.
@@ -93,7 +96,7 @@ export class BellTeamMessenger extends ConversationWriter {
     if (bot) {
       try { check() }
       catch (error) { await this.appendDeliveryStatus(deliveryId, 'stopped'); throw error }
-      delivery = await this.transport.notify(bot, directEnvelope(memberIdentity(this.bots, from), message, { fork: label?.seat?.kind === 'fork' || label?.from_seat?.kind === 'fork' }), {
+      delivery = await this.transport.notify(bot, directEnvelope(memberIdentity(this.bots, from), message, { fork: label?.seat?.kind === 'fork' || label?.from_seat?.kind === 'fork', answer: typeof label?.in_reply_to === 'string' }), {
         ...(admissionCheck ? { admissionCheck: () => { check(); admissionCheck() } } : {}),
         ...(membersLease === undefined ? {} : { membersLease }),
         ...(executionSource ? { executionSource } : {}),
@@ -288,7 +291,7 @@ export class BellTeamMessenger extends ConversationWriter {
     const execution = await this.transport.reconcileLaunch(bot, deliveryExecutionRef(deliveryId, target?.session_id), target)
     check()
     const result = await this.transport.notify(bot, record.session_id ? callEnvelope(record)
-      : directEnvelope(record.from_identity ?? record.from, record.message), {
+      : directEnvelope(record.from_identity ?? record.from, record.message, { answer: typeof record.in_reply_to === 'string' }), {
       recoveredExecution: execution,
       images,
       queue: { context: 'direct', contextId: bot.id, groupId: deliveryId, from: record.from,
