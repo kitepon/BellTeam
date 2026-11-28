@@ -248,7 +248,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
     private async Task ShowDetailedSettingsAsync(BellTeam.Linux.SettingsPage? open)
     {
         if (!model.Connected) return;
-        var window = new SettingsWindow(model, () => { CloseAllPages(); ShowStartup(StartupPhase.Setup); }, new StoredNotificationSwitch(settings), async () => { CloseAllPages(); await PushRegistration.UnregisterAsync(model); access.SignOut(); ShowList(); model.SignOut(); },
+        var window = new SettingsWindow(model, () => { CloseAllPages(); ShowStartup(StartupPhase.Setup); }, new StoredNotificationSwitch(settings), async () => { var end = HomeSessionEnd.Begin(model, tokens); CloseAllPages(); await PushRegistration.UnregisterAsync(model); if (await end.EndAsync()) { access.SignOut(); ShowList(); model.SignOut(); } },
             // The app draws these itself (Google Play rows, the sign-in, the version); notifications are desktop (freedesktop) only.
             [BellTeam.Linux.SettingsPage.Connection, BellTeam.Linux.SettingsPage.Billing, BellTeam.Linux.SettingsPage.About, BellTeam.Linux.SettingsPage.Notifications]);
         window.Show(); await window.InitializeAsync();
@@ -402,7 +402,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
         if (!model.Connected) { ShowStartup(StartupPhase.Setup); return; }
         EndSettings();
         settingsLife = CancellationTokenSource.CreateLinkedTokenSource(model.ConnectionToken);
-        settingsBody = new PhoneSettingsPage(model, () => ShowStartup(StartupPhase.Setup), async () => { await PushRegistration.UnregisterAsync(model); access.SignOut(); ShowList(); model.SignOut(); }, ShowDetailedSettings, settingsLife.Token); Grid.SetRow(settingsBody, 1); settingsPage.Children.Add(settingsBody);
+        settingsBody = new PhoneSettingsPage(model, () => ShowStartup(StartupPhase.Setup), async () => { var end = HomeSessionEnd.Begin(model, tokens); await PushRegistration.UnregisterAsync(model); if (await end.EndAsync()) { access.SignOut(); ShowList(); model.SignOut(); } }, ShowDetailedSettings, settingsLife.Token); Grid.SetRow(settingsBody, 1); settingsPage.Children.Add(settingsBody);
         listPage.IsVisible = false; conversationPage.IsVisible = false; settingsPage.IsVisible = true;
     }
     // The page's reads end when it is left.
@@ -520,7 +520,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
     private Control SessionSignIn()
     {
         var origin = ServerOrigin.Parse(model.Server); tokens.Clear(origin);
-        return new ConnectView(new LoginApi(model.Management.Api), "android", origin, tokens, () => _ = ConnectAsync(model.Server), () => ShowStartup(StartupPhase.Setup));
+        return new ConnectView(new BellApi(origin, cookies: access.Cookies), origin, tokens, () => _ = ConnectAsync(model.Server), () => ShowStartup(StartupPhase.Setup));
     }
     private async void ConnectToAddress(string text)
     {

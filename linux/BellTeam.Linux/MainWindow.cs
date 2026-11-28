@@ -715,7 +715,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     {
         if (!model.Connected || !LeavePage()) return;
         INotificationSwitch toggle = (INotificationSwitch?)notifications ?? new StoredNotificationSwitch(settingsStore);
-        var editor = new SettingsWindow(model, OpenConnectionSettings, toggle, () => { ShowConversation(); model.SignOut(); });
+        var editor = new SettingsWindow(model, OpenConnectionSettings, toggle, async () => { var end = HomeSessionEnd.Begin(model, tokens); ShowConversation(); if (await end.EndAsync()) model.SignOut(); });
         model.ReturnToProfile();
         settingsPage = editor; pageArea.Child = editor.AsPage(ShowConversation); pageArea.IsVisible = true; conversationArea.IsVisible = false; UpdateCorner();
         PageReady = editor.InitializeAsync(page);
@@ -757,7 +757,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     {
         if (!model.SessionLoginRequired) return new LoginView(OpenConnectionSettings);
         var origin = ServerOrigin.Parse(model.Server); tokens.Clear(origin);
-        return new ConnectView(new LoginApi(model.Management.Api), "linux", origin, tokens, () => _ = ConnectAsync(model.Server), OpenConnectionSettings);
+        return new ConnectView(new BellApi(origin), origin, tokens, () => _ = ConnectAsync(model.Server), OpenConnectionSettings);
     }
     private void RouteToLogin()
     {

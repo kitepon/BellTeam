@@ -10,7 +10,7 @@ using BellTeam.Core;
 
 namespace BellTeam.Tests;
 
-// a485, shape 2 (app-sessions.md section 7): start, show the code, poll, keep the token; the Bearer header; the DPAPI token file; the connect screen. Cases follow the Linux AppLoginTests.
+// a485, C-04 (app-sessions.md sections 2 and 4): the console code, the Bearer header, the DPAPI token file, the code screen. Cases follow the Linux AppLoginTests.
 public sealed class AppLoginTests
 {
     private sealed class Server(params string[] polls) : HttpMessageHandler
@@ -36,35 +36,6 @@ public sealed class AppLoginTests
             return new HttpResponseMessage(HttpStatusCode.NotFound);
         }
     }
-    private const string Phone = """{"loginId":"L1","status":"waiting_phone","expiresAt":"2999-01-01T00:00:00.000Z","phone":{"shortCode":"0123-4567","checkNumber":"042","qr":"bt://x"}}""";
-    private static LoginApi Api(Server server) => new(new BellApi(new("http://localhost/"), server));
-    private static readonly Func<int, CancellationToken, Task> NoWait = (_, _) => Task.CompletedTask;
-
-    [Fact]
-    public async Task ItWaitsForTheSecondHandThenThePhoneAndReceivesTheTokenOnce()
-    {
-        var server = new Server("""{"loginId":"L1","status":"waiting_second_hand"}""", Phone, """{"loginId":"L1","status":"approved","token":"tok-1"}""");
-        var flow = new LoginFlow(Api(server), "windows", NoWait); var seen = new List<LoginPhase>(); string? code = null; flow.Changed += () => { seen.Add(flow.Phase); if (flow.Phase == LoginPhase.WaitingPhone) code = flow.Status!.Phone!.ShortCode; };
-        await flow.RunAsync(default);
-        Assert.Equal(LoginPhase.Approved, flow.Phase); Assert.Equal("tok-1", flow.Token);
-        Assert.Contains(LoginPhase.WaitingPhone, seen); Assert.Equal("0123-4567", code);
-        Assert.Equal(1, server.Calls.Count(call => call == "POST /api/login/start"));   // start is never resent
-    }
-
-    [Fact]
-    public async Task ARefusedExpiredOrLostLoginEndsWithItsSentenceAndAFailedPollIsRetriedWithoutLimit()
-    {
-        var refused = new LoginFlow(Api(new Server("""{"loginId":"L1","status":"refused","reason":"not_owner_account"}""")), "windows", NoWait); await refused.RunAsync(default);
-        Assert.Equal(LoginPhase.Refused, refused.Phase); Assert.Equal(LoginFlow.RefusedText("not_owner_account"), refused.Message);
-        var expired = new LoginFlow(Api(new Server("""{"loginId":"L1","status":"expired"}""")), "windows", NoWait); await expired.RunAsync(default);
-        Assert.Equal(LoginPhase.Failed, expired.Phase); Assert.Equal("ログインの時間が切れました。もう一度始めてください。", expired.Message);
-        var delivered = new LoginFlow(Api(new Server("""{"loginId":"L1","status":"delivered"}""")), "windows", NoWait); await delivered.RunAsync(default);
-        Assert.Equal(LoginPhase.Failed, delivered.Phase);   // the token comes once; a later "delivered" without it means it was lost
-        var flaky = new Server("""{"loginId":"L1","status":"approved","token":"tok-2"}""") { FailPolls = 5 };
-        var retried = new LoginFlow(Api(flaky), "windows", NoWait); await retried.RunAsync(default);
-        Assert.Equal("tok-2", retried.Token); Assert.True(flaky.Calls.Count(call => call == "GET /api/login/L1") >= 6);
-    }
-
     private sealed class Probe(string session, HttpStatusCode status = HttpStatusCode.OK) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
