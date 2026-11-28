@@ -2,21 +2,21 @@
 <#
 Builds the published Windows app downloads into -Out: one self-contained zip per CPU (BellTeam-win-x64.zip, BellTeam-win-arm64.zip), SHA256SUMS and install-windows.ps1.
 Only those four files in -Out are replaced; anything else there is left as it is.
-The Desktop Google OAuth client JSON (the secret goes into the build, never into git or a log) arrives on stdin from scripts/windows-install-with-oauth.sh --package (auth exec on main-server, the authentication module).
+The Desktop Google OAuth client JSON (installed-app, public build configuration: Sakura's ruling 2026-11-28) is read from config\google-desktop-oauth.json in this checkout (untracked, never committed: GitHub's push protection refuses it; never printed).
 #>
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][string]$Out,
-    [switch]$GoogleDesktopOAuthStdin
+    [Parameter(Mandatory)][string]$Out
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-if (!$GoogleDesktopOAuthStdin) { throw 'Googleのデスクトップ用クライアントの値が要ります。auth exec /home/kite/BellTeam/scripts/windows-install-with-oauth.sh --package <出力先> から実行してください。' }
 $taskRepository = Split-Path -Parent $PSScriptRoot
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 # The catch hides the parser's message so no part of the JSON can reach a log.
-try { $env:BELLTEAM_GOOGLE_DESKTOP_SECRET = ([Console]::In.ReadToEnd() | ConvertFrom-Json).installed.client_secret } catch { $env:BELLTEAM_GOOGLE_DESKTOP_SECRET = $null }
-if (!$env:BELLTEAM_GOOGLE_DESKTOP_SECRET) { throw 'Google Desktopクライアントの秘密を標準入力から読めませんでした（値は表示しません）。' }
+$taskGoogle = Join-Path $taskRepository 'config\google-desktop-oauth.json'
+if (!(Test-Path -LiteralPath $taskGoogle)) { throw 'config\google-desktop-oauth.json がありません（Googleのデスクトップ用クライアントのJSON。コミットしない）。' }
+try { $env:BELLTEAM_GOOGLE_DESKTOP_SECRET = (Get-Content -LiteralPath $taskGoogle -Raw | ConvertFrom-Json).installed.client_secret } catch { $env:BELLTEAM_GOOGLE_DESKTOP_SECRET = $null }
+if (!$env:BELLTEAM_GOOGLE_DESKTOP_SECRET) { throw 'config\google-desktop-oauth.json からGoogle Desktopクライアントの秘密を読めませんでした（値は表示しません）。' }
 $taskWork = Join-Path ([IO.Path]::GetTempPath()) ('bellteam-package-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force -Path $taskWork | Out-Null
 try {

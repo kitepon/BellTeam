@@ -5,8 +5,6 @@ param(
     [switch]$NoLaunch,
     [switch]$SkipShareTarget,
     [switch]$Uninstall,
-    # a540: the Desktop Google OAuth client JSON (client_id + client_secret) arrives on stdin from scripts/windows-install-with-oauth.sh (auth exec on main-server). The secret goes only into the build's environment, never a commit or a log.
-    [switch]$GoogleDesktopOAuthStdin,
     # Install the published build (GitHub release windows-app, .NET bundled) instead of building from this checkout. Chosen by itself when no source tree sits beside this script, i.e. when this file was downloaded from the release.
     [switch]$FromRelease
 )
@@ -45,10 +43,12 @@ if ($taskFromRelease) {
     Expand-Archive -LiteralPath (Join-Path $taskWork $taskZipName) -DestinationPath $taskPublish -Force
 } else {
     $taskPublish = Join-Path $taskRepository "windows\artifacts\publish-win-$taskArchitecture"
-    if ($GoogleDesktopOAuthStdin) {
+    # a540 (Sakura's ruling 2026-11-28): the Desktop Google client (installed-app) is public build configuration, not a module key: config\google-desktop-oauth.json beside this script's checkout (untracked, never committed: GitHub's push protection refuses it). Without the file the build runs and Google's sign-in answers signin_failed.
+    $taskGoogle = Join-Path $taskRepository 'config\google-desktop-oauth.json'
+    if (Test-Path -LiteralPath $taskGoogle) {
         # The catch hides the parser's message so no part of the JSON can reach a log.
-        try { $env:BELLTEAM_GOOGLE_DESKTOP_SECRET = ([Console]::In.ReadToEnd() | ConvertFrom-Json).installed.client_secret } catch { $env:BELLTEAM_GOOGLE_DESKTOP_SECRET = $null }
-        if (!$env:BELLTEAM_GOOGLE_DESKTOP_SECRET) { throw 'Google Desktopクライアントの秘密を標準入力から読めませんでした（値は表示しません）。' }
+        try { $env:BELLTEAM_GOOGLE_DESKTOP_SECRET = (Get-Content -LiteralPath $taskGoogle -Raw | ConvertFrom-Json).installed.client_secret } catch { $env:BELLTEAM_GOOGLE_DESKTOP_SECRET = $null }
+        if (!$env:BELLTEAM_GOOGLE_DESKTOP_SECRET) { throw 'config\google-desktop-oauth.json からGoogle Desktopクライアントの秘密を読めませんでした（値は表示しません）。' }
     }
     & dotnet publish (Join-Path $taskRepository 'windows\BellTeam.App\BellTeam.App.csproj') -c Release -r "win-$taskArchitecture" --self-contained true -o $taskPublish --nologo
     $taskPublishExit = $LASTEXITCODE

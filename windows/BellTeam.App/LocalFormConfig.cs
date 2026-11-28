@@ -6,7 +6,7 @@ namespace BellTeam.App;
 // a540: the library's LocalConfig of this app (login-billing contract 1.36 s10, 1.37), from the public ids in Core (LocalFormIds). Never put a token or a pass here.
 internal static class LocalFormConfig
 {
-    // The Desktop client's secret reaches the build from the auth-mediation module (auth exec scripts/windows-install-with-oauth.sh on main-server -> stdin -> scripts/install-windows.ps1 -GoogleDesktopOAuthStdin -> BELLTEAM_GOOGLE_DESKTOP_SECRET -> assembly metadata, BellTeam.App.csproj): GitHub's push protection refuses it in a commit.
+    // The Desktop client's secret reaches the build from the untracked config\google-desktop-oauth.json (public build configuration, Sakura 2026-11-28; scripts/install-windows.ps1 or scripts/package-windows-app.ps1 -> BELLTEAM_GOOGLE_DESKTOP_SECRET -> assembly metadata, BellTeam.App.csproj): GitHub's push protection refuses it in a commit.
     // Google treats a Desktop client's secret as non-confidential; it is sent with the token request only and never logged. A build without it (a source build with no vault) signs in with Google's refusal, "client_secret is missing".
     internal static string? GoogleSecret =>
         typeof(LocalFormConfig).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().FirstOrDefault(a => a.Key == "GoogleDesktopSecret")?.Value is { Length: > 0 } secret ? secret : null;
