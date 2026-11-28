@@ -7,13 +7,14 @@ import { botForCwd, callerKey } from './identity.mjs'
 import { useKey, signData, signDigest } from './keyuse.mjs'
 import { callHttp } from './http.mjs'
 import { sshIdentity, sshSign } from './sshkey.mjs'
+import { sendMail } from './mail.mjs'
 
 const NOT_REGISTERED = 'This command is not registered.'
 const ENTRY_ONLY = ['grant', 'revoke', 'import'], DECISION_KEYS = ['id', 'role', 'record', 'need', 'reason']
 const REFUSALS = { stopped: 'This command is stopped by the operator.', denied: 'This command is not permitted.' }
 
 // store: {read, write}; items: createItemCache; audit: line => Promise; roots: () => {botId: absoluteRoot}.
-export function createAuthCore({ store, items, audit, roots, now = () => new Date(), realpath = fsRealpath, fetchImpl = fetch }) {
+export function createAuthCore({ store, items, audit, roots, now = () => new Date(), realpath = fsRealpath, fetchImpl = fetch, mailConnect }) {
   // An audit failure never refuses a request (the diagnostic is the caller's); it is swallowed here by design.
   const record = (rec, outcome, extra = {}) => { void Promise.resolve(audit({ ...rec, outcome, ...extra })).catch(() => {}) }
 
@@ -114,5 +115,20 @@ export function createAuthCore({ store, items, audit, roots, now = () => new Dat
       return { outcome: 'granted', ...result }
     } catch (error) { record(rec, 'error', { cache: found.hit ? 'hit' : 'miss' }); return { outcome: 'error', error: error?.code?.startsWith?.('HTTP_') ? error.message : 'The request failed.' } }
   }
-  return { resolve, admin, keyuse, http }
+  // Mail send (F17): the module logs in to the item's SMTP server and sends. Grant command "mail <name> send"; item "mail <name>". The audit keeps counts and the message id, never addresses or text.
+  async function mail(request) {
+    const at = now(), policy = await store.read(), caller = await identify(request), item = `mail ${request.name}`, name = `${item} ${request.action}`
+    const rec = { time: at.toISOString(), request_id: randomUUID(), caller: caller ? callerKey(caller) : null, item: name, action: request.action, via: request.via, cwd: request.cwd ?? request.unit, recipients: request.to?.length }
+    if (!caller) { record(rec, 'unknown-caller'); return { outcome: 'unknown-caller', error: 'The caller is not registered.' } }
+    const verdict = authorize(policy, caller, name, request.cwd ?? request.unit, at.getTime())
+    if (verdict !== 'granted') { if (verdict === 'stopped') items.flush(item); record(rec, verdict); return { outcome: verdict, error: REFUSALS[verdict] } }
+    const found = await items.get(item, policy.vault, policy.cache_seconds)
+    if (!found) { record(rec, 'not-registered'); return { outcome: 'not-registered', error: NOT_REGISTERED } }
+    try {
+      const result = await sendMail(found.fields, request, { now, ...(mailConnect ? { connect: mailConnect } : {}) })
+      record(rec, 'granted', { cache: found.hit ? 'hit' : 'miss', message_id: result.message_id })
+      return { outcome: 'granted', ...result }
+    } catch (error) { const code = error?.code?.startsWith?.('MAIL_') ? error.code : 'MAIL_NOT_SUBMITTED'; record(rec, 'error', { cache: found.hit ? 'hit' : 'miss', class: code, why: error?.why }); return { outcome: 'error', error: code } }
+  }
+  return { resolve, admin, keyuse, http, mail }
 }

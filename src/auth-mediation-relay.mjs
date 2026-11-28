@@ -21,6 +21,9 @@ const httpParams = request => ({ name: request.name, method: request.method, pat
 // The client's key-use line -> the child's keyuse params (the transport fills who is calling).
 const KEY_OPS = ['wrap', 'unwrap', 'sign', 'sign-digest', 'ssh-identity', 'ssh-sign']
 const keyParams = request => ({ action: request.op, name: request.name, ...(request.data === undefined ? {} : { data: request.data }), ...(request.aad === undefined ? {} : { aad: request.aad }), ...(request.flags === undefined ? {} : { flags: request.flags }) })
+// The client's mail line -> the child's mail params (the transport fills who is calling).
+const mailParams = request => ({ action: 'send', name: request.name, to: request.to, subject: request.subject, text: request.text, ...(request.html === undefined ? {} : { html: request.html }),
+  ...(request.from_name === undefined ? {} : { from_name: request.from_name }), ...(request.reply_to === undefined ? {} : { reply_to: request.reply_to }) })
 const program = value => value === undefined || value === null || (typeof value === 'object' && absolute(value.path) && /^[a-f0-9]{64}$/u.test(value.sha256) && typeof value.sealed === 'boolean')
 
 // One relay frame -> one answer. Pure over the facade, so the mapping is testable without sockets.
@@ -30,7 +33,8 @@ export async function relayAnswer(frame, facade) {
   if (!request || typeof request !== 'object' || Array.isArray(request)) return bad()
   if (frame.via === 'caller-socket') {
     // A container product's own socket: its path is its identity (named by the relay, never by the client's line). Key use only; no exec, no admin.
-    if (!absolute(frame.unit) || (peer !== null && peer !== undefined) || ![...KEY_OPS, 'http'].includes(request.op)) return bad()
+    if (!absolute(frame.unit) || (peer !== null && peer !== undefined) || ![...KEY_OPS, 'http', 'mail-send'].includes(request.op)) return bad()
+    if (request.op === 'mail-send') return facade.mail({ ...mailParams(request), via: 'caller-socket', unit: frame.unit })
     if (request.op === 'http') return facade.http({ ...httpParams(request), via: 'caller-socket', unit: frame.unit })
     return facade.keyuse({ ...keyParams(request), via: 'caller-socket', unit: frame.unit })
   }
@@ -50,6 +54,11 @@ export async function relayAnswer(frame, facade) {
     if (container) return facade.keyuse({ ...keyParams(request), via: 'container-socket', cwd: peer.cwd })
     if (!absolute(request.cwd)) return bad()
     return facade.keyuse({ ...keyParams(request), via: 'host-socket', cwd: request.cwd, unit: request.cwd })
+  }
+  if (request.op === 'mail-send') {
+    if (container) return facade.mail({ ...mailParams(request), via: 'container-socket', cwd: peer.cwd })
+    if (!absolute(request.cwd)) return bad()
+    return facade.mail({ ...mailParams(request), via: 'host-socket', cwd: request.cwd, unit: request.cwd })
   }
   if (request.op === 'http') {
     if (container) return facade.http({ ...httpParams(request), via: 'container-socket', cwd: peer.cwd })
