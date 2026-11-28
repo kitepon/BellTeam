@@ -226,9 +226,17 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
           }
           const errors = [error]
           try {
+            let rollbackHandoff = handoff
+            if (saving && candidate?.initialized) {
+              try {
+                await within(quiesce(candidate, { handover: true }), 10_000, 'HANDOVER_TIMEOUT')
+                rollbackHandoff = candidate.engine.exportState({ handover: true })
+              } catch { rollbackHandoff = null }
+            }
             await dispose(candidate)
             if (closed) throw fail('CLOSED')
-            const restored = make(old.factory, handoff); instance = restored
+            if (!old) throw fail('ROLLBACK_UNAVAILABLE')
+            const restored = make(old.factory, rollbackHandoff); instance = restored
             await initialize(restored)
             await adopt(oldSelection)
             currentVersionId = oldSelection.currentVersionId; previousVersionId = oldSelection.previousVersionId

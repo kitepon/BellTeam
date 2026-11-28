@@ -361,6 +361,9 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
       // A shared registry keeps the successor's listeners.
       remoteSeats?.close()
       if (handedOver) unsubscribe(); else { unsubscribe(); transport.activity.listeners.clear() }
+      transport.cliUnsubscribe?.(); transport.cliUnsubscribe = null
+      transport.accountsUnsubscribe?.(); transport.accountsUnsubscribe = null
+      clearTimeout(transport.moveRetryTimer); transport.moveRetryTimer = null
       clearTimeout(transport.workState.timer); transport.workState.timer = null
       // Never call Transport.close(): it closes the shared native client and aborts watches.
       phase = 'retired'
