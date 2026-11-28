@@ -35,7 +35,7 @@ export async function sendMail(fields, request, { connect = defaultConnect, now 
   let socket, buffer = '', waiter = null, ended = false, sent = false
   const deadline = Date.now() + TOTAL_MS
   const wake = () => { const w = waiter; waiter = null; w?.() }
-  const attach = s => { if (s === socket) return; socket = s; s.setEncoding('utf8'); s.on('data', d => { buffer += d; wake() }); s.on('end', () => { ended = true; wake() }); s.on('error', () => { ended = true; wake() }); s.on('close', () => { ended = true; wake() }) }
+  const attach = s => { socket = s; s.setEncoding('utf8'); s.on('data', d => { buffer += d; wake() }); s.on('end', () => { ended = true; wake() }); s.on('error', () => { ended = true; wake() }); s.on('close', () => { ended = true; wake() }) }
   const lost = () => fail(sent ? MAIL_UNKNOWN : MAIL_NOT_SUBMITTED, 'connection')
   async function reply() {
     for (;;) {
