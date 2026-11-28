@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-28T11:18:03Z",
-  "expiresAt": "2026-12-05T11:18:03Z",
+  "publishedAt": "2026-11-28T11:42:35Z",
+  "expiresAt": "2026-12-05T11:42:35Z",
   "releases": [
     {
       "componentId": "usage",
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "e5447d14cffb46c784bb97323551bc5925efae71",
-      "versionId": "sha256:a92b11a95cad49d1f3c90339b0ca0a410320905342e2bd1db6e29c7d18b7921c",
+      "sourceCommit": "d9bf1255ffd585cc2fbecdb9e25e7e2ccae814f8",
+      "versionId": "sha256:c260649390c657158be27ea127530c342892c57f8ada3a72e9c093054b070e54",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:a92b11a95cad49d1f3c90339b0ca0a410320905342e2bd1db6e29c7d18b7921c"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c260649390c657158be27ea127530c342892c57f8ada3a72e9c093054b070e54"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -722,20 +722,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "BellTeam 本体が、固定アドレスのネットワーク（bellteam_fixed）に付いて起動します。Throughline が 0.22.0 になり、不具合の報告に署名が付けられるようになります。既にある工程表へ名前を付けて呼んでも、名前が書き換わらなくなります。"
+        "工程表の毎分の見回りが、Claude の席を起こすのは、働いている Claude の席が 5 未満の時だけになります（利用上限に当たっている間の負荷を抑えます）。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "e5447d14cffb46c784bb97323551bc5925efae71",
-      "versionId": "sha256:a92b11a95cad49d1f3c90339b0ca0a410320905342e2bd1db6e29c7d18b7921c",
+      "sourceCommit": "d9bf1255ffd585cc2fbecdb9e25e7e2ccae814f8",
+      "versionId": "sha256:c260649390c657158be27ea127530c342892c57f8ada3a72e9c093054b070e54",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:a92b11a95cad49d1f3c90339b0ca0a410320905342e2bd1db6e29c7d18b7921c"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c260649390c657158be27ea127530c342892c57f8ada3a72e9c093054b070e54"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -744,13 +744,13 @@
         "containerUpdate": 1
       },
       "changes": [
-        "BellTeam 本体が、固定アドレスのネットワーク（bellteam_fixed）に付いて起動します。Throughline が 0.22.0 になり、不具合の報告に署名が付けられるようになります。既にある工程表へ名前を付けて呼んでも、名前が書き換わらなくなります。"
+        "工程表の毎分の見回りが、Claude の席を起こすのは、働いている Claude の席が 5 未満の時だけになります（利用上限に当たっている間の負荷を抑えます）。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "e5447d14cffb46c784bb97323551bc5925efae71",
-      "versionId": "3f7f7aacea32ced1ab5b3365b0b2e1477e2d16d4d2dc5be9d04bb358c371250f",
+      "sourceCommit": "d9bf1255ffd585cc2fbecdb9e25e7e2ccae814f8",
+      "versionId": "6c3da8277ccf05863e78758060cf95bd114184cc89978f6e5147e4e2aa702a00",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -758,16 +758,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T104837Z/lattice-e5447d14cffb46c784bb97323551bc5925efae71-linux-amd64.tar.gz",
-          "bytes": 15369302,
-          "sha256": "3f7f7aacea32ced1ab5b3365b0b2e1477e2d16d4d2dc5be9d04bb358c371250f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T113556Z/lattice-d9bf1255ffd585cc2fbecdb9e25e7e2ccae814f8-linux-amd64.tar.gz",
+          "bytes": 15369721,
+          "sha256": "6c3da8277ccf05863e78758060cf95bd114184cc89978f6e5147e4e2aa702a00"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T104837Z/lattice-e5447d14cffb46c784bb97323551bc5925efae71-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11137,
-          "sha256": "ff905da774779ef71b3d819763620e83875c84b71ac7c93f0868781ea24c6989"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T113556Z/lattice-d9bf1255ffd585cc2fbecdb9e25e7e2ccae814f8-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10855,
+          "sha256": "174d9c9f15371b03070bc4eeaf27f51ce4de3b193aaca548d77cbc360a213b86"
         },
-        "signerCommit": "e5447d14cffb46c784bb97323551bc5925efae71"
+        "signerCommit": "d9bf1255ffd585cc2fbecdb9e25e7e2ccae814f8"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -779,13 +779,13 @@
         }
       },
       "changes": [
-        "既にある工程表に、コマンドと一緒に名前を渡しても、その名前に書き換わらなくなります（新しく作る時だけ名前が付きます）。"
+        "工程表の毎分の見回りが、Claude の席の起動数に上限（既定 5）を設けられるようになります。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "e5447d14cffb46c784bb97323551bc5925efae71",
-      "versionId": "5e2434f4e9d80e14dd9f3ccdbc1dfafe0afddb69073328df58c8e82910808f5c",
+      "sourceCommit": "d9bf1255ffd585cc2fbecdb9e25e7e2ccae814f8",
+      "versionId": "b60c961994d0d0bba408c448f888bf8d16767fff477a206339754cce76f7ea57",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -793,16 +793,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T104837Z/lattice-e5447d14cffb46c784bb97323551bc5925efae71-linux-arm64.tar.gz",
-          "bytes": 15369302,
-          "sha256": "5e2434f4e9d80e14dd9f3ccdbc1dfafe0afddb69073328df58c8e82910808f5c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T113556Z/lattice-d9bf1255ffd585cc2fbecdb9e25e7e2ccae814f8-linux-arm64.tar.gz",
+          "bytes": 15369721,
+          "sha256": "b60c961994d0d0bba408c448f888bf8d16767fff477a206339754cce76f7ea57"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T104837Z/lattice-e5447d14cffb46c784bb97323551bc5925efae71-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11137,
-          "sha256": "79c304db08aa74da096549ac35016f07a450d98525043815d93c8dd2339bab3a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T113556Z/lattice-d9bf1255ffd585cc2fbecdb9e25e7e2ccae814f8-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10855,
+          "sha256": "f7120df8d09f8e0d885efd8848310c3e7240a5220a899e5994ece092ce848db0"
         },
-        "signerCommit": "e5447d14cffb46c784bb97323551bc5925efae71"
+        "signerCommit": "d9bf1255ffd585cc2fbecdb9e25e7e2ccae814f8"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -814,7 +814,7 @@
         }
       },
       "changes": [
-        "既にある工程表に、コマンドと一緒に名前を渡しても、その名前に書き換わらなくなります（新しく作る時だけ名前が付きます）。"
+        "工程表の毎分の見回りが、Claude の席の起動数に上限（既定 5）を設けられるようになります。"
       ]
     },
     {
