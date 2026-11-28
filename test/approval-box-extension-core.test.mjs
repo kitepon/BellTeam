@@ -127,3 +127,14 @@ test('rule T: the named chart, else the requester Bot chart, else the coordinato
   assert.equal(targetChart(view({}, { ...decision().source, session_label: 'Lattice bellteam a/b' }), charts), 'bellteam')
   assert.equal(taskIdOf('K-1A2'), 'dec-k-1a2')
 })
+
+test('L3: a dec-* task made by L1 is retired when its request is cancelled; an attached task is not (a withdrawn request is not the end of the work)', async () => {
+  const { planLink } = await import('../src/approval-box-extension/link-plan.mjs')
+  const d = view({ status: 'cancelled', cancel_reason: 'x' })
+  const chart = { projectId: 'bellteam', cards: [{ id: 'approval-box/dec-k-aaaa', plan: 'approval-box', taskId: 'dec-k-aaaa', state: 'in-progress', lane: 'approval-box', title: 't' }, { id: 'p1/t1', plan: 'p1', taskId: 't1', state: 'ready', lane: 'approval-box', title: 't' }], edges: [] }
+  const row = (plan, taskId, attached) => ({ decisionId: d.id, projectId: 'bellteam', plan, taskId, state: 'linked', attached, handledVersion: 1 })
+  assert.ok(planLink({ d, row: row('approval-box', 'dec-k-aaaa', false), rows: [], chart }).actions.some(action => action.args?.includes('retire')))
+  const attached = planLink({ d, row: row('p1', 't1', true), rows: [], chart })
+  assert.deepEqual(attached.actions, [])
+  assert.equal(attached.row.state, 'closed')
+})

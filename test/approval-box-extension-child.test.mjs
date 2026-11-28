@@ -420,6 +420,25 @@ test('F9 O5: a Bot that is gone and a chart without a creator are skipped; an un
   assert.equal(JSON.parse(h.files.get('owner-told.json')).items['bellteam/p1/t1'].count, 1)
 })
 
+test('F9 O6: an attached request whose Owner-lane task stops being startable is withdrawn by its filer (told hourly); the module cancels nothing itself; a cancel closes the row without retiring the task', async () => {
+  const seat = sentLog(), c = clock('2026-11-28T03:00:00Z'), cards = [oc('t1', { state: 'pending' })]
+  const row = { decisionId: 'K-AAAA', projectId: 'bellteam', plan: 'p1', taskId: 't1', state: 'linked', attached: true, sessionLabel: 'Lattice bellteam p1/t1', handledVersion: 1, updatedAt: '2026-11-28T03:00:00Z' }
+  const h = harness({ decisions: [raw('K-AAAA')], seatMessage: seat.fn, now: c.now, cards, rowsText: JSON.stringify({ version: 1, rows: [row] }) })
+  await h.core.refresh({ since: 0 }, h.effect)
+  assert.equal(seat.log.length, 1)
+  assert.match(seat.log[0].message, /cancel_decision K-AAAA/u)
+  assert.equal(seat.log[0].target, 'bot-823b56e9')
+  assert.ok(!h.calls.some(([method]) => method.startsWith('decisions.')), 'the module never cancels an AI request')
+  c.advance(61_000); await h.core.refresh({ since: 0 }, h.effect)
+  assert.equal(seat.log.length, 1, 'not within 60 min')
+  cards[0].state = 'ready'; c.advance(61_000); await h.core.refresh({ since: 0 }, h.effect)
+  assert.deepEqual(JSON.parse(h.files.get('owner-told.json')).items, {}, 'startable again: the withdraw record is dropped, and the linked card is not told')
+  // the filer cancels the request: the row closes, the task is not retired
+  h.box.decisions.set('K-AAAA', { ...raw('K-AAAA'), status: 'cancelled', version: 2, cancel_reason: '着手できないため' })
+  h.calls.length = 0; h.writes.clear(); await h.core.refresh({ since: 0 }, h.effect)
+  assert.ok(![...h.writes.keys()].some(verb => verb.startsWith('todo retire')), 'an attached task is not retired by a cancel')
+})
+
 test('F9 protocol: only the withdrawal effect exists', () => {
   validateApprovalsEffect('decisions.cancel', { decisionId: 'K-AAAA', reason: '作り直します' })
   assert.throws(() => validateApprovalsEffect('decisions.file', { title: 't' }))

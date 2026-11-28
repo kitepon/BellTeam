@@ -28,3 +28,20 @@ export function tellMessage({ projectId, chartName, card, count }) {
     `The Approval Box extension closes the task when he answers. The module never writes this card for you. ${count > 0 ? `This is reminder ${count + 1}: it repeats every 60 minutes until a request with that label exists.` : 'If no request exists, it tells you again every 60 minutes.'}`,
   ].join('\n')
 }
+
+// O6: an attached request (a Bot filed it) whose Owner-lane card is no longer startable (a 前工程 reopened or a 接続 opened) must be withdrawn by its filer.
+const NOT_STARTABLE = new Set(['pending', 'blocked'])
+export const withdrawKey = (projectId, card) => `withdraw:${keyOf(projectId, card)}`
+export const cardsToWithdraw = ({ projectId, cards, rows, told, now }) => cards.flatMap(card => {
+  const row = rows.find(item => item.projectId === projectId && item.plan === card.plan && item.taskId === card.taskId && item.state === 'linked' && item.attached && !item.filed)
+  const last = told[withdrawKey(projectId, card)]
+  return row && isOwnerLane(card.lane) && NOT_STARTABLE.has(card.state) && !(last && now - Date.parse(last.toldAt) < TELL_MS) ? [{ card, row }] : []
+})
+export function withdrawMessage({ projectId, chartName, card, decisionId, count }) {
+  const ref = `${card.plan}/${card.taskId}`
+  return [
+    `Lattice: the Owner-lane task ${ref} 「${card.title}」 on the chart ${chartName ?? projectId} (lattice tool, project ${projectId}) can no longer start (a predecessor was reopened or a connection is open), but the Approval Box request ${decisionId} for it is still open on the Owner's list.`,
+    `You filed it, so withdraw it yourself: cancel_decision ${decisionId} with a short reason in the language the user rules give for what the Owner reads (today Japanese), for example that the task cannot start yet and you will ask again when it can. The Owner must not be asked for work he cannot do yet.`,
+    `When the task can start again, file ONE new request with session_label \`${labelOf(projectId, card)}\` (the module tells you then). Cancelling does not retire the task.${count > 0 ? ` Reminder ${count + 1}, every 60 minutes until the request is cancelled.` : ''}`,
+  ].join('\n')
+}

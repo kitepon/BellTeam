@@ -130,7 +130,7 @@ Trigger source: F1's event stream (`decision.created | updated | deleted`) plus 
 | --- | --- | --- | --- |
 | L1 | a decision is `pending`, has no link, and is BellTeam's (its requester is a BellTeam Bot, R2; or L8 applies) | `facade.link` first (R3: so the Lattice hand-over cannot hand the card over between add and link), then find the target chart and plan (rule T below); add ONE task, lane `approval-box`, title = the decision title (Japanese, as the Owner reads it), design memo = what is decided and which decision (short), not the whole context; connect it as a predecessor of the task that waits for it (rule W below) | `linked` |
 | L2 | `answered` (answer `option_id` or `text`) | `start` unless in progress, then `done` with evidence = the Owner's answer label and time (Japanese). The waiting task becomes startable; the Lattice module's existing notices wake its lane | `answered` |
-| L3 | `cancelled` by the AI | `retire` with reason = the AI's cancel reason, or its Japanese gist | `closed` |
+| L3 | `cancelled` by the AI | `dec-*` task (made by L1): `retire` with reason = the AI's cancel reason, or its Japanese gist. An **attached** task (L8: it existed before the request): no chart action, the task stays (a withdrawn request is not the end of the work; 2026-11-28, O6) | `closed` |
 | L4 | `amended` (version moves, status still pending) | `note` on the task: 「内容が直されました（直した項目）」. The title is not rewritten (Lattice has no rename; the screen reads the live title from Approval Box) | `linked` (version updated) |
 | L5 | `held` / unheld | no chart change. The task stays; the screen shows 保留 from Approval Box. (A held decision is not a stop: it waits on the Owner's choice to return it) | `linked` |
 | L6 | a task is `done` or `retired` on the chart while the decision is still pending (someone closed it by hand) | do NOT cancel the decision (the AI owns it); show the mismatch on the card: 「工程はすでに済みです」, and offer nothing destructive | `diverged` (shown, self-heals when the decision ends) |
@@ -159,10 +159,13 @@ Owner 2026-11-28: 「Lattice工程表に、俺のタスクを載せられるの�
 | # | When | Action | Record |
 | --- | --- | --- | --- |
 | O1 | each scan (60 s) of F9, with a connected and entitled Approval Box: a card of any chart (`facade.charts` then `facade.chart`) whose lane is the Owner lane (`approval-box` or `決裁箱`, matched case-insensitively as Lattice resolves it; the retired `owner` / `指揮官` are not told, as L8 never attached them), whose state is `ready` or `in-progress` (it can start: a task behind an open predecessor is not told), with **no link row** for its `plan/task` and no told record younger than 60 min | **tell the adder**: one message through the parent effect `seat.message` (the public send path, from `scheduler`) to `card.addedBy`; `addedBy` null or no longer a roster Bot: the chart's creator (`createdBy`); neither: nobody is told. At the first telling the card is registered with `facade.link`, so Lattice's own hand-over (L18) does not also ask the creator. The message (English, between Bots) says: you added this Owner-lane task and it can start; file ONE Approval Box request yourself with `session_label` `Lattice <project> <plan>/<task>`; write it for the Owner in the language the user rules give for what the Owner reads (today Japanese): the title says in one sentence what he is to do; the background says where (which screen or device), why, and what waits on it; each option says what happens after it; no chart text in another language and no task ids on the card; the module closes the task when he answers | `owner-told.json`: `{<project>/<plan>/<task>: {toldAt, count, to}}` |
+| O6 | an attached request (a Bot filed it, link row `linked`, not `filed: true`) whose Owner-lane card stops being startable (a 前工程 reopened or a 接続 opened: the card is no longer `ready` / `in-progress`, and is not done or retired) | **tell the filer to withdraw it**: one message to the same adder (`addedBy`, else the chart's creator) to `cancel_decision` that request (the decision id is named) and to file again when the task can start; at most once per 60 min per card (record key `withdraw:<project>/<plan>/<task>`). The module cancels no request of an AI itself. When the request is cancelled, L3 closes the link row and does **not** retire an attached task (only a `dec-*` task made by L1 is retired by a cancel); the task stays on the chart and O1 tells again when it can start | told record `withdraw:…`, then row `closed` |
 | O2 | an AI files a request with that label | L8/L10 attach it to the Owner-lane task and drive it (his answer starts and finishes the task); the told record is dropped. The scan stops telling | link row `linked (attached)` |
 | O3 | the card is gone, done, retired, or no longer can start (a predecessor reopened) | the told record is dropped; nothing is told | record removed |
 | O4 | a link row with `filed: true` (a request the first version of this module wrote on 2026-11-28 10:59-11:01 JST) | `decisions.cancel` through P1 with the reason 作り直します, then the row is dropped (P1 unavailable: it stays for the next scan; refused or gone: dropped) | row removed |
 | O5 | the Owner has no connected, entitled Approval Box, or the extension is off or absent | nothing is told, nothing is written; the card stays on the chart and L18 behaves as today | none |
+
+The Owner's rule (11:1x JST): 「俺の工程に着手可能になった時にしてくれない？未来の工程まで決裁箱に上げてきてるでしょ。」 A request exists only while its task can start: O1 tells only for `ready` / `in-progress` (Lattice's own word: every 前工程 done, no open 接続), never earlier; O6 withdraws it when that stops being true.
 
 Telling is bounded: at most 5 messages per scan, in chart order; the same card at most once per 60 min (`shortcut: fixed 60 min, when the Owner wants another interval, make it a setting`). The language is not read from a setting by this module: the Bot's own user rules carry it (`shortcut: today Japanese for every Owner; when BellTeam has a per-Owner language setting, the module passes it in the message`).
 
@@ -170,7 +173,7 @@ Telling is bounded: at most 5 messages per scan, in chart order; the same card a
 
 `/srv/bellteam/state/approval-box-extension/` (server uid, same family as `lattice-module/`; BellTeam state dir, not a Bot project). One file `links.json`, written atomically (temp + rename) before the effect it records, so a crash replays the effect. Row: `{decisionId, projectId, plan, taskId, state: linked|answered|closed|diverged, attached: bool, filed?: true (written by the first Owner-lane version; withdrawn by O4), sessionLabelRef, handledVersion, updatedAt}`. No titles, no contexts, no answers. A decision gone from Approval Box (deleted) and a closed task: row removed after 30 days (`shortcut: fixed age, when the Owner wants an audit trail, keep in the chart evidence instead`).
 
-A second file `owner-told.json` (same folder, same atomic write) keeps the Owner-lane telling (section 5b O1): `{version: 1, items: {"<project>/<plan>/<task>": {toldAt, count, to}}}`, ids and times only; an item is dropped when its card is gone, ended, can no longer start, or has a link row.
+A second file `owner-told.json` (same folder, same atomic write) keeps the Owner-lane telling (section 5b O1): `{version: 1, items: {"<project>/<plan>/<task>": {toldAt, count, to}}}`, ids and times only; an O1 item is dropped when its card is gone, ended, can no longer start, or has a link row; an O6 item (`withdraw:` key) when the card is startable again, ended, or its link row is gone.
 
 Link record state machine (self-exits are the retries):
 
@@ -188,6 +191,7 @@ stateDiagram-v2
   Closed --> [*]: row removed after 30 days
   Answered --> Answered: done failed → retry next tick (decision stays answered)
   Linked --> [*]: filed: true rows are cancelled and dropped (O4)
+  Linked --> Closed: attached request cancelled by its filer after O6 (the task is not retired)
 ```
 
 ## 7. Entry points the extension uses (public only)
