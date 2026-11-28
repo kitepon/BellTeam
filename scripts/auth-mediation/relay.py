@@ -10,7 +10,7 @@ SEAT_UID = int(os.environ.get("AUTH_RELAY_SEAT_UID", "1000"))
 MAX_REQUEST, MAX_REPLY, READ_SECONDS, BODY_SECONDS = 13 << 20, 17 << 20, 10, 45  # a request may carry a 9 MiB http body as base64, a reply an 11 MiB response (mail read: 1 MiB)
 SOCKETS = (("container-socket", "container.sock", 0o666), ("host-socket", "host.sock", 0o600))
 # One socket per container caller of key use (wrap / unwrap): callers/<name>/<name>.sock. Whoever can open it is that caller. A new caller is a body train, on purpose.
-CALLERS = ("mmobank", "auctionbot", "reminderbot", "reminderbot-public", "yuihome", "forklore-web", "forklore-mcp", "poly-daily", "ip-mcp", "call-bridge", "x-article-mcp", "bingo", "bellteam-push", "bughub")
+CALLERS = ("mmobank", "auctionbot", "reminderbot", "reminderbot-public", "yuihome", "forklore-web", "forklore-mcp", "poly-daily", "ip-mcp", "call-bridge", "x-article-mcp", "bingo", "bellteam-push", "bughub", "approval-box", "approval-box-test", "books")
 # A caller whose socket only its own service account may open: socket 0660 and the folder is NOT re-chmodded (the host prepares it once: group = the service group, setgid, 0750;
 # a socket made there inherits that group). Unprepared, the folder is 0750 owned by the relay's uid: only that uid can open it.
 RESTRICTED = {"bellteam-push": 0o660}
@@ -207,6 +207,9 @@ def main():
     os.umask(0o077)
     os.makedirs(DIR, mode=0o711, exist_ok=True)
     os.chmod(DIR, 0o711)
+    # run-sockets: where a run item that asks for it (run_socket_dir) puts its service socket so the host can reach it; the child makes its own sub-folder here (sticky, like /tmp)
+    os.makedirs(os.path.join(DIR, "run-sockets"), mode=0o1777, exist_ok=True)
+    os.chmod(os.path.join(DIR, "run-sockets"), 0o1777)
     paths = [os.path.join(DIR, name) for _, name, _ in SOCKETS]
     callers = [os.path.join(DIR, "callers", name, name + ".sock") for name in CALLERS]
     for name, path in zip(CALLERS, callers):  # folders 0755 (a container mounts the caller's folder, so the socket survives a relay restart)

@@ -44,6 +44,7 @@ function addCredential(fields, url, headers, request) {
   const how = fields.http_auth ?? '', secret = fields.http_secret
   if (how === 'none') return { secrets: [...new URL(fields.http_base).pathname.split('/'), ...new URL(fields.http_base).searchParams.values()].filter(s => s.length >= 16) } // the base URL itself is the credential: scrub it from what is shown
   if (how === 'jwt-es256') return jwt(fields, headers)
+  if (how === 'oauth2-refresh') return { secrets: [], oauthRefresh: true } // the bearer is added in callHttp (it needs the network and the state)
   if (how === 'aws-sigv4') { if (!secret || !fields.http_aws_access_key) throw refuse('The key item has no credential.'); return { secrets: [secret], sigv4: true } } // signed in callHttp, once the body is final
   if (how === 'form') {
     const pairs = new URLSearchParams(fields.http_form_fields ?? '')
@@ -149,7 +150,50 @@ async function bearerFor(fields, fetchImpl, fresh) {
   if (seconds > 0) tokens.set(key, entry)
   return { token: entry.token, secrets: entry.secrets, drop: () => tokens.delete(key) }
 }
-export const forgetTokens = () => tokens.clear()
+export const forgetTokens = () => { tokens.clear(); accessTokens.clear() } // every flush, stop, revoke or token change: both kinds of kept access tokens go
+
+// OAuth2 refresh-token style (Google: Search Console, Gmail-like APIs): the item holds client id/secret and the refresh token; the module gets the access token from the token URL,
+// keeps it in memory, adds it as a bearer, and keeps a NEWER refresh token (one the provider returned, or one captured from a code exchange) in the state file; the item's own value wins when
+// it is changed. Fields: http_oauth_token_url (https, default Google), http_oauth_client_id, http_oauth_client_secret, http_secret = the refresh token, http_oauth_scope optional.
+const accessTokens = new Map()
+const refreshKey = (item, fields) => createHash('sha256').update(JSON.stringify([item, fields.http_oauth_token_url, fields.http_oauth_client_id, fields.http_oauth_client_secret, createHash('sha256').update(fields.http_secret ?? '').digest('hex')])).digest('hex') // a changed secret or refresh token is another key
+async function oauthRefreshBearer(fields, item, state, fetchImpl, fresh) {
+  const tokenUrl = fields.http_oauth_token_url ?? 'https://oauth2.googleapis.com/token'
+  let url; try { url = new URL(tokenUrl) } catch { throw refuse('The key item has no usable token URL.') }
+  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || !fields.http_oauth_client_id || !fields.http_oauth_client_secret || !fields.http_secret) throw refuse('The key item has no credential.')
+  const key = refreshKey(item, fields), kept = accessTokens.get(key)
+  const secrets = [fields.http_oauth_client_secret, fields.http_secret]
+  if (!fresh && kept && kept.until > Date.now()) return { token: kept.token, secrets: [...secrets, kept.token], drop: () => accessTokens.delete(key) }
+  const itemBase = createHash('sha256').update(fields.http_secret).digest('hex')
+  const refreshToken = state ? await state.update(async all => { const mine = all[item]; if (!mine || (mine.base !== '*' && mine.base !== itemBase)) all[item] = { base: itemBase, token: fields.http_secret }; else if (mine.base === '*') mine.base = itemBase; return all[item].token }) : fields.http_secret
+  const form = new URLSearchParams({ client_id: fields.http_oauth_client_id, client_secret: fields.http_oauth_client_secret, refresh_token: refreshToken, grant_type: 'refresh_token' })
+  let response, parsed = null
+  try {
+    response = await fetchImpl(url, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' }, body: form.toString(), redirect: 'manual', signal: AbortSignal.timeout(20000) })
+    parsed = JSON.parse((await response.text()).slice(0, TOKEN_BODY_MAX))
+  } catch { throw Object.assign(new Error('The token request failed.'), { code: 'HTTP_FAILED' }) }
+  if (!response.ok || typeof parsed?.access_token !== 'string' || !parsed.access_token) throw Object.assign(new Error('The token request failed.'), { code: 'HTTP_FAILED' })
+  if (state && typeof parsed.refresh_token === 'string' && parsed.refresh_token && parsed.refresh_token !== refreshToken) await state.update(async all => { all[item] = { base: itemBase, token: parsed.refresh_token } })
+  let seconds = Number.isFinite(parsed.expires_in) ? Math.min(Math.max(parsed.expires_in - 120, 0), 3600) : 1800
+  if (fields.cache_seconds !== undefined && Number.isFinite(Number(fields.cache_seconds))) seconds = Math.min(seconds, Number(fields.cache_seconds))
+  if (seconds > 0) accessTokens.set(key, { token: parsed.access_token, until: Date.now() + seconds * 1000 })
+  return { token: parsed.access_token, secrets: [...secrets, refreshToken, parsed.access_token], drop: () => accessTokens.delete(key) }
+}
+// A code exchange whose answer carries a refresh token: the module keeps it for the named refresh item and the caller only sees "[stored]" (re-consent, no secret reaches the caller).
+async function captureRefresh(fields, bodyBuffer, state) {
+  if (!fields.http_capture_for || !state || !/^[A-Za-z0-9][A-Za-z0-9._ -]{0,127}$/u.test(fields.http_capture_for)) return bodyBuffer
+  let parsed; try { parsed = JSON.parse(bodyBuffer.toString('utf8')) } catch {
+    const text = bodyBuffer.toString('utf8'), m = /(?:^|[&\s"'])refresh_token(?:=|"?\s*:\s*"?)([A-Za-z0-9._~%\-\/+]{8,})/u.exec(text) // a provider answering in form encoding
+    if (!m) return bodyBuffer
+    let token = m[1]; try { token = decodeURIComponent(m[1]) } catch {}
+    await state.update(async all => { all[fields.http_capture_for] = { base: '*', token } })
+    return Buffer.from(text.split(m[1]).join('[stored]'))
+  }
+  if (typeof parsed?.refresh_token !== 'string' || !parsed.refresh_token) return bodyBuffer
+  await state.update(async all => { all[fields.http_capture_for] = { base: '*', token: parsed.refresh_token } })
+  parsed.refresh_token = '[stored]'
+  return Buffer.from(JSON.stringify(parsed))
+}
 
 // A long-lived token the provider lets you refresh (Threads: GET /refresh_access_token?grant_type=th_refresh_token&access_token=...): the module refreshes it itself and keeps the
 // newest one in a state file (0600, body-owned, same folder as policy.json). The item's own value wins as soon as someone changes it (the state records which item value it came from).
@@ -190,6 +234,7 @@ const scrubAll = (text, secrets) => secrets.reduce((out, s) => scrubText(out, s)
 const scrub = (buffer, secrets) => Buffer.from(scrubAll(buffer.toString('latin1'), secrets), 'latin1')
 
 export async function callHttp(fields, request, fetchImpl = fetch, rotation = null, proxyDeps = {}, streamMode = null) {
+  const directFetch = fetchImpl // token requests go direct even when the request itself goes through a proxy
   if (fields.http_rotate_path !== undefined) {
     if (!rotation || !/^\/[^\s#?\\]*$/u.test(fields.http_rotate_path)) throw refuse('The key item cannot be refreshed here.')
     let basePath; try { basePath = new URL(fields.http_base).pathname } catch { throw refuse('The key item has no usable base URL.') }
@@ -208,6 +253,7 @@ export async function callHttp(fields, request, fetchImpl = fetch, rotation = nu
   for (const [name, value] of Object.entries(request.headers ?? {})) if ((SAFE_REQUEST_HEADER.test(name.toLowerCase()) || allowed.includes(name.toLowerCase())) && typeof value === 'string') headers[name.toLowerCase()] = value
   let body = request.body === undefined ? undefined : Buffer.from(request.body, 'base64')
   let secrets = [], oauth = null
+  const getBearer = fresh => fields.http_auth === 'oauth2-refresh' ? oauthRefreshBearer(fields, rotation?.item ?? 'default', rotation?.state ?? null, directFetch, fresh) : bearerFor(fields, directFetch, fresh)
   if (passthrough(fields, url)) {
     // the caller's own short-lived token, only on the listed paths; the module adds nothing
     const own = Object.entries(request.headers ?? {}).find(([name]) => name.toLowerCase() === 'authorization')?.[1]
@@ -216,7 +262,7 @@ export async function callHttp(fields, request, fetchImpl = fetch, rotation = nu
   } else {
     if (/^query:/u.test(fields.http_auth ?? '')) url.searchParams.delete(fields.http_auth.slice(6))
     let added
-    if (fields.http_auth === 'oauth2-password') { oauth = await bearerFor(fields, fetchImpl, false); headers.authorization = 'Bearer ' + oauth.token; added = { secrets: oauth.secrets } }
+    if (fields.http_auth === 'oauth2-password' || fields.http_auth === 'oauth2-refresh') { oauth = await getBearer(false); headers.authorization = 'Bearer ' + oauth.token; added = { secrets: oauth.secrets } }
     else added = addCredential(fields, url, headers, request) // after the caller's headers, so it always wins
     secrets = [...added.secrets, ...proxySecrets]
     if (request.path === '/') { const b = new URL(fields.http_base); if (b.pathname !== '/') secrets = [...secrets, ...b.pathname.split('/').filter(p => p.length >= 16)] } // an exact-base answer must not echo the secret part of the URL
@@ -263,10 +309,11 @@ export async function callHttp(fields, request, fetchImpl = fetch, rotation = nu
   let response = await send(), got = await read(response)
   // The token is invalid when the server says 401, or 200 with result.statusCode 210 (JPO): fetch a new one and repeat the request once; the second answer is returned as it is.
   if (oauth && (response.status === 401 || (response.status === 200 && !got.truncated && /json/iu.test(response.headers.get('content-type') ?? '') && invalidTokenBody(got.buffer)))) {
-    oauth.drop(); oauth = await bearerFor(fields, fetchImpl, true); headers.authorization = 'Bearer ' + oauth.token; secrets = [...oauth.secrets, ...proxySecrets]
+    oauth.drop(); oauth = await getBearer(true); headers.authorization = 'Bearer ' + oauth.token; secrets = [...oauth.secrets, ...proxySecrets]
     response = await send(); got = await read(response)
   }
   const shown = showHeaders(response, secrets)
+  if (fields.http_capture_for && response.ok && !got.truncated) got.buffer = await captureRefresh(fields, got.buffer, rotation?.state ?? null)
   return { status: response.status, headers: shown, body: scrub(got.buffer, secrets).toString('base64'), truncated: got.truncated }
 }
 
