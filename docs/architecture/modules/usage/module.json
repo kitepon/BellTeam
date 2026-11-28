@@ -59,7 +59,7 @@
     },
     {
       "module": "auth-mediation",
-      "port": "auth-exec (MCP auth_exec; container socket; main-server host socket)"
+      "port": "sign (a signature or MAC made inside the module; the key never leaves)"
     }
   ],
   "source": [

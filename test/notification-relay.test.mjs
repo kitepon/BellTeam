@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { generateKeyPairSync } from 'node:crypto'
+import { createServer as createNetServer } from 'node:net'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -84,15 +84,19 @@ test('the user\'s notification entrance sends through the relay and removes a re
   assert.equal(service.devices.size, 0)
 })
 
-test('the Node.js entrance reads the operator key, answers the status check and refuses an empty request', async t => {
+test('the Node.js entrance signs through the caller socket, answers the status check and refuses an empty request', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'bellteam-relay-server-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
-  const { privateKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
-  await writeFile(join(directory, 'test.p8'), privateKey.export({ format: 'pem', type: 'pkcs8' }))
+  // The module's caller socket, as a stand-in: it answers every sign with a 64-byte signature.
+  const socket = join(directory, 'caller.sock')
+  const asked = []
+  const module = createNetServer(connection => connection.on('data', chunk => { asked.push(JSON.parse(chunk.toString())); connection.end(JSON.stringify({ outcome: 'granted', data: Buffer.alloc(64, 1).toString('base64') }) + '\n') }))
+  await new Promise(resolve => module.listen(socket, resolve))
+  t.after(() => module.close())
   await writeFile(join(directory, 'config.json'), JSON.stringify({ teamId: 'TESTTEAM01', topic: product.bundleId,
-    keys: { production: { keyId: 'TESTKEY001', file: 'test.p8' } } }))
+    keys: { production: { keyId: 'TESTKEY001', sign: 'apns-test' } } }))
   const child = spawn(process.execPath, ['services/notifications/index.mjs'], {
-    env: { ...process.env, HOST: '127.0.0.1', PORT: '0', BELLTEAM_APNS_DIRECTORY: directory },
+    env: { ...process.env, HOST: '127.0.0.1', PORT: '0', BELLTEAM_APNS_DIRECTORY: directory, BELLTEAM_AUTH_CALLER_SOCKET: socket },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   t.after(() => { if (child.exitCode === null) child.kill('SIGTERM') })
@@ -102,6 +106,7 @@ test('the Node.js entrance reads the operator key, answers the status check and 
   const base = `http://127.0.0.1:${port}`
   const ready = await fetch(`${base}/v1/notifications/status`)
   assert.deepEqual(await ready.json(), { configured: true, environments: ['production'] })
+  assert.deepEqual(asked.map(item => [item.op, item.name]), [['sign', 'apns-test']]) // one sign at start, none per status check
   const invalid = await fetch(`${base}/v1/notifications/send`, { method: 'POST', body: '{}' })
   assert.equal(invalid.status, 400)
   assert.equal((await invalid.json()).error.code, 'PUSH_RELAY_REQUEST_INVALID')
