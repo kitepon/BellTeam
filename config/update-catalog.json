@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-28T04:15:48Z",
-  "expiresAt": "2026-12-05T04:15:48Z",
+  "publishedAt": "2026-11-28T04:30:15Z",
+  "expiresAt": "2026-12-05T04:30:15Z",
   "releases": [
     {
       "componentId": "usage",
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "f98a27532e148aa2a96b3f0b9ebc72d55964461e",
-      "versionId": "sha256:cfbe1756af6646c7d44ba41c22ba34e7b4bfbd492205c017e3018ce36ec4450f",
+      "sourceCommit": "52425479ee5a1de1cb9e0e89f3f0298a081c6275",
+      "versionId": "sha256:6da9de7791e62320e1374e5842be3a5a7d75146f21579c321bd79aa042018a99",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:cfbe1756af6646c7d44ba41c22ba34e7b4bfbd492205c017e3018ce36ec4450f"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6da9de7791e62320e1374e5842be3a5a7d75146f21579c321bd79aa042018a99"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -722,22 +722,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "認証仲介が、鍵そのものを渡さずに、鍵を使った処理（署名・暗号化の包み・解き）と HTTP の呼び出しを、モジュールの中で行えるようになります（呼び出し元ごとの専用ソケット、鍵ごとの保持期間）。",
-        "工程表に、カードを足した Bot の記録、待っている工程の表示、接続の知らせが加わります（Lattice 0.115.0）。",
-        "決裁箱の席の登録ファイルが、入れた版に合わせて、また更新されるようになります。"
+        "認証仲介が、鍵を渡さずに署名と MAC をモジュールの中で行い、鍵を使った処理がどの接続からでも使えるようになります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "f98a27532e148aa2a96b3f0b9ebc72d55964461e",
-      "versionId": "sha256:cfbe1756af6646c7d44ba41c22ba34e7b4bfbd492205c017e3018ce36ec4450f",
+      "sourceCommit": "52425479ee5a1de1cb9e0e89f3f0298a081c6275",
+      "versionId": "sha256:6da9de7791e62320e1374e5842be3a5a7d75146f21579c321bd79aa042018a99",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:cfbe1756af6646c7d44ba41c22ba34e7b4bfbd492205c017e3018ce36ec4450f"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6da9de7791e62320e1374e5842be3a5a7d75146f21579c321bd79aa042018a99"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,9 +744,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "認証仲介が、鍵そのものを渡さずに、鍵を使った処理（署名・暗号化の包み・解き）と HTTP の呼び出しを、モジュールの中で行えるようになります（呼び出し元ごとの専用ソケット、鍵ごとの保持期間）。",
-        "工程表に、カードを足した Bot の記録、待っている工程の表示、接続の知らせが加わります（Lattice 0.115.0）。",
-        "決裁箱の席の登録ファイルが、入れた版に合わせて、また更新されるようになります。"
+        "認証仲介が、鍵を渡さずに署名と MAC をモジュールの中で行い、鍵を使った処理がどの接続からでも使えるようになります。"
       ]
     },
     {
@@ -823,8 +819,8 @@
     },
     {
       "componentId": "approval-box-extension",
-      "sourceCommit": "291b10e873ca666860775ee43f16b2974b4b75b4",
-      "versionId": "71a065103d2a9598b877c1dabe4b5b26cfa3e78cef18beff2ff2c634d5f7b2ac",
+      "sourceCommit": "52425479ee5a1de1cb9e0e89f3f0298a081c6275",
+      "versionId": "2f640654f8a96325874e34b76b5da7fd4f266ceecd7eb06d41703d53cd20c637",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -832,16 +828,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T041528Z/approval-box-extension-291b10e873ca666860775ee43f16b2974b4b75b4-linux-amd64.tar.gz",
-          "bytes": 3719357,
-          "sha256": "71a065103d2a9598b877c1dabe4b5b26cfa3e78cef18beff2ff2c634d5f7b2ac"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T042936Z/approval-box-extension-52425479ee5a1de1cb9e0e89f3f0298a081c6275-linux-amd64.tar.gz",
+          "bytes": 3719360,
+          "sha256": "2f640654f8a96325874e34b76b5da7fd4f266ceecd7eb06d41703d53cd20c637"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T041528Z/approval-box-extension-291b10e873ca666860775ee43f16b2974b4b75b4-linux-amd64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T042936Z/approval-box-extension-52425479ee5a1de1cb9e0e89f3f0298a081c6275-linux-amd64.tar.gz.sigstore.json",
           "bytes": 11280,
-          "sha256": "1ac599856521e127ddf20e773c44707764324d2e26d65cdff38d1dddb62dbd69"
+          "sha256": "83bbea1f381b2b0abb8dd79169d985af99bf021b7c1c7f5820d00b849ef27f12"
         },
-        "signerCommit": "291b10e873ca666860775ee43f16b2974b4b75b4"
+        "signerCommit": "52425479ee5a1de1cb9e0e89f3f0298a081c6275"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -853,13 +849,13 @@
         }
       },
       "changes": [
-        "旦那の持ち場の工程を足した Bot へ、決裁箱に申請を出すよう知らせます（1 枚あたり 60 分に 1 回、1 回の走査で最大 5 件）。工程が着手できなくなった申請は、取り下げます。機械が自分で申請を出すことはありません。"
+        "旦那の持ち場の工程を足した Bot へ、決裁箱に申請を出すよう知らせます（1 枚あたり 60 分に 1 回、1 回の走査で最大 5 件）。着手できなくなった申請は取り下げます。機械が自分で申請を出すことはありません。"
       ]
     },
     {
       "componentId": "approval-box-extension",
-      "sourceCommit": "291b10e873ca666860775ee43f16b2974b4b75b4",
-      "versionId": "91d367890425d9058bea7d76e0f95d6a10fc5fa83b81296952a37800c90caa86",
+      "sourceCommit": "52425479ee5a1de1cb9e0e89f3f0298a081c6275",
+      "versionId": "e007fb898bf15200330004ef6930359f1677fe1dc7ae36e948aaefacd9d3f4a1",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -867,16 +863,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T041528Z/approval-box-extension-291b10e873ca666860775ee43f16b2974b4b75b4-linux-arm64.tar.gz",
-          "bytes": 3719357,
-          "sha256": "91d367890425d9058bea7d76e0f95d6a10fc5fa83b81296952a37800c90caa86"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T042936Z/approval-box-extension-52425479ee5a1de1cb9e0e89f3f0298a081c6275-linux-arm64.tar.gz",
+          "bytes": 3719360,
+          "sha256": "e007fb898bf15200330004ef6930359f1677fe1dc7ae36e948aaefacd9d3f4a1"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T041528Z/approval-box-extension-291b10e873ca666860775ee43f16b2974b4b75b4-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11280,
-          "sha256": "120dd726355ae435477f42b6040744491133e805db36eaf86df1e264b4ef6863"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T042936Z/approval-box-extension-52425479ee5a1de1cb9e0e89f3f0298a081c6275-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11139,
+          "sha256": "8a1358132209d2264670af341dd05e3040e168e12e0b1d5b893a9a7f59ff7b38"
         },
-        "signerCommit": "291b10e873ca666860775ee43f16b2974b4b75b4"
+        "signerCommit": "52425479ee5a1de1cb9e0e89f3f0298a081c6275"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -888,13 +884,13 @@
         }
       },
       "changes": [
-        "旦那の持ち場の工程を足した Bot へ、決裁箱に申請を出すよう知らせます（1 枚あたり 60 分に 1 回、1 回の走査で最大 5 件）。工程が着手できなくなった申請は、取り下げます。機械が自分で申請を出すことはありません。"
+        "旦那の持ち場の工程を足した Bot へ、決裁箱に申請を出すよう知らせます（1 枚あたり 60 分に 1 回、1 回の走査で最大 5 件）。着手できなくなった申請は取り下げます。機械が自分で申請を出すことはありません。"
       ]
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "f98a27532e148aa2a96b3f0b9ebc72d55964461e",
-      "versionId": "fe15a0759d15ff6c6fefd22a7a3fbbe58540ede679eafca4204592fb71f107ff",
+      "sourceCommit": "52425479ee5a1de1cb9e0e89f3f0298a081c6275",
+      "versionId": "b6f5613bb65cca8204d35dff70984bac1b5200c544971d39cbc5669610748abf",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -902,16 +898,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T035128Z/auth-mediation-f98a27532e148aa2a96b3f0b9ebc72d55964461e-linux-amd64.tar.gz",
-          "bytes": 3711198,
-          "sha256": "fe15a0759d15ff6c6fefd22a7a3fbbe58540ede679eafca4204592fb71f107ff"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T042924Z/auth-mediation-52425479ee5a1de1cb9e0e89f3f0298a081c6275-linux-amd64.tar.gz",
+          "bytes": 3711853,
+          "sha256": "b6f5613bb65cca8204d35dff70984bac1b5200c544971d39cbc5669610748abf"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T035128Z/auth-mediation-f98a27532e148aa2a96b3f0b9ebc72d55964461e-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11089,
-          "sha256": "8fa2fab962e52e53035fbdb66a54f4c1a2c0f34d07b68fec01f645222ef7451f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T042924Z/auth-mediation-52425479ee5a1de1cb9e0e89f3f0298a081c6275-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10983,
+          "sha256": "b646729adcacb4d6b684066fc1c50e76858c459a7948474ad6c087d7aef34feb"
         },
-        "signerCommit": "f98a27532e148aa2a96b3f0b9ebc72d55964461e"
+        "signerCommit": "52425479ee5a1de1cb9e0e89f3f0298a081c6275"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -923,13 +919,13 @@
         }
       },
       "changes": [
-        "鍵を使った処理（包み・解き）と HTTP の呼び出しを、鍵がモジュールの外へ出ないまま行えるようになります。"
+        "署名と MAC をモジュールの中で行い、鍵を使った処理がどの接続からでも使えるようになります。"
       ]
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "f98a27532e148aa2a96b3f0b9ebc72d55964461e",
-      "versionId": "ed99a281454a7665d1911755abd25169b00302567ab38ae25dacca752645d9a7",
+      "sourceCommit": "52425479ee5a1de1cb9e0e89f3f0298a081c6275",
+      "versionId": "7ee949887a72470d6466e7916bfcba1b6ea3d529e6c1ae9577530b3225b2609d",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -937,16 +933,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T035128Z/auth-mediation-f98a27532e148aa2a96b3f0b9ebc72d55964461e-linux-arm64.tar.gz",
-          "bytes": 3711198,
-          "sha256": "ed99a281454a7665d1911755abd25169b00302567ab38ae25dacca752645d9a7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T042924Z/auth-mediation-52425479ee5a1de1cb9e0e89f3f0298a081c6275-linux-arm64.tar.gz",
+          "bytes": 3711853,
+          "sha256": "7ee949887a72470d6466e7916bfcba1b6ea3d529e6c1ae9577530b3225b2609d"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T035128Z/auth-mediation-f98a27532e148aa2a96b3f0b9ebc72d55964461e-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11269,
-          "sha256": "205fd6baeb74742e293f4991767b9a5b40dfea52f77c9b7cfb2b13db687b9e54"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T042924Z/auth-mediation-52425479ee5a1de1cb9e0e89f3f0298a081c6275-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11085,
+          "sha256": "b30bfc12e3ca698ec1cf00664423fbdf96bc892a10431e0a4b6fd0410aa2fcc9"
         },
-        "signerCommit": "f98a27532e148aa2a96b3f0b9ebc72d55964461e"
+        "signerCommit": "52425479ee5a1de1cb9e0e89f3f0298a081c6275"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -958,7 +954,7 @@
         }
       },
       "changes": [
-        "鍵を使った処理（包み・解き）と HTTP の呼び出しを、鍵がモジュールの外へ出ないまま行えるようになります。"
+        "署名と MAC をモジュールの中で行い、鍵を使った処理がどの接続からでも使えるようになります。"
       ]
     }
   ],
