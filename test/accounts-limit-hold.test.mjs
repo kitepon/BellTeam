@@ -68,11 +68,12 @@ function aiterm(rows) {
 const END = (at, hold = 'armed', continued = false) => ({ at, reset_at: '2026-11-11T19:00:00.000Z', continued, hold })
 const row = (session_id, last_input_at, limit_end = null) => [session_id, { session_id, last_input_at, limit_end }]
 
-async function recovery(t, { limited = ['2nd'], rows, model = 'opus' }) {
+async function recovery(t, { limited = ['2nd'], rows, model = 'opus', secondUnknown = false }) {
   const now = { at: Date.UTC(2026, 10, 11, 16, 0) }
   const { accounts } = await registry(t, now)
   t.after(() => accounts.close())
-  for (const slot of limited) await accounts.recordLimit({ harness: 'claude', slot, model, text: "You've hit your weekly limit · resets 7pm (UTC)" })
+  for (const slot of limited) await accounts.recordLimit({ harness: 'claude', slot, model,
+    text: secondUnknown && slot === '2nd' ? 'usage status unavailable' : "You've hit your weekly limit · resets 7pm (UTC)" })
   const bots = new Map([
     ['bot-elegg', { id: 'bot-elegg', session: 'bot-elegg', harness: 'claude', model }],
     ['bot-n102', { id: 'bot-n102', session: 'bot-n102-1st-new', harness: 'claude', model }],
@@ -145,8 +146,8 @@ test('limit end: armed holds are pressed once each, then one continuation on the
   assert.equal(accounts.seatSlot('bot-elegg'), '1st')
 })
 
-test('limit end: every slot limited -> nothing pressed or sent; a freed slot then recovers once', async t => {
-  const { sent, review, keyed, accounts } = await recovery(t, { limited: ['1st', '2nd'], model: 'fable', rows: [
+test('limit end: unknown second limit keeps Claude; a freed slot then recovers once', async t => {
+  const { sent, review, keyed, accounts } = await recovery(t, { limited: ['1st', '2nd'], secondUnknown: true, rows: [
     row('bot-n102', '2026-11-11T12:53:25.000Z', END('2026-11-11T12:53:29.000Z')),
   ] })
   await review()
@@ -179,7 +180,7 @@ test('both Claude slots limited: one keyed Codex continuation, then the member r
   assert.equal(sent.length, 1)
 })
 
-test('cold normal wake maps Opus and Sonnet and keeps Claude for missing or unclassified limits', async t => {
+test('cold normal wake maps all Claude families and keeps Claude for missing or unclassified limits', async t => {
   const now = { at: Date.UTC(2026, 10, 11, 16, 0) }
   const { home, accounts } = await registry(t, now)
   const calls = []
@@ -201,13 +202,17 @@ test('cold normal wake maps Opus and Sonnet and keeps Claude for missing or uncl
   await limit('2nd', limitText)
   await transport.wake({ ...base, id: 'bot-opus', model: 'claude-opus-4-8', fastMode: true })
   await transport.wake({ ...base, id: 'bot-sonnet', model: 'claude-sonnet-4-6' })
-  await transport.wake({ ...base, id: 'bot-fable', model: 'fable' })
+  await transport.wake({ ...base, id: 'bot-fable', model: 'fable', reasoningEffort: 'medium' })
+  await transport.wake({ ...base, id: 'bot-haiku', model: 'claude-haiku-4-5', reasoningEffort: 'high' })
+  await transport.wake({ ...base, id: 'bot-default' })
   assert.deepEqual(calls.map(({ harness, model, reasoning_effort, login }) => [harness, model, reasoning_effort, login]), [
     ['claude-machine', 'claude-opus-4-8', 'low', '2nd'],
     ['claude-machine', 'claude-sonnet-4-6', 'low', '1st'],
     ['codex-cli', 'gpt-6.2-sol', 'high', null],
     ['codex-cli', 'gpt-6.2-sol', 'medium', null],
-    ['claude-machine', 'fable', 'low', '1st'],
+    ['codex-cli', 'gpt-6.2-astra', 'medium', null],
+    ['codex-cli', 'gpt-6.1-terra', 'high', null],
+    ['codex-cli', 'gpt-6.2-sol', 'medium', null],
   ])
 })
 

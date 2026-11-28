@@ -18,8 +18,8 @@ import { DeliveryJob } from './delivery-job.mjs'
 import { SeatActivity, SeatTurnWatch } from './seat-activity.mjs'
 import { executionFailureReport, reportExecutionFailure } from './execution-failure-report.mjs'
 import { continuationKeyOf, recoverableTurnFailure } from './capacity-continuation.mjs'
-import { isLimitText } from './claude-limit-text.mjs'
-import { ACCOUNT_SLOTS, codexFallbackEffort } from './harness-accounts.mjs'
+import { isLimitText, modelScope } from './claude-limit-text.mjs'
+import { ACCOUNT_SLOTS } from './harness-accounts.mjs'
 import { quietSession } from './idle-sessions.mjs'
 import { LaunchGate } from './launch-gate.mjs'
 import { memoryPressure } from './memory-pressure.mjs'
@@ -47,8 +47,14 @@ const HARNESS = new Map([
 const codexAccountSession = (botId, session) => typeof session === 'string' && session.startsWith(`${botId}-1st-codex`)
   && /^[a-z0-9]+$/u.test(session.slice(botId.length + '-1st-codex'.length))
 const accountSessionName = (botId, slot, codex) => `${botId}-${slot}-${codex ? 'codex' : ''}${Date.now().toString(36)}`
-const codexAccountBot = (bot, reasoningEffort) => ({
-  ...bot, harness: 'codex', model: 'gpt-6.2-sol', fastMode: false, reasoningEffort,
+const CODEX_ACCOUNT_MODELS = {
+  opus: { model: 'gpt-6.2-sol', reasoningEffort: 'high' },
+  sonnet: { model: 'gpt-6.2-sol', reasoningEffort: 'medium' },
+  fable: { model: 'gpt-6.2-astra' },
+  haiku: { model: 'gpt-6.1-terra' },
+}
+const codexAccountBot = bot => ({
+  ...bot, ...CODEX_ACCOUNT_MODELS[modelScope(bot.model) ?? 'sonnet'], harness: 'codex', fastMode: false,
 })
 // 合間の言葉を取りに行く間隔。Aitermのpty_observeは画面本文を読まない軽い呼び出し。
 const INTERIM_INTERVAL_MS = 3000
@@ -507,10 +513,8 @@ export class AitermTransport {
     await mkdir(bot.project, { recursive: true })
     const currentSession = this.session(bot)
     const boundSession = execution?.reservation.target.session_id ?? sessionName
-    const fallback = boundSession
-      ? (codexAccountSession(bot.id, boundSession) ? codexFallbackEffort(bot.model) : null)
-      : await this.accountFallback(bot)
-    if (fallback) bot = codexAccountBot(bot, fallback)
+    const fallback = boundSession ? codexAccountSession(bot.id, boundSession) : await this.accountFallback(bot)
+    if (fallback) bot = codexAccountBot(bot)
     const crossedProvider = !boundSession && Boolean(fallback) !== codexAccountSession(bot.id, currentSession)
     const harness = HARNESS.get(bot.harness)
     if (!harness) throw Object.assign(new Error(retiredHarness(bot.harness) ? RETIRED_HARNESS_NOTICE : `HARNESS_UNSUPPORTED: ${bot.harness}`),
@@ -2030,8 +2034,7 @@ export class AitermTransport {
     }
     try { check() } catch (error) { finishDelivery(); throw error }
     const main = this.session(bot)
-    const fallback = codexAccountSession(bot.id, main) ? codexFallbackEffort(bot.model) : null
-    if (fallback) bot = codexAccountBot(bot, fallback)
+    if (codexAccountSession(bot.id, main)) bot = codexAccountBot(bot)
     const harness = HARNESS.get(bot.harness)
     const sessionName = `${main}-fork-${createHash('sha256').update(forkId).digest('hex').slice(0, 12)}`
     const startedAt = this.now()
@@ -2429,10 +2432,8 @@ export class AitermTransport {
   }
 
   async accountFallback(bot) {
-    if (!this.claudeAccountBot(bot)) return null
-    const effort = codexFallbackEffort(bot.model)
-    if (!effort || !this.accounts.bothLimited?.(bot.model) || !await this.ownerAccountDomain(bot)) return null
-    return this.accounts.bothLimited(bot.model) ? effort : null
+    return this.claudeAccountBot(bot) && this.accounts.bothLimited?.(bot.model) === true
+      && await this.ownerAccountDomain(bot) && this.accounts.bothLimited(bot.model)
   }
 
   // A seat's own limit signal -> registry entry for the slot it runs on. Returns {slot, recorded} or null.

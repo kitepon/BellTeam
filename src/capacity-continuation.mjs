@@ -1,5 +1,3 @@
-import { codexFallbackEffort } from './harness-accounts.mjs'
-
 const categories = new Set(['capacity', 'rate_limited'])
 const sameSettings = (a, b) => ['harness', 'model', 'reasoningEffort', 'fastMode'].every(key => a?.[key] === b?.[key])
 const superseded = () => Object.assign(new Error('CONTINUATION_SUPERSEDED'), { code: 'CONTINUATION_SUPERSEDED', effect: 'not_started' })
@@ -70,16 +68,12 @@ export class CapacityContinuation {
     guard()
     await this.bots.refresh?.()
     if (!sameSettings(this.bots.get(context.bot.id), context.bot)) throw superseded()
-    // harness-accounts.md "account recovery": the transport moves the member now when a usable slot is free, or when one frees
-    // (Aiterm's limit end keeps the cut turn durably). Another harness only with Aiterm's terminal proof and no free slot, as before.
+    // Claude account limits use the keyed account recovery. The transport selects an available slot or a temporary Codex seat.
     if (context.accountLimit && this.accounts && this.transport?.recoverAccount) {
       await context.accountLimit.recorded.catch(() => {})
       guard()
-      if (!context.failure || codexFallbackEffort(context.bot.model)
-        || await this.accounts.freeSlot('claude', context.bot.model)) {
-        this.transport.recoverAccount(context.bot.id)
-        return
-      }
+      this.transport.recoverAccount(context.bot.id)
+      return
     }
     // Another harness only with Aiterm's terminal-failure proof; an account limit alone ends here.
     if (!context.failure) return

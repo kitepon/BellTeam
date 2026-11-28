@@ -124,9 +124,6 @@ export async function readClaudeUsage(root, { seat = seatFiles } = {}) {
   })).filter(row => row.scope && Number.isFinite(row.percent))
 }
 
-const CODEX_FALLBACK_EFFORTS = new Map([['opus', 'high'], ['sonnet', 'medium']])
-export const codexFallbackEffort = model => CODEX_FALLBACK_EFFORTS.get(modelScope(model)) ?? null
-
 export class HarnessAccounts {
   constructor({ home, statePath, seat = seatFiles, readUsage = root => readClaudeUsage(root, { seat }), now = () => Date.now(),
     timers = { set: setTimeout, clear: clearTimeout }, timeZone = process.env.TZ || 'UTC', log = line => process.stderr.write(`${line}\n`) }) {
