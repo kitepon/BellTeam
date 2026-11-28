@@ -342,3 +342,27 @@ test('http oauth2-refresh, Plaud contract: refresh_token is the only form field,
   assert.equal(seen.filter(x => !x.url.endsWith('/refresh'))[0].auth, 'Bearer plaud-access-abcdef'); assert.equal(JSON.parse(await readFile(file, 'utf8'))['http stripe'].token, 'refresh-plaud-0002')
   await call(); assert.equal(seen.filter(x => x.url.endsWith('/refresh')).length, 1) // the access token is kept (24 h)
 })
+
+test('http qts-session + pin: the module logs in to QTS (base64 password), adds sid as a form/query field, logs in again once when the answer says authPassed 0, trusts only the pinned certificate, and never shows the password or sid', async () => {
+  const { execFileSync } = await import('node:child_process'); const { mkdtemp, readFile } = await import('node:fs/promises'); const { tmpdir } = await import('node:os'); const { join } = await import('node:path')
+  const { X509Certificate } = await import('node:crypto'); const { createServer: tlsServer } = await import('node:https'); const { callHttp, forgetTokens } = await import('../src/auth-mediation/http.mjs'); forgetTokens()
+  const dir = await mkdtemp(join(tmpdir(), 'qts-')); execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', join(dir, 'k.pem'), '-out', join(dir, 'c.pem'), '-days', '2', '-subj', '/CN=QNAP NAS'], { stdio: 'ignore' })
+  const cert = await readFile(join(dir, 'c.pem')), key = await readFile(join(dir, 'k.pem')), pin = new X509Certificate(cert).fingerprint256
+  let logins = 0, expireNext = false; const seen = []
+  const nas = tlsServer({ cert, key }, (req, res) => { let body = ''; req.on('data', d => { body += d }); req.on('end', () => {
+    if (req.url === '/cgi-bin/authLogin.cgi') { logins++; const f = new URLSearchParams(body); seen.push('login ' + f.get('user') + ' ' + Buffer.from(f.get('pwd'), 'base64').toString()); return res.end('<QDocRoot><authPassed>1</authPassed><authSid>SID' + logins + 'abcdef</authSid></QDocRoot>') }
+    seen.push(req.method + ' ' + req.url + ' ' + body)
+    if (expireNext) { expireNext = false; return res.end('<QDocRoot><authPassed>0</authPassed></QDocRoot>') }
+    res.end('<Summary><Health>OK</Health><echo>' + (req.url + body) + '</echo></Summary>') }) })
+  await new Promise(r => nas.listen(0, '127.0.0.1', r))
+  const fields = { http_base: 'https://127.0.0.1:' + nas.address().port + '/cgi-bin', http_auth: 'qts-session', http_qts_user: 'monitor', http_secret: 'nas-pass-9876543', http_methods: 'GET POST', http_pin_sha256: pin }
+  const call = (request, f = fields) => callHttp(f, request, fetch, { item: 'http qnap', state: null }, { pinTls: { ca: cert } })
+  try {
+    const r = await call({ method: 'POST', path: '/cgi-bin/disk/qsmart.cgi', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: Buffer.from('func=summary&dev_id=00000001&sid=EVIL').toString('base64') })
+    assert.equal(r.status, 200); assert.equal(seen[0], 'login monitor nas-pass-9876543'); assert.match(seen[1], /^POST \/cgi-bin\/disk\/qsmart.cgi func=summary&dev_id=00000001&sid=SID1abcdef$/u); assert.ok(!Buffer.from(r.body, 'base64').toString().includes('SID1abcdef'))
+    const g = await call({ method: 'GET', path: '/cgi-bin/disk/snapshot.cgi?func=x&sid=EVIL' }); assert.equal(logins, 1); assert.match(seen[2], /^GET \/cgi-bin\/disk\/snapshot.cgi\?func=x&sid=SID1abcdef /u) // the session is kept
+    expireNext = true; const e = await call({ method: 'POST', path: '/cgi-bin/disk/qsmart.cgi', body: Buffer.from('func=smartinfo').toString('base64') }); assert.equal(logins, 2); assert.match(Buffer.from(e.body, 'base64').toString(), /Health/u) // renewed once, answer returned
+    await assert.rejects(call({ method: 'GET', path: '/cgi-bin/x' }, { ...fields, http_pin_sha256: pin.replace(/^../u, '00') }), /request failed/u) // another certificate is refused
+    assert.equal(g.status, 200)
+  } finally { nas.closeAllConnections(); nas.close() }
+})
