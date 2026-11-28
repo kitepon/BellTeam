@@ -283,14 +283,17 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
         ActionError = null;
         ConnectionStatus = CoreStrings.Workspace_ConnectAsync_2;
         var current = api;
-        current.AuthenticationRequired += () => { if (api == current) NeedsLogin = true; };
+        var probing = false; // the home probe is optional: Access refusing it is "not a home server", not a lost sign-in
+        current.AuthenticationRequired += () => { if (api == current && !probing) NeedsLogin = true; };
         var token = connection.Token;
         try
         {
             if (prepareConnection is not null) await prepareConnection(origin);
             token.ThrowIfCancellationRequested();
             // GET /api/session carries no login block any more: the home part's own probe says whether this server takes a console-code login (app-sessions.md section 4).
-            var home = await HomeLoginApi.ProbeAsync(current, token);
+            probing = true;
+            HomeProbe? home;
+            try { home = await HomeLoginApi.ProbeAsync(current, token); } finally { probing = false; }
             var session = await current.GetAsync<SessionInfo>("/api/session", token);
             AuthMode = session.AuthMode; Login = home is null ? null : new LoginInfo { Capability = true, Bound = home.Bound, Enforced = home.Enforced }; Changed(nameof(AuthMode)); Changed(nameof(Login));
             if (!session.Authenticated) { ConnectionRetryable = false; NeedsLogin = session.AuthMode == "cloudflare" || SessionLoginRequired; throw new BellApiException(SessionLoginRequired ? CoreStrings.Workspace_ConnectAsync_3 : NeedsLogin ? CoreStrings.BellApi_RawAsync_1 : CoreStrings.Workspace_ConnectAsync_5); }

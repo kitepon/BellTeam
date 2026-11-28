@@ -71,7 +71,7 @@ public sealed class AppLoginTests
             => Task.FromResult(new HttpResponseMessage(request.RequestUri!.AbsolutePath == "/api/session" ? status : HttpStatusCode.NotFound) { Content = new StringContent(session, Encoding.UTF8, "application/json") });
     }
 
-    private sealed class Home(string homeSession, string session, HttpStatusCode homeStatus = HttpStatusCode.OK) : HttpMessageHandler
+    private sealed class Home(string homeSession, string session, HttpStatusCode homeStatus = HttpStatusCode.OK, HttpStatusCode sessionStatus = HttpStatusCode.OK) : HttpMessageHandler
     {
         public string? Authorization;
         private static HttpResponseMessage Json(string body, HttpStatusCode status) => new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
@@ -80,8 +80,8 @@ public sealed class AppLoginTests
             var path = request.RequestUri!.AbsolutePath; Authorization = request.Headers.Authorization?.ToString();
             return Task.FromResult(path switch
             {
-                "/api/home/session" => homeStatus == HttpStatusCode.NotFound ? new HttpResponseMessage(HttpStatusCode.NotFound) : Json(homeSession, homeStatus),
-                "/api/session" => Json(session, HttpStatusCode.OK),
+                "/api/home/session" => homeStatus == HttpStatusCode.NotFound ? new HttpResponseMessage(HttpStatusCode.NotFound) : homeStatus is HttpStatusCode.Redirect or HttpStatusCode.Forbidden ? new HttpResponseMessage(homeStatus) : Json(homeSession, homeStatus),
+                "/api/session" => Json(session, sessionStatus),
                 _ => new HttpResponseMessage(HttpStatusCode.NotFound),
             });
         }
@@ -97,6 +97,16 @@ public sealed class AppLoginTests
         using var old = new Workspace(origin => new BellApi(origin, new Home("", """{"authenticated":false,"authMode":"cloudflare"}""", HttpStatusCode.NotFound)));
         await old.ConnectAsync("http://localhost:1/", listen: false);
         Assert.True(old.NeedsLogin); Assert.False(old.SessionLoginRequired);
+        // Legacy behind Access: the optional home probe is refused (302/401/non-JSON 403) while the ordinary session answers: connected, no login screen. A refused ordinary session still asks for login.
+        foreach (var refusal in new[] { HttpStatusCode.NotFound, HttpStatusCode.Redirect, HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden })
+        {
+            using var legacy = new Workspace(origin => new BellApi(origin, new Home("", """{"authenticated":true,"authMode":"cloudflare"}""", refusal)));
+            await legacy.ConnectAsync("http://localhost:1/", listen: false);
+            Assert.False(legacy.NeedsLogin); Assert.False(legacy.SessionLoginRequired);
+        }
+        using var refused = new Workspace(origin => new BellApi(origin, new Home("", "", HttpStatusCode.NotFound, HttpStatusCode.Unauthorized)));
+        await refused.ConnectAsync("http://localhost:1/", listen: false);
+        Assert.True(refused.NeedsLogin);
         using var unbound = new Workspace(origin => new BellApi(origin, new Home(HomeUnbound, """{"authenticated":true,"authMode":"local"}""")));
         await unbound.ConnectAsync("http://localhost:1/", listen: false);
         Assert.True(unbound.NeedsLogin); Assert.False(unbound.ConnectionRetryable);   // no owner yet and no token: the first console code binds one
