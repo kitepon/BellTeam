@@ -85,9 +85,10 @@ async function bearerFor(fields, fetchImpl, fresh) {
   } catch { throw Object.assign(new Error('The token request failed.'), { code: 'HTTP_FAILED' }) }
   let parsed = null; try { parsed = JSON.parse(text) } catch {}
   if (!response.ok || typeof parsed?.access_token !== 'string' || !parsed.access_token) throw Object.assign(new Error('The token request failed.'), { code: 'HTTP_FAILED' })
-  const seconds = Number.isFinite(parsed.expires_in) ? Math.min(Math.max(parsed.expires_in - 120, 0), 86400) : TOKEN_DEFAULT_SECONDS
+  let seconds = Number.isFinite(parsed.expires_in) ? Math.min(Math.max(parsed.expires_in - 120, 0), 86400) : TOKEN_DEFAULT_SECONDS
+  if (fields.cache_seconds !== undefined && Number.isFinite(Number(fields.cache_seconds))) seconds = Math.min(seconds, Number(fields.cache_seconds)) // the item's own cache period also bounds the token (0 = never kept)
   const entry = { token: parsed.access_token, secrets: [...secrets, parsed.access_token], until: Date.now() + seconds * 1000 }
-  tokens.set(key, entry)
+  if (seconds > 0) tokens.set(key, entry)
   return { token: entry.token, secrets: entry.secrets, drop: () => tokens.delete(key) }
 }
 export const forgetTokens = () => tokens.clear()

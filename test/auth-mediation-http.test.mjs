@@ -16,7 +16,7 @@ function setup({ item = ITEM, grants = ['http stripe'], answer } = {}) {
   const store = { policy: { ...emptyPolicy(), vault: 'v', units: { [UNIT]: { grants: grants.map(command => ({ command })) } }, bots: { 'bot-a': { grants: grants.map(command => ({ command })) } } }, read: async () => structuredClone(store.policy) }
   const items = createItemCache({ runOp: async args => { if (args[2] !== 'http stripe') throw new Error('x'); return itemJson(item) } })
   const core = createAuthCore({ store, items, audit: l => lines.push(l), roots: () => ({ 'bot-a': CWD }), fetchImpl })
-  return { core, seen, lines }
+  return { core, seen, lines, store }
 }
 const ask = (t, extra = {}) => t.core.http({ name: 'stripe', method: 'GET', path: '/v1/charges?limit=3', via: 'host-socket', cwd: UNIT, unit: UNIT, ...extra })
 const text = r => Buffer.from(r.body, 'base64').toString()
@@ -184,4 +184,15 @@ test('http: item extra headers are set last, listed caller headers pass, others 
   const t = setup({ item: { ...ITEM, http_extra_headers: '{"X-Api-Version":"2025-01","authorization":"x"}', http_allow_headers: 'x-trace, authorization' } })
   await ask(t, { headers: { 'X-Trace': 't1', 'X-Api-Version': 'evil', 'X-Other': 'no', Authorization: 'Bearer stolen' } })
   assert.deepEqual(t.seen[0].headers, { 'x-trace': 't1', 'x-api-version': '2025-01', authorization: 'x' })
+})
+
+test('http oauth2-password: a stop flushes the kept token (the next request after resume fetches a new one); cache_seconds=0 keeps none', async () => {
+  const { forgetTokens } = await import('../src/auth-mediation/http.mjs'); forgetTokens()
+  const t = tokenSetup(jpoAnswer()); await ask(t, { path: '/api/a' }); await ask(t, { path: '/api/b' })
+  const fetches = () => t.seen.filter(s => s.url.endsWith('/auth/token')).length
+  assert.equal(fetches(), 1)
+  t.store.policy.stopped = ['http stripe']; assert.equal((await ask(t, { path: '/api/c' })).outcome, 'stopped')
+  t.store.policy.stopped = []; await ask(t, { path: '/api/d' }); assert.equal(fetches(), 2)
+  forgetTokens(); const never = tokenSetup(jpoAnswer(), { cache_seconds: '0' }); await ask(never, { path: '/api/a' }); await ask(never, { path: '/api/b' })
+  assert.equal(never.seen.filter(s => s.url.endsWith('/auth/token')).length, 2)
 })
