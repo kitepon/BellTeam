@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-28T09:36:07Z",
-  "expiresAt": "2026-12-05T09:36:07Z",
+  "publishedAt": "2026-11-28T10:10:06Z",
+  "expiresAt": "2026-12-05T10:10:06Z",
   "releases": [
     {
       "componentId": "usage",
@@ -889,8 +889,8 @@
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "dfae62a59b6ef09896ea52efab19c6bc38466ea6",
-      "versionId": "da8d70a5b0f0f0252c961cb52e1251538540eda5c2a4e9ade067e3c38562ad5d",
+      "sourceCommit": "b9f1a987747fba7f490e8917eff3036eb82640da",
+      "versionId": "0e6740674af37243703b5bfa85cf3676566a7e63e742d17e6c1ea42e94601683",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -898,16 +898,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T092136Z/auth-mediation-dfae62a59b6ef09896ea52efab19c6bc38466ea6-linux-amd64.tar.gz",
-          "bytes": 3739360,
-          "sha256": "da8d70a5b0f0f0252c961cb52e1251538540eda5c2a4e9ade067e3c38562ad5d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T100948Z/auth-mediation-b9f1a987747fba7f490e8917eff3036eb82640da-linux-amd64.tar.gz",
+          "bytes": 3739616,
+          "sha256": "0e6740674af37243703b5bfa85cf3676566a7e63e742d17e6c1ea42e94601683"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T092136Z/auth-mediation-dfae62a59b6ef09896ea52efab19c6bc38466ea6-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11128,
-          "sha256": "572e4d6cc2992b3b9f975391055a6d69e8e88851bc37d2d226970b35dc03fdfc"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T100948Z/auth-mediation-b9f1a987747fba7f490e8917eff3036eb82640da-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11222,
+          "sha256": "e231f989de5358a1c3524e505e2fe145139e5e5f66734753ad2f914d0aadf02c"
         },
-        "signerCommit": "dfae62a59b6ef09896ea52efab19c6bc38466ea6"
+        "signerCommit": "b9f1a987747fba7f490e8917eff3036eb82640da"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -919,13 +919,13 @@
         }
       },
       "changes": [
-        "QNAP のログイン（QTS）と自己署名証明書の固定、メソッドごとのパスの限定、ストリームの途中切断と短い SSE の扱いを、モジュールの中で正しく行えるようになります。"
+        "Webhook の受領を読み戻すための相対パス（http_paths_relative）と、監査記録の期間・語での絞り込みを、モジュールの中で行えるようになります。"
       ]
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "dfae62a59b6ef09896ea52efab19c6bc38466ea6",
-      "versionId": "92855bfc0aeecee3859b742eac8d39825d38c68e6e0a2f93674ffc24e138472c",
+      "sourceCommit": "b9f1a987747fba7f490e8917eff3036eb82640da",
+      "versionId": "beb88a1ea8bc20246464cb1394be55340fc77d12fe70913791c1b0185ed128a0",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -933,16 +933,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T092136Z/auth-mediation-dfae62a59b6ef09896ea52efab19c6bc38466ea6-linux-arm64.tar.gz",
-          "bytes": 3739360,
-          "sha256": "92855bfc0aeecee3859b742eac8d39825d38c68e6e0a2f93674ffc24e138472c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T100948Z/auth-mediation-b9f1a987747fba7f490e8917eff3036eb82640da-linux-arm64.tar.gz",
+          "bytes": 3739616,
+          "sha256": "beb88a1ea8bc20246464cb1394be55340fc77d12fe70913791c1b0185ed128a0"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T092136Z/auth-mediation-dfae62a59b6ef09896ea52efab19c6bc38466ea6-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11124,
-          "sha256": "db2cccaf5a59332c1c24f481d9b5007eeb70ccf67d5e83dd54464a624714a4ed"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T100948Z/auth-mediation-b9f1a987747fba7f490e8917eff3036eb82640da-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11077,
+          "sha256": "f2f5a3f4b1f6f4aea25d84f0c1f791afef028ef73501ddf10ca86e28b827c7b6"
         },
-        "signerCommit": "dfae62a59b6ef09896ea52efab19c6bc38466ea6"
+        "signerCommit": "b9f1a987747fba7f490e8917eff3036eb82640da"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -954,7 +954,7 @@
         }
       },
       "changes": [
-        "QNAP のログイン（QTS）と自己署名証明書の固定、メソッドごとのパスの限定、ストリームの途中切断と短い SSE の扱いを、モジュールの中で正しく行えるようになります。"
+        "Webhook の受領を読み戻すための相対パス（http_paths_relative）と、監査記録の期間・語での絞り込みを、モジュールの中で行えるようになります。"
       ]
     }
   ],
