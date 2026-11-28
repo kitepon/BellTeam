@@ -7,7 +7,7 @@ import { toViewDecision, summarize } from './origin-view.mjs'
 import { entitlementFrom, cacheMillis } from './entitlement.mjs'
 import { nextConnect } from './connect-state.mjs'
 import { planLink, targetChart, DECISION_PLAN, DECISION_LANE } from './link-plan.mjs'
-import { WITHDRAW_REASON, isOwnerLane, cardsToTell, adderOf, tellMessage, keyOf, TELL_PER_SCAN } from './owner-lane.mjs'
+import { WITHDRAW_REASON, isOwnerLane, cardsToTell, adderOf, tellMessage, keyOf, TELL_PER_SCAN, cardsToWithdraw, withdrawKey, withdrawMessage } from './owner-lane.mjs'
 import { planRelay, relayAccepted, RELAY_ROW_KEEP_MS, RELAY_FEATURE_START } from './answer-relay.mjs'
 import { approvalsError } from '../approval-box-extension-protocol.mjs'
 
@@ -282,11 +282,23 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
       rows = (await loadRows()).filter(item => item !== row)
       await saveRows()
     }
-    const record = await loadTold(), roster = new Set((await members(effect)).map(member => member.id)), seen = new Set()
+    const record = await loadTold(), roster = new Set((await members(effect)).map(member => member.id)), seen = new Set(), seenWithdraw = new Set()
     let sent = 0
     for (const chart of await effect('lattice.charts', {})) { // O1
       const cards = (await effect('lattice.chart', { projectId: chart.projectId }).catch(() => ({ cards: [] }))).cards
       for (const card of cards) if (isOwnerLane(card.lane) && (card.state === 'ready' || card.state === 'in-progress')) seen.add(keyOf(chart.projectId, card))
+      for (const { card, row } of cardsToWithdraw({ projectId: chart.projectId, cards, rows: await loadRows(), told: record, now: now() })) { // O6
+        if (sent >= TELL_PER_SCAN) break
+        const target = adderOf({ card, chart, roster }), key = withdrawKey(chart.projectId, card)
+        if (!target) continue
+        const count = record[key]?.count ?? 0
+        const answer = await effect('seat.message', { target, message: withdrawMessage({ projectId: chart.projectId, chartName: chart.name, card, decisionId: row.decisionId, count }) })
+        if (!relayAccepted(answer.delivery) && answer.delivery !== 'refused') continue
+        record[key] = { toldAt: new Date(now()).toISOString(), count: count + 1, to: target }
+        sent++
+        await saveTold()
+      }
+      for (const card of cards) if (isOwnerLane(card.lane) && (card.state === 'pending' || card.state === 'blocked')) seenWithdraw.add(withdrawKey(chart.projectId, card))
       for (const card of cardsToTell({ projectId: chart.projectId, cards, rows: await loadRows(), told: record, now: now() })) {
         if (sent >= TELL_PER_SCAN) break
         const target = adderOf({ card, chart, roster })
@@ -301,7 +313,11 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
       }
     }
     // O2/O3: a told record whose card is no longer an open startable Owner card, or that has a link row, is dropped
-    const keep = Object.fromEntries(Object.entries(record).filter(([key]) => seen.has(key) && !rows.some(row => `${row.projectId}/${row.plan}/${row.taskId}` === key && (row.state === 'linked' || row.state === 'deferred' || row.state === 'diverged'))))
+    const holding = row => row.state === 'linked' || row.state === 'deferred' || row.state === 'diverged'
+    const stays = ([key]) => key.startsWith('withdraw:')
+      ? seenWithdraw.has(key) && rows.some(row => `withdraw:${row.projectId}/${row.plan}/${row.taskId}` === key && row.state === 'linked')
+      : seen.has(key) && !rows.some(row => `${row.projectId}/${row.plan}/${row.taskId}` === key && holding(row))
+    const keep = Object.fromEntries(Object.entries(record).filter(stays))
     if (Object.keys(keep).length !== Object.keys(record).length) { told = keep; await saveTold() }
   }
 

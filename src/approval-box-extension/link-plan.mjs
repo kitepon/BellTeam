@@ -62,7 +62,7 @@ export function planLink({ d, row, rows = [], chart }) {
   }
   if (d.status === 'cancelled') { // L3
     if (row.state === 'closed') return { actions: [], row }
-    if (!card || ended(card)) return to('closed')
+    if (!card || ended(card) || row.attached) return to('closed') // an attached task existed before the request: withdrawing the request is not the end of the work (README L3, O6)
     return to('closed', [owner(row.projectId, ['todo', 'retire', '--plan', row.plan, '--task', row.taskId, '--reason', safe(d.cancelReason ?? '申請したAIが取り下げました')])])
   }
   if (ended(card) && row.state === 'linked') return to('diverged') // L6: closed by hand while the decision is pending; the decision is the AI's, so nothing is cancelled
