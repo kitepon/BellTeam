@@ -246,16 +246,18 @@ public sealed class SecretInputWindow : Window
         var choice = new RadioButton { Template = ChoiceTemplate, FontSize = 16, Foreground = SettingsUi.Ink, Cursor = System.Windows.Input.Cursors.Hand, HorizontalContentAlignment = HorizontalAlignment.Stretch };
         return choice;
     }
-    private static readonly Brush DisabledGrey = new SolidColorBrush(Color.FromRgb(0xC7, 0xC7, 0xCC));
+    private static readonly Brush DisabledGrey = SecretCard.Frozen(Color.FromRgb(0xC7, 0xC7, 0xCC));
     private static Button RowButton(string label, Brush color) => new() { Content = label, Template = RowButtonTemplate, Foreground = color, FontSize = 16, Cursor = System.Windows.Input.Cursors.Hand };
     private const string Presentation = "xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"";
     // A selectable row of a grouped list: the content on the left and a violet check on the right when chosen (Mac checkmark rows).
-    private static readonly ControlTemplate ChoiceTemplate = (ControlTemplate)System.Windows.Markup.XamlReader.Parse(
+    // A template belongs to the thread that parsed it and is sealed there on first use, so each UI thread keeps its own (StartupViews does the same).
+    [ThreadStatic] private static ControlTemplate? choiceTemplate, rowButtonTemplate;
+    private static ControlTemplate ChoiceTemplate => choiceTemplate ??= (ControlTemplate)System.Windows.Markup.XamlReader.Parse(
         $"<ControlTemplate {Presentation} TargetType=\"RadioButton\"><Border x:Name=\"Chrome\" Background=\"Transparent\" Padding=\"20,11\"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width=\"*\"/><ColumnDefinition Width=\"Auto\"/></Grid.ColumnDefinitions>"
         + "<ContentPresenter VerticalAlignment=\"Center\"/><TextBlock x:Name=\"Mark\" Grid.Column=\"1\" Text=\"&#xE73E;\" FontFamily=\"Segoe Fluent Icons, Segoe MDL2 Assets\" FontSize=\"16\" Foreground=\"#6147D4\" VerticalAlignment=\"Center\" Visibility=\"Collapsed\"/></Grid></Border>"
         + "<ControlTemplate.Triggers><Trigger Property=\"IsChecked\" Value=\"True\"><Setter TargetName=\"Mark\" Property=\"Visibility\" Value=\"Visible\"/></Trigger><Trigger Property=\"IsKeyboardFocused\" Value=\"True\"><Setter TargetName=\"Chrome\" Property=\"Background\" Value=\"#146147D4\"/></Trigger></ControlTemplate.Triggers></ControlTemplate>");
     // A plain text row of a grouped list (Mac Form Button): a coloured label that fades when disabled.
-    private static readonly ControlTemplate RowButtonTemplate = (ControlTemplate)System.Windows.Markup.XamlReader.Parse(
+    private static ControlTemplate RowButtonTemplate => rowButtonTemplate ??= (ControlTemplate)System.Windows.Markup.XamlReader.Parse(
         $"<ControlTemplate {Presentation} TargetType=\"Button\"><Border x:Name=\"Chrome\" Background=\"Transparent\" Padding=\"20,12\"><ContentPresenter HorizontalAlignment=\"Left\" VerticalAlignment=\"Center\"/></Border>"
         + "<ControlTemplate.Triggers><Trigger Property=\"IsKeyboardFocused\" Value=\"True\"><Setter TargetName=\"Chrome\" Property=\"Background\" Value=\"#146147D4\"/></Trigger></ControlTemplate.Triggers></ControlTemplate>");
 }
