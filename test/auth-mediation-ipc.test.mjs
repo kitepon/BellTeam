@@ -120,6 +120,8 @@ test('audit verb: admins read the last lines, a non-admin is denied, nothing but
   assert.equal(out.outcome, 'ok'); assert.equal(out.lines.length, 1); assert.equal(JSON.parse(out.lines[0]).outcome, 'denied')
   assert.ok(!JSON.stringify(out).includes(SECRET))
   assert.equal((await f.call('admin', { botId: 'bot-a', verb: 'audit' })).outcome, 'denied')
+  const none = await f.call('admin', { botId: 'bot-admin', verb: 'audit', args: { match: 'no-such-caller-text' } }); assert.equal(none.lines.length, 0) // the filter runs before the last-N cut
+  const future = await f.call('admin', { botId: 'bot-admin', verb: 'audit', args: { since: '2999-01-01T00:00:00Z' } }); assert.equal(future.lines.length, 0)
   assert.equal((await f.call('admin', { botId: 'bot-admin', verb: 'audit' })).lines.length, 3) // two requests and the non-admin's denied attempt
 })
 

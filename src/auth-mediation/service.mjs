@@ -60,7 +60,10 @@ export function createAuthMediationService({ policyPath, auditPath, opExe, first
         if ((await core.admin(params.botId, 'show')).outcome !== 'ok') return { outcome: 'denied', error: 'Not an administrator.' }
         const last = Math.min(Math.max(Number.isInteger(params.args?.last) ? params.args.last : 50, 1), 500)
         const text = await readFile(auditPath, 'utf8').catch(error => error.code === 'ENOENT' ? '' : Promise.reject(error))
-        return { outcome: 'ok', lines: text.split('\n').filter(Boolean).slice(-last) }
+        // Optional filters, applied before the last-N cut so an old event is reachable: since = ISO time (lines at or after it), match = text the line must contain (a caller, an item, an outcome).
+        const { since, match } = params.args ?? {}
+        const keep = line => (typeof match !== 'string' || !match || line.includes(match)) && (typeof since !== 'string' || !since || (() => { try { return JSON.parse(line).time >= since } catch { return false } })())
+        return { outcome: 'ok', lines: text.split('\n').filter(Boolean).filter(keep).slice(-last) }
       }
       return core.admin(params.botId, params.verb, params.args ?? {}, input.program)
     })),
