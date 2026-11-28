@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-28T04:52:15Z",
-  "expiresAt": "2026-12-05T04:52:15Z",
+  "publishedAt": "2026-11-28T05:20:15Z",
+  "expiresAt": "2026-12-05T05:20:15Z",
   "releases": [
     {
       "componentId": "usage",
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "71947a9814aeb5aa7af80bfb068d7fdb5ab4502d",
-      "versionId": "sha256:43a0286c8d8a8245774e8d7e4f3ac77684bc4d55622aecdcd5f0b9cf89a74c5b",
+      "sourceCommit": "64a6477e6a378890bcfd0bf481b3d603aa106d7c",
+      "versionId": "sha256:18647257111809f0e48b00a9b0ffdd497cc61520863142242074775c758f27f4",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:43a0286c8d8a8245774e8d7e4f3ac77684bc4d55622aecdcd5f0b9cf89a74c5b"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:18647257111809f0e48b00a9b0ffdd497cc61520863142242074775c758f27f4"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -722,20 +722,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "認証仲介が、メールの送信（呼び出し元 auctionbot）と ssh エージェントの署名を、鍵を渡さずにモジュールの中で行えるようになります。"
+        "認証仲介が、メールの読み取り（IMAP、読み取り専用）、仕分け、ログイン確認を、鍵やパスワードを渡さずにモジュールの中で行えるようになります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "71947a9814aeb5aa7af80bfb068d7fdb5ab4502d",
-      "versionId": "sha256:43a0286c8d8a8245774e8d7e4f3ac77684bc4d55622aecdcd5f0b9cf89a74c5b",
+      "sourceCommit": "64a6477e6a378890bcfd0bf481b3d603aa106d7c",
+      "versionId": "sha256:18647257111809f0e48b00a9b0ffdd497cc61520863142242074775c758f27f4",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:43a0286c8d8a8245774e8d7e4f3ac77684bc4d55622aecdcd5f0b9cf89a74c5b"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:18647257111809f0e48b00a9b0ffdd497cc61520863142242074775c758f27f4"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -744,7 +744,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "認証仲介が、メールの送信（呼び出し元 auctionbot）と ssh エージェントの署名を、鍵を渡さずにモジュールの中で行えるようになります。"
+        "認証仲介が、メールの読み取り（IMAP、読み取り専用）、仕分け、ログイン確認を、鍵やパスワードを渡さずにモジュールの中で行えるようになります。"
       ]
     },
     {
@@ -819,8 +819,8 @@
     },
     {
       "componentId": "approval-box-extension",
-      "sourceCommit": "52425479ee5a1de1cb9e0e89f3f0298a081c6275",
-      "versionId": "2f640654f8a96325874e34b76b5da7fd4f266ceecd7eb06d41703d53cd20c637",
+      "sourceCommit": "64a6477e6a378890bcfd0bf481b3d603aa106d7c",
+      "versionId": "3a6eded834a0975bc9e7469449c319303c100864a80cb1508c756e9bcc870c16",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -828,16 +828,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T042936Z/approval-box-extension-52425479ee5a1de1cb9e0e89f3f0298a081c6275-linux-amd64.tar.gz",
-          "bytes": 3719360,
-          "sha256": "2f640654f8a96325874e34b76b5da7fd4f266ceecd7eb06d41703d53cd20c637"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T051933Z/approval-box-extension-64a6477e6a378890bcfd0bf481b3d603aa106d7c-linux-amd64.tar.gz",
+          "bytes": 3719588,
+          "sha256": "3a6eded834a0975bc9e7469449c319303c100864a80cb1508c756e9bcc870c16"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T042936Z/approval-box-extension-52425479ee5a1de1cb9e0e89f3f0298a081c6275-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11280,
-          "sha256": "83bbea1f381b2b0abb8dd79169d985af99bf021b7c1c7f5820d00b849ef27f12"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T051933Z/approval-box-extension-64a6477e6a378890bcfd0bf481b3d603aa106d7c-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11429,
+          "sha256": "c13228d4502519f1d0d3bde30990081aedafb52cc57bb8ae613108dc0d10e2b5"
         },
-        "signerCommit": "52425479ee5a1de1cb9e0e89f3f0298a081c6275"
+        "signerCommit": "64a6477e6a378890bcfd0bf481b3d603aa106d7c"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -849,13 +849,13 @@
         }
       },
       "changes": [
-        "旦那の持ち場の工程を足した Bot へ、決裁箱に申請を出すよう知らせます（1 枚あたり 60 分に 1 回、1 回の走査で最大 5 件）。着手できなくなった申請は取り下げます。機械が自分で申請を出すことはありません。"
+        "すでに答えが出た申請には、取り下げの知らせを出さず、着手できない工程への答えは、工程に書き留めるようになります。"
       ]
     },
     {
       "componentId": "approval-box-extension",
-      "sourceCommit": "52425479ee5a1de1cb9e0e89f3f0298a081c6275",
-      "versionId": "e007fb898bf15200330004ef6930359f1677fe1dc7ae36e948aaefacd9d3f4a1",
+      "sourceCommit": "64a6477e6a378890bcfd0bf481b3d603aa106d7c",
+      "versionId": "235f5fb3f6206e567a952f7ffa12c9272a6f27133a5d8f2a32a8aec7e4632a1d",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -863,16 +863,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T042936Z/approval-box-extension-52425479ee5a1de1cb9e0e89f3f0298a081c6275-linux-arm64.tar.gz",
-          "bytes": 3719360,
-          "sha256": "e007fb898bf15200330004ef6930359f1677fe1dc7ae36e948aaefacd9d3f4a1"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T051933Z/approval-box-extension-64a6477e6a378890bcfd0bf481b3d603aa106d7c-linux-arm64.tar.gz",
+          "bytes": 3719588,
+          "sha256": "235f5fb3f6206e567a952f7ffa12c9272a6f27133a5d8f2a32a8aec7e4632a1d"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T042936Z/approval-box-extension-52425479ee5a1de1cb9e0e89f3f0298a081c6275-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11139,
-          "sha256": "8a1358132209d2264670af341dd05e3040e168e12e0b1d5b893a9a7f59ff7b38"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T051933Z/approval-box-extension-64a6477e6a378890bcfd0bf481b3d603aa106d7c-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11311,
+          "sha256": "f6e26ef2cf60660657b5de7807d36d6ddfeb19c77a9e938e5a3ee0c5c6f0533d"
         },
-        "signerCommit": "52425479ee5a1de1cb9e0e89f3f0298a081c6275"
+        "signerCommit": "64a6477e6a378890bcfd0bf481b3d603aa106d7c"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -884,13 +884,13 @@
         }
       },
       "changes": [
-        "旦那の持ち場の工程を足した Bot へ、決裁箱に申請を出すよう知らせます（1 枚あたり 60 分に 1 回、1 回の走査で最大 5 件）。着手できなくなった申請は取り下げます。機械が自分で申請を出すことはありません。"
+        "すでに答えが出た申請には、取り下げの知らせを出さず、着手できない工程への答えは、工程に書き留めるようになります。"
       ]
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "fa3e9ae806040e453cd01938a2fd5cc5175d6d2a",
-      "versionId": "81e7f4f7f100ae6acfd3290e8b60d1ab239e8c85cb9ba734b3590f143450ea7b",
+      "sourceCommit": "64a6477e6a378890bcfd0bf481b3d603aa106d7c",
+      "versionId": "040c442699d7cbb324cebb56bf041fe52788fa04b442df602431392c0a0242ec",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -898,16 +898,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T045125Z/auth-mediation-fa3e9ae806040e453cd01938a2fd5cc5175d6d2a-linux-amd64.tar.gz",
-          "bytes": 3716867,
-          "sha256": "81e7f4f7f100ae6acfd3290e8b60d1ab239e8c85cb9ba734b3590f143450ea7b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T051919Z/auth-mediation-64a6477e6a378890bcfd0bf481b3d603aa106d7c-linux-amd64.tar.gz",
+          "bytes": 3721602,
+          "sha256": "040c442699d7cbb324cebb56bf041fe52788fa04b442df602431392c0a0242ec"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T045125Z/auth-mediation-fa3e9ae806040e453cd01938a2fd5cc5175d6d2a-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11030,
-          "sha256": "761e4c261a304bfe1013d53577a4a191854b3a21c74db2542d29607073818adf"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T051919Z/auth-mediation-64a6477e6a378890bcfd0bf481b3d603aa106d7c-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11124,
+          "sha256": "c28be52ecba7ea27e1e35b0a9998c50cc306c96a4454f33bb4ab96ee8860e86f"
         },
-        "signerCommit": "fa3e9ae806040e453cd01938a2fd5cc5175d6d2a"
+        "signerCommit": "64a6477e6a378890bcfd0bf481b3d603aa106d7c"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -919,13 +919,13 @@
         }
       },
       "changes": [
-        "鍵を渡さずに、ssh エージェントの署名、署名の digest（SHA-256/384/512）、メールの送信を、モジュールの中で行えるようになります。"
+        "メールの読み取り（IMAP、読み取り専用）、仕分け（キーワードと保管）、ログイン確認を、モジュールの中で行えるようになります。"
       ]
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "fa3e9ae806040e453cd01938a2fd5cc5175d6d2a",
-      "versionId": "81696a75510ed00d8af210817c31a2c2f211579064168fe1bd7a70279c7cda35",
+      "sourceCommit": "64a6477e6a378890bcfd0bf481b3d603aa106d7c",
+      "versionId": "2eef873403e149e76547b5b150af0f54e4ab420308cf99898f81bcfc8f6d62e0",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -933,16 +933,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T045125Z/auth-mediation-fa3e9ae806040e453cd01938a2fd5cc5175d6d2a-linux-arm64.tar.gz",
-          "bytes": 3716867,
-          "sha256": "81696a75510ed00d8af210817c31a2c2f211579064168fe1bd7a70279c7cda35"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T051919Z/auth-mediation-64a6477e6a378890bcfd0bf481b3d603aa106d7c-linux-arm64.tar.gz",
+          "bytes": 3721602,
+          "sha256": "2eef873403e149e76547b5b150af0f54e4ab420308cf99898f81bcfc8f6d62e0"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T045125Z/auth-mediation-fa3e9ae806040e453cd01938a2fd5cc5175d6d2a-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11026,
-          "sha256": "80200d5a518c1bdfe4005a70a335e44a2f7a301a4b79d2ac989931f152a8160d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T051919Z/auth-mediation-64a6477e6a378890bcfd0bf481b3d603aa106d7c-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10936,
+          "sha256": "d62574a020b52d319c04fc66fd38d68ca95c07df4eca811f7ea6043cf0f1aae9"
         },
-        "signerCommit": "fa3e9ae806040e453cd01938a2fd5cc5175d6d2a"
+        "signerCommit": "64a6477e6a378890bcfd0bf481b3d603aa106d7c"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -954,7 +954,7 @@
         }
       },
       "changes": [
-        "鍵を渡さずに、ssh エージェントの署名、署名の digest（SHA-256/384/512）、メールの送信を、モジュールの中で行えるようになります。"
+        "メールの読み取り（IMAP、読み取り専用）、仕分け（キーワードと保管）、ログイン確認を、モジュールの中で行えるようになります。"
       ]
     }
   ],
