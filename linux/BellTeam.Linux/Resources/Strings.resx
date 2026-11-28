@@ -116,24 +116,9 @@
   <data name="AvatarEditor_TryUse_1" xml:space="preserve"><value>写真を読み込めませんでした。</value><comment> | sites: AvatarEditor.cs:156 TryUse: error.Text = ...;  | ja chars: 14</comment></data>
   <data name="AvatarEditor_TryUse_2" xml:space="preserve"><value>元画像を保存できませんでした。別の画像を選んでください。</value><comment> | sites: AvatarEditor.cs:160 TryUse: error.Text = ...;  | ja chars: 28</comment></data>
   <data name="ConnectView_ConnectView_1" xml:space="preserve"><value>このサーバーにログイン</value><comment> | sites: ConnectView.cs:40 ConnectView: Text(28) | ja chars: 11</comment></data>
-  <data name="ConnectView_ConnectView_2" xml:space="preserve"><value>スマホで承認する</value><comment> | sites: ConnectView.cs:41 ConnectView: Text(17) | ja chars: 8</comment></data>
   <data name="ConnectView_ConnectView_3" xml:space="preserve"><value>サーバーのコードで入る</value><comment> | sites: ConnectView.cs:43 ConnectView: Text(17) | ja chars: 11</comment></data>
   <data name="ConnectView_ConnectView_4" xml:space="preserve"><value>コードでログイン</value><comment> | sites: ConnectView.cs:45 ConnectView: Bordered() | ja chars: 8</comment></data>
   <data name="ConnectView_ConnectView_5" xml:space="preserve"><value>接続先を変更</value><comment> | sites: ConnectView.cs:47 ConnectView: Bordered() ; OnboardingView.cs:79 Render: Bordered() ; StartupViews.cs:116 StartupFailureView: Bordered() ; StartupViews.cs:129 PaywallView: Bordered() (+1 more) | ja chars: 6</comment></data>
-  <data name="ConnectView_Render_1" xml:space="preserve"><value>ログインを始めています…</value><comment> | sites: ConnectView.cs:95 Render: Text(15) | ja chars: 12</comment></data>
-  <data name="ConnectView_Render_10" xml:space="preserve"><value>もう一度始める</value><comment> | sites: ConnectView.cs:108 Render: Prominent() | ja chars: 7</comment></data>
-  <data name="ConnectView_Render_11" xml:space="preserve"><value>ログインしました。接続しています…</value><comment> | sites: ConnectView.cs:109 Render: Text(15) | ja chars: 17</comment></data>
-  <data name="ConnectView_Render_2" xml:space="preserve"><value>ログイン済みのアプリで許可してください。サーバーのコンソールで出したコードも使えます。</value><comment> | sites: ConnectView.cs:97 Render: Text(15) | ja chars: 43</comment></data>
-  <data name="ConnectView_Render_3" xml:space="preserve"><value>許可を待っています…</value><comment> | sites: ConnectView.cs:98 Render: Text(13) | ja chars: 10</comment></data>
-  <data name="ConnectView_Render_4" xml:space="preserve"><value>ログイン済みのスマートフォンのBellTeamで、次のコードを入力してください。</value><comment> | sites: ConnectView.cs:100 Render: Text(15) | ja chars: 40</comment></data>
-  <data name="ConnectView_Render_5" xml:space="preserve"><value>ログインのコード</value><comment> | sites: ConnectView.cs:102 Render: SetName() | ja chars: 8</comment></data>
-  <data name="ConnectView_Render_6" xml:space="preserve"><value>確認番号 {0}</value><comment>{0} = phone.CheckNumber;  | sites: ConnectView.cs:103 Render: Text(20) | ja chars: 8</comment></data>
-  <data name="ConnectView_Render_7" xml:space="preserve"><value>確認番号</value><comment> | sites: ConnectView.cs:103 Render: SetName() | ja chars: 4</comment></data>
-  <data name="ConnectView_Render_8" xml:space="preserve"><value>スマートフォンにも同じ確認番号が出たら許可してください。</value><comment> | sites: ConnectView.cs:104 Render: Text(13) | ja chars: 28</comment></data>
-  <data name="ConnectView_Render_9" xml:space="preserve"><value>ログインできませんでした。</value><comment> | sites: ConnectView.cs:107 Render: Text(15) | ja chars: 13</comment></data>
-  <data name="ConnectView_UseConsoleCodeAsync_1" xml:space="preserve"><value>サーバーからログインの鍵を受け取れませんでした。新しいコードで試してください。</value><comment> | sites: ConnectView.cs:80 UseConsoleCodeAsync: consoleFailure = ...;  | ja chars: 39</comment></data>
-  <data name="ConnectView_UseConsoleCodeAsync_2" xml:space="preserve"><value>コードが正しくないか、すでに使われています。</value><comment> | sites: ConnectView.cs:84 UseConsoleCodeAsync: consoleFailure = ...;  | ja chars: 22</comment></data>
-  <data name="ConnectView_UseConsoleCodeAsync_3" xml:space="preserve"><value>コードを送れませんでした。{0}</value><comment>{0} = error.Message;  | sites: ConnectView.cs:85 UseConsoleCodeAsync: consoleFailure = ...;  | ja chars: 16</comment></data>
   <data name="ConnectView_consoleCode_1" xml:space="preserve"><value>サーバーのコンソールのコード</value><comment> | sites: ConnectView.cs:26 consoleCode: PlaceholderText = ...; {Padding = new Thickness(10, 8), FontSize = 15, MinWidth = 280} | ja chars: 14</comment></data>
   <data name="ConversationRow_ConversationRow_1" xml:space="preserve"><value>ピン留めを変えられませんでした。{0}</value><comment>{0} = error.Message;  | sites: ConversationRow.cs:48 ConversationRow: ReportActionError() | ja chars: 19</comment></data>
   <data name="ConversationRow_Update_1" xml:space="preserve"><value>ピン留めを外す</value><comment> | sites: ConversationRow.cs:59 Update: pin.Header = ...;  | ja chars: 7</comment></data>

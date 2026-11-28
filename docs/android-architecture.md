@@ -64,7 +64,7 @@ flowchart TD
 - メンバー編集：メンバーとの会話の見出し右の歯車で、Linuxの`MemberEditorWindow`（名前・テーマ色・AI・端末とフォルダ・予定など）を頁として開く。キャンセル／保存はその画面のもの。
 - リンク：メッセージ・案内文のリンクと設定のリンクは`ExternalLink.Launch`で開く。Linuxは.NETのシェル実行（xdg-open）、Androidは起動時に`ExternalLink.Opener`へ`ACTION_VIEW`のIntentを入れる（シェルが無いため）。失敗は呼び出し側が平易な文で示す。
 - 画像の添付：入力欄左のクリップでシステムのファイル選択（`StorageProvider`）を開く。選ばれた画像は内容URIなので、アプリのキャッシュへ写してから`Workspace.AttachFilesAsync`へ渡す。入力欄の上に縮小画像と取り消しを並べる。
-- サーバーのログイン（a485。[linux-architecture.md](linux-architecture.md)のログインの項と同じ`ConnectView`、`kind`は`android`）：サーバーが`login.enforced`なら起動画面は`ConnectView`になり、鍵は`KeystoreSessionTokenStore`が持つ。`login`キーが無いサーバーは下のAccessの流れのまま。
+- サーバーのコードログイン（a485・C-04。[linux-architecture.md](linux-architecture.md)のコードログインの項と同じ`ConnectView`・`HomeSessionEnd`）：サーバーが`GET /api/home/session`でホームの答えを返す（`SessionLoginRequired`）なら起動画面は`ConnectView`になり、鍵は`KeystoreSessionTokenStore`が持つ。コードを送る`BellApi`はAccessのクッキーを持たせて作る。設定の2か所のサインアウトは、プッシュの登録解除のあと、Accessを消す前に`HomeSessionEnd.EndAsync`で自分の行を終わらせる。ホームの答えが無いサーバーは下のAccessの流れのまま。
 - Cloudflare Access（HTTPSの外部接続）のログイン（Windowsの`DesktopAccess`・`AccessLoginView`と同じ流れ）：`Workspace`が「ログインが要る」（`NeedsLogin`）と判定すると、起動画面がAndroidの`WebView`のログイン頁（`AccessLoginPage`）に替わる。WebViewの`CookieManager`が`CF_Authorization`を次の起動まで保つ。頁を読み終えるたびにそのクッキーをCoreの`AccessCookies.Replace`で`AccessSession.Cookies`（`BellApi`が送る`CookieContainer`）へ写し、`GET /api/session`が`authenticated`を返したら接続し直す。接続の前（`prepareConnection`）にも前回のログインを写す。設定の「サインアウト」（Accessの接続先だけ）は`CookieManager`とコンテナを空にして`Workspace.SignOut`を呼ぶ。HTTPSでない接続先にはログインを出さない。
 - LAN上のサーバーは平文のhttpなので、Androidの`UsesCleartextTraffic`を有効にする（接続先の検査は`ServerOrigin`が行い、httpsかlocalhost・LANのhttpだけを通す）。
 - 書き込み（POST・PUT・DELETE）は自動で再送しない。SSEと一覧の読み直しは、Coreの上限付きバックオフ（`ReconnectBackoff`）で再試行を続ける。起動の失敗画面は同じ間隔で自動再試行し、回数の上限で打ち切らない。

@@ -6,53 +6,25 @@ using BellTeam.Core;
 
 namespace BellTeam.Linux;
 
-// a485, shape 2 (app-sessions.md section 7): start, show the code, poll, keep the token; the Bearer header; the token file.
+// a485, C-04 (app-sessions.md sections 2 and 4): the console code once, the token kept, the Bearer header, the token file, sign-out of the own row.
 public sealed class AppLoginTests
 {
-    private sealed class Server(params string[] polls) : HttpMessageHandler
+    // The home part of a server: the console code answers once, the session list has this app's own row.
+    private sealed class Server : HttpMessageHandler
     {
-        public readonly List<string> Calls = []; public string? Authorization, ConsoleBody; public int PollCount; public int FailPolls;
+        public readonly List<string> Calls = []; public string? Authorization, ConsoleBody; public bool Refuse;
+        private readonly HttpMessageInvoker rest = new(new FakeServer());
         private static HttpResponseMessage Json(string body, HttpStatusCode status = HttpStatusCode.OK) => new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
         {
             var path = request.RequestUri!.AbsolutePath; Calls.Add(request.Method + " " + path);
             Authorization = request.Headers.Authorization?.ToString();
-            if (path == "/api/login/start") return Json("""{"loginId":"L1","status":"waiting_second_hand","expiresAt":"2999-01-01T00:00:00.000Z","pollAfterMs":3000}""");
-            if (path == "/api/login/L1/cancel") return Json("""{"loginId":"L1","status":"cancelled"}""");
-            if (path == "/api/login/console") { ConsoleBody = await request.Content!.ReadAsStringAsync(token); return ConsoleBody.Contains("GOOD") ? Json("""{"status":"approved","sessionId":"S1","token":"tok-console"}""") : Json("""{"error":"LOGIN_CODE_INVALID"}""", HttpStatusCode.Forbidden); }
-            if (path == "/api/login/L1")
-            {
-                if (FailPolls-- > 0) return Json("""{"error":"LOGIN_RATE_LIMITED"}""", (HttpStatusCode)429);
-                return Json(polls[Math.Min(PollCount++, polls.Length - 1)]);
-            }
-            return new HttpResponseMessage(HttpStatusCode.NotFound);
+            if (path == "/api/home/session") return Json("""{"capability":"login-billing-home/1","bound":true,"enforced":true}""");
+            if (path == "/api/home/login/console") { ConsoleBody = await request.Content!.ReadAsStringAsync(token); return ConsoleBody.Contains("GOOD") ? Json("""{"sessionId":"S1","token":"tok-console"}""") : Json("""{"error":"LOGIN_CODE_INVALID"}""", HttpStatusCode.Forbidden); }
+            if (path == "/api/home/sessions" && request.Method == HttpMethod.Get) return Json("""{"sessions":[{"id":"S0","kind":"console","current":false},{"id":"S1","kind":"app","appKind":"linux","current":true}]}""");
+            if (path.StartsWith("/api/home/sessions/") && request.Method == HttpMethod.Delete) return Refuse ? Json("""{"error":"SESSION_STORE_UNAVAILABLE"}""", HttpStatusCode.ServiceUnavailable) : new HttpResponseMessage(HttpStatusCode.NoContent);
+            return await rest.SendAsync(request, token);
         }
-    }
-    private const string Phone = """{"loginId":"L1","status":"waiting_phone","expiresAt":"2999-01-01T00:00:00.000Z","phone":{"shortCode":"0123-4567","checkNumber":"042","qr":"bt://x"}}""";
-    private static LoginApi Api(Server server) => new(new BellApi(new("http://localhost/"), server));
-    private static readonly Func<int, CancellationToken, Task> NoWait = (_, _) => Task.Yield().GetAwaiter().IsCompleted ? Task.CompletedTask : Task.CompletedTask;
-
-    [Fact]
-    public async Task ItWaitsForTheSecondHandThenThePhoneAndReceivesTheTokenOnce()
-    {
-        var server = new Server("""{"loginId":"L1","status":"waiting_second_hand"}""", Phone, """{"loginId":"L1","status":"approved","token":"tok-1"}""");
-        var flow = new LoginFlow(Api(server), "linux", NoWait); var seen = new List<LoginPhase>(); string? code = null; flow.Changed += () => { seen.Add(flow.Phase); if (flow.Phase == LoginPhase.WaitingPhone) code = flow.Status!.Phone!.ShortCode; };
-        await flow.RunAsync(default);
-        Assert.Equal(LoginPhase.Approved, flow.Phase); Assert.Equal("tok-1", flow.Token);
-        Assert.Contains(LoginPhase.WaitingPhone, seen); Assert.Equal("0123-4567", code);
-        Assert.Equal(1, server.Calls.Count(call => call == "POST /api/login/start"));   // start is never resent
-    }
-
-    [Fact]
-    public async Task ARefusedExpiredOrLostLoginEndsWithItsSentenceAndAFailedPollIsRetriedWithoutLimit()
-    {
-        var refused = new LoginFlow(Api(new Server("""{"loginId":"L1","status":"refused","reason":"not_owner_account"}""")), "linux", NoWait); await refused.RunAsync(default);
-        Assert.Equal(LoginPhase.Refused, refused.Phase); Assert.Equal(LoginFlow.RefusedText("not_owner_account"), refused.Message);
-        var delivered = new LoginFlow(Api(new Server("""{"loginId":"L1","status":"delivered"}""")), "linux", NoWait); await delivered.RunAsync(default);
-        Assert.Equal(LoginPhase.Failed, delivered.Phase);   // the token comes once; a later "delivered" without it means it was lost
-        var flaky = new Server("""{"loginId":"L1","status":"approved","token":"tok-2"}""") { FailPolls = 5 };
-        var retried = new LoginFlow(Api(flaky), "linux", NoWait); await retried.RunAsync(default);
-        Assert.Equal("tok-2", retried.Token); Assert.True(flaky.Calls.Count(call => call == "GET /api/login/L1") >= 6);
     }
 
     // home: what GET /api/home/session answers (null = a server without the home part: 404).
@@ -86,7 +58,7 @@ public sealed class AppLoginTests
     public void BellApiSendsTheSessionTokenAsABearerHeader()
     {
         var server = new Server(); using var api = new BellApi(new("http://localhost/"), server) { SessionToken = "abc" };
-        _ = api.GetAsync<System.Text.Json.JsonElement>("/api/login/L1");
+        _ = api.GetAsync<System.Text.Json.JsonElement>("/api/home/session");
         Assert.Equal("Bearer abc", server.Authorization);
     }
 
@@ -102,23 +74,37 @@ public sealed class AppLoginTests
     }
 
     [Fact]
-    public Task TheConnectScreenShowsTheCodeAndCheckNumberAndAConsoleCodeSignsIn() => Ui.Run(async () =>
+    public Task TheConnectScreenTakesAConsoleCodeOnceAndKeepsTheToken() => Ui.Run(async () =>
     {
-        var server = new Server(Phone); var tokens = new MemorySessionTokenStore(); var origin = new Uri("http://localhost/"); var signedIn = 0;
-        var view = new ConnectView(Api(server), "linux", origin, tokens, () => signedIn++, () => { });
+        var server = new Server(); var tokens = new MemorySessionTokenStore(); var origin = new Uri("http://localhost/"); var signedIn = 0;
+        var view = new ConnectView(new BellApi(origin, server), origin, tokens, () => signedIn++, () => { });
         var window = new Window { Content = view }; window.Show();
-        await Until(() => Texts(view).Contains("0123-4567"));
-        Assert.Contains("確認番号 042", Texts(view));
-        Assert.Contains("スマホで承認する", Texts(view)); Assert.Contains("サーバーのコードで入る", Texts(view));
-        Assert.DoesNotContain(Texts(view), text => text.Contains("ブラウザー版"));
-        // a wrong console code says so and keeps the screen; a right one stores the token and connects
+        Assert.Contains("サーバーのコードで入る", Texts(view)); Assert.DoesNotContain(Texts(view), text => text.Contains("スマホで承認"));
+        // a wrong code says so and keeps the screen (one POST, never resent); a right one stores the token and connects
         view.GetVisualDescendants().OfType<TextBox>().Single().Text = "BAD";
-        Click(view, "コードでログイン"); await Until(() => Texts(view).Contains("コードが正しくないか、すでに使われています。")); Assert.Equal(0, signedIn);
-        view.GetVisualDescendants().OfType<TextBox>().Single().Text = "GOOD";
-        Click(view, "コードでログイン"); await Until(() => signedIn == 1);
-        Assert.Equal("tok-console", tokens.Load(origin)); Assert.Contains("\"kind\":\"linux\"", server.ConsoleBody);
+        Click(view, "コードでログイン"); await view.Running; Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        Assert.Contains(HomeLoginText.CodeInvalid, Texts(view)); Assert.Equal(0, signedIn); Assert.Null(tokens.Load(origin));
+        Assert.Equal(1, server.Calls.Count(call => call == "POST /api/home/login/console"));
+        view.GetVisualDescendants().OfType<TextBox>().Single().Text = " GOOD ";
+        Click(view, "コードでログイン"); await view.Running;
+        Assert.Equal(1, signedIn); Assert.Equal("tok-console", tokens.Load(origin)); Assert.Equal("{\"code\":\"GOOD\"}", server.ConsoleBody);
         view.Dispose(); window.Close();
     });
+
+    // Sign-out of a home server ends this app's own row and forgets the token, whether or not the server answers.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SigningOutEndsTheOwnRowAndForgetsTheToken(bool refuse)
+    {
+        var server = new Server { Refuse = refuse }; var tokens = new MemorySessionTokenStore(); var origin = new Uri("http://localhost/"); tokens.Save(origin, "tok");
+        using var workspace = new LinuxWorkspace(o => new BellApi(o, server) { SessionToken = tokens.Load(o) });
+        await workspace.ConnectAsync("http://localhost/", listen: false);
+        Assert.True(workspace.Connected); Assert.True(workspace.SessionLoginRequired);
+        await HomeSessionEnd.EndAsync(workspace, tokens);
+        Assert.Contains("DELETE /api/home/sessions/S1", server.Calls); Assert.DoesNotContain("DELETE /api/home/sessions/S0", server.Calls);
+        Assert.Null(tokens.Load(origin)); Assert.Equal(refuse, workspace.ActionError is not null);
+    }
 
     private sealed class Subscription(string body, HttpStatusCode status = HttpStatusCode.OK) : HttpMessageHandler
     {
