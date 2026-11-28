@@ -160,7 +160,7 @@ def handle(conn, via, unit=None):
                 frame = {"via": via, "peer": peer, "request": request}
                 if unit:
                     frame["unit"] = unit  # the caller socket's own path: its identity
-                if request.get("op") == "run":
+                if request.get("op") in ("run", "http-stream"):
                     if not streams.acquire(blocking=False):
                         return reply(conn, {"outcome": "error", "error": "The module is busy; try again."})
                     held_stream = True

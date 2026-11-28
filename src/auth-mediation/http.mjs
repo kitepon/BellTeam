@@ -233,7 +233,7 @@ const scrubText = (text, secret) => secret.length < 6 ? text : [secret, Buffer.f
 const scrubAll = (text, secrets) => secrets.reduce((out, s) => scrubText(out, s), text)
 const scrub = (buffer, secrets) => Buffer.from(scrubAll(buffer.toString('latin1'), secrets), 'latin1')
 
-export async function callHttp(fields, request, fetchImpl = fetch, rotation = null, proxyDeps = {}) {
+export async function callHttp(fields, request, fetchImpl = fetch, rotation = null, proxyDeps = {}, streamMode = null) {
   const directFetch = fetchImpl // token requests go direct even when the request itself goes through a proxy
   if (fields.http_rotate_path !== undefined) {
     if (!rotation || !/^\/[^\s#?\\]*$/u.test(fields.http_rotate_path)) throw refuse('The key item cannot be refreshed here.')
@@ -289,7 +289,7 @@ export async function callHttp(fields, request, fetchImpl = fetch, rotation = nu
     delete headers.host // fetch sets it itself, from the same URL
   }
   const send = async () => {
-    try { return await fetchImpl(url, { method: request.method, headers, ...(body ? { body } : {}), redirect: 'manual', signal: AbortSignal.timeout((request.timeoutSec ?? 30) * 1000) }) }
+    try { return await fetchImpl(url, { method: request.method, headers, ...(body ? { body } : {}), redirect: 'manual', signal: streamMode?.signal ?? AbortSignal.timeout((request.timeoutSec ?? 30) * 1000) }) }
     catch (error) { throw Object.assign(new Error(error?.name === 'TimeoutError' ? 'The request timed out.' : 'The request failed.'), { code: 'HTTP_FAILED' }) }
   }
   const read = async response => {
@@ -300,13 +300,19 @@ export async function callHttp(fields, request, fetchImpl = fetch, rotation = nu
     }
     return { buffer: Buffer.concat(chunks), truncated }
   }
+  const showHeaders = (response, secrets) => Object.fromEntries([...response.headers].filter(([name]) => SHOWN_RESPONSE_HEADERS.includes(name) || SHOWN_RATE_HEADER.test(name) || (streamMode && /^(?:mcp-session-id|mcp-protocol-version)$/u.test(name))).map(([name, value]) => [name, scrubAll(value, secrets)]))
+  if (streamMode) { // the body is not read here: the caller pipes it on (SSE, streamable HTTP); one renewal on 401 before any byte goes out
+    let response = await send()
+    if (oauth && response.status === 401) { oauth.drop(); oauth = await getBearer(true); headers.authorization = 'Bearer ' + oauth.token; secrets = [...oauth.secrets, ...proxySecrets]; response = await send() }
+    return { status: response.status, headers: showHeaders(response, secrets), response, secrets }
+  }
   let response = await send(), got = await read(response)
   // The token is invalid when the server says 401, or 200 with result.statusCode 210 (JPO): fetch a new one and repeat the request once; the second answer is returned as it is.
   if (oauth && (response.status === 401 || (response.status === 200 && !got.truncated && /json/iu.test(response.headers.get('content-type') ?? '') && invalidTokenBody(got.buffer)))) {
     oauth.drop(); oauth = await getBearer(true); headers.authorization = 'Bearer ' + oauth.token; secrets = [...oauth.secrets, ...proxySecrets]
     response = await send(); got = await read(response)
   }
-  const shown = Object.fromEntries([...response.headers].filter(([name]) => SHOWN_RESPONSE_HEADERS.includes(name) || SHOWN_RATE_HEADER.test(name)).map(([name, value]) => [name, scrubAll(value, secrets)]))
+  const shown = showHeaders(response, secrets)
   if (fields.http_capture_for && response.ok && !got.truncated) got.buffer = await captureRefresh(fields, got.buffer, rotation?.state ?? null)
   return { status: response.status, headers: shown, body: scrub(got.buffer, secrets).toString('base64'), truncated: got.truncated }
 }

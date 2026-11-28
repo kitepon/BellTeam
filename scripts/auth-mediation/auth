@@ -148,6 +148,113 @@ def run_main(argv):
             return int(data or b"2")
 
 
+def serve_main(argv):
+    """auth serve NAME [--listen 127.0.0.1:PORT]: a loopback HTTP forwarder. Every request it gets goes to the module as 'http-stream' (item "http NAME"), which adds the credential and pipes
+    the response back as it comes (SSE, streamable HTTP). The client behind it sends no credential. Up to 16 requests at once; loopback only; nothing is logged."""
+    import argparse, base64, http.server, socketserver, struct, threading
+    p = argparse.ArgumentParser(prog="auth serve")
+    p.add_argument("name")
+    p.add_argument("--listen", default="127.0.0.1:0")
+    a = p.parse_args(argv)
+    host, _, port = a.listen.rpartition(":")
+    if host not in ("127.0.0.1", "localhost", "::1"):
+        sys.exit("auth serve listens on loopback only")
+    slots = threading.BoundedSemaphore(16)
+    SKIP_REQUEST = {"host", "connection", "content-length", "transfer-encoding", "authorization", "proxy-authorization", "accept-encoding"}
+    SKIP_RESPONSE = {"connection", "transfer-encoding", "content-length", "keep-alive"}
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.0"  # the response ends when the connection closes: no length needed for a stream
+
+        def log_message(self, *args):
+            pass
+
+        def fail(self, code, text):
+            self.send_response(code)
+            self.send_header("content-type", "text/plain")
+            self.end_headers()
+            self.wfile.write(text.encode())
+
+        def handle_any(self):
+            if not slots.acquire(blocking=False):
+                return self.fail(503, "busy")
+            try:
+                size = int(self.headers.get("content-length") or 0)
+                if size > 9 << 20:
+                    return self.fail(413, "body too large")
+                body = self.rfile.read(size) if size else b""
+                request = {"op": "http-stream", "name": a.name, "method": self.command, "path": self.path, "cwd": os.getcwd(),
+                           "headers": {k: v for k, v in self.headers.items() if k.lower() not in SKIP_REQUEST}}
+                if body:
+                    request["body"] = base64.b64encode(body).decode()
+                s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                try:
+                    s.connect(SOCK)
+                except OSError:
+                    return self.fail(503, "The authentication module is not running.")
+                s.sendall((json.dumps(request) + "\n").encode())
+                line = b""
+                while not line.endswith(b"\n"):
+                    c = s.recv(1)
+                    if not c:
+                        return self.fail(503, "The authentication module is not running.")
+                    line += c
+                resp = json.loads(line)
+                if resp.get("outcome") != "granted":
+                    return self.fail(403 if resp.get("outcome") != "error" else 502, resp.get("error", "Refused."))
+
+                def take(n):
+                    data = b""
+                    while len(data) < n:
+                        chunk = s.recv(n - len(data))
+                        if not chunk:
+                            return None
+                        data += chunk
+                    return data
+
+                started = False
+                while True:
+                    head = take(5)
+                    if head is None:
+                        break
+                    tag, n = head[0], struct.unpack(">I", head[1:])[0]
+                    data = take(n) if n else b""
+                    if data is None:
+                        break
+                    if tag == 5:
+                        info = json.loads(data)
+                        self.send_response(info["status"])
+                        for k, v in info["headers"].items():
+                            if k.lower() not in SKIP_RESPONSE:
+                                self.send_header(k, v)
+                        self.end_headers()
+                        started = True
+                    elif tag == 1 and started:
+                        self.wfile.write(data)
+                        self.wfile.flush()
+                    elif tag == 3:
+                        break
+                if not started:
+                    self.fail(502, "The module ended the request.")
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            finally:
+                slots.release()
+
+        do_GET = do_POST = do_PUT = do_PATCH = do_DELETE = do_HEAD = handle_any
+
+    class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
+        daemon_threads = True
+
+    server = Server((host, int(port)), Handler)
+    print(f"auth serve {a.name} on {host}:{server.server_address[1]}", flush=True)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    return 0
+
+
 def sign_main(argv):
     """auth sign NAME [--digest] [--data-file FILE|-]: the module signs the bytes (stdin by default) with the key of item "signkey NAME" and answers with the signature only;
     it is printed as base64 on stdout. The key never leaves the module. Exit: 0 signed, 1 refused, 2 error."""
@@ -407,6 +514,8 @@ def main():
         return ssh_main(sys.argv[2:])
     if len(sys.argv) >= 2 and sys.argv[1] == "sign":
         return sign_main(sys.argv[2:])
+    if len(sys.argv) >= 2 and sys.argv[1] == "serve":
+        return serve_main(sys.argv[2:])
     if len(sys.argv) >= 2 and sys.argv[1] == "run":
         return run_main(sys.argv[2:])
     if len(sys.argv) >= 2 and sys.argv[1] == "http":

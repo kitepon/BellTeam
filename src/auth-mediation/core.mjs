@@ -8,6 +8,7 @@ import { useKey, signData, signDigest } from './keyuse.mjs'
 import { callHttp, forgetTokens } from './http.mjs'
 import { callGmail } from './gmail.mjs'
 import { planRun, startRun, stopRuns } from './run.mjs'
+import { HTTP_STREAM_MAX_SECONDS, pipeHttpStream } from './httpstream.mjs'
 import { sshIdentity, sshSign } from './sshkey.mjs'
 import { sendMail } from './mail.mjs'
 import { LIMITS, listFolders, openImap, readFolder, sortMessage } from './imap.mjs'
@@ -116,6 +117,15 @@ export function createAuthCore({ store, items: itemCache, tokenState = null, run
     if (verdict !== 'granted') { if (verdict === 'stopped') items.flush(item); record(rec, verdict); return { outcome: verdict, error: REFUSALS[verdict] } }
     const found = await items.get(item, policy.vault, policy.cache_seconds)
     if (!found) { record(rec, 'not-registered'); return { outcome: 'not-registered', error: NOT_REGISTERED } }
+    if (request.stream) { // streaming mode (README F23): same checks, the body is piped on the relay's stream socket
+      const controller = new AbortController(), seconds = Math.min(Number(found.fields.http_stream_max_seconds) || HTTP_STREAM_MAX_SECONDS, 86400), timer = setTimeout(() => controller.abort(), seconds * 1000)
+      try {
+        const result = await callHttp(found.fields, request, fetchImpl, tokenState && { state: tokenState, item, audit: () => {} }, {}, { signal: controller.signal })
+        record(rec, 'granted', { cache: found.hit ? 'hit' : 'miss', status: result.status, stream: true })
+        void pipeHttpStream(result, { stream: request.stream, controller }).catch(() => {}).finally(() => { clearTimeout(timer); record({ ...rec, request_id: randomUUID() }, 'stream-ended') })
+        return { outcome: 'granted' }
+      } catch (error) { clearTimeout(timer); record(rec, 'error', { cache: found.hit ? 'hit' : 'miss' }); return { outcome: 'error', error: error?.code?.startsWith?.('HTTP_') ? error.message : 'The request failed.' } }
+    }
     try {
       const result = await callHttp(found.fields, request, fetchImpl, tokenState && { state: tokenState, item, audit: extra => record({ ...rec, request_id: randomUUID(), method: undefined, path: undefined }, extra.rotated ? 'rotated' : 'rotation-failed') })
       record(rec, 'granted', { cache: found.hit ? 'hit' : 'miss', status: result.status })
