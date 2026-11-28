@@ -4,7 +4,7 @@
 const unavailable = () => Object.assign(new Error('LATTICE_UNAVAILABLE'), { code: 'LATTICE_UNAVAILABLE', status: 503 })
 // Not an error: the write was accepted and has not finished, running or queued behind others (docs/architecture/modules/runtime/lattice-child.md: Call queue).
 const pending = () => ({ exitCode: null, result: { schema: 'bellteam.lattice-write-pending.v1', code: 'LATTICE_WRITE_PENDING',
-  next_action: 'The write was accepted and has not finished (running, or waiting behind other writes). Do not resend: check with `todo show` or `todo note list`.' }, stdout: null, stderr: null })
+  next_action: 'The write was accepted and has not finished (running, or waiting behind other writes). Do not resend and do not poll todo show: its real outcome is sent to you as one message when it ends.' }, stdout: null, stderr: null })
 // Request errors the caller can act on keep their code; anything else means the child is not serving.
 const PASS = new Set(['LATTICE_CHART_NOT_FOUND', 'LATTICE_PROJECT_INVALID', 'LATTICE_INPUT_CONFLICT', 'LATTICE_COMMAND_NOT_SEAT_SURFACE', 'LATTICE_INVALID', 'LATTICE_NAME_INVALID', 'LATTICE_OWNER_TASK_REFUSED'])
 const SLICE = 50
@@ -21,12 +21,24 @@ export const QUEUE_WAIT_MS = 50_000
 // Seat writes: Claude Code aborts the MCP call at 60 s ("The operation timed out."), so the seat gets a definite answer first (a162).
 export const SEAT_ANSWER_MS = 40_000
 
-export function createLatticeFacade({ controller, reminders = null, retryMs = 2000, nudgeMs = NUDGE_MS, waitMs = QUEUE_WAIT_MS, answerMs = SEAT_ANSWER_MS, now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout }) {
+// Late answer: the one-line outcome of a write that was answered PENDING (never `input`; the first 8 args only).
+export function lateAnswerText({ projectId, args, value, error }) {
+  const what = `${args.slice(0, 8).join(' ')} (chart ${projectId})`
+  const refused = value?.exitCode !== 0 ? (value?.result ?? {}) : null
+  const outcome = error ? `failed with ${error.code ?? 'an error'}; it may not have landed, check once with todo show`
+    : refused ? `refused: ${refused.code ?? `exit ${value.exitCode}`} ${refused.message ?? refused.detail?.reason ?? ''} ${refused.next_action ?? refused.detail?.next_action ?? ''}`.trim()
+      : 'landed'
+  return `Lattice: your write that was answered LATTICE_WRITE_PENDING has finished: ${what} -> ${outcome}. Do not resend and do not poll todo show.`.slice(0, 1500)
+}
+
+export function createLatticeFacade({ controller, reminders = null, onLate = null, retryMs = 2000, nudgeMs = NUDGE_MS, waitMs = QUEUE_WAIT_MS, answerMs = SEAT_ANSWER_MS, now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout }) {
   const subscribers = new Map()
   const queues = { seat: [], background: [] }
   const busyLanes = new Set()
   let session = 0, timer = null
 
+  // The seat was told PENDING: its real outcome goes to the body once, swallowed on failure (the seat's own todo show still tells the truth).
+  const late = (job, outcome) => { if (job.late && onLate) try { Promise.resolve(onLate({ from: job.params.from, projectId: job.params.projectId, args: job.params.args, ...outcome })).catch(() => {}) } catch {} }
   const fail = error => PASS.has(error?.code) ? Object.assign(new Error(error.code), { code: error.code, status: error.status ?? 400 }) : unavailable()
   const send = (method, params) => Promise.resolve().then(() => controller.request(method, params)).catch(error => { throw fail(error) })
 
@@ -63,11 +75,12 @@ export function createLatticeFacade({ controller, reminders = null, retryMs = 20
   const call = (method, params) => READS.has(method) || method === 'run' && latticeRunReads(params) ? send(method, params) : new Promise((resolve, reject) => {
     const queue = queues[BACKGROUND.has(method) ? 'background' : 'seat']
     const job = { method, params, lane: latticeWriteLane(method, params), queuedAt: now(), sent: false, answered: false, timer: null,
-      resolve: value => { job.answered = true; clearTimer(job.timer); resolve(value) }, reject: error => { job.answered = true; clearTimer(job.timer); reject(error) } }
+      resolve: value => { late(job, { value }); job.answered = true; clearTimer(job.timer); resolve(value) }, reject: error => { late(job, { error }); job.answered = true; clearTimer(job.timer); reject(error) } }
     if (method === 'run') job.timer = setTimer(() => {
       if (job.answered) return
       // A queued seat write is answered PENDING and stays queued: dropping it made the caller redo it by hand (a292); the answer is the caller's, the write still lands.
       if (job.sent) job.answered = true; else job.pending = true
+      job.late = true
       resolve(pending())
     }, answerMs)
     queue.push(job)

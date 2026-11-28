@@ -221,6 +221,7 @@ flowchart LR
   F -->|LT4 root run, charts, chart, refresh| C
   C -->|LT5 members.list effect inside a root call| F
   C -->|LT10 messages.send effect: startable notice to each waiting Bot| F
+  F -->|"LT19 late answer: a write answered PENDING has finished; onLate sends the seat its outcome (landed, refused, failed) as one message"| Seat
   Apps -->|LT16 GET / PUT chart reminders| P1
   P1 -->|LT17 chart reminder read / set| F
   F <-->|LT18 saved setting / enabled project IDs| Settings
