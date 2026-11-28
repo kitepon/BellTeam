@@ -274,11 +274,12 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
   const toldPath = join(stateDir, 'owner-told.json')
   const loadTold = async () => (told ??= JSON.parse((await files.read(toldPath)) ?? '{"items":{}}').items ?? {})
   const saveTold = () => files.write(toldPath, `${JSON.stringify({ version: 1, items: told })}\n`)
+  const warn = (what, id, error) => process.stderr.write(`approval-box-extension owner-lane ${what} ${id} ${error?.code ?? 'FAILED'}\n`)
   const ownerScan = async effect => {
     if (now() - lastOwnerScan < OWNER_SCAN_MS) return
     lastOwnerScan = now()
     for (const row of (await loadRows()).filter(item => item.filed).slice(0, 10)) { // O4
-      try { await effect('decisions.cancel', { decisionId: row.decisionId, reason: WITHDRAW_REASON }) } catch (error) { if (error?.code !== 'APPROVALS_EFFECT_REFUSED') return }
+      try { await effect('decisions.cancel', { decisionId: row.decisionId, reason: WITHDRAW_REASON }) } catch (error) { if (error?.code !== 'APPROVALS_EFFECT_REFUSED') { warn('withdraw', row.decisionId, error); continue } } // a failing cancel keeps its row for the next scan and never stops the telling below
       rows = (await loadRows()).filter(item => item !== row)
       await saveRows()
     }
@@ -292,11 +293,15 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
         const target = adderOf({ card, chart, roster }), key = withdrawKey(chart.projectId, card)
         if (!target) continue
         const count = record[key]?.count ?? 0
-        const answer = await effect('seat.message', { target, message: withdrawMessage({ projectId: chart.projectId, chartName: chart.name, card, decisionId: row.decisionId, count }) })
-        if (!relayAccepted(answer.delivery) && answer.delivery !== 'refused') continue
-        record[key] = { toldAt: new Date(now()).toISOString(), count: count + 1, to: target }
-        sent++
-        await saveTold()
+        try {
+          const open = await read(effect, row.decisionId).then(decision => decision.status === 'pending' || decision.status === 'held', () => false) // an answered or cancelled request is never withdrawn
+          if (!open) continue
+          const answer = await effect('seat.message', { target, message: withdrawMessage({ projectId: chart.projectId, chartName: chart.name, card, decisionId: row.decisionId, count }) })
+          if (!relayAccepted(answer.delivery) && answer.delivery !== 'refused') continue
+          record[key] = { toldAt: new Date(now()).toISOString(), count: count + 1, to: target }
+          sent++
+          await saveTold()
+        } catch (error) { warn('withdraw-tell', key, error) }
       }
       for (const card of cards) if (isOwnerLane(card.lane) && (card.state === 'pending' || card.state === 'blocked')) seenWithdraw.add(withdrawKey(chart.projectId, card))
       for (const card of cardsToTell({ projectId: chart.projectId, cards, rows: await loadRows(), told: record, now: now() })) {
@@ -304,12 +309,14 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
         const target = adderOf({ card, chart, roster })
         if (!target) continue
         const key = keyOf(chart.projectId, card), count = record[key]?.count ?? 0
-        if (count === 0) await effect('lattice.link', { projectId: chart.projectId, plan: card.plan, taskId: card.taskId }) // L18 then leaves the card to this telling
-        const answer = await effect('seat.message', { target, message: tellMessage({ projectId: chart.projectId, chartName: chart.name, card, count }) })
-        if (!relayAccepted(answer.delivery) && answer.delivery !== 'refused') continue // not taken: the next scan tries again
-        record[key] = { toldAt: new Date(now()).toISOString(), count: count + 1, to: target }
-        sent++
-        await saveTold()
+        try { // one card that fails (link refused, send failed) must not stop the cards after it
+          if (count === 0) await effect('lattice.link', { projectId: chart.projectId, plan: card.plan, taskId: card.taskId }) // L18 then leaves the card to this telling
+          const answer = await effect('seat.message', { target, message: tellMessage({ projectId: chart.projectId, chartName: chart.name, card, count }) })
+          if (!relayAccepted(answer.delivery) && answer.delivery !== 'refused') continue // not taken: the next scan tries again
+          record[key] = { toldAt: new Date(now()).toISOString(), count: count + 1, to: target }
+          sent++
+          await saveTold()
+        } catch (error) { warn('tell', key, error) }
       }
     }
     // O2/O3: a told record whose card is no longer an open startable Owner card, or that has a link row, is dropped

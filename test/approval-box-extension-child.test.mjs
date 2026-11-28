@@ -439,6 +439,28 @@ test('F9 O6: an attached request whose Owner-lane task stops being startable is 
   assert.ok(![...h.writes.keys()].some(verb => verb.startsWith('todo retire')), 'an attached task is not retired by a cancel')
 })
 
+test('F9: one failing card or a failing withdrawal never stops the telling of the others', async () => {
+  const seat = sentLog(), c = clock('2026-11-28T03:00:00Z')
+  const failing = harness({ decisions: [], p1: { cancel: async () => { throw Object.assign(new Error('x'), { code: 'APPROVAL_BOX_EXTENSION_DECISIONS_UNAVAILABLE' }) } }, seatMessage: async params => { if (/p1\/t1/u.test(params.message)) throw new Error('send failed'); return seat.fn(params) }, now: c.now,
+    cards: [oc('t1'), oc('t2')], rowsText: JSON.stringify({ version: 1, rows: [{ decisionId: 'K-OWN1', projectId: 'bellteam', plan: 'p1', taskId: 't9', state: 'linked', attached: true, filed: true, sessionLabel: 'Lattice bellteam p1/t9', handledVersion: 1, updatedAt: '2026-11-28T01:59:00Z' }] }) })
+  await failing.core.refresh({ since: 0 }, failing.effect)
+  assert.deepEqual(seat.log.map(item => /p1\/(t\d)/u.exec(item.message)[1]), ['t2'], 't1 failed, t2 was still told, the failing withdrawal did not stop it')
+  assert.ok(!failing.files.has('links.json'), 'the filed row waits for the next scan')
+})
+
+test('O6 only for an open request: an answered request of an unstartable task is never withdrawn, and L2 notes the answer instead of failing to start', async () => {
+  const seat = sentLog(), c = clock('2026-11-28T03:00:00Z')
+  const row = { decisionId: 'K-AAAA', projectId: 'bellteam', plan: 'p1', taskId: 't1', state: 'linked', attached: true, sessionLabel: 'Lattice bellteam p1/t1', handledVersion: 1, updatedAt: '2026-11-28T03:00:00Z' }
+  const answered = raw('K-AAAA', { status: 'answered', version: 2, answer: { option_id: 'o1', answered_at: '2026-11-28T02:00:00Z' } })
+  const h = harness({ decisions: [answered], seatMessage: seat.fn, now: c.now, cards: [oc('t1', { state: 'pending' })], rowsText: JSON.stringify({ version: 1, rows: [row] }) })
+  await h.core.refresh({ since: 0 }, h.effect)
+  assert.equal(seat.log.length, 0, 'no withdraw message for an answered request')
+  const verbs = [...h.writes.keys()]
+  assert.ok(verbs.some(verb => verb.startsWith('todo note --plan p1 --task t1 --message 指揮官の答え：同じにする') && /着手できる前/u.test(verb)))
+  assert.ok(!verbs.some(verb => verb.startsWith('todo start') || verb.startsWith('todo done')), 'start is not attempted on a task that cannot start')
+  assert.equal(rowsOf(h)[0].state, 'answered')
+})
+
 test('F9 protocol: only the withdrawal effect exists', () => {
   validateApprovalsEffect('decisions.cancel', { decisionId: 'K-AAAA', reason: '作り直します' })
   assert.throws(() => validateApprovalsEffect('decisions.file', { title: 't' }))
