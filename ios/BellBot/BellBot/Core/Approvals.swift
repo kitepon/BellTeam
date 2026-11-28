@@ -242,7 +242,7 @@ extension ApprovalDecision {
 /// 決裁箱の画面の状態と操作。中身は ApprovalBoxLink の決裁（子の端末として決裁箱へつないだ部品が読む決裁）から描く。つなぎの状態は ApprovalBoxLink が持つ。
 @MainActor
 final class ApprovalsModel: ObservableObject {
-    enum Gate: Equatable { case loading, ready, reconnecting, join, notEntitled, updateRequired }
+    enum Gate: Equatable { case loading, ready, reconnecting, join, notEntitled, updateRequired, adding }
     struct Note: Equatable { let text: String; let tone: SettingsTone }
 
     let link: ApprovalBoxLink
@@ -312,6 +312,7 @@ final class ApprovalsModel: ObservableObject {
         case .joining: hasCards ? .reconnecting : .loading
         case .notEntitled: .notEntitled
         case .updateRequired: .updateRequired
+        case .adding: .adding
         case .live: .ready
         case .reconnecting: .reconnecting
         }

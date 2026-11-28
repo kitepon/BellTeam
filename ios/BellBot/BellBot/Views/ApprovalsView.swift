@@ -373,7 +373,7 @@ private struct ApprovalsScreen: View {
             .animation(.easeInOut(duration: 0.2), value: model.stale)
         case .join:
             ChildJoinView(source: model.link)
-        case .notEntitled, .updateRequired:
+        case .notEntitled, .updateRequired, .adding:
             ApprovalGateView(model: model)
         }
     }
@@ -837,7 +837,7 @@ private struct ApprovalGateView: View {
     var body: some View {
         VStack(spacing: 14) {
             Image(systemName: "lock").font(.system(size: 34)).foregroundStyle(LatticePalette.muted)
-            Text(verbatim: model.gate == .updateRequired ? ApprovalBoxWords.updateRequired : ApprovalBoxWords.notEntitled)
+            Text(verbatim: model.gate == .updateRequired ? ApprovalBoxWords.updateRequired : model.gate == .adding ? ApprovalBoxWords.adding : ApprovalBoxWords.notEntitled)
                 .font(.system(size: 14.5)).foregroundStyle(LatticePalette.ink).multilineTextAlignment(.center).frame(maxWidth: 420)
             Button(model.gate == .updateRequired ? ApprovalBoxWords.retryNow : ApprovalBoxWords.checkAgain) { model.link.retryNow() }.buttonStyle(.bordered)
         }

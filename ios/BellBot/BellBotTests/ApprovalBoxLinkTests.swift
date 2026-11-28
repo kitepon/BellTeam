@@ -19,6 +19,7 @@ final class ApprovalBoxLinkTests: XCTestCase {
         XCTAssertEqual(ApprovalsModel.gate(of: .joining, hasCards: true), .reconnecting)
         XCTAssertEqual(ApprovalsModel.gate(of: .notEntitled), .notEntitled)
         XCTAssertEqual(ApprovalsModel.gate(of: .updateRequired), .updateRequired)
+        XCTAssertEqual(ApprovalsModel.gate(of: .adding), .adding)
         XCTAssertEqual(ApprovalsModel.gate(of: .live), .ready)
         XCTAssertEqual(ApprovalsModel.gate(of: .reconnecting), .reconnecting)
     }
