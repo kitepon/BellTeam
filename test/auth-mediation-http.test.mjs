@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import test from 'node:test'
 import { createAuthCore } from '../src/auth-mediation/core.mjs'
 import { createItemCache } from '../src/auth-mediation/items.mjs'
@@ -233,7 +234,13 @@ test('http aws-sigv4: the module signs with the item key; matches the AWS publis
   assert.equal(signed.authorization, 'AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=fea454ca298b7da1c68078a5d1bdbfbbe0d65c699e0f91ac7a200a0136783543')
   const t = setup({ item: { http_base: 'https://acct.r2.example.com', http_auth: 'aws-sigv4', http_secret: 'r2-secret-key-0123456789', http_aws_access_key: 'AKIDEXAMPLE000', http_methods: 'GET PUT' }, answer: () => new Response('echo r2-secret-key-0123456789') })
   const r = await ask(t, { method: 'PUT', path: '/bucket/obj.bin', body: Buffer.from('data').toString('base64') })
-  assert.match(t.seen[0].headers.authorization, /^AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE000\/\d{8}\/auto\/s3\/aws4_request, SignedHeaders=content-type;host|SignedHeaders=host;x-amz-content-sha256;x-amz-date/u)
-  assert.equal(t.seen[0].headers['x-amz-content-sha256'], 'ec7b0d0c8c7e1a3e1b1bce5b2a1e5d9b'.length ? t.seen[0].headers['x-amz-content-sha256'] : ''); assert.equal(text(r), 'echo [redacted]')
+  assert.match(t.seen[0].headers.authorization, /^AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE000\/\d{8}\/auto\/s3\/aws4_request, SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=[0-9a-f]{64}$/u)
+  assert.equal(t.seen[0].headers['x-amz-content-sha256'], createHash('sha256').update('data').digest('hex')); assert.equal(text(r), 'echo [redacted]')
   assert.ok(!JSON.stringify(t.lines).includes('r2-secret-key'))
+})
+
+test('http aws-sigv4: object keys with ! \' ( ) * are signed in their re-encoded form (AWS canonical path), other characters keep their encoding', async () => {
+  const { sigv4 } = await import('../src/auth-mediation/http.mjs'), base = { method: 'GET', headers: {}, accessKey: 'AK', secret: 'sk', region: 'auto', service: 's3', date: new Date('2026-11-28T00:00:00Z') }
+  const raw = sigv4({ ...base, url: new URL('https://h.example/b/a!b(c)*d\'e') }).authorization, enc = sigv4({ ...base, url: new URL('https://h.example/b/a%21b%28c%29%2Ad%27e') }).authorization
+  assert.equal(raw, enc) // AWS canonical form is the same whichever way the caller wrote the key
 })

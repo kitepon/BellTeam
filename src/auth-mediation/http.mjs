@@ -63,7 +63,7 @@ export function sigv4({ method, url, headers, body, accessKey, secret, region, s
   const signed = { ...headers, host: url.host, 'x-amz-content-sha256': payload, 'x-amz-date': stamp }
   const names = Object.keys(signed).sort()
   const query = [...url.searchParams].map(([k, v]) => [rfc3986(k), rfc3986(v)]).sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : a[1] < b[1] ? -1 : 1).map(([k, v]) => k + '=' + v).join('&')
-  const canonical = [method, url.pathname, query, names.map(n => n + ':' + String(signed[n]).trim().replace(/\s+/gu, ' ') + '\n').join(''), names.join(';'), payload].join('\n')
+  const canonical = [method, url.pathname.split('/').map(seg => rfc3986(decodeURIComponent(seg))).join('/'), query, names.map(n => n + ':' + String(signed[n]).trim().replace(/\s+/gu, ' ') + '\n').join(''), names.join(';'), payload].join('\n')
   const scope = [day, region, service, 'aws4_request'].join('/')
   const key = hmac(hmac(hmac(hmac('AWS4' + secret, day), region), service), 'aws4_request')
   const signature = createHmac('sha256', key).update(['AWS4-HMAC-SHA256', stamp, scope, sha256(canonical)].join('\n')).digest('hex')
