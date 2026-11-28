@@ -214,7 +214,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
         () => scheduler.stop(), () => services.runningExclusions?.stop(), () => services.seatApprovals?.stop(), () => services.seatEntries?.close(), () => idleSessions?.stop(), () => selfTurns.stop(), () => seatTurns?.stop(),
         () => closeServer(server), () => closeServer(internalServer), () => closeServer(remoteSeatServer), () => features.close(),
         // Before the providers they call (usage, diagnostics, native client) close.
-        () => services.credentialRefresh?.stop(), () => services.terminals?.close?.(),
+        () => services.terminalKeyLoader?.stop(), () => services.credentialRefresh?.stop(), () => services.terminals?.close?.(),
         () => bootstrap.seatRuntime?.memoryModule?.close(),
         () => services.conversationAssembly?.close(), () => transport.close(), () => services.execution && transport.client.close(), () => services.members?.controller.close(), () => notifications.close(), () => services.homeFront?.stop(), () => services.usageAssembly?.close(), () => services.diagnosticsModule?.close(), () => services.workGraphModule?.close(), () => services.latticeModule?.close(),
         () => socketDirectory && rm(socketDirectory, { recursive: true, force: true }),

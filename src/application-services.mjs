@@ -178,7 +178,7 @@ export function refuseRemoteSeatLaunch({ native, bots, botsRoot, versionId = nul
 }
 
 export async function createApplicationServices({ root, moduleChildExitReporter = createModuleChildExitReporter(), exchangeMutex = createModuleExchangeMutex(), aiterm, bots, ownerProfile, settings, userRules, environment = process.env, client, seatRuntime = null, botEnvironments = null, olrwManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, notify = null, createMembersProcess: membersFactory, createDiagnosticsProcess: diagnosticsFactory, createWorkGraphProcess: workGraphFactory, prepareWorkGraphRelease: prepareWorkGraph = (versionId, options) => prepareModuleRelease('work-graph', versionId, options), createLatticeProcess: latticeFactory, createApprovalBoxExtensionProcess: approvalsFactory, createAuthMediationProcess: authMediationFactory, prepareAuthMediationRelease: prepareAuthMediation = (versionId, options) => prepareModuleRelease('auth-mediation', versionId, options), prepareLatticeRelease: prepareLattice = (versionId, options) => prepareModuleRelease('lattice', versionId, options), prepareApprovalBoxExtensionRelease: prepareApprovals = (versionId, options) => prepareModuleRelease('approval-box-extension', versionId, options), hostUpdateClient: hostClient, prepareDiagnosticsRelease: prepareDiagnostics = (versionId, options) => prepareModuleRelease('diagnostics', versionId, options), builtinSourceCommit = null, usageAssembly = null, attachUsageServices = () => {}, prepareUsageRelease: prepareUsage = (versionId, options) => prepareModuleRelease('usage', versionId, options), createConversationAssembly: conversationFactory, createExecutionAssembly: executionFactory, loadExecutionFactory: loadExecution = loadExecutionFactory, createExecutionAdoptionStore: adoptionFactory = createExecutionAdoptionStore, prepareExecutionRelease: prepareExecution = prepareExecutionRelease, createTerminalsCore = null, terminalKeyReader = null }) {
-  let terminals = null, credentialRefresh = null, members = null, diagnosticsModule = null, workGraphModule = null, workGraph = null, latticeModule = null, lattice = null, approvalsModule = null, approvals = null, authMediationModule = null, authMediation = null, authMediationRelay = null, conversationAssembly = null, execution = null, executionClient, memory, rooms, assets, updateCenter, backgroundSummary, directMessages = null
+  let terminals = null, credentialRefresh = null, members = null, diagnosticsModule = null, workGraphModule = null, workGraph = null, latticeModule = null, lattice = null, approvalsModule = null, approvals = null, authMediationModule = null, authMediation = null, authMediationRelay = null, terminalKeyLoader = null, conversationAssembly = null, execution = null, executionClient, memory, rooms, assets, updateCenter, backgroundSummary, directMessages = null
   let scheduleTurns = null
   // a164: the members assembly reads the scheduler lazily; it is built after the members child starts.
   let scheduler = null
@@ -290,8 +290,8 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   // authMediation is built later in this function, so the loader reads it lazily.
   // The module's ssh agent holds the three terminal keys (terminal-keys-module-agent): started once, it needs the operator Bot's folder as its caller identity.
   const operatorProject = bots.get(TERMINAL_KEY_OPERATOR)?.project ?? null
-  const terminalKeyLoader = operatorProject ? createTerminalKeyHolder({ run: createSeatProcessRunner(operatorProject, { environment: 'base' }), report: report => diagnostics.record(report) }) : null
-  void terminalKeyLoader?.start() // the symlink must exist before the first remote launch; nothing waits for it
+  terminalKeyLoader = operatorProject ? createTerminalKeyHolder({ run: createSeatProcessRunner(operatorProject, { environment: 'base' }),
+    report: report => void Promise.resolve(diagnostics.record(report)).catch(() => process.stderr.write(`BellTeam terminal key holder: ${report.code}: ${report.reason}\n`)) }) : null
   const seatCredentials = createSeatCredentials({ path: join(root, 'state/seat-credentials.json') })
   // remote-user-tools.md U1: names/kinds of the user-global MCP servers for a Bot's harness, read as the seat user.
   const listUserToolsFor = async botId => {
@@ -573,6 +573,8 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
       void authMediationRelay.start().catch(() => {})
     }
   }
+  // Start after authMediationRelay is wired so the first `auth ssh` does not race container.sock creation on boot.
+  void terminalKeyLoader?.start()
   // a41 (execution current-work.md "Own work"): the only writer of the running exclusion list, on its own connector (Flora 2026-11-13).
   const runningExclusions = createRunningExclusions({ path: join(root, 'state', 'execution-running-exclusions.json'), decisions: approvalBoxPort })
   // seat-approval-to-abx (execution/seat-approvals.md): a seat stopped on a tool approval reaches the Owner as a card through P1 and as an entry.
@@ -623,7 +625,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     notifications, secretRequests, ownerQuestions, machineStream, bots, rooms,
     roomMessenger, messenger, store, transport, memory,
     ownerProfile, userRules, characterSheets, assets,
-    scheduler, diagnostics, diagnosticsModule, workGraph, workGraphModule, lattice, latticeModule, approvals, approvalsModule, authMediation, authMediationModule, accounts, terminals, terminalKeys, runningExclusions, seatApprovals, seatEntries, seatCredentials, userToolRelay, remoteSeatListener, bindSeatMcpSeen, credentialRefresh, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller,
+    scheduler, diagnostics, diagnosticsModule, workGraph, workGraphModule, lattice, latticeModule, approvals, approvalsModule, authMediation, authMediationModule, accounts, terminals, terminalKeys, terminalKeyLoader, runningExclusions, seatApprovals, seatEntries, seatCredentials, userToolRelay, remoteSeatListener, bindSeatMcpSeen, credentialRefresh, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller,
     // Saved direct input drains after listen (Z-c). Starting before the hold release is safe and needs no bound:
     // executionReady is false while held, and the release's hold.watch → requestDrain drains it.
     lifecycle: { ...execution?.lifecycle,
@@ -631,7 +633,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   }
   } catch (error) {
     const failures = []
-    for (const close of [() => credentialRefresh?.stop(), () => terminals?.close?.(), () => directMessages?.close(), () => backgroundSummary?.close(), () => moduleChildExitReporter.close(), () => updateCenter?.close(), () => seatRuntime?.memoryModule?.close(),
+    for (const close of [() => terminalKeyLoader?.stop(), () => credentialRefresh?.stop(), () => terminals?.close?.(), () => directMessages?.close(), () => backgroundSummary?.close(), () => moduleChildExitReporter.close(), () => updateCenter?.close(), () => seatRuntime?.memoryModule?.close(),
       () => conversationAssembly?.close(), () => execution?.controller.close(), () => execution && executionClient?.close(),
       () => members?.controller.close(), () => usageAssembly?.close(), () => diagnosticsModule?.close(), () => workGraphModule?.close(), () => approvals?.close(), () => approvalsModule?.close(), () => authMediationRelay?.close(), () => authMediationModule?.close(), () => latticeModule?.close()]) {
       try { await close() } catch (cleanupError) { failures.push(cleanupError) }

@@ -307,26 +307,46 @@ export class AitermTransport {
   get executionStopping() { return this.sessionState.stopping }
   set executionStopping(value) { this.sessionState.stopping = value }
 
-  async isRunning(bot) {
-    return (await this.runningBots([bot])).has(bot.id)
+  async isRunning(bot, options) {
+    return (await this.runningBots([bot], options)).has(bot.id)
   }
 
   // 渡したBotのうち、席が動いているもののid。Aitermのpty_listは呼ぶたびにtmuxを1回起動するので、
   // 一覧のように何人も続けて調べる時は、Botごとに呼ばずこれを1回呼ぶ。
   // A terminal seat has no row in this Aiterm's pty_list: it is answered from the latest seat-turns read (remote-seat.md "Seat liveness").
-  async runningBots(bots) {
+  // liveOnly: excludes dormant rows (hibernated/stopping/vanished) for operational callers that expect a live CLI process.
+  async runningBots(bots, { liveOnly = false } = {}) {
     const remote = bots.filter(isRemoteBot), local = bots.filter(bot => !isRemoteBot(bot))
     const listed = bot => this.workState.listed(bot.id, this.session(bot))
     const unread = remote.filter(bot => listed(bot) === null)
-    const [sessions] = await Promise.all([local.length ? this.localSessions() : new Set(),
+    const [sessions] = await Promise.all([local.length ? this.localSessions({ liveOnly }) : new Set(),
       unread.length ? this.seatTurns(unread).catch(() => null) : null])
     return new Set([...local.filter(bot => sessions.has(this.session(bot))), ...remote.filter(bot => listed(bot) === true)].map(bot => bot.id))
   }
 
-  async localSessions() {
+  async localSessions({ liveOnly = false } = {}) {
     const pending = this.runningSnapshot ??= Promise.resolve().then(() => this.client.call('pty_list'))
-      .then(result => new Set(textResult(result).split('\n').map(line => line.split('\t', 1)[0])))
-    try { return await pending }
+      .then(result => {
+        const all = new Set(), live = new Set()
+        const rows = result?.structuredContent?.sessions
+        if (Array.isArray(rows)) {
+          for (const row of rows) {
+            if (typeof row?.session_id !== 'string' || !row.session_id) continue
+            all.add(row.session_id)
+            if (!dormantSeats.has(row.current_command)) live.add(row.session_id)
+          }
+          return { all, live }
+        }
+        for (const line of textResult(result).split('\n')) {
+          if (!line) continue
+          const [id, command] = line.split('\t')
+          if (!id) continue
+          all.add(id)
+          if (!dormantSeats.has(command)) live.add(id)
+        }
+        return { all, live }
+      })
+    try { return (await pending)[liveOnly ? 'live' : 'all'] }
     finally { if (this.runningSnapshot === pending) this.runningSnapshot = null }
   }
 
@@ -678,7 +698,7 @@ export class AitermTransport {
     if (!locked.length || !this.configurationLock) return 0
     let count = 0
     try {
-      const running = await this.runningBots(locked)
+      const running = await this.runningBots(locked, { liveOnly: true })
       for (const bot of locked) if (running.has(bot.id) && await this.setConfigurationLock(bot, true)) count++
     } catch (error) { process.stderr.write(`BellTeam Aiterm: configuration relock not completed: ${error?.code ?? 'failed'}\n`) }
     return count

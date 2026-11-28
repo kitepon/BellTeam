@@ -1557,3 +1557,28 @@ test('fresh-wake-after-cache: 休止記録は、1時間超かつ20ターン以�
     assert.equal(closed.length, closes ? 1 : 0, JSON.stringify([state, activity]))
   }
 })
+
+test('runningBots/isRunning: 既定はhibernatedを含み、liveOnlyではhibernated等の休止席を除外する', async () => {
+  const client = {
+    async call(name) {
+      if (name !== 'pty_list') throw new Error(`unexpected ${name}`)
+      return {
+        content: [{ type: 'text', text: 'bot-live\tnode\nbot-sleep\thibernated\n' }],
+        structuredContent: {
+          sessions: [
+            { session_id: 'bot-live', current_command: 'node' },
+            { session_id: 'bot-sleep', current_command: 'hibernated' },
+          ],
+        },
+      }
+    },
+  }
+  const transport = new AitermTransport({ client })
+  const live = { id: 'bot-live', session: 'bot-live' }
+  const sleep = { id: 'bot-sleep', session: 'bot-sleep' }
+  assert.deepEqual([...await transport.runningBots([live, sleep])].sort(), ['bot-live', 'bot-sleep'])
+  assert.deepEqual([...await transport.runningBots([live, sleep], { liveOnly: true })], ['bot-live'])
+  assert.equal(await transport.isRunning(sleep), true)
+  assert.equal(await transport.isRunning(sleep, { liveOnly: true }), false)
+  assert.equal(await transport.isRunning(live, { liveOnly: true }), true)
+})

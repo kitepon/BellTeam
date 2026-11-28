@@ -78,7 +78,7 @@ export class BotAdministration {
     const reapply = !differs && previous?.state === 'failed' && previous.fields.some(key =>
       Object.hasOwn(changes, key) && candidate[key] === previous.requested[key])
     const configurationChanged = reapply || differs
-    const wasRunning = configurationChanged ? this.handoff?.current(botId) ? true : await this.transport.isRunning(current) : false
+    const wasRunning = configurationChanged ? this.handoff?.current(botId) ? true : await this.transport.isRunning(current, { liveOnly: true }) : false
     admissionCheck?.()
     if (expected && ['harness', 'model', 'reasoningEffort', 'fastMode'].some(key => this.bots.get(botId)?.[key] !== expected[key]))
       throw Object.assign(new Error('CONTINUATION_SUPERSEDED'), { code: 'CONTINUATION_SUPERSEDED', effect: 'not_started' })
@@ -97,7 +97,7 @@ export class BotAdministration {
   }
 
   async lockSeat(bot) {
-    try { if (await this.transport.isRunning(bot)) await this.transport.setConfigurationLock?.(bot, bot.configurationLocked === true) }
+    try { if (await this.transport.isRunning(bot, { liveOnly: true })) await this.transport.setConfigurationLock?.(bot, bot.configurationLocked === true) }
     catch (error) { try { this.writeLog(`BellTeam configuration lock error: ${error?.code ?? 'failed'}\n`) } catch {} }
   }
 

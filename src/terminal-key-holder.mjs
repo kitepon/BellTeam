@@ -19,13 +19,15 @@ export function createTerminalKeyHolder({ run, keys = TERMINAL_KEYS, path = TERM
   let supervised = null, listing = null, checked = null
   const holderNames = [...new Set(Object.values(keys))].join(',')
 
+  const emitReport = payload => { try { Promise.resolve(report(payload)).catch(() => {}) } catch {} }
+
   // Restart on every exit with a backoff (a module restart does not end the holder; a container restart does). Nothing waits for a person.
   async function supervise() {
     let delay = 0
     while (!control.signal.aborted) {
       const startedAt = now()
       try { await run(auth, ['ssh', holderNames, '--', '/bin/sh', '-c', HOLDER_SCRIPT, 'terminal-key-holder', path], { signal: control.signal, maxBuffer: 64 * 1024 }) }
-      catch (error) { if (!delay) report({ code: 'TERMINAL_KEY_HOLDER_EXITED', reason: String(error?.code ?? error?.message ?? 'EXIT').slice(0, 80) }) }
+      catch (error) { if (!delay) emitReport({ code: 'TERMINAL_KEY_HOLDER_EXITED', reason: String(error?.code ?? error?.message ?? 'EXIT').slice(0, 80) }) }
       if (control.signal.aborted) return
       checked = null
       delay = now() - startedAt > HEALTHY_MS ? RESTART_FIRST_MS : Math.min(RESTART_MAX_MS, delay ? delay * 2 : RESTART_FIRST_MS)
@@ -60,7 +62,7 @@ export function createTerminalKeyHolder({ run, keys = TERMINAL_KEYS, path = TERM
       if (!port.owns(terminalId)) throw Object.assign(new Error('KEY_NOT_MEDIATED'), { code: 'KEY_NOT_MEDIATED' })
       return path
     },
-    start() { supervised ??= supervise().catch(error => report({ code: 'TERMINAL_KEY_HOLDER_FAILED', reason: String(error?.code ?? error?.message).slice(0, 80) })); return supervised },
+    start() { supervised ??= supervise().catch(error => emitReport({ code: 'TERMINAL_KEY_HOLDER_FAILED', reason: String(error?.code ?? error?.message).slice(0, 80) })); return supervised },
     stop() { control.abort() },
   }
   return port
