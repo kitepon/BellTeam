@@ -226,3 +226,14 @@ test('http rotation: an http:// non-private base makes no network call at all (t
   assert.equal((await ok.call()).outcome, 'granted'); assert.equal(JSON.parse(await readFile(file, 'utf8'))['http stripe'].token, 'fresh-token-dddd')
   const before = await readFile(file, 'utf8'); await ok.call(); assert.equal(await readFile(file, 'utf8'), before)
 })
+
+test('http aws-sigv4: the module signs with the item key; matches the AWS published S3 test vector; the secret never shows', async () => {
+  const { sigv4 } = await import('../src/auth-mediation/http.mjs')
+  const signed = sigv4({ method: 'GET', url: new URL('https://examplebucket.s3.amazonaws.com/?lifecycle'), headers: {}, accessKey: 'AKIAIOSFODNN7EXAMPLE', secret: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY', region: 'us-east-1', service: 's3', date: new Date('2013-05-24T00:00:00Z') })
+  assert.equal(signed.authorization, 'AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=fea454ca298b7da1c68078a5d1bdbfbbe0d65c699e0f91ac7a200a0136783543')
+  const t = setup({ item: { http_base: 'https://acct.r2.example.com', http_auth: 'aws-sigv4', http_secret: 'r2-secret-key-0123456789', http_aws_access_key: 'AKIDEXAMPLE000', http_methods: 'GET PUT' }, answer: () => new Response('echo r2-secret-key-0123456789') })
+  const r = await ask(t, { method: 'PUT', path: '/bucket/obj.bin', body: Buffer.from('data').toString('base64') })
+  assert.match(t.seen[0].headers.authorization, /^AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE000\/\d{8}\/auto\/s3\/aws4_request, SignedHeaders=content-type;host|SignedHeaders=host;x-amz-content-sha256;x-amz-date/u)
+  assert.equal(t.seen[0].headers['x-amz-content-sha256'], 'ec7b0d0c8c7e1a3e1b1bce5b2a1e5d9b'.length ? t.seen[0].headers['x-amz-content-sha256'] : ''); assert.equal(text(r), 'echo [redacted]')
+  assert.ok(!JSON.stringify(t.lines).includes('r2-secret-key'))
+})

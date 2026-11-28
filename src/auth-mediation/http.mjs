@@ -1,6 +1,6 @@
 // The credentialed request (README F14): the module makes the request and adds the credential; only the response leaves. The origin and path prefix come from the item
 // (written by Sakura in 1Password), never from the caller. Item fields are lower-case on purpose: the exec transports only return upper-case labels, so none of them ever leaves.
-import { createHash, randomUUID, sign as cryptoSign } from 'node:crypto'
+import { createHash, createHmac, randomUUID, sign as cryptoSign } from 'node:crypto'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 const METHODS = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE']
@@ -39,6 +39,7 @@ function addCredential(fields, url, headers, request) {
   const how = fields.http_auth ?? '', secret = fields.http_secret
   if (how === 'none') return { secrets: [...new URL(fields.http_base).pathname.split('/'), ...new URL(fields.http_base).searchParams.values()].filter(s => s.length >= 16) } // the base URL itself is the credential: scrub it from what is shown
   if (how === 'jwt-es256') return jwt(fields, headers)
+  if (how === 'aws-sigv4') { if (!secret || !fields.http_aws_access_key) throw refuse('The key item has no credential.'); return { secrets: [secret], sigv4: true } } // signed in callHttp, once the body is final
   if (how === 'form') {
     const pairs = new URLSearchParams(fields.http_form_fields ?? '')
     if (![...pairs.keys()].length) throw refuse('The key item has no credential.')
@@ -51,6 +52,22 @@ function addCredential(fields, url, headers, request) {
   else if (/^query:[A-Za-z0-9_.-]{1,64}$/u.test(how)) url.searchParams.set(how.slice(6), secret)
   else throw refuse('The key item names no way to add the credential.')
   return { secrets: [secret] }
+}
+
+// AWS Signature V4 (S3, Cloudflare R2): header form, payload hash of the whole body (it is in memory). Exported for the AWS published test vector.
+const sha256 = data => createHash('sha256').update(data).digest('hex')
+const hmac = (key, data) => createHmac('sha256', key).update(data).digest()
+const rfc3986 = value => encodeURIComponent(value).replace(/[!'()*]/gu, c => '%' + c.charCodeAt(0).toString(16).toUpperCase())
+export function sigv4({ method, url, headers, body, accessKey, secret, region, service, date }) {
+  const stamp = date.toISOString().replace(/[-:]|\.\d{3}/gu, ''), day = stamp.slice(0, 8), payload = sha256(body ?? '')
+  const signed = { ...headers, host: url.host, 'x-amz-content-sha256': payload, 'x-amz-date': stamp }
+  const names = Object.keys(signed).sort()
+  const query = [...url.searchParams].map(([k, v]) => [rfc3986(k), rfc3986(v)]).sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : a[1] < b[1] ? -1 : 1).map(([k, v]) => k + '=' + v).join('&')
+  const canonical = [method, url.pathname, query, names.map(n => n + ':' + String(signed[n]).trim().replace(/\s+/gu, ' ') + '\n').join(''), names.join(';'), payload].join('\n')
+  const scope = [day, region, service, 'aws4_request'].join('/')
+  const key = hmac(hmac(hmac(hmac('AWS4' + secret, day), region), service), 'aws4_request')
+  const signature = createHmac('sha256', key).update(['AWS4-HMAC-SHA256', stamp, scope, sha256(canonical)].join('\n')).digest('hex')
+  return { ...signed, authorization: `AWS4-HMAC-SHA256 Credential=${accessKey}/${scope}, SignedHeaders=${names.join(';')}, Signature=${signature}` }
 }
 
 // ES256 JWT for the item's key (Apple, Google service accounts): signed here, sent as a bearer, never shown.
@@ -173,6 +190,12 @@ export async function callHttp(fields, request, fetchImpl = fetch, rotation = nu
     }
   }
   if (body && (body.length > REQUEST_BODY_MAX || ['GET', 'HEAD'].includes(request.method))) throw refuse('The body is not allowed.')
+  if (fields.http_auth === 'aws-sigv4' && !passthrough(fields, url)) { // after every header and the body are final: the signature covers them
+    const region = fields.http_aws_region ?? 'auto', service = fields.http_aws_service ?? 's3'
+    if (!/^[a-z0-9-]{1,32}$/u.test(region) || !/^[a-z0-9-]{1,32}$/u.test(service)) throw refuse('The key item has no usable region.')
+    Object.assign(headers, sigv4({ method: request.method, url, headers, body, accessKey: fields.http_aws_access_key, secret: fields.http_secret, region, service, date: new Date() }))
+    delete headers.host // fetch sets it itself, from the same URL
+  }
   const send = async () => {
     try { return await fetchImpl(url, { method: request.method, headers, ...(body ? { body } : {}), redirect: 'manual', signal: AbortSignal.timeout((request.timeoutSec ?? 30) * 1000) }) }
     catch (error) { throw Object.assign(new Error(error?.name === 'TimeoutError' ? 'The request timed out.' : 'The request failed.'), { code: 'HTTP_FAILED' }) }
