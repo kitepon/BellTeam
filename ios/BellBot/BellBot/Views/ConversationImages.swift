@@ -99,13 +99,13 @@ struct MessageImageGallery: View {
                 if let done = try await action(try await originalBytes(), name) { show(done) }
             } catch is CancellationError {
             } catch {
-                show("できませんでした")
+                show(String(localized: "できませんでした"))
                 api.diagnostics.report(error, path: paths[selection], method: "GET", observation: .read(error, retainedData: false))
             }
         }
     }
 
-    private func actionLabel(_ title: String, _ symbol: String) -> some View {
+    private func actionLabel(_ title: LocalizedStringKey, _ symbol: String) -> some View {
         Group {
             if sizeClass == .compact { Label(title, systemImage: symbol).labelStyle(.iconOnly) }
             else { Label(title, systemImage: symbol) }
@@ -153,7 +153,7 @@ struct MessageImageGallery: View {
                 Button {
                     perform { data, name in
                         try await ImageViewerActions.saveToPhotos(data: data, name: name)
-                        return "写真に保存しました"
+                        return String(localized: "写真に保存しました")
                     }
                 } label: { actionLabel("保存", "photo.badge.plus") }
                     .accessibilityIdentifier("image-gallery-save")
@@ -235,8 +235,8 @@ struct MessageImageGallery: View {
         .fileExporter(isPresented: $exporting, document: exportDocument,
                       contentType: ImageFileInfo.contentType(forName: exportName), defaultFilename: exportName) { result in
             switch result {
-            case .success: show("ダウンロードしました")
-            case .failure(let error) where (error as? CocoaError)?.code != .userCancelled: show("できませんでした")
+            case .success: show(String(localized: "ダウンロードしました"))
+            case .failure(let error) where (error as? CocoaError)?.code != .userCancelled: show(String(localized: "できませんでした"))
             case .failure: break
             }
         }
@@ -244,7 +244,7 @@ struct MessageImageGallery: View {
             if let shareURL {
                 ShareSheet(url: shareURL) { completed in
                     self.shareURL = nil
-                    if completed { show("共有しました") }
+                    if completed { show(String(localized: "共有しました")) }
                 }
                 .presentationDetents([.medium, .large])
             }

@@ -34,18 +34,18 @@ enum AuthenticationProgress: Equatable {
 
     var badge: String {
         switch self {
-        case .checking, .confirming, .sendingCode: "確認中"
-        case .unknown: "確認できません"
-        case .waitingSite: "認証の途中"
-        case .waitingCode: "コード待ち"
-        case .done: "認証済み"
-        case .failed: "失敗"
-        case .needsLogin: "ログインが必要"
+        case .checking, .confirming, .sendingCode: String(localized: "確認中")
+        case .unknown: String(localized: "確認できません")
+        case .waitingSite: String(localized: "認証の途中")
+        case .waitingCode: String(localized: "コード待ち")
+        case .done: String(localized: "認証済み")
+        case .failed: String(localized: "失敗")
+        case .needsLogin: String(localized: "ログインが必要")
         case .notInstalled(let install):
             switch install.state {
-            case .installing: "入れています"
-            case .failed: "入れられません"
-            default: "未インストール"
+            case .installing: String(localized: "入れています")
+            case .failed: String(localized: "入れられません")
+            default: String(localized: "未インストール")
             }
         }
     }
@@ -65,9 +65,9 @@ enum AuthenticationProgress: Equatable {
     /// 行の主ボタン。利用者の操作が要る段階だけ。使える（done）・確認中・読めない間は出さない（行を押せば画面で読み直せる）。
     var action: String? {
         switch self {
-        case .failed: "認証し直す"
-        case .needsLogin: "認証する"
-        case .waitingSite, .waitingCode: "続ける"
+        case .failed: String(localized: "認証し直す")
+        case .needsLogin: String(localized: "認証する")
+        case .waitingSite, .waitingCode: String(localized: "続ける")
         // 入れる操作は行の下の「最新版を入れる」（サーバーのaction）だけ。
         case .done, .confirming, .sendingCode, .checking, .unknown, .notInstalled: nil
         }
@@ -75,15 +75,15 @@ enum AuthenticationProgress: Equatable {
 
     var detail: String {
         switch self {
-        case .checking: "公式の状態を確認しています。"
-        case .unknown: "状態を確認できませんでした。「状態を更新」で読み直してください。"
-        case .waitingSite: "まだ終わっていません。「公式サイトを開く」から公式サイトで認証してください。"
-        case .waitingCode: "まだ終わっていません。公式サイトに表示された認証コードを下に貼り付けて「認証コードを送る」を押してください。"
-        case .sendingCode: "認証コードを送っています。"
-        case .confirming: "公式の応答を待っています。終わるまでこの画面で待ってください。"
-        case .done: "認証済みです。"
-        case .failed(let reason): "認証できませんでした。理由：\(reason.flatMap { $0.isEmpty ? nil : $0 } ?? "理由は返されませんでした。")"
-        case .needsLogin: "ログインし直してください。「認証する」から公式サイトで認証します。"
+        case .checking: String(localized: "公式の状態を確認しています。")
+        case .unknown: String(localized: "状態を確認できませんでした。「状態を更新」で読み直してください。")
+        case .waitingSite: String(localized: "まだ終わっていません。「公式サイトを開く」から公式サイトで認証してください。")
+        case .waitingCode: String(localized: "まだ終わっていません。公式サイトに表示された認証コードを下に貼り付けて「認証コードを送る」を押してください。")
+        case .sendingCode: String(localized: "認証コードを送っています。")
+        case .confirming: String(localized: "公式の応答を待っています。終わるまでこの画面で待ってください。")
+        case .done: String(localized: "認証済みです。")
+        case .failed(let reason): String(localized: "認証できませんでした。理由：\(reason.flatMap { $0.isEmpty ? nil : $0 } ?? String(localized: "理由は返されませんでした。"))")
+        case .needsLogin: String(localized: "ログインし直してください。「認証する」から公式サイトで認証します。")
         case .notInstalled(let install): install.message
         }
     }

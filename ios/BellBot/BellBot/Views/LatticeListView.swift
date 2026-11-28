@@ -307,7 +307,10 @@ enum LatticeDebug {
 // MARK: List
 
 struct LatticeListView: View {
-    enum Filter: String, CaseIterable { case all = "すべて", connected = "接続あり" }
+    enum Filter: String, CaseIterable {
+        case all = "すべて", connected = "接続あり"
+        var title: String { switch self { case .all: String(localized: "すべて"); case .connected: String(localized: "接続あり") } }
+    }
 
     @EnvironmentObject private var store: AppStore
     @Environment(\.dismiss) private var dismiss
@@ -349,7 +352,7 @@ struct LatticeListView: View {
         .toolbar {
             ToolbarItem(placement: .principal) {
                 Picker("絞り込み", selection: $filter) {
-                    ForEach(Filter.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                    ForEach(Filter.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
                 .pickerStyle(.segmented)
                 .frame(width: 200)
@@ -399,7 +402,7 @@ struct LatticeListView: View {
         .accessibilityIdentifier("lattice-list")
     }
 
-    private func sectionTitle(_ text: String, symbol: String) -> some View {
+    private func sectionTitle(_ text: LocalizedStringKey, symbol: String) -> some View {
         Label(text, systemImage: symbol)
             .font(.system(size: 12, weight: .semibold))
             .foregroundStyle(LatticePalette.muted)
@@ -492,7 +495,7 @@ struct LatticeChartCard: View {
             .strokeBorder(pinned ? BellTheme.violet.opacity(0.45) : LatticePalette.line.opacity(0.7), lineWidth: pinned ? 1.5 : 0.5))
         .shadow(color: (pinned ? BellTheme.violet : .black).opacity(pinned ? 0.12 : 0.05), radius: pinned ? 16 : 8, y: 4)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(title)\(chart.isCoordinator ? "、統括の工程表" : "")、完了 \(chart.done)/\(chart.total)、接続 \(chart.connections)\(chart.nudgeOn ? "、催促オン" : "")\(faces.isEmpty ? "" : "、動いているのは\(faces.map(\.name).joined(separator: "、"))")")
+        .accessibilityLabel("\(title)\(chart.isCoordinator ? String(localized: "、統括の工程表") : "")、完了 \(chart.done)/\(chart.total)、接続 \(chart.connections)\(chart.nudgeOn ? String(localized: "、催促オン") : "")\(faces.isEmpty ? "" : String(localized: "、動いているのは\(faces.map(\.name).joined(separator: "、"))"))")
         .accessibilityAddTraits(.isButton)
     }
 }
@@ -670,11 +673,11 @@ struct LatticeStopRowView: View {
         .shadow(color: .black.opacity(0.05), radius: 8, y: 4)
     }
 
-    private func caption(_ text: String) -> some View {
+    private func caption(_ text: LocalizedStringKey) -> some View {
         Text(text).font(.system(size: 11, weight: .semibold)).foregroundStyle(LatticePalette.muted)
     }
 
-    private func person(_ title: String, _ person: LatticePerson?) -> some View {
+    private func person(_ title: LocalizedStringKey, _ person: LatticePerson?) -> some View {
         HStack(spacing: 6) {
             caption(title)
             if let person { LatticeAvatar(person: person, size: 18) }

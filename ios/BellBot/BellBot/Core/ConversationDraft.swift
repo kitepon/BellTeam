@@ -61,11 +61,11 @@ struct PendingImage: Identifiable {
     }
 
     init(fileURL url: URL) throws {
-        guard url.isFileURL else { throw BellAPIError.server("画像ファイルを選んでください。") }
+        guard url.isFileURL else { throw BellAPIError.server(String(localized: "画像ファイルを選んでください。")) }
         let accessed = url.startAccessingSecurityScopedResource()
         defer { if accessed { url.stopAccessingSecurityScopedResource() } }
         guard let image = PendingImage(data: try Data(contentsOf: url)) else {
-            throw BellAPIError.server("画像ではないファイルは添付できません（\(url.lastPathComponent)）。")
+            throw BellAPIError.server(String(localized: "画像ではないファイルは添付できません（\(url.lastPathComponent)）。"))
         }
         self = image
     }

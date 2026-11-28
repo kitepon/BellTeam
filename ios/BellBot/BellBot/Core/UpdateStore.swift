@@ -81,7 +81,7 @@ final class UpdateStore: ObservableObject {
             inventory = nil
             // 詳細には読めない理由（503 UNREADABLEのreason等）をそのまま出す。
             let detail = if case .httpStatus(let status, let message, _)? = error as? BellAPIError { message ?? "HTTP \(status)" } else { error.localizedDescription }
-            failure = error is DecodingError ? "更新情報の応答形式を確認できません。" : "更新情報を確認できません。\(detail)"
+            failure = error is DecodingError ? String(localized: "更新情報の応答形式を確認できません。") : String(localized: "更新情報を確認できません。\(detail)")
             api.diagnostics.report(error, path: "/api/updates", method: "GET", observation: .read(error, retainedData: false))
         }
         for entry in history where historyResults[entry.requestId]?.isSettled != true {
@@ -95,7 +95,7 @@ final class UpdateStore: ObservableObject {
                 guard sequence == readSequence else { return }
                 // 404や認証の失敗だけでは、元の要求が受け付けられていないとは確定できない。
                 if historyResults[entry.requestId] == nil, historyNotes[entry.requestId] == nil {
-                    historyNotes[entry.requestId] = "結果を確認できません。同じ要求を照会し直します。"
+                    historyNotes[entry.requestId] = String(localized: "結果を確認できません。同じ要求を照会し直します。")
                 }
             }
         }
@@ -107,7 +107,7 @@ final class UpdateStore: ObservableObject {
         } catch {
             guard sequence == readSequence else { return }
             // 404や認証の失敗だけでは、元の要求が受け付けられていないとは確定できない。保存IDは残す。
-            message = "更新の結果を確認できません。同じ要求を照会し直します。更新は送り直しません。"
+            message = String(localized: "更新の結果を確認できません。同じ要求を照会し直します。更新は送り直しません。")
             api.diagnostics.report(error, path: "/api/updates/operations/\(id)", method: "GET", observation: .read(error, retainedData: true))
         }
     }
@@ -138,7 +138,7 @@ final class UpdateStore: ObservableObject {
             plan = response.plan
         } catch {
             guard started == epoch else { return }
-            message = "更新計画を取得できませんでした。\(error.localizedDescription)"
+            message = String(localized: "更新計画を取得できませんでした。\(error.localizedDescription)")
             api.diagnostics.report(error, path: "/api/updates/plans", method: "POST", observation: .read(error, retainedData: true))
         }
     }
@@ -150,7 +150,7 @@ final class UpdateStore: ObservableObject {
         let unsettledPlans = Set(history.filter { historyResults[$0.requestId]?.isSettled != true }.compactMap(\.planId))
             .union(requestID == nil ? [] : [defaults.string(forKey: planKey)].compactMap { $0 })
         guard !unsettledPlans.contains(plan.planId) else {
-            message = "この計画は、前の要求の結果を確認できていません。同じ計画では実行しません。新しい計画を取得してください。"
+            message = String(localized: "この計画は、前の要求の結果を確認できていません。同じ計画では実行しません。新しい計画を取得してください。")
             return
         }
         let started = epoch
@@ -173,13 +173,13 @@ final class UpdateStore: ObservableObject {
             guard started == epoch else { return }
             if case BellAPIError.httpStatus(let status, let reason, _) = error, (400..<500).contains(status) {
                 // 受け付けられなかったと表示するが、要求ID・計画IDは消さずに残し、同じIDで照会できるようにする。
-                let note = status == 409 ? "再計画が必要です。計画が古くなったか、別の更新が進行中の可能性があります。"
-                    : "更新は受け付けられませんでした。\(reason ?? "HTTP \(status)")"
+                let note = status == 409 ? String(localized: "再計画が必要です。計画が古くなったか、別の更新が進行中の可能性があります。")
+                    : String(localized: "更新は受け付けられませんでした。\(reason ?? "HTTP \(status)")")
                 keepInHistory(note: note)
                 self.plan = nil
                 message = note
             } else {
-                message = "更新の受付を確認できません。同じ要求の結果を確認中です。更新は送り直しません。"
+                message = String(localized: "更新の受付を確認できません。同じ要求の結果を確認中です。更新は送り直しません。")
                 api.diagnostics.report(error, path: "/api/updates/operations", method: "POST", observation: .write)
             }
         }
@@ -187,7 +187,7 @@ final class UpdateStore: ObservableObject {
 
     private func apply(_ value: UpdateOperation, for id: String) {
         guard value.requestId == id else {
-            message = "更新の結果を確認中です。応答の要求IDが保存した要求と一致しません。"
+            message = String(localized: "更新の結果を確認中です。応答の要求IDが保存した要求と一致しません。")
             return
         }
         operation = value

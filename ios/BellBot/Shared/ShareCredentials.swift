@@ -20,8 +20,8 @@ enum ShareCredentials {
         case keychain(OSStatus)
         var errorDescription: String? {
             switch self {
-            case .missingGroup: "共有Keychainのグループが設定されていません。"
-            case .keychain(let status): "共有Keychainを使えません（\(status)）。"
+            case .missingGroup: String(localized: "共有Keychainのグループが設定されていません。")
+            case .keychain(let status): String(localized: "共有Keychainを使えません（\(status)）。")
             }
         }
     }

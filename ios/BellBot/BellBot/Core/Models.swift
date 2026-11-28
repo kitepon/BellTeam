@@ -66,10 +66,10 @@ struct ConfigurationApplication: Decodable, Equatable {
     static func line(for bot: Bot?) -> String? {
         guard let bot else { return nil }
         switch bot.configurationApplication?.state {
-        case "pending": return "現在の作業が終わった後に設定を反映します。適用はまだ確認できていません。"
+        case "pending": return String(localized: "現在の作業が終わった後に設定を反映します。適用はまだ確認できていません。")
         case "failed": return bot.configurationApplication?.message.flatMap { $0.isEmpty ? nil : $0 }
-        case "accepted": return "CLIが設定変更を受け付けました。"
-        default: return bot.online ? "保存した希望設定です。稼働中のCLIへの適用は未確認です。" : "次回の起動に使う希望設定です。"
+        case "accepted": return String(localized: "CLIが設定変更を受け付けました。")
+        default: return bot.online ? String(localized: "保存した希望設定です。稼働中のCLIへの適用は未確認です。") : String(localized: "次回の起動に使う希望設定です。")
         }
     }
 
@@ -92,11 +92,11 @@ struct CurrentWork: Decodable, Equatable {
 
     static func label(_ work: CurrentWork?) -> String {
         switch (work?.state, work?.summaryStatus) {
-        case ("working", "current"): return work?.summary ?? "作業中・要約未設定"
-        case ("working", "stale"): return "作業中・要約期限切れ"
-        case ("working", _): return "作業中・要約未設定"
-        case ("idle", _): return "待機中"
-        default: return "仕事状況を未取得"
+        case ("working", "current"): return work?.summary ?? String(localized: "作業中・要約未設定")
+        case ("working", "stale"): return String(localized: "作業中・要約期限切れ")
+        case ("working", _): return String(localized: "作業中・要約未設定")
+        case ("idle", _): return String(localized: "待機中")
+        default: return String(localized: "仕事状況を未取得")
         }
     }
 }
@@ -259,7 +259,7 @@ struct RecentMessage: Decodable, Equatable {
 
     var preview: String {
         let text = message?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return text.isEmpty ? "画像" : text.replacingOccurrences(of: "\n", with: " ")
+        return text.isEmpty ? String(localized: "画像") : text.replacingOccurrences(of: "\n", with: " ")
     }
 }
 
@@ -420,7 +420,7 @@ struct ReplyReference: Decodable, Equatable {
 
     /// Quote line shown in a bubble and in the composer.
     var quotedText: String {
-        if text.isEmpty { return image ? "（画像）" : "" }
+        if text.isEmpty { return image ? String(localized: "（画像）") : "" }
         return truncated ? text + "…" : text
     }
 }
@@ -455,7 +455,7 @@ struct QueueItem: Decodable, Identifiable, Equatable {
     var workingWord: String?
 
     /// 作業中の表示。言葉があれば「Mulling…」、無ければ従来の「処理中」。
-    var workingLabel: String { workingWord.map { "\($0)…" } ?? "処理中" }
+    var workingLabel: String { workingWord.map { "\($0)…" } ?? String(localized: "処理中") }
 
     /// Botの実行中ターンごとに「処理中」を1行だけ出す。差し込まれた配送はそのターンの行にまとめる。
     static func displayItems(_ items: [QueueItem]) -> [QueueItem] {
@@ -490,7 +490,7 @@ struct Schedule: Decodable, Identifiable, Equatable {
     let endHour: Int?
     let minute: Int?
 
-    var title: String { name?.isEmpty == false ? name! : (prompt ?? command ?? "予定") }
+    var title: String { name?.isEmpty == false ? name! : (prompt ?? command ?? String(localized: "予定")) }
 }
 
 enum ChatTarget: Hashable, Sendable {
@@ -811,7 +811,7 @@ struct HarnessAuthenticationOption: Decodable, Identifiable {
         install = try? c.decodeIfPresent(CLIInstall.self, forKey: .install)
     }
 
-    var usageText: String { members > 0 ? "\(members)人が使用" : "使用していません" }
+    var usageText: String { members > 0 ? String(localized: "\(members)人が使用") : String(localized: "使用していません") }
     /// reloginSupported=falseは認証済みからの入り直しだけを断る。未認証なら初回の認証は始められる。
     func canStart(_ auth: SetupAuthentication?) -> Bool {
         guard reloginSupported == false else { return true }
@@ -863,8 +863,8 @@ struct FeatureSetting: Decodable, Identifiable, Equatable {
     }
 
     var statusText: String {
-        if error != nil { return "反映エラー" }
-        return switch status { case "enabled": "有効"; case "disabled": "無効"; default: "未設定" }
+        if error != nil { return String(localized: "反映エラー") }
+        return switch status { case "enabled": String(localized: "有効"); case "disabled": String(localized: "無効"); default: String(localized: "未設定") }
     }
 }
 struct FeatureGuide: Decodable, Equatable {
@@ -886,22 +886,22 @@ enum OnePasswordState: Equatable {
 
     init(_ setting: FeatureSetting) { self = setting.error != nil ? .failed : setting.status == "enabled" ? .connected : .off }
 
-    var badgeText: String { switch self { case .connected: "連携中"; case .off: "未連携"; case .failed: "失敗" } }
+    var badgeText: String { switch self { case .connected: String(localized: "連携中"); case .off: String(localized: "未連携"); case .failed: String(localized: "失敗") } }
     var symbol: String { switch self { case .connected: "checkmark.circle.fill"; case .off: "minus.circle.fill"; case .failed: "exclamationmark.triangle.fill" } }
 
     /// The line under a connected header (wording shared with the Web Settings). nil when not connected.
     static func connectionLine(_ setting: FeatureSetting) -> String? {
         guard OnePasswordState(setting) == .connected else { return nil }
-        guard let connection = setting.connection else { return "1Passwordにつながっています。" }
-        let vaults = connection.vaults.isEmpty ? "なし" : connection.vaults.joined(separator: "、")
+        guard let connection = setting.connection else { return String(localized: "1Passwordにつながっています。") }
+        let vaults = connection.vaults.isEmpty ? String(localized: "なし") : connection.vaults.joined(separator: String(localized: "、"))
         return connection.sshKeys > 0
-            ? "読める保管庫：\(vaults)　SSH鍵：\(connection.sshKeys)件"
-            : "読める保管庫：\(vaults)　SSH鍵が見つかりません。読める保管庫にSSH鍵を入れるか、サービスアカウントに鍵のある保管庫を足してください。"
+            ? String(localized: "読める保管庫：\(vaults)　SSH鍵：\(connection.sshKeys)件")
+            : String(localized: "読める保管庫：\(vaults)　SSH鍵が見つかりません。読める保管庫にSSH鍵を入れるか、サービスアカウントに鍵のある保管庫を足してください。")
     }
 
     /// Client check before saving; the server validates the token itself.
     static func tokenProblem(_ token: String) -> String? {
-        token.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("ops_") ? nil : "サービスアカウントのトークン（ops_で始まる文字）を貼ってください。"
+        token.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("ops_") ? nil : String(localized: "サービスアカウントのトークン（ops_で始まる文字）を貼ってください。")
     }
 }
 /// The result line above the 1Password主ボタン (Web `showOnePasswordResult`). Only a PATCH response speaks a result;
@@ -912,10 +912,10 @@ enum OnePasswordResult: Equatable {
     var text: String {
         switch self {
         case .none: ""
-        case .checking: "1Passwordにつないで確かめています…"
-        case .connected(let detail): "連携できました。" + detail
-        case .failed(let message): "連携できませんでした。" + message
-        case .off: "連携を解除しました。"
+        case .checking: String(localized: "1Passwordにつないで確かめています…")
+        case .connected(let detail): String(localized: "連携できました。\(detail)")
+        case .failed(let message): String(localized: "連携できませんでした。\(message)")
+        case .off: String(localized: "連携を解除しました。")
         }
     }
 
@@ -957,8 +957,8 @@ extension OnePasswordKey {
 
     /// The first line above the rows. `noun` is 鍵 or パスワード.
     static func countLine(shown: Int, search: String, noun: String) -> String {
-        shown > 0 ? "\(shown)件から選んでください"
-            : "「\(search.trimmingCharacters(in: .whitespacesAndNewlines))」に合う\(noun)がありません"
+        shown > 0 ? String(localized: "\(shown)件から選んでください")
+            : String(localized: "「\(search.trimmingCharacters(in: .whitespacesAndNewlines))」に合う\(noun)がありません")
     }
 }
 /// What the SSH key picker shows. An absent route (older body) falls back to pasting a key.
@@ -1073,10 +1073,10 @@ struct SecretRequest: Decodable, Identifiable, Equatable {
 
     /// Mika #855: the Mac's login password for one authorize-key run, `terminal.login`. Pasted into one hidden field and never stored.
     var isLoginPassword: Bool { purpose == "terminal.login" }
-    static let loginPasswordText = "このMacのログインパスワード（1回だけ使い、保存しません）"
+    static let loginPasswordText = String(localized: "このMacのログインパスワード（1回だけ使い、保存しません）")
     /// A login password or a one-time value is typed only: no 1Password choice and no reference field, whatever `inputOptions` says.
     var isOneTime: Bool { oneTime == true }
-    static let oneTimeText = "1回だけ使い、使い終わったら消します。保存せず、会話にも送られません。"
+    static let oneTimeText = String(localized: "1回だけ使い、使い終わったら消します。保存せず、会話にも送られません。")
     var onePasswordOffered: Bool { !isLoginPassword && !isOneTime && inputOptions?.onePasswordAvailable == true }
     var opensWithOnePassword: Bool { onePasswordOffered && inputOptions?.opensWithOnePassword == true }
 
@@ -1119,7 +1119,7 @@ enum SecretSubmission: Equatable {
 
     /// Same check as the Web card: a reference starts with op://; the server validates the full form.
     static func referenceProblem(_ reference: String) -> String? {
-        reference.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("op://") ? nil : "1Passwordの参照（op://で始まる）を入力してください。"
+        reference.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("op://") ? nil : String(localized: "1Passwordの参照（op://で始まる）を入力してください。")
     }
 }
 

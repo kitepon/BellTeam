@@ -115,7 +115,7 @@ struct BotScreenView: View {
     private var screenContent: some View {
         ZStack {
             Color.black
-            BotTerminalView(value: screen.isEmpty ? (online ? "画面は空です" : "次のメッセージで起動します") : screen)
+            BotTerminalView(value: screen.isEmpty ? (online ? String(localized: "画面は空です") : String(localized: "次のメッセージで起動します")) : screen)
             .background(Color.black)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -129,7 +129,7 @@ struct BotScreenView: View {
             }
             HStack(spacing: 7) {
                 Circle().fill(online ? BellTheme.mint : BellTheme.muted).frame(width: 7, height: 7)
-                Text(errorText ?? (online ? "1秒ごとに更新" : "停止中"))
+                Text(errorText ?? (online ? String(localized: "1秒ごとに更新") : String(localized: "停止中")))
             }
             .font(.footnote)
             .foregroundStyle(errorText == nil ? .white : .red)

@@ -12,42 +12,42 @@ enum SettingsPage: String, CaseIterable, Identifiable, Hashable {
 
     var title: String {
         switch self {
-        case .profile: "プロフィール"
-        case .ai: "AIの認証"
-        case .summary: "仕事の要約を書くAI"
-        case .terminals: "端末"
+        case .profile: String(localized: "プロフィール")
+        case .ai: String(localized: "AIの認証")
+        case .summary: String(localized: "仕事の要約を書くAI")
+        case .terminals: String(localized: "端末")
         case .onepassword: "1Password"
-        case .notifications: "通知"
-        case .rules: "チームの決まり"
-        case .features: "追加機能"
-        case .exclusions: "稼働中に数えない処理"
-        case .connection: "接続"
-        case .display: "表示"
-        case .billing: "利用と課金"
-        case .update: "アップデート"
-        case .about: "このアプリについて"
-        case .stop: "全体停止"
+        case .notifications: String(localized: "通知")
+        case .rules: String(localized: "チームの決まり")
+        case .features: String(localized: "追加機能")
+        case .exclusions: String(localized: "稼働中に数えない処理")
+        case .connection: String(localized: "接続")
+        case .display: String(localized: "表示")
+        case .billing: String(localized: "利用と課金")
+        case .update: String(localized: "アップデート")
+        case .about: String(localized: "このアプリについて")
+        case .stop: String(localized: "全体停止")
         }
     }
 
     /// The old calm line: shown while the live state is not known yet, or when an older server does not return the item's data.
     var detail: String {
         switch self {
-        case .profile: "名前・写真・紹介文"
-        case .ai: "AIのアカウントを認証し直す"
-        case .summary: "メンバー一覧の「今の仕事」を書くAI"
-        case .terminals: "メンバーの席を動かすMac・Windows・Linuxと、その鍵"
-        case .onepassword: "1Passwordの鍵をメンバーが使えるようにする"
-        case .notifications: "メンバーからの連絡をこの端末に届ける"
-        case .rules: "チームが守るあなたの決まり"
-        case .features: "通知の送信などを使うための設定"
-        case .exclusions: "作業中に数えないメンバーの処理"
-        case .connection: "つないでいるサーバーとログイン方法"
-        case .display: "会話を開く時の動き"
-        case .billing: "アプリでAIを使うための月額購読"
-        case .update: "サーバーの部品を最新にする"
-        case .about: "アプリの版"
-        case .stop: "全員のAIの動作をまとめて止める"
+        case .profile: String(localized: "名前・写真・紹介文")
+        case .ai: String(localized: "AIのアカウントを認証し直す")
+        case .summary: String(localized: "メンバー一覧の「今の仕事」を書くAI")
+        case .terminals: String(localized: "メンバーの席を動かすMac・Windows・Linuxと、その鍵")
+        case .onepassword: String(localized: "1Passwordの鍵をメンバーが使えるようにする")
+        case .notifications: String(localized: "メンバーからの連絡をこの端末に届ける")
+        case .rules: String(localized: "チームが守るあなたの決まり")
+        case .features: String(localized: "通知の送信などを使うための設定")
+        case .exclusions: String(localized: "作業中に数えないメンバーの処理")
+        case .connection: String(localized: "つないでいるサーバーとログイン方法")
+        case .display: String(localized: "会話を開く時の動き")
+        case .billing: String(localized: "アプリでAIを使うための月額購読")
+        case .update: String(localized: "サーバーの部品を最新にする")
+        case .about: String(localized: "アプリの版")
+        case .stop: String(localized: "全員のAIの動作をまとめて止める")
         }
     }
 
@@ -97,7 +97,7 @@ enum SettingsPage: String, CaseIterable, Identifiable, Hashable {
         let info = Bundle.main.infoDictionary
         let short = info?["CFBundleShortVersionString"] as? String ?? "-"
         let build = info?["CFBundleVersion"] as? String ?? "-"
-        return "\(short)（\(build)）"
+        return String(localized: "\(short)（\(build)）")
     }
 
     #if DEBUG
@@ -235,10 +235,10 @@ private struct SettingsProfileRow: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            AvatarView(name: store.owner?.name ?? "あなた", avatar: store.owner?.avatar ?? "",
+            AvatarView(name: store.owner?.name ?? String(localized: "あなた"), avatar: store.owner?.avatar ?? "",
                        color: BellTheme.violet, size: large ? 60 : 36)
             VStack(alignment: .leading, spacing: 2) {
-                Text(store.owner?.name ?? "あなた").font(large ? .title3.weight(.semibold) : .system(size: 15, weight: .semibold))
+                Text(store.owner?.name ?? String(localized: "あなた")).font(large ? .title3.weight(.semibold) : .system(size: 15, weight: .semibold))
                 Text("プロフィール").font(large ? .subheadline : .system(size: 12)).foregroundStyle(.secondary)
             }
         }
@@ -263,7 +263,7 @@ private struct SettingsCategoryRow: View {
     #endif
 
     private var status: SettingsStatus {
-        if page == .display { return SettingsStatus(line: opening == .fade ? "フェードインだけ" : "下から順に浮き上がる") }
+        if page == .display { return SettingsStatus(line: opening == .fade ? String(localized: "フェードインだけ") : String(localized: "下から順に浮き上がる")) }
         return home.status(for: page, store: store) ?? SettingsStatus(line: page.detail)
     }
 
@@ -294,7 +294,7 @@ private struct SettingsAttentionSection: View {
     var body: some View {
         let items = home.attention(store: store)
         if !items.isEmpty {
-            Section(header: BellSectionHeader("要対応")) {
+            Section(header: BellSectionHeader(String(localized: "要対応"))) {
                 ForEach(items) { item in
                     Button { open(item.route) } label: {
                         HStack(spacing: 12) {
@@ -541,7 +541,7 @@ private struct DisplaySettingsPage: View {
                 }
                 .pickerStyle(.inline)
             } header: {
-                BellSectionHeader("会話の開き方")
+                BellSectionHeader(String(localized: "会話の開き方"))
             } footer: {
                 Text("会話を開き直すと反映します。").font(BellTheme.secondaryFont)
             }
@@ -632,13 +632,13 @@ private struct StopSettingsPage: View {
                             .accessibilityIdentifier("ai-control-refresh")
                     }
                 } else if !store.aiControlLoading {
-                    SettingsBanner(message: "全体停止の状態を読み込めませんでした。接続を確かめて、再確認してください。")
+                    SettingsBanner(message: String(localized: "全体停止の状態を読み込めませんでした。接続を確かめて、再確認してください。"))
                     Button("状態を再確認") { Task { await store.refreshAIControl() } }
                         .accessibilityIdentifier("ai-control-refresh")
                 }
                 if store.aiControlLoading || store.aiControlUpdating { ProgressView() }
                 if let error = store.aiControlError, store.aiControl != nil {
-                    SettingsBanner(message: "操作できませんでした。少し待ってから、もう一度試してください。", detail: error)
+                    SettingsBanner(message: String(localized: "操作できませんでした。少し待ってから、もう一度試してください。"), detail: error)
                 }
             } footer: {
                 Text("ONにすると全メンバーへ停止の指示を送り、新しい依頼を受け付けなくなります。会話を読むことはできます。").font(BellTheme.secondaryFont)
@@ -684,11 +684,11 @@ private struct ProfileEditor: View {
         Form {
             Section { SettingsPageHeader(page: .profile) }
                 .listRowBackground(Color.clear)
-            Section(header: BellSectionHeader("あなた")) {
+            Section(header: BellSectionHeader(String(localized: "あなた"))) {
                 HStack {
                     Spacer()
                     AvatarImagePicker(onSelect: { cropSource = AvatarCropSource(image: $0) },
-                                      onFailure: { errorText = "画像を読み込めませんでした。" }) {
+                                      onFailure: { errorText = String(localized: "画像を読み込めませんでした。") }) {
                         VStack(spacing: 8) {
                             AvatarView(name: name, avatar: avatar, color: BellTheme.violet, size: 74)
                             Text("写真を変更").font(.caption)
@@ -699,7 +699,7 @@ private struct ProfileEditor: View {
                 TextField("名前", text: $name)
                 TextField("プロフィール", text: $profile, axis: .vertical).lineLimit(3...8)
             }
-            Section(header: BellSectionHeader("リンク")) {
+            Section(header: BellSectionHeader(String(localized: "リンク"))) {
                 TextField("XのURL", text: $xUrl).textInputAutocapitalization(.never)
                 TextField("GitHubのURL", text: $githubUrl).textInputAutocapitalization(.never)
                 ForEach(links.indices, id: \.self) { index in
@@ -742,7 +742,7 @@ private struct ProfileEditor: View {
 
     private func save() async {
         guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            errorText = "名前を入力してください。"; return
+            errorText = String(localized: "名前を入力してください。"); return
         }
         saving = true
         saved = false
@@ -756,7 +756,7 @@ private struct ProfileEditor: View {
         } catch let error where BellAPIError.isAuthenticationError(error) {
             store.requireLogin(for: error); return
         } catch {
-            errorText = "プロフィールを保存できませんでした。入力は残っています。\(BellAPIError.operationFailureMessage(error))"
+            errorText = String(localized: "プロフィールを保存できませんでした。入力は残っています。\(BellAPIError.operationFailureMessage(error))")
             store.api.diagnostics.report(error, path: "/api/owner", method: nil, observation: .write)
             return
         }
@@ -767,7 +767,7 @@ private struct ProfileEditor: View {
         } catch let error where BellAPIError.isAuthenticationError(error) {
             store.requireLogin(for: error)
         } catch {
-            errorText = "プロフィールは保存しました。画面の表示を更新できませんでした。\(BellAPIError.operationFailureMessage(error))"
+            errorText = String(localized: "プロフィールは保存しました。画面の表示を更新できませんでした。\(BellAPIError.operationFailureMessage(error))")
             store.api.diagnostics.report(error, path: "/api/owner", method: "GET", observation: .read(error, retainedData: store.owner != nil))
         }
     }

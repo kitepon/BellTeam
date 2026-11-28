@@ -162,11 +162,11 @@ struct ChatGoalBar: View {
     /// The pill, always a whole sentence: the goal's state, that there is none, or that it could not be read.
     /// An idle seat has no running goal, so it says 設定されていません. Only a bot without the goal feature has no pill.
     private var pill: (title: String, symbol: String, tint: Color)? {
-        let unread = ("ゴールの状態を確認できません", "exclamationmark.triangle.fill", Color.orange)
-        let none = ("ゴールは設定されていません", "target", BellTheme.muted)
+        let unread = (String(localized: "ゴールの状態を確認できません"), "exclamationmark.triangle.fill", Color.orange)
+        let none = (String(localized: "ゴールは設定されていません"), "target", BellTheme.muted)
         if goals.needsRefresh { return unread }
         guard goals.loaded else {
-            return ("ゴールを確認しています", "hourglass", BellTheme.muted)
+            return (String(localized: "ゴールを確認しています"), "hourglass", BellTheme.muted)
         }
         guard let snapshot else { return unread }
         if snapshot.seatIdle { return none }
@@ -178,7 +178,7 @@ struct ChatGoalBar: View {
     }
     /// The one failure sentence for the expanded card: a failed read is said plainly once, never twice.
     private var failure: String? {
-        let unread = "現在のゴールを確認できません。状態を更新してください。"
+        let unread = String(localized: "現在のゴールを確認できません。状態を更新してください。")
         // After a change whose outcome is unknown, its own sentence (do not resend) replaces the generic one.
         if goals.needsRefresh { return goals.errorText ?? unread }
         guard goals.loaded else { return nil }
@@ -188,7 +188,7 @@ struct ChatGoalBar: View {
     }
     private var elapsed: String? {
         guard snapshot?.availability == .available, let goal = snapshot?.goal else { return nil }
-        return goal.elapsedText ?? "時間未取得"
+        return goal.elapsedText ?? String(localized: "時間未取得")
     }
 
     private func refresh() {
@@ -323,11 +323,11 @@ private struct GoalCard: View {
         guard let goal = snapshot.goal else { return [] }
         var names: [String] = []
         if !snapshot.capabilities.edit || !(snapshot.fieldCapabilities.edit.objective || snapshot.fieldCapabilities.edit.tokenBudget) {
-            names.append("編集")
+            names.append(String(localized: "編集"))
         }
-        if goal.isActive && !snapshot.capabilities.pause { names.append("一時停止") }
-        if goal.isPaused && !snapshot.capabilities.resume { names.append("再開") }
-        if !snapshot.capabilities.clear { names.append("取り消し") }
+        if goal.isActive && !snapshot.capabilities.pause { names.append(String(localized: "一時停止")) }
+        if goal.isPaused && !snapshot.capabilities.resume { names.append(String(localized: "再開")) }
+        if !snapshot.capabilities.clear { names.append(String(localized: "取り消し")) }
         return names
     }
 
@@ -339,11 +339,11 @@ private struct GoalCard: View {
             }
             if snapshot.availability != .available {
                 Text(snapshot.message ?? (snapshot.availability == .unsupported
-                    ? "このメンバーではゴール機能を使えません。" : "ゴールの状態を取得できません。"))
+                    ? String(localized: "このメンバーではゴール機能を使えません。") : String(localized: "ゴールの状態を取得できません。")))
                     .foregroundStyle(BellTheme.muted)
             } else {
                 if presentation == .page || snapshot.goal == nil {
-                    Text(snapshot.goal?.statusTitle ?? "ゴールは設定されていません")
+                    Text(snapshot.goal?.statusTitle ?? String(localized: "ゴールは設定されていません"))
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(BellTheme.violet)
                 }
@@ -383,9 +383,9 @@ private struct GoalCard: View {
                 }
                 if presentation == .page && snapshot.goal != nil {
                     let pause = snapshot.capabilities.pause || snapshot.capabilities.resume
-                        ? "一時停止したゴールは再開できます。" : ""
-                    let clear = snapshot.capabilities.clear ? "取り消すとゴールは消えます。" : ""
-                    Text(pause + clear + "今の処理を中断するには会話の停止ボタンを使ってください。")
+                        ? String(localized: "一時停止したゴールは再開できます。") : ""
+                    let clear = snapshot.capabilities.clear ? String(localized: "取り消すとゴールは消えます。") : ""
+                    Text(pause + clear + String(localized: "今の処理を中断するには会話の停止ボタンを使ってください。"))
                         .font(.footnote).foregroundStyle(BellTheme.muted)
                 }
             }
@@ -481,7 +481,7 @@ private struct GoalEditor: View {
         NavigationStack {
             Form {
                 if separateChoice {
-                    Section(header: BellSectionHeader("変更する項目")) {
+                    Section(header: BellSectionHeader(String(localized: "変更する項目"))) {
                         Picker("変更する項目", selection: $selectedField) {
                             Text("目的").tag(GoalEditField.objective)
                             Text("トークン予算").tag(GoalEditField.budget)
@@ -506,7 +506,7 @@ private struct GoalEditor: View {
                             }
                             .accessibilityIdentifier("goal-objective-input")
                     } header: {
-                        BellSectionHeader("目的")
+                        BellSectionHeader(String(localized: "目的"))
                     } footer: {
                         HStack {
                             Text("終わったと言える状態を、一文で書きます。")
@@ -516,7 +516,7 @@ private struct GoalEditor: View {
                     }
                 }
                 if editsBudget {
-                    Section(header: BellSectionHeader("トークン予算（任意）")) {
+                    Section(header: BellSectionHeader(String(localized: "トークン予算（任意）"))) {
                         TextField("指定しない", text: $budget)
                             .onChange(of: budget) { _, _ in budgetChanged = true }
                             .accessibilityIdentifier("goal-budget-input")
@@ -553,7 +553,7 @@ private struct GoalEditor: View {
         var tokenBudget: Int?
         if editsBudget && budgetChanged && !budget.isEmpty {
             guard let parsed = Int(budget), parsed > 0 else {
-                errorText = "トークン予算は1以上の整数で入力してください。"
+                errorText = String(localized: "トークン予算は1以上の整数で入力してください。")
                 return
             }
             tokenBudget = parsed

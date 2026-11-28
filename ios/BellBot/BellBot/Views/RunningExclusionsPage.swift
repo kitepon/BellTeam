@@ -76,16 +76,16 @@ struct RunningExclusionsPage: View {
         BellDate.parse(value)?.formatted(.dateTime.month().day().hour().minute()) ?? value
     }
 
-    private func plain(_ text: String) -> some View {
+    private func plain(_ text: LocalizedStringKey) -> some View {
         Text(text).font(BellTheme.detailFont).foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .leading).padding(16).bellCard()
     }
 
-    private func section(_ title: String) -> some View {
+    private func section(_ title: LocalizedStringKey) -> some View {
         Text(title).font(.headline).frame(maxWidth: .infinity, alignment: .leading).padding(.top, 4)
     }
 
-    private func line(_ label: String, _ value: String) -> some View {
+    private func line(_ label: LocalizedStringKey, _ value: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             Text(label).font(BellTheme.secondaryFont).foregroundStyle(.secondary).frame(width: 72, alignment: .leading)
             Text(value).font(BellTheme.detailFont).fixedSize(horizontal: false, vertical: true)

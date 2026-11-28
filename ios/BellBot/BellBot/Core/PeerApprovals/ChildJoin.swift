@@ -27,27 +27,27 @@ protocol ChildJoinSource: ObservableObject {
 
 /// Every sentence of the child-join screen (the contract's table; BellTeam owns the words).
 enum ChildJoinWords {
-    static let notJoinedTitle = "決裁箱につなぎます"
-    static let notJoinedLine = "この端末を、あなたの決裁箱に子の端末として追加します。"
-    static let waitingTitle = "決裁箱の承認を待っています"
-    static let qrLabel = "決裁箱につなぐQRコード"
-    static let removed = "決裁箱で、この端末のつなぎが外されました。"
-    static let otherAccount = "この端末と親の端末で、サインインしているアカウントが違います。親の端末と同じアカウント（AppleかGoogle）でこの端末にサインインして、もう一度QRコードを出してください。"
-    static let failed = "つなげませんでした。もう一度つないでください。"
-    static let again = "もう一度つなぐ"
-    static let joining = "つないでいます…"
-    static let liveLine = "決裁箱につながっています"
-    static let leave = "つなぎを外す"
-    static let leaveConfirm = "外す"
-    static let cancel = "やめる"
-    static let signingIn = "サインインしています…"
-    static let pasteReturn = "決裁箱でコピーしたリンクを、ここに貼り付けてください"
-    static let useReturn = "このリンクでつなぐ"
-    static let returnRefused = "このリンクではつなげませんでした。決裁箱でリンクをコピーし直して、貼り付けてください。"
+    static let notJoinedTitle = String(localized: "決裁箱につなぎます")
+    static let notJoinedLine = String(localized: "この端末を、あなたの決裁箱に子の端末として追加します。")
+    static let waitingTitle = String(localized: "決裁箱の承認を待っています")
+    static let qrLabel = String(localized: "決裁箱につなぐQRコード")
+    static let removed = String(localized: "決裁箱で、この端末のつなぎが外されました。")
+    static let otherAccount = String(localized: "この端末と親の端末で、サインインしているアカウントが違います。親の端末と同じアカウント（AppleかGoogle）でこの端末にサインインして、もう一度QRコードを出してください。")
+    static let failed = String(localized: "つなげませんでした。もう一度つないでください。")
+    static let again = String(localized: "もう一度つなぐ")
+    static let joining = String(localized: "つないでいます…")
+    static let liveLine = String(localized: "決裁箱につながっています")
+    static let leave = String(localized: "つなぎを外す")
+    static let leaveConfirm = String(localized: "外す")
+    static let cancel = String(localized: "やめる")
+    static let signingIn = String(localized: "サインインしています…")
+    static let pasteReturn = String(localized: "決裁箱でコピーしたリンクを、ここに貼り付けてください")
+    static let useReturn = String(localized: "このリンクでつなぐ")
+    static let returnRefused = String(localized: "このリンクではつなげませんでした。決裁箱でリンクをコピーし直して、貼り付けてください。")
 
     static func until(_ date: Date) -> String {
         let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.timeZone = TimeZone(identifier: "Asia/Tokyo"); f.dateFormat = "H:mm"
-        return f.string(from: date) + " まで有効"
+        return String(localized: "\(f.string(from: date)) まで有効")
     }
 
     static func failure(code: String, words: String? = nil) -> String { code == "other_account" ? otherAccount : words ?? failed }
@@ -55,15 +55,15 @@ enum ChildJoinWords {
 
 /// The join code beside a QR (login-billing 1.60), the same words as Windows, Linux and Android.
 enum JoinCodeWords {
-    static let label = "参加コード"
-    static let copy = "コードをコピー"
-    static let copied = "コピーしました"
-    static let open = "決裁箱で開く"
+    static let label = String(localized: "参加コード")
+    static let copy = String(localized: "コードをコピー")
+    static let copied = String(localized: "コピーしました")
+    static let open = String(localized: "決裁箱で開く")
     /// A child join on a PC / on a phone (the parent is usually this same phone).
-    static let childHint = "決裁箱のあるスマートフォンでQRコードを読むか、このコードをコピーして、決裁箱の「ほかの端末を追加する」に貼り付けてください。"
-    static let childHintPhone = "このスマートフォンに決裁箱がある時は、「決裁箱で開く」を押してください。ほかの端末で承認する時は、その端末でQRコードを読むか、このコードをコピーして決裁箱の「ほかの端末を追加する」に貼り付けてください。"
+    static let childHint = String(localized: "決裁箱のあるスマートフォンでQRコードを読むか、このコードをコピーして、決裁箱の「ほかの端末を追加する」に貼り付けてください。")
+    static let childHintPhone = String(localized: "このスマートフォンに決裁箱がある時は、「決裁箱で開く」を押してください。ほかの端末で承認する時は、その端末でQRコードを読むか、このコードをコピーして決裁箱の「ほかの端末を追加する」に貼り付けてください。")
     /// BellTeam's own subscription QR.
-    static let ownHint = "QRを読めない時は、このコードをコピーして、親となる端末の「コードを貼り付ける」に貼り付けてください。"
+    static let ownHint = String(localized: "QRを読めない時は、このコードをコピーして、親となる端末の「コードを貼り付ける」に貼り付けてください。")
 
     /// An iPhone or iPad can hold the parent app too; a Mac cannot.
     static var onPhone: Bool {

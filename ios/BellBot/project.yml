@@ -7,6 +7,9 @@ options:
 settings:
   base:
     SWIFT_VERSION: '5.0'
+    # UI text lives in BellBot/Resources/Localizable.xcstrings (ja source); the build extracts SwiftUI literals and String(localized:) into it.
+    SWIFT_EMIT_LOC_STRINGS: YES
+    LOCALIZATION_PREFERS_STRING_CATALOGS: YES
     # 配布者が自分の Bundle ID を渡す場所。アプリ本体、通知拡張（末尾 .NotificationService）、
     # App Group（先頭 group.）がこの値から揃う。コマンドラインの PRODUCT_BUNDLE_IDENTIFIER では
     # 拡張まで上書きされるため、署名時は BELLTEAM_APP_BUNDLE_IDENTIFIER を使う。
@@ -27,9 +30,9 @@ packages:
     url: https://github.com/kitepon/login-billing.git
     exactVersion: 0.26.0
   ApprovalBoxClient:
-    # client-v0.9.0 (device carry: a child with no registry copy offers itself, the parent admits it with no QR) is this revision (login-billing exact 0.26.0, peer-channel a5e47a3); SwiftPM cannot read the client-v<semver> tag.
+    # client-v0.9.1 (device carry: a child with no registry copy offers itself, the parent admits it with no QR) is this revision (login-billing exact 0.26.0, peer-channel a5e47a3); SwiftPM cannot read the client-v<semver> tag.
     url: https://github.com/kitepon/approval-box-apps.git
-    revision: 7d687cc4d98f57740de141174eafe24e65326025
+    revision: 696c4607ff2da9d5cbe6dd806bb837b3c31256ac
 targets:
   BellTeam:
     type: application
@@ -47,7 +50,7 @@ targets:
         CFBundleDisplayName: BellTeam
         CFBundleName: BellTeam
         CFBundleShortVersionString: '1.0.8'
-        CFBundleVersion: '206'
+        CFBundleVersion: '207'
         UIUserInterfaceStyle: Light
         ITSAppUsesNonExemptEncryption: false
         LSApplicationCategoryType: public.app-category.productivity
@@ -161,7 +164,7 @@ targets:
       properties:
         CFBundleDisplayName: BellTeam
         CFBundleShortVersionString: '1.0.8'
-        CFBundleVersion: '206'
+        CFBundleVersion: '207'
         BellTeamAppGroupIdentifier: group.$(BELLTEAM_APP_BUNDLE_IDENTIFIER)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.usernotifications.service
@@ -205,7 +208,7 @@ targets:
       properties:
         CFBundleDisplayName: BellTeam
         CFBundleShortVersionString: '1.0.8'
-        CFBundleVersion: '206'
+        CFBundleVersion: '207'
         BellTeamKeychainGroup: $(AppIdentifierPrefix)$(BELLTEAM_APP_BUNDLE_IDENTIFIER).share
         NSExtension:
           NSExtensionPointIdentifier: com.apple.share-services

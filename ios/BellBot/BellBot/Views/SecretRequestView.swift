@@ -27,7 +27,7 @@ struct SecretRequestCard: View {
                     .buttonStyle(.bellPrimary)
             } else {
                 let submitted = current.status == "submitted"
-                BellBadge(text: submitted ? "登録済み" : "入力を取り消しました", tone: submitted ? .green : .gray,
+                BellBadge(text: submitted ? String(localized: "登録済み") : String(localized: "入力を取り消しました"), tone: submitted ? .green : .gray,
                           symbol: submitted ? "checkmark.circle.fill" : "xmark.circle.fill")
                 if current.notification == "failed" {
                     Text("AIへの通知に失敗しました。チャットで完了を知らせてください。")
@@ -72,7 +72,7 @@ struct SecretInputSheet: View {
     private var multiline: Bool { request.purpose == "terminal.ssh" }
     private var sudo: Bool { request.purpose == "terminal.sudo" }
     /// 鍵 for the SSH card, パスワード for the sudo card.
-    private var noun: String { multiline ? "鍵" : "パスワード" }
+    private var noun: String { multiline ? String(localized: "鍵") : String(localized: "パスワード") }
     /// An SSH key or sudo card with 1Password connected picks an existing item by name; other cards type a reference.
     private var picker: Bool { (multiline || sudo) && onePasswordOffered && keyList != .unsupported }
     private var ready: Bool { useOnePassword ? !reference.trimmingCharacters(in: .whitespaces).isEmpty : !value.isEmpty }
@@ -103,7 +103,7 @@ struct SecretInputSheet: View {
                         .accessibilityIdentifier("secret-source")
                     }
                 }
-                Section(title ?? (login ? "ログインパスワード" : request.label)) {
+                Section(title ?? (login ? String(localized: "ログインパスワード") : request.label)) {
                     if useOnePassword, picker {
                         keyPicker
                     } else if useOnePassword {
@@ -123,7 +123,7 @@ struct SecretInputSheet: View {
                             .accessibilityIdentifier("secret-value")
                             .disabled(sending)
                     } else {
-                        SecureField(title ?? (login ? "ログインパスワード" : request.label), text: $value)
+                        SecureField(title ?? (login ? String(localized: "ログインパスワード") : request.label), text: $value)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                             .privacySensitive()
@@ -140,7 +140,7 @@ struct SecretInputSheet: View {
                     if let errorText { Text(errorText).foregroundStyle(.red).font(.footnote) }
                 }
             }
-            .navigationTitle(title ?? (login ? "ログインパスワード" : request.label))
+            .navigationTitle(title ?? (login ? String(localized: "ログインパスワード") : request.label))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -163,11 +163,11 @@ struct SecretInputSheet: View {
     private var note: String {
         if login { return SecretRequest.loginPasswordText }
         if request.isOneTime { return SecretRequest.oneTimeText }
-        if useOnePassword { return picker ? "選んだ\(noun)は、使うときに1Passwordから読み出します。\(noun)は会話に送られません。" : "参照は会話に送信されません。値は1Passwordから読み出します。" }
-        if sudo { return "sudoのパスワードを入力してください。1Passwordを使っている場合は、設定の「1Password連携」を済ませると、ここで一覧から選べます。値は会話に送信されず、BellTeamの利用者領域へ保存します。" }
+        if useOnePassword { return picker ? String(localized: "選んだ\(noun)は、使うときに1Passwordから読み出します。\(noun)は会話に送られません。") : String(localized: "参照は会話に送信されません。値は1Passwordから読み出します。") }
+        if sudo { return String(localized: "sudoのパスワードを入力してください。1Passwordを使っている場合は、設定の「1Password連携」を済ませると、ここで一覧から選べます。値は会話に送信されず、BellTeamの利用者領域へ保存します。") }
         return multiline
-            ? "秘密鍵（「-----BEGIN OPENSSH PRIVATE KEY-----」で始まる文字）をそのまま貼ってください。1Passwordを使っている場合は、設定の「1Password連携」を済ませると、ここで鍵を一覧から選べます。値は会話に送信されません。"
-            : "値は会話に送信されません。BellTeamの利用者領域へ保存します。"
+            ? String(localized: "秘密鍵（「-----BEGIN OPENSSH PRIVATE KEY-----」で始まる文字）をそのまま貼ってください。1Passwordを使っている場合は、設定の「1Password連携」を済ませると、ここで鍵を一覧から選べます。値は会話に送信されません。")
+            : String(localized: "値は会話に送信されません。BellTeamの利用者領域へ保存します。")
     }
 
     @ViewBuilder private var keyPicker: some View {
@@ -246,7 +246,7 @@ struct SecretInputSheet: View {
             dismiss()
             store.requireLogin(for: error)
         } catch {
-            errorText = "登録結果を確認できませんでした。閉じて最新の状態を確認してください。"
+            errorText = String(localized: "登録結果を確認できませんでした。閉じて最新の状態を確認してください。")
             store.api.diagnostics.report(error, path: "/api/secret-requests", method: "POST", observation: .secretWrite)
         }
     }

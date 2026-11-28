@@ -108,7 +108,7 @@ private struct ConversationContent: View {
 
     private var bot: Bot? { store.bots.first { $0.id == target.id } }
     private var room: Room? { store.rooms.first { $0.id == target.id } }
-    private var title: String { target.isRoom ? (room?.name ?? "ルーム") : (bot?.displayName ?? "メンバー") }
+    private var title: String { target.isRoom ? (room?.name ?? String(localized: "ルーム")) : (bot?.displayName ?? String(localized: "メンバー")) }
     private var avatar: String { target.isRoom ? (room?.avatar ?? "") : (bot?.avatar ?? "") }
     private var accent: Color { target.isRoom ? BellTheme.violet : BellTheme.accent(bot?.color ?? "violet") }
     private var appIsActive: Bool { UIApplication.shared.applicationState == .active }
@@ -192,7 +192,7 @@ private struct ConversationContent: View {
         }
         .sheet(item: $forwarding) { message in
             ForwardSheet(message: message, source: target,
-                         senderName: message.isOutgoing ? "あなた" : (message.sender?.title ?? bot?.displayName ?? title))
+                         senderName: message.isOutgoing ? String(localized: "あなた") : (message.sender?.title ?? bot?.displayName ?? title))
                 .environmentObject(store)
         }
         .fullScreenCover(item: $presentedGallery) { gallery in
@@ -287,12 +287,12 @@ private struct ConversationContent: View {
         #if targetEnvironment(macCatalyst)
         .fileImporter(isPresented: $choosingFile, allowedContentTypes: [.image], allowsMultipleSelection: true) { result in
             do { try attachImageFiles(result.get()) }
-            catch { errorText = "画像を読み込めませんでした。" }
+            catch { errorText = String(localized: "画像を読み込めませんでした。") }
         }
         #endif
         .dropDestination(for: URL.self) { urls, _ in
             do { try attachImageFiles(urls); return !urls.isEmpty }
-            catch { errorText = "画像を読み込めませんでした。"; return false }
+            catch { errorText = String(localized: "画像を読み込めませんでした。"); return false }
         }
         .onChange(of: selectedPhotos) { _, items in
             guard !items.isEmpty else { return }
@@ -336,17 +336,17 @@ private struct ConversationContent: View {
     private func replyLabel(for message: TimelineMessage, botsByID: [String: Bot]) -> String? {
         guard target.isRoom, let routing = message.routing else { return nil }
         switch routing.status {
-        case "pending": return "返信者を判定中"
-        case "failed": return "返信者の判定に失敗"
+        case "pending": return String(localized: "返信者を判定中")
+        case "failed": return String(localized: "返信者の判定に失敗")
         case "ready":
             let names = routing.responders.map { botsByID[$0]?.displayName ?? $0 }
-            return "返信: \(names.isEmpty ? "なし" : names.joined(separator: "、"))"
+            return String(localized: "返信: \(names.isEmpty ? String(localized: "なし") : names.joined(separator: "、"))")
         default: return nil
         }
     }
 
     private func startReply(to message: TimelineMessage, senderBot: Bot?, selection: String? = nil) {
-        let name = message.isOutgoing ? "あなた" : (message.sender?.title ?? senderBot?.displayName ?? title)
+        let name = message.isOutgoing ? String(localized: "あなた") : (message.sender?.title ?? senderBot?.displayName ?? title)
         replyingTo = ReplyReference(quoting: message, senderName: name, selection: selection)
     }
 
@@ -359,7 +359,7 @@ private struct ConversationContent: View {
             if messages.first?.id == oldest { break }
         }
         guard messages.contains(where: { $0.id == id }) else {
-            errorText = "元のメッセージは見つかりません。"
+            errorText = String(localized: "元のメッセージは見つかりません。")
             return
         }
         let revision = jumpRequest.revision + 1
@@ -488,9 +488,9 @@ private struct ConversationContent: View {
 
         var message: String {
             switch self {
-            case .sent: "停止操作を送りました。会話は続けられます。"
-            case .confirmed(let name): "\(name)は今、処理を実行していません。同じ会話で新しい依頼を続けられます。"
-            case .unconfirmed: "停止操作の結果を確認できませんでした。状況を確認してから操作してください。"
+            case .sent: String(localized: "停止操作を送りました。会話は続けられます。")
+            case .confirmed(let name): String(localized: "\(name)は今、処理を実行していません。同じ会話で新しい依頼を続けられます。")
+            case .unconfirmed: String(localized: "停止操作の結果を確認できませんでした。状況を確認してから操作してください。")
             case .failed(let reason): reason
             }
         }
@@ -522,8 +522,8 @@ private struct ConversationContent: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("画像を添付")
-                .help("画像ファイルを添付。ここへドロップ、入力欄へ貼り付けもできます")
+                .accessibilityLabel(String(localized: "画像を添付"))
+                .help(String(localized: "画像ファイルを添付。ここへドロップ、入力欄へ貼り付けもできます"))
                 #else
                 PhotosPicker(selection: $selectedPhotos, matching: .images) {
                     Image(systemName: "plus")
@@ -647,11 +647,11 @@ private struct ConversationContent: View {
     }
 
     private func targetLabel() -> String {
-        if selectedTargets.isEmpty { return store.routingEnabled ? "返信者を自動選択" : "返信するメンバーを選択" }
+        if selectedTargets.isEmpty { return store.routingEnabled ? String(localized: "返信者を自動選択") : String(localized: "返信するメンバーを選択") }
         if selectedTargets.count == 1, let id = selectedTargets.first {
-            return "返信: \(store.bots.first(where: { $0.id == id })?.name ?? id)"
+            return String(localized: "返信: \(store.bots.first(where: { $0.id == id })?.name ?? id)")
         }
-        return "返信: \(selectedTargets.count)人"
+        return String(localized: "返信: \(selectedTargets.count)人")
     }
 
     private let attachmentStripHeight: CGFloat = 82
@@ -868,7 +868,7 @@ private struct ConversationContent: View {
     private func send() async {
         guard canSend else { return }
         if target.isRoom && selectedTargets.isEmpty && !store.routingEnabled {
-            errorText = "返信者の自動選択は未設定です。入力欄の上で返信するメンバーを選んでください。"
+            errorText = String(localized: "返信者の自動選択は未設定です。入力欄の上で返信するメンバーを選んでください。")
             return
         }
         sending = true
@@ -942,7 +942,7 @@ private struct ConversationContent: View {
                 attachments.append(image)
             }
         } catch {
-            errorText = "画像を読み込めませんでした。"
+            errorText = String(localized: "画像を読み込めませんでした。")
         }
     }
 }
@@ -1038,10 +1038,10 @@ private struct BubbleActions: View {
 
     var body: some View {
         HStack(spacing: 2) {
-            if let onReply { icon("arrowshape.turn.up.left", "返信", "message-reply-\(id)", onReply) }
-            if let onForward { icon("square.and.arrow.up", "転送", "message-forward-\(id)", onForward) }
+            if let onReply { icon("arrowshape.turn.up.left", String(localized: "返信"), "message-reply-\(id)", onReply) }
+            if let onForward { icon("square.and.arrow.up", String(localized: "転送"), "message-forward-\(id)", onForward) }
             if let text, !text.isEmpty {
-                icon(copied ? "checkmark" : "doc.on.doc", copied ? "コピーしました" : "コピー", "message-copy-\(id)") {
+                icon(copied ? "checkmark" : "doc.on.doc", copied ? String(localized: "コピーしました") : String(localized: "コピー"), "message-copy-\(id)") {
                     UIPasteboard.general.string = text
                     copied = true
                     Task { try? await Task.sleep(for: .seconds(2)); copied = false }
@@ -1363,13 +1363,13 @@ private struct MessageRow: View, Equatable {
     private var statusLabel: String {
         guard message.isOutgoing else { return "" }
         return switch message.status {
-        case "submitting": "受付確認中"
-        case "accepted": "受付済み・反映待ち"
-        case "queued": "送信待ち"
-        case "running": "処理中"
-        case "stopped": "中断"
-        case "delivered": "配達済み"
-        case "failed": message.completionUnknown ? (isRoom ? "完了未確認の宛先あり" : "受付済み・完了未確認") : "配達失敗"
+        case "submitting": String(localized: "受付確認中")
+        case "accepted": String(localized: "受付済み・反映待ち")
+        case "queued": String(localized: "送信待ち")
+        case "running": String(localized: "処理中")
+        case "stopped": String(localized: "中断")
+        case "delivered": String(localized: "配達済み")
+        case "failed": message.completionUnknown ? (isRoom ? String(localized: "完了未確認の宛先あり") : String(localized: "受付済み・完了未確認")) : String(localized: "配達失敗")
         default: ""
         }
     }
@@ -1387,7 +1387,7 @@ private struct ReplyQuote: View {
                 HStack(spacing: 8) {
                     ReplyQuoteBar(accent: accent)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(reply.senderID == "user" ? "あなた" : (reply.senderName ?? "メンバー"))
+                        Text(reply.senderID == "user" ? String(localized: "あなた") : (reply.senderName ?? String(localized: "メンバー")))
                             .font(.system(size: BellTheme.conversationLabelFontSize, weight: .bold))
                             .foregroundStyle(accent)
                         Text(reply.quotedText)
@@ -1460,7 +1460,7 @@ private struct PeerMessageSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 15) {
-                    Text(message.peerName ?? "メンバー")
+                    Text(message.peerName ?? String(localized: "メンバー"))
                         .font(.title2.bold())
                     Text(BellDate.long(message.at)).font(BellTheme.messageHelperFont).foregroundStyle(BellTheme.muted)
                     if let text = message.message {

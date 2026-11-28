@@ -30,6 +30,7 @@ Apple内部の機能図は未作成（担当ベルの2026-11-02回答）。現�
 - [メンバーの記憶と知識・キャラクターシート](memory-and-sheets.md)：メンバー編集から開く二つの画面。長期記憶・知識の追加と検索、キャラクターシートの画像一覧、旧本体での一行表示。
 - [相関図](work-graph.md)：作業中のメンバーと依頼の流れのネイティブ描画（iPhone/iPadはタブ、Macは別窓）。
 - [席の許可待ち](seat-approvals.md)：席がツールの許可画面で止まった時の一覧の札・席の画面のカード・答える（本体の`/api/seat-approvals`）。
+- [UI text resources（string catalogs）](strings.md)：多言語化の第1段。文言はstring catalogにあり、日本語が原文。検査と配置情報のscript。
 - [決裁箱（Approval Box拡張）](approvals.md)：決裁箱の入口（左メニューの先頭の固定行）・一覧・詳細・答える・工程とのつながり・つなぐ。iPhoneは押し込む画面、iPadは詳細の列、Macは別窓。
 - [工程表（Lattice）](lattice-chart.md)：工程表の一覧・ブロック一覧と1枚の工程表のネイティブ描画（iPhoneは相関図タブの切り替え、iPadはサイドバー、Macは別窓）。
 - [セッション一覧の画面（a529a。Apple/Macが他OSの基準）](sessions-screen.md)：置き場所・文言・規則。

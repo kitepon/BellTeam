@@ -13,8 +13,8 @@ struct CharacterSheetListResponse: Decodable {
 }
 
 enum CharacterSheetCaption {
-    static let emptyNote = "まだ置かれていない。"
-    static let note = "メンバーが自分を描く時に見る、オーナーが決めた絵です。アイコンとは別に置きます。"
+    static let emptyNote = String(localized: "まだ置かれていない。")
+    static let note = String(localized: "メンバーが自分を描く時に見る、オーナーが決めた絵です。アイコンとは別に置きます。")
 
     /// 「file（2026/11/10 9:05:03）」: Web's `toLocaleString('ja-JP')`. A date that cannot be read leaves the file name alone.
     @MainActor
@@ -24,10 +24,10 @@ enum CharacterSheetCaption {
         formatter.locale = Locale(identifier: "ja_JP")
         formatter.timeZone = timeZone
         formatter.dateFormat = "yyyy/M/d H:mm:ss"
-        return "\(file)（\(formatter.string(from: date))）"
+        return String(localized: "\(file)（\(formatter.string(from: date))）")
     }
 
-    static func failureLine(_ error: Error) -> String { "キャラクターシートを読めませんでした（\(error.localizedDescription)）" }
+    static func failureLine(_ error: Error) -> String { String(localized: "キャラクターシートを読めませんでした（\(error.localizedDescription)）") }
 }
 
 /// One open character-sheet screen of one member. Images load one after another, as Web; the first failure replaces the whole list with one line.

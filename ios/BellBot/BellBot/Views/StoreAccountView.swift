@@ -4,28 +4,29 @@ import SwiftUI
 /// 利用と課金の「BellTeamの購読」カード（a540、契約1.36 10章）: この端末のStoreで購読を確かめる、QRで別の端末の確認を受ける、QRを読んで別の端末を承認する。
 /// 「アカウントを削除」はこのカードの最後に置く（App Reviewの要件。ほかのOSもこの置き場と文を写す）。
 enum AccountDeletionWords {
-    static let signOut = "サインアウト"
-    static let button = "アカウントを削除"
-    static let title = "アカウントを削除しますか？"
-    static let confirm = "削除する"
-    static let cancel = "やめる"
-    static let message = "この端末のBellTeamのサインインと、受け取った購読の確認を消します。決裁箱のサインインと鍵、サーバーのトークン、保存した会話の写しも消して、最初の画面に戻ります。BellTeamは、名前・メールアドレス・購入の記録を、サーバーにも運営にも持っていません。決裁箱は、サインインを終えるだけです。決裁箱のアカウントと申請は消えません。消すには、決裁箱のアプリでアカウントを削除してください。決裁箱の運営には、止めたサインインのランダムな番号も最長14日残ります。ほかの端末のサインインは、その端末で終えてください。購読はAppleのものなので、この操作では解約されません。解約は「設定」のApple Accountの購読から行ってください。サーバーの会話や設定は消えません。"
-    static let doneTitle = "アカウントを削除しました"
-    static let done = "この端末のサインインとデータを消しました。BellTeamの運営は、あなたに関する情報を持っていません。あなたのサーバーの会話と設定は残ります。決裁箱のアカウントは、決裁箱のアプリで削除するまで残ります。購読を止めるには、Apple Accountの購読の管理から解約してください。"
-    static let failedTitle = "アカウントの削除を終えられませんでした"
-    static let partApprovalBox = "決裁箱のサインイン"
-    static let partBellTeam = "BellTeamの購読の確認"
-    static let retryNote = "つながる場所でもう一度「アカウントを削除」を押すと、続きから終えます。すでに終えた手順はそのままです。"
+    static let signOut = String(localized: "サインアウト")
+    static let button = String(localized: "アカウントを削除")
+    static let title = String(localized: "アカウントを削除しますか？")
+    static let confirm = String(localized: "削除する")
+    static let cancel = String(localized: "やめる")
+    static let message = String(localized: "この端末のBellTeamのサインインと、受け取った購読の確認を消します。決裁箱のサインインと鍵、サーバーのトークン、保存した会話の写しも消して、最初の画面に戻ります。BellTeamは、名前・メールアドレス・購入の記録を、サーバーにも運営にも持っていません。決裁箱は、サインインを終えるだけです。決裁箱のアカウントと申請は消えません。消すには、決裁箱のアプリでアカウントを削除してください。決裁箱の運営には、止めたサインインのランダムな番号も最長14日残ります。ほかの端末のサインインは、その端末で終えてください。購読はAppleのものなので、この操作では解約されません。解約は「設定」のApple Accountの購読から行ってください。サーバーの会話や設定は消えません。")
+    static let doneTitle = String(localized: "アカウントを削除しました")
+    static let done = String(localized: "この端末のサインインとデータを消しました。BellTeamの運営は、あなたに関する情報を持っていません。あなたのサーバーの会話と設定は残ります。決裁箱のアカウントは、決裁箱のアプリで削除するまで残ります。購読を止めるには、Apple Accountの購読の管理から解約してください。")
+    static let failedTitle = String(localized: "アカウントの削除を終えられませんでした")
+    static let partApprovalBox = String(localized: "決裁箱のサインイン")
+    static let partBellTeam = String(localized: "BellTeamの購読の確認")
+    static let retryNote = String(localized: "つながる場所でもう一度「アカウントを削除」を押すと、続きから終えます。すでに終えた手順はそのままです。")
 
     /// 終えられなかった部分と理由。通信が無い・運営に届かない・そのほか、の3つだけ。
     static func reason(_ error: Error) -> String {
-        if (error as? URLError)?.code == .notConnectedToInternet || (error as? LoginBillingError)?.code == "network" { return "ネットワークにつながっていません" }
-        if let e = error as? LoginBillingError, e.status >= 500 || e.code == "internal" { return "決裁箱の運営に届きません" }
-        return "処理できませんでした"
+        if (error as? URLError)?.code == .notConnectedToInternet || (error as? LoginBillingError)?.code == "network" { return String(localized: "ネットワークにつながっていません") }
+        if let e = error as? LoginBillingError, e.status >= 500 || e.code == "internal" { return String(localized: "決裁箱の運営に届きません") }
+        return String(localized: "処理できませんでした")
     }
 
     static func failure(parts: [String], reason: String) -> String {
-        "\(parts.joined(separator: "と"))を消せませんでした（\(reason)）。\(retryNote)"
+        let joined = parts.joined(separator: String(localized: "と"))
+        return String(localized: "\(joined)を消せませんでした（\(reason)）。\(retryNote)")
     }
 }
 
@@ -45,12 +46,12 @@ enum AccountDeletion {
 
 /// The words around a pasted join code and its return link, the same as Windows, Linux and Android.
 enum ApproveCodeWords {
-    static let paste = "コードを貼り付ける"
-    static let use = "このコードで承認する"
-    static let returnLead = "相手の端末には直接届きませんでした。次のリンクで、QRを出している端末に戻ってください。"
-    static let returnOpen = "リンクを開く"
-    static let returnCopy = "リンクをコピー"
-    static let notACode = "QRが正しくありません。相手の画面で新しいQRを出してください。"
+    static let paste = String(localized: "コードを貼り付ける")
+    static let use = String(localized: "このコードで承認する")
+    static let returnLead = String(localized: "相手の端末には直接届きませんでした。次のリンクで、QRを出している端末に戻ってください。")
+    static let returnOpen = String(localized: "リンクを開く")
+    static let returnCopy = String(localized: "リンクをコピー")
+    static let notACode = String(localized: "QRが正しくありません。相手の画面で新しいQRを出してください。")
 }
 
 struct StoreAccountCard: View {
@@ -102,8 +103,9 @@ struct StoreAccountCard: View {
         }
 
         private var status: String {
-            guard let paid = account.paid else { return "購読はまだありません。" }
-            return "購読中です。" + (paid.until.map { "（\($0.formatted(date: .abbreviated, time: .shortened))まで）" } ?? "")
+            guard let paid = account.paid else { return String(localized: "購読はまだありません。") }
+            guard let until = paid.until else { return String(localized: "購読中です。") }
+            return String(localized: "購読中です。（\(until.formatted(date: .abbreviated, time: .shortened))まで）")
         }
 
         /// 払っていない端末: この端末のStoreで買うか、購読しているスマホにQRを読んでもらう。

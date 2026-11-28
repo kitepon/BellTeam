@@ -253,7 +253,7 @@ extension AppStore {
         do { try await checkTerminal(id: id) }
         catch let error where BellAPIError.isAuthenticationError(error) { requireLogin(for: error) }
         catch {
-            terminals.authorizations[id] = .note(.init(text: "鍵は\(TerminalOS.machine(os))に入りました。つながるかは確かめられませんでした。「つながるか確かめる」を押してください。"))
+            terminals.authorizations[id] = .note(.init(text: String(localized: "鍵は\(TerminalOS.machine(os))に入りました。つながるかは確かめられませんでした。「つながるか確かめる」を押してください。")))
         }
     }
 }

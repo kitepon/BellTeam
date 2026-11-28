@@ -64,14 +64,14 @@ struct ApprovalOrigin: Decodable, Equatable {
     var isBellTeam: Bool { kind == "bellteam" }
     /// unknown counts as external for drawing, linking and the filter (screen-spec 「Decisions from outside BellTeam」).
     var isExternal: Bool { !isBellTeam }
-    var toolName: String { kind == "unknown" ? "出どころ不明" : (tool?.isEmpty == false ? tool! : "その他") }
+    var toolName: String { kind == "unknown" ? String(localized: "出どころ不明") : (tool?.isEmpty == false ? tool! : String(localized: "その他")) }
     /// 「Claude Code · Macのレシート整理」; unknown origin is just 「出どころ不明」.
     var line: String {
-        if kind == "unknown" { return "出どころ不明" }
+        if kind == "unknown" { return String(localized: "出どころ不明") }
         guard let label = sessionLabel, !label.isEmpty else { return toolName }
         return "\(toolName) · \(label)"
     }
-    var viaText: String { via == "remote" ? "リモート接続" : (via == "connector" ? "コネクタ" : "") }
+    var viaText: String { via == "remote" ? String(localized: "リモート接続") : (via == "connector" ? String(localized: "コネクタ") : "") }
     /// SF Symbol of the tool tile: terminal for the CLIs, chat for the chat apps, globe for the rest.
     var tileSymbol: String {
         switch client ?? "" {
@@ -151,11 +151,11 @@ struct ApprovalDecision: Decodable, Equatable, Identifiable {
     /// 「工程表「…」が、この回答を待っています」 and the other notes of a card (screen-spec 一覧).
     var linkNote: String {
         guard let link else {
-            if origin.isExternal { return "工程表とはつながっていません" }
-            return linkMissing == true ? "この決裁に合う工程は、工程表に見つかっていません" : "工程表につなげています"
+            if origin.isExternal { return String(localized: "工程表とはつながっていません") }
+            return linkMissing == true ? String(localized: "この決裁に合う工程は、工程表に見つかっていません") : String(localized: "工程表につなげています")
         }
-        if link.task.state == "done" || link.state == "closed" { return "工程はすでに済みです。この決裁は、まだ答えられます。" }
-        return "工程表「\(link.task.title)」が、この回答を待っています"
+        if link.task.state == "done" || link.state == "closed" { return String(localized: "工程はすでに済みです。この決裁は、まだ答えられます。") }
+        return String(localized: "工程表「\(link.task.title)」が、この回答を待っています")
     }
     var linkIsMuted: Bool { link == nil }
 }
@@ -165,33 +165,33 @@ struct ApprovalsList: Decodable { let items: [ApprovalDecision]; let nextCursor:
 // MARK: Words (every sentence the Owner reads; screen-spec 「Answer outcomes」)
 
 enum ApprovalText {
-    static let reconnect = "決裁箱に再接続しています…"
-    static let empty = "決裁はありません。AIが判断を求めると、ここに並びます。"
-    static let noDone = "まだ済んだ決裁はありません。"
-    static let sendFailed = "いまは送れませんでした。答えは残っています。少し待って、もう一度押してください。"
-    static let conflict = "内容が直されました。もう一度確かめてください。"
-    static let closedElsewhere = "別の端末ですでに答えられています。"
-    static let held = "保留中です。戻すまで工程は待ちます"
-    static let heldExternal = "保留中です"
+    static let reconnect = String(localized: "決裁箱に再接続しています…")
+    static let empty = String(localized: "決裁はありません。AIが判断を求めると、ここに並びます。")
+    static let noDone = String(localized: "まだ済んだ決裁はありません。")
+    static let sendFailed = String(localized: "いまは送れませんでした。答えは残っています。少し待って、もう一度押してください。")
+    static let conflict = String(localized: "内容が直されました。もう一度確かめてください。")
+    static let closedElsewhere = String(localized: "別の端末ですでに答えられています。")
+    static let held = String(localized: "保留中です。戻すまで工程は待ちます")
+    static let heldExternal = String(localized: "保留中です")
 
     /// From the decision as it is now (screen-spec 'Answer outcomes'): grey while the server has not reported a delivery, the paste request only for a reported `unknown`.
     static func answerBanner(_ d: ApprovalDecision) -> (text: String, tone: SettingsTone) {
         let who = d.addressee
         switch d.delivery {
-        case "delivered", "fetched": return ("答えました。\(who)に届きました。", .green)
-        case "waiting": return ("答えました。\(who)が会話に戻ると受け取ります。", .violet)
+        case "delivered", "fetched": return (String(localized: "答えました。\(who)に届きました。"), .green)
+        case "waiting": return (String(localized: "答えました。\(who)が会話に戻ると受け取ります。"), .violet)
         case "unknown":
-            let next = d.link == nil ? "" : "工程は済みになったので、次の担当にはこちらから知らせます。"
-            return ("答えは保存しました。ただ、\(who)に届いたかを確かめられませんでした。\(next)念のため、再開の文を\(who)の会話に貼ってください。", .orange)
-        default: return ("答えました。\(who)への届きを確かめています。", .gray)
+            let next = d.link == nil ? "" : String(localized: "工程は済みになったので、次の担当にはこちらから知らせます。")
+            return (String(localized: "答えは保存しました。ただ、\(who)に届いたかを確かめられませんでした。\(next)念のため、再開の文を\(who)の会話に貼ってください。"), .orange)
+        default: return (String(localized: "答えました。\(who)への届きを確かめています。"), .gray)
         }
     }
 
     /// 「「◯◯」で答えますか？ …」
     static func confirm(label: String, d: ApprovalDecision) -> String {
-        let head = "「\(label)」で答えますか？"
-        if let link = d.link { return "\(head) 答えると、\(d.addressee)が続きに進み、工程「\(link.task.title)」が済みになります。" }
-        return "\(head) 答えると、\(d.origin.isExternal ? d.origin.toolName : d.addressee)に届きます。"
+        let head = String(localized: "「\(label)」で答えますか？")
+        if let link = d.link { return String(localized: "\(head) 答えると、\(d.addressee)が続きに進み、工程「\(link.task.title)」が済みになります。") }
+        return String(localized: "\(head) 答えると、\(d.origin.isExternal ? d.origin.toolName : d.addressee)に届きます。")
     }
 
     static func originCaption(_ d: ApprovalDecision) -> String {
@@ -199,12 +199,13 @@ enum ApprovalText {
         return d.origin.line
     }
 
-    static func filter(hidden: Int) -> String { "外部の決裁 \(hidden)件を隠しています。" }
+    static func filter(hidden: Int) -> String { String(localized: "外部の決裁 \(hidden)件を隠しています。") }
 
     static func deadline(_ value: String?) -> String? {
         guard let date = LatticeTime.date(value) else { return nil }
         let day = LatticeTime.dayHeading(date, now: Date())
-        return "期限 \(day == "今日" ? "" : day + " ")\(LatticeTime.clockText(value))"
+        let dayPart = day == String(localized: "今日") ? "" : day + " "
+        return String(localized: "期限 \(dayPart)\(LatticeTime.clockText(value))")
     }
 }
 
@@ -233,7 +234,7 @@ extension ApprovalDecision {
     }
 
     static func toolName(_ client: String) -> String {
-        ["claude-code": "Claude Code", "codex": "Codex", "cursor": "Cursor", "grok": "Grok", "claude.ai": "Claude", "chatgpt": "ChatGPT"][client] ?? "その他"
+        ["claude-code": "Claude Code", "codex": "Codex", "cursor": "Cursor", "grok": "Grok", "claude.ai": "Claude", "chatgpt": "ChatGPT"][client] ?? String(localized: "その他")
     }
 }
 
@@ -281,7 +282,7 @@ final class ApprovalsModel: ObservableObject {
 
     var pendingCount: Int { summary?.pending ?? open.filter(\.isPending).count }
     var stale: Bool { gate == .reconnecting }
-    var entrySubtitle: String { pendingCount == 0 && summary != nil ? "待っている決裁はありません" : "あなたの回答を待っています" }
+    var entrySubtitle: String { pendingCount == 0 && summary != nil ? String(localized: "待っている決裁はありません") : String(localized: "あなたの回答を待っています") }
 
     /// 読み直す: a live session is left alone; anything else tries again at once.
     func reread() {

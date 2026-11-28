@@ -16,15 +16,15 @@ enum TerminalOS: String, CaseIterable, Identifiable {
 
     /// The terminal as the noun of a sentence.
     static func machine(_ os: String) -> String {
-        switch TerminalOS(rawValue: os) { case .macos?: "Mac"; case .windows?: "Windows PC"; case .linux?: "Linuxマシン"; case nil: "端末" }
+        switch TerminalOS(rawValue: os) { case .macos?: "Mac"; case .windows?: "Windows PC"; case .linux?: String(localized: "Linuxマシン"); case nil: String(localized: "端末") }
     }
 
     /// The one step that lets BellTeam reach the terminal over SSH (terminals CONNECTION_REFUSED action, per OS).
     static func sshStep(_ os: String) -> String {
         switch TerminalOS(rawValue: os) {
-        case .windows?: "Windowsの「設定 > システム > オプション機能」でOpenSSH サーバーを追加し、sshdサービスを開始してください。"
-        case .linux?: "Linuxにopenssh-serverを入れて、sshdを開始してください（systemctl enable --now ssh）。"
-        default: "Macの「システム設定 > 一般 > 共有」で「リモートログイン」をオンにしてください。"
+        case .windows?: String(localized: "Windowsの「設定 > システム > オプション機能」でOpenSSH サーバーを追加し、sshdサービスを開始してください。")
+        case .linux?: String(localized: "Linuxにopenssh-serverを入れて、sshdを開始してください（systemctl enable --now ssh）。")
+        default: String(localized: "Macの「システム設定 > 一般 > 共有」で「リモートログイン」をオンにしてください。")
         }
     }
 
@@ -57,7 +57,7 @@ struct SeatLaunch: Decodable, Equatable {
     /// The one plain line (execution remote-seat.md "Launch notice", same as Web): the action, or the code when the action is empty.
     var line: String {
         let text = [action, code].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }.first { !$0.isEmpty }
-        return text.map { "端末で起動できません：\($0)" } ?? "端末で起動できません。"
+        return text.map { String(localized: "端末で起動できません：\($0)") } ?? String(localized: "端末で起動できません。")
     }
 }
 
@@ -86,7 +86,7 @@ struct Terminal: Decodable, Identifiable, Equatable {
     var id: String { terminalId }
     var address: String { "\(user)@\(host):\(port)" }
     var osLabel: String { TerminalOS(rawValue: os)?.label ?? os }
-    var ownerLabel: String { accountOwner == "terminal-owner" ? "その端末の持ち主" : "自分の端末" }
+    var ownerLabel: String { accountOwner == "terminal-owner" ? String(localized: "その端末の持ち主") : String(localized: "自分の端末") }
 
     private enum CodingKeys: String, CodingKey {
         case terminalId, host, user, port, os, accountOwner, sshKeyConfigured, sudoKeyConfigured, hostTrust, maintenance,
@@ -130,7 +130,7 @@ struct Terminal: Decodable, Identifiable, Equatable {
 enum TerminalKeyKind: String, Identifiable {
     case ssh, sudo
     var id: String { rawValue }
-    var title: String { self == .ssh ? "SSH鍵" : "sudo鍵" }
+    var title: String { self == .ssh ? String(localized: "SSH鍵") : String(localized: "sudo鍵") }
 }
 
 /// One key row (apple/terminals.md AT07/AT08).
@@ -142,15 +142,15 @@ enum TerminalKeyState: Equatable {
     case configured(source: String?)
 
     static func sourceLabel(_ source: String) -> String {
-        source == "terminal-native" ? "端末にある鍵" : "BellTeamに預けた鍵"
+        source == "terminal-native" ? String(localized: "端末にある鍵") : String(localized: "BellTeamに預けた鍵")
     }
 
     var status: String {
         switch self {
-        case .unsupported: "このBellTeamはまだアプリからの鍵の設定に対応していません"
-        case .missing: "未設定"
-        case .pending: "設定待ち"
-        case .configured: "設定済み"
+        case .unsupported: String(localized: "このBellTeamはまだアプリからの鍵の設定に対応していません")
+        case .missing: String(localized: "未設定")
+        case .pending: String(localized: "設定待ち")
+        case .configured: String(localized: "設定済み")
         }
     }
     var source: String? {
@@ -161,8 +161,8 @@ enum TerminalKeyState: Equatable {
     }
     var setTitle: String {
         switch self {
-        case .configured, .pending(configured: true, _): "設定し直す"
-        default: "設定する"
+        case .configured, .pending(configured: true, _): String(localized: "設定し直す")
+        default: String(localized: "設定する")
         }
     }
     var removable: Bool {
@@ -182,10 +182,10 @@ struct TerminalMaintenance: Decodable, Equatable {
 
     var text: String {
         switch outcome {
-        case "current": "Claude Codeは最新です" + (after.map { "（\($0)）" } ?? "")
-        case "updated": "Claude Codeを更新しました" + ((before ?? after) == nil ? "" : "（\(before ?? "-") → \(after ?? "-")）")
-        case "failed": "Claude Codeを更新できませんでした。入っている版のまま使います"
-        default: "Claude Codeの更新結果を読み取れませんでした"
+        case "current": after.map { String(localized: "Claude Codeは最新です（\($0)）") } ?? String(localized: "Claude Codeは最新です")
+        case "updated": (before ?? after) == nil ? String(localized: "Claude Codeを更新しました") : String(localized: "Claude Codeを更新しました（\(before ?? "-") → \(after ?? "-")）")
+        case "failed": String(localized: "Claude Codeを更新できませんでした。入っている版のまま使います")
+        default: String(localized: "Claude Codeの更新結果を読み取れませんでした")
         }
     }
 }
@@ -215,7 +215,7 @@ struct TerminalCheck: Decodable, Equatable {
         }
     }
 
-    var summary: String { reachable ? "つながる" : "つながらない" }
+    var summary: String { reachable ? String(localized: "つながる") : String(localized: "つながらない") }
 
     func explanation(os: String = "macos") -> String? {
         let m = TerminalOS.machine(os)
@@ -224,16 +224,16 @@ struct TerminalCheck: Decodable, Equatable {
         // Reasons are evidence, not diagnoses (terminals README step 4): the sentence names the likely fix. The server's own
         // Japanese action text wins when the body carries it; older bodies get the same meaning from here.
         case .refused?: action.flatMap(Self.text) ?? (os == TerminalOS.macos.rawValue
-            ? "Macが接続を断りました。Macの「システム設定 > 一般 > 共有」で「リモートログイン」がオンか確かめてください。"
-            : "\(m)が接続を断りました。\(TerminalOS.sshStep(os))")
-        case .authFailed?: action.flatMap(Self.text) ?? "この鍵がまだ\(m)に入っていないかもしれません。"
+            ? String(localized: "Macが接続を断りました。Macの「システム設定 > 一般 > 共有」で「リモートログイン」がオンか確かめてください。")
+            : String(localized: "\(m)が接続を断りました。\(TerminalOS.sshStep(os))"))
+        case .authFailed?: action.flatMap(Self.text) ?? String(localized: "この鍵がまだ\(m)に入っていないかもしれません。")
         case .unreachable?: reason == "UNREACHABLE"
-            ? "\(m)が届きませんでした。\(m)が起きていて、同じネットワークにあるか確かめてください。起きれば自動で再開します。"
-            : "端末が眠っているか、ネットワークで届きません。端末が起きれば自動で再開します。"
-        case .credential?: "SSH鍵がまだ無いか、使えません。下の「鍵」を確かめてください。"
-        case .hostKey?: "この端末のホスト鍵をまだ信用していないか、鍵が変わりました。「ホスト鍵を確かめる」から指紋を確かめてください。"
-        case .notFound?: "この端末の登録が見つかりません。一覧を読み直してください。"
-        case .other?: "つながらない理由を読み取れませんでした。少し待ってから、もう一度確かめてください。"
+            ? String(localized: "\(m)が届きませんでした。\(m)が起きていて、同じネットワークにあるか確かめてください。起きれば自動で再開します。")
+            : String(localized: "端末が眠っているか、ネットワークで届きません。端末が起きれば自動で再開します。")
+        case .credential?: String(localized: "SSH鍵がまだ無いか、使えません。下の「鍵」を確かめてください。")
+        case .hostKey?: String(localized: "この端末のホスト鍵をまだ信用していないか、鍵が変わりました。「ホスト鍵を確かめる」から指紋を確かめてください。")
+        case .notFound?: String(localized: "この端末の登録が見つかりません。一覧を読み直してください。")
+        case .other?: String(localized: "つながらない理由を読み取れませんでした。少し待ってから、もう一度確かめてください。")
         }
     }
 
@@ -266,9 +266,9 @@ enum HostKeyFingerprint {
     /// Same form the server checks (core.mjs fingerprintPattern).
     static func problem(_ value: String) -> String? {
         let text = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        if text.isEmpty { return "端末で読んだ指紋を入れてください。" }
+        if text.isEmpty { return String(localized: "端末で読んだ指紋を入れてください。") }
         if text.wholeMatch(of: /SHA256:[A-Za-z0-9+\/]{43}/) == nil {
-            return "指紋は「SHA256:」で始まり、続けて43文字です。端末に表示されたとおりに入れてください。"
+            return String(localized: "指紋は「SHA256:」で始まり、続けて43文字です。端末に表示されたとおりに入れてください。")
         }
         return nil
     }
@@ -296,15 +296,15 @@ struct TerminalDraft: Equatable {
     func problems(isNew: Bool) -> [Field: String] {
         var result: [Field: String] = [:]
         if isNew && terminalId.wholeMatch(of: /[a-z0-9][a-z0-9-]{0,62}/) == nil {
-            result[.terminalId] = "端末の名前は英小文字・数字・ハイフンで、先頭は英小文字か数字です（例 owner-macbook）。"
+            result[.terminalId] = String(localized: "端末の名前は英小文字・数字・ハイフンで、先頭は英小文字か数字です（例 owner-macbook）。")
         }
         if !Self.validHost(host) {
-            result[.host] = "ホストはIPアドレスかホスト名だけを入れます（例 192.168.1.12）。user@・ポート・パスは含めません。"
+            result[.host] = String(localized: "ホストはIPアドレスかホスト名だけを入れます（例 192.168.1.12）。user@・ポート・パスは含めません。")
         }
         if user.wholeMatch(of: /(?i)[a-z_][a-z0-9_.-]*[$]?/) == nil {
-            result[.user] = "ユーザーは端末にログインする名前です（例 kite）。"
+            result[.user] = String(localized: "ユーザーは端末にログインする名前です（例 kite）。")
         }
-        if Self.portNumber(port) == nil { result[.port] = "ポートは1から65535の数字です（ふつうは22）。" }
+        if Self.portNumber(port) == nil { result[.port] = String(localized: "ポートは1から65535の数字です（ふつうは22）。") }
         return result
     }
 
@@ -374,9 +374,9 @@ enum TerminalTrust {
     /// nil for an older body: no line at all.
     static func note(_ failure: Failure) -> TerminalTrustNote? {
         switch failure {
-        case .notThisMac: TerminalTrustNote(text: "このアドレスで答えているのは、このMacではありません。ホストの入力を確かめてください。信用は何も書いていません。")
-        case .changed: TerminalTrustNote(text: "確かめている間に、端末の接続先が変わりました。もう一度「このMacを確かめる」を押してください。")
-        case .retryLater: TerminalTrustNote(text: "いまはBellTeamからこのMacを確かめられません。Macが起きていて同じネットワークにあるか確かめて、あとでもう一度押してください。")
+        case .notThisMac: TerminalTrustNote(text: String(localized: "このアドレスで答えているのは、このMacではありません。ホストの入力を確かめてください。信用は何も書いていません。"))
+        case .changed: TerminalTrustNote(text: String(localized: "確かめている間に、端末の接続先が変わりました。もう一度「このMacを確かめる」を押してください。"))
+        case .retryLater: TerminalTrustNote(text: String(localized: "いまはBellTeamからこのMacを確かめられません。Macが起きていて同じネットワークにあるか確かめて、あとでもう一度押してください。"))
         case .olderBody: nil
         case .other(let text): TerminalTrustNote(text: text)
         }
@@ -384,18 +384,18 @@ enum TerminalTrust {
 
     /// The Mac's own sshd could not give a verified host key; no request goes to the server. 「ほかの方法」 stays available.
     static func note(local error: Error) -> TerminalTrustNote {
-        let other = "「ほかの方法」で指紋を入れて確かめられます。"
+        let other = String(localized: "「ほかの方法」で指紋を入れて確かめられます。")
         switch error as? SSHHostKeyError {
         case .connection("refused")?:
-            return TerminalTrustNote(text: "このMacのリモートログインがオフです。オンにしてから、もう一度確かめてください。", offersSharingSettings: true)
+            return TerminalTrustNote(text: String(localized: "このMacのリモートログインがオフです。オンにしてから、もう一度確かめてください。"), offersSharingSettings: true)
         case .connection?:
-            return TerminalTrustNote(text: "このMacのSSHから答えが返りませんでした。少し待ってから、もう一度確かめてください。")
+            return TerminalTrustNote(text: String(localized: "このMacのSSHから答えが返りませんでした。少し待ってから、もう一度確かめてください。"))
         case .unsupported(let reason)?:
-            return TerminalTrustNote(text: "このMacのSSHからed25519のホスト鍵を読めませんでした（\(reason)）。\(other)")
+            return TerminalTrustNote(text: String(localized: "このMacのSSHからed25519のホスト鍵を読めませんでした（\(reason)）。\(other)"))
         case .badSignature?, .malformed?:
-            return TerminalTrustNote(text: "このMacのSSHの署名を確かめられませんでした。信用は何も書いていません。\(other)")
+            return TerminalTrustNote(text: String(localized: "このMacのSSHの署名を確かめられませんでした。信用は何も書いていません。\(other)"))
         case nil:
-            return TerminalTrustNote(text: "このMacのホスト鍵を読めませんでした。\(other)")
+            return TerminalTrustNote(text: String(localized: "このMacのホスト鍵を読めませんでした。\(other)"))
         }
     }
 }
@@ -425,21 +425,21 @@ enum TerminalAuthorize {
         var retry: Bool { if case .note(let note) = self { note.retry } else { false } }
     }
 
-    static func waitingText(os: String = "macos") -> String { "\(TerminalOS.machine(os))に鍵を入れています…" }
-    static let readFailedText = "状態を読み込めませんでした。つながり直したら続けます…"
+    static func waitingText(os: String = "macos") -> String { String(localized: "\(TerminalOS.machine(os))に鍵を入れています…") }
+    static let readFailedText = String(localized: "状態を読み込めませんでした。つながり直したら続けます…")
 
     /// nil = the key is on the Mac (AUTHORIZED / ALREADY_AUTHORIZED): the check runs by itself.
     static func note(outcome: String?, os: String = "macos") -> Note? {
         let m = TerminalOS.machine(os)
         return switch outcome ?? "" {
         case "AUTHORIZED", "ALREADY_AUTHORIZED": nil
-        case "PASSWORD_REJECTED": Note(text: "パスワードが違いました。", retry: true)
-        case "PASSWORD_AUTH_DISABLED": Note(text: "この\(m)はパスワードでのログインを受け付けていません。\(m)の設定を変えるか、鍵をほかの方法で入れてください。")
-        case "AUTHORIZATION_UNCONFIRMED": Note(text: "入れられたか確かめられませんでした。もう一度お試しください", retry: true)
-        case "TERMINAL_CHANGED": Note(text: "入れている間に、端末の接続先が変わりました。もう一度お試しください。", retry: true)
-        case "TERMINAL_UNAVAILABLE": Note(text: "\(m)につながりませんでした。\(m)が起きていて同じネットワークにあるか確かめて、もう一度お試しください。", retry: true)
-        case "CREDENTIAL_UNAVAILABLE": Note(text: "SSH鍵が使えませんでした。下の「鍵」で設定し直してから、もう一度お試しください。")
-        default: Note(text: "\(m)に鍵を入れられませんでした。もう一度お試しください。", retry: true)
+        case "PASSWORD_REJECTED": Note(text: String(localized: "パスワードが違いました。"), retry: true)
+        case "PASSWORD_AUTH_DISABLED": Note(text: String(localized: "この\(m)はパスワードでのログインを受け付けていません。\(m)の設定を変えるか、鍵をほかの方法で入れてください。"))
+        case "AUTHORIZATION_UNCONFIRMED": Note(text: String(localized: "入れられたか確かめられませんでした。もう一度お試しください"), retry: true)
+        case "TERMINAL_CHANGED": Note(text: String(localized: "入れている間に、端末の接続先が変わりました。もう一度お試しください。"), retry: true)
+        case "TERMINAL_UNAVAILABLE": Note(text: String(localized: "\(m)につながりませんでした。\(m)が起きていて同じネットワークにあるか確かめて、もう一度お試しください。"), retry: true)
+        case "CREDENTIAL_UNAVAILABLE": Note(text: String(localized: "SSH鍵が使えませんでした。下の「鍵」で設定し直してから、もう一度お試しください。"))
+        default: Note(text: String(localized: "\(m)に鍵を入れられませんでした。もう一度お試しください。"), retry: true)
         }
     }
 
@@ -448,10 +448,10 @@ enum TerminalAuthorize {
         guard case BellAPIError.httpStatus(let status, _, _) = error else { return nil }
         let m = TerminalOS.machine(os)
         switch (status, TerminalErrorText.code(error)) {
-        case (409, "HOST_TRUST_MISSING"?): return Note(text: "先にこの\(m)を確かめてください。ホスト鍵を確かめる前は、パスワードを聞きません。")
-        case (409, "SSH_KEY_UNSET"?): return Note(text: "先にSSH鍵を設定してください。入れる鍵がまだありません。")
-        case (503, "CREDENTIAL_UNAVAILABLE"?): return Note(text: "いまはパスワードの入力欄を開けません。少し待ってから、もう一度お試しください。", retry: true)
-        case (404, let code) where code != "TERMINAL_NOT_FOUND": return Note(text: "このBellTeamはまだ、アプリから\(m)に鍵を入れることに対応していません。")
+        case (409, "HOST_TRUST_MISSING"?): return Note(text: String(localized: "先にこの\(m)を確かめてください。ホスト鍵を確かめる前は、パスワードを聞きません。"))
+        case (409, "SSH_KEY_UNSET"?): return Note(text: String(localized: "先にSSH鍵を設定してください。入れる鍵がまだありません。"))
+        case (503, "CREDENTIAL_UNAVAILABLE"?): return Note(text: String(localized: "いまはパスワードの入力欄を開けません。少し待ってから、もう一度お試しください。"), retry: true)
+        case (404, let code) where code != "TERMINAL_NOT_FOUND": return Note(text: String(localized: "このBellTeamはまだ、アプリから\(m)に鍵を入れることに対応していません。"))
         default: return nil
         }
     }
@@ -460,8 +460,8 @@ enum TerminalAuthorize {
 /// members S5 (Belorta #859): a refused member save carries only `{error: code}` and the status, so the app words each code
 /// (same words as terminals' action text and the Web editor) and names the form's folder.
 enum MemberFolder {
-    static let createTitle = "このフォルダを作って保存"
-    static let uncheckedText = "Macにつながらなかったので、フォルダはまだ確かめていません。席を起こす時にもう一度確かめます。"
+    static let createTitle = String(localized: "このフォルダを作って保存")
+    static let uncheckedText = String(localized: "Macにつながらなかったので、フォルダはまだ確かめていません。席を起こす時にもう一度確かめます。")
 
     /// `<home>/BellTeam/<slug>` in the terminal's form: `/Users/<user>` (macOS), `/home/<user>` (Linux), `C:\Users\<user>` (Windows).
     /// slug = trimmed name with `/`, `\`, `:`, NUL -> `-`, `member` when empty, `.` or `..`.
@@ -493,12 +493,12 @@ enum MemberFolder {
     static func words(_ code: String, os: String = "macos") -> String? {
         let m = TerminalOS.machine(os)
         return switch code {
-        case "FOLDER_MISSING": "このフォルダは\(m)にありません。作るか、あるフォルダを選んでください"
-        case "FOLDER_NOT_DIRECTORY": "これはファイルです。フォルダを選んでください"
-        case "FOLDER_NOT_WRITABLE": "この\(m)のユーザーが書き込めるフォルダを選んでください"
+        case "FOLDER_MISSING": String(localized: "このフォルダは\(m)にありません。作るか、あるフォルダを選んでください")
+        case "FOLDER_NOT_DIRECTORY": String(localized: "これはファイルです。フォルダを選んでください")
+        case "FOLDER_NOT_WRITABLE": String(localized: "この\(m)のユーザーが書き込めるフォルダを選んでください")
         case "FOLDER_NOT_PERMITTED": os == TerminalOS.macos.rawValue
-            ? "Macがこのフォルダを開かせてくれません。デスクトップ・書類・ダウンロードの外を選ぶか、リモートログインの「リモートユーザにフルディスクアクセスを許可」をオンにしてください"
-            : "\(m)がこのフォルダを開かせてくれません。この\(m)のユーザーが開けるフォルダを選んでください"
+            ? String(localized: "Macがこのフォルダを開かせてくれません。デスクトップ・書類・ダウンロードの外を選ぶか、リモートログインの「リモートユーザにフルディスクアクセスを許可」をオンにしてください")
+            : String(localized: "\(m)がこのフォルダを開かせてくれません。この\(m)のユーザーが開けるフォルダを選んでください")
         default: nil
         }
     }
@@ -506,9 +506,9 @@ enum MemberFolder {
     /// nil = not a folder refusal. An unknown FOLDER_* code gets one plain line (a later server may add codes).
     static func refusal(code: String?, folder: String, os: String = "macos") -> Refusal? {
         guard let code else { return nil }
-        if code == "TERMINAL_NOT_FOUND" { return Refusal(text: "この端末は登録されていません。") }
+        if code == "TERMINAL_NOT_FOUND" { return Refusal(text: String(localized: "この端末は登録されていません。")) }
         guard code.hasPrefix("FOLDER_") else { return nil }
-        return Refusal(text: "\(words(code, os: os) ?? "このフォルダは使えません")（\(folder)）。", offersCreate: code == "FOLDER_MISSING")
+        return Refusal(text: String(localized: "\(words(code, os: os) ?? String(localized: "このフォルダは使えません"))（\(folder)）。"), offersCreate: code == "FOLDER_MISSING")
     }
 }
 
@@ -565,27 +565,27 @@ struct TerminalFolderCreateBody: Encodable {
 }
 
 enum TerminalFolderPicker {
-    static let emptyText = "フォルダはありません"
-    static let truncatedText = "フォルダが多いため、すべては表示していません。"
-    static let readFailedText = "フォルダの一覧を読み込めませんでした。つながりを確かめて、もう一度お試しください。"
-    static let unsupportedText = "このBellTeamはまだ、フォルダを選ぶ画面に対応していません。「ほかの方法」でパスを入力してください。"
+    static let emptyText = String(localized: "フォルダはありません")
+    static let truncatedText = String(localized: "フォルダが多いため、すべては表示していません。")
+    static let readFailedText = String(localized: "フォルダの一覧を読み込めませんでした。つながりを確かめて、もう一度お試しください。")
+    static let unsupportedText = String(localized: "このBellTeamはまだ、フォルダを選ぶ画面に対応していません。「ほかの方法」でパスを入力してください。")
     static func unreachableText(os: String = "macos") -> String {
-        "いまこの端末に届きません。\(TerminalOS.machine(os))が起きていて同じネットワークにあるか確かめて、もう一度お試しください。"
+        String(localized: "いまこの端末に届きません。\(TerminalOS.machine(os))が起きていて同じネットワークにあるか確かめて、もう一度お試しください。")
     }
-    static let createFailedText = "フォルダを作れたか確かめられませんでした。一覧で確かめてください。"
+    static let createFailedText = String(localized: "フォルダを作れたか確かめられませんでした。一覧で確かめてください。")
 
     /// The name is trimmed; the result is what is sent. nil problem = usable. The server only ever sees `childPath`.
     /// terminals: an entry name never holds `/`, `\` (Windows also `:`) or NUL.
     static func name(_ raw: String, os: String = "macos") -> (name: String, problem: String?) {
         let name = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         let problem: String? =
-            name.isEmpty ? "フォルダの名前を入れてください。"
-            : name.contains("/") ? "名前に「/」は使えません。"
-            : name.contains("\\") ? "名前に「\\」は使えません。"
-            : os == TerminalOS.windows.rawValue && name.contains(":") ? "名前に「:」は使えません。"
-            : name == "." || name == ".." ? "「.」と「..」は名前にできません。"
-            : name.contains("\0") ? "名前に使えない文字があります。"
-            : name.utf8.count > 255 ? "名前が長すぎます（255バイトまで）。"
+            name.isEmpty ? String(localized: "フォルダの名前を入れてください。")
+            : name.contains("/") ? String(localized: "名前に「/」は使えません。")
+            : name.contains("\\") ? String(localized: "名前に「\\」は使えません。")
+            : os == TerminalOS.windows.rawValue && name.contains(":") ? String(localized: "名前に「:」は使えません。")
+            : name == "." || name == ".." ? String(localized: "「.」と「..」は名前にできません。")
+            : name.contains("\0") ? String(localized: "名前に使えない文字があります。")
+            : name.utf8.count > 255 ? String(localized: "名前が長すぎます（255バイトまで）。")
             : nil
         return (name, problem)
     }
@@ -598,7 +598,7 @@ enum TerminalFolderPicker {
 
     /// One plain sentence for a `reason`. Unreachable reasons never read as an empty list; FOLDER_NOT_PERMITTED is S5's sentence.
     static func sentence(reason: String, action: String?, os: String = "macos") -> String {
-        if reason == "TERMINAL_NOT_FOUND" { return "この端末は登録されていません。" }
+        if reason == "TERMINAL_NOT_FOUND" { return String(localized: "この端末は登録されていません。") }
         if reason == "FOLDER_NOT_PERMITTED" { return folderWords(reason, os: os) }
         let check = TerminalCheck(terminalId: "", reachable: false, reason: reason, action: action)
         if check.problem == .unreachable { return unreachableText(os: os) }
@@ -606,7 +606,7 @@ enum TerminalFolderPicker {
         return MemberFolder.words(reason) != nil ? folderWords(reason, os: os) : check.explanation(os: os) ?? folderWords(reason, os: os)
     }
 
-    private static func folderWords(_ reason: String, os: String) -> String { (MemberFolder.words(reason, os: os) ?? "このフォルダは使えません") + "。" }
+    private static func folderWords(_ reason: String, os: String) -> String { String(localized: "\(MemberFolder.words(reason, os: os) ?? String(localized: "このフォルダは使えません"))。") }
 
     /// The query value: everything but unreserved characters and `/` is escaped (a folder may contain `+`, `&`, `#`).
     static func query(_ path: String) -> String {
@@ -659,7 +659,7 @@ final class TerminalFolderPickerModel: ObservableObject {
         } catch {
             guard mine == sequence else { return }
             if TerminalErrorText.isFoldersUnsupported(error) { content = .unsupported }
-            else if TerminalErrorText.code(error) == "TERMINAL_NOT_FOUND" { content = .failed("この端末は登録されていません。") }
+            else if TerminalErrorText.code(error) == "TERMINAL_NOT_FOUND" { content = .failed(String(localized: "この端末は登録されていません。")) }
             else { content = .failed(TerminalFolderPicker.readFailedText) }
         }
     }
@@ -701,7 +701,7 @@ enum MemberBinding {
         if !projectRoot.isEmpty, let folder = folderProblem(projectRoot, os: os) { return folder }
         if terminalId.isEmpty != projectRoot.isEmpty {
             return terminalId.isEmpty ? TerminalErrorText.member("BOT_REMOTE_BINDING_INVALID")
-                : "フォルダを入れてください。端末で席が起動する場所です。"
+                : String(localized: "フォルダを入れてください。端末で席が起動する場所です。")
         }
         return nil
     }
@@ -730,11 +730,11 @@ enum MemberBinding {
 enum TerminalErrorText {
     static func member(_ code: String, os: String = "macos") -> String? {
         switch code {
-        case "BOT_TERMINAL_ID_INVALID": "端末の指定が正しくありません。一覧から端末を選び直してください。"
+        case "BOT_TERMINAL_ID_INVALID": String(localized: "端末の指定が正しくありません。一覧から端末を選び直してください。")
         case "BOT_PROJECT_ROOT_INVALID" where os == TerminalOS.windows.rawValue:
-            "フォルダはドライブから始まる端末上の絶対パスにします（例 C:\\Users\\kite\\work\\app）。区切りは「\\」だけで、「/」「.」「..」や空の区切り、末尾の「\\」は使えません。"
-        case "BOT_PROJECT_ROOT_INVALID": "フォルダは「/」で始まる端末上の絶対パスにします（例 /Users/kite/work/app）。「.」「..」や空の区切り、末尾の「/」は使えません。"
-        case "BOT_REMOTE_BINDING_INVALID": "端末とフォルダは両方を指定します。BellTeamの中で動かす時は、両方を空にします。"
+            String(localized: "フォルダはドライブから始まる端末上の絶対パスにします（例 C:\\Users\\kite\\work\\app）。区切りは「\\」だけで、「/」「.」「..」や空の区切り、末尾の「\\」は使えません。")
+        case "BOT_PROJECT_ROOT_INVALID": String(localized: "フォルダは「/」で始まる端末上の絶対パスにします（例 /Users/kite/work/app）。「.」「..」や空の区切り、末尾の「/」は使えません。")
+        case "BOT_REMOTE_BINDING_INVALID": String(localized: "端末とフォルダは両方を指定します。BellTeamの中で動かす時は、両方を空にします。")
         default: nil
         }
     }
@@ -769,23 +769,23 @@ enum TerminalErrorText {
         switch code(error) {
         case "INVALID_TERMINAL":
             switch message?.split(separator: " ").first {
-            case "host"?: return "ホストの形が違います。IPアドレスかホスト名だけを入れてください。"
-            case "user"?: return "ユーザーの形が違います。端末にログインする名前を入れてください。"
-            case "port"?: return "ポートは1から65535の数字にしてください。"
-            case "terminalId"?: return "端末の名前は英小文字・数字・ハイフンにしてください。"
-            case "accountOwner"?: return "端末の持ち主を選び直してください。"
-            default: return "入力の形が違います。各欄を確かめてください。"
+            case "host"?: return String(localized: "ホストの形が違います。IPアドレスかホスト名だけを入れてください。")
+            case "user"?: return String(localized: "ユーザーの形が違います。端末にログインする名前を入れてください。")
+            case "port"?: return String(localized: "ポートは1から65535の数字にしてください。")
+            case "terminalId"?: return String(localized: "端末の名前は英小文字・数字・ハイフンにしてください。")
+            case "accountOwner"?: return String(localized: "端末の持ち主を選び直してください。")
+            default: return String(localized: "入力の形が違います。各欄を確かめてください。")
             }
-        case "TERMINAL_NOT_FOUND": return "この端末の登録が見つかりません。一覧を読み直してください。"
-        case "TERMINAL_EXISTS": return "同じ名前の端末がもう登録されています。別の名前にしてください。"
-        case "HOST_KEY_FINGERPRINT_MISMATCH": return "入れた指紋が端末の今のホスト鍵と一致しませんでした。信用し直していません。端末で指紋をもう一度確かめてください。"
-        case "INVALID_TERMINAL_STORE": return "BellTeamに保存された端末の一覧を読めませんでした。管理者に確かめてもらってください。"
-        case "TERMINALS_UNAVAILABLE": return "端末の機能が、いま本体で動いていません。少し待ってから、もう一度読み込んでください。"
-        case "KEY_IN_REQUEST_REFUSED": return "鍵の中身はこの画面から送りません。開いた入力欄だけに入れてください。"
-        case "INVALID_KEY_KIND": return "鍵の種類を読み取れませんでした。画面を開き直してください。"
-        case "CREDENTIAL_UNAVAILABLE": return "いまは鍵の入力欄を開けません。少し待ってから、もう一度試してください。"
-        case "TERMINAL_UNAVAILABLE": return "BellTeamが端末への接続を準備できませんでした。BellTeamのAitermを更新してから、もう一度試してください。"
-        case "TERMINAL_CHANGED": return "設定の途中で端末の接続先が変わりました。もう一度「設定する」を押してください。"
+        case "TERMINAL_NOT_FOUND": return String(localized: "この端末の登録が見つかりません。一覧を読み直してください。")
+        case "TERMINAL_EXISTS": return String(localized: "同じ名前の端末がもう登録されています。別の名前にしてください。")
+        case "HOST_KEY_FINGERPRINT_MISMATCH": return String(localized: "入れた指紋が端末の今のホスト鍵と一致しませんでした。信用し直していません。端末で指紋をもう一度確かめてください。")
+        case "INVALID_TERMINAL_STORE": return String(localized: "BellTeamに保存された端末の一覧を読めませんでした。管理者に確かめてもらってください。")
+        case "TERMINALS_UNAVAILABLE": return String(localized: "端末の機能が、いま本体で動いていません。少し待ってから、もう一度読み込んでください。")
+        case "KEY_IN_REQUEST_REFUSED": return String(localized: "鍵の中身はこの画面から送りません。開いた入力欄だけに入れてください。")
+        case "INVALID_KEY_KIND": return String(localized: "鍵の種類を読み取れませんでした。画面を開き直してください。")
+        case "CREDENTIAL_UNAVAILABLE": return String(localized: "いまは鍵の入力欄を開けません。少し待ってから、もう一度試してください。")
+        case "TERMINAL_UNAVAILABLE": return String(localized: "BellTeamが端末への接続を準備できませんでした。BellTeamのAitermを更新してから、もう一度試してください。")
+        case "TERMINAL_CHANGED": return String(localized: "設定の途中で端末の接続先が変わりました。もう一度「設定する」を押してください。")
         case let code?: if let text = member(code) { return text }
         default: break
         }

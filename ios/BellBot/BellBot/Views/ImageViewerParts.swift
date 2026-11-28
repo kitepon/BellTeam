@@ -121,7 +121,7 @@ final class ZoomScrollView: UIScrollView, UIScrollViewDelegate {
         // 一覧の画像と同じく、画像として読み上げ・試験から見つけられるようにする。
         imageView.isAccessibilityElement = true
         imageView.accessibilityTraits = .image
-        imageView.accessibilityLabel = "画像"
+        imageView.accessibilityLabel = String(localized: "画像")
         imageView.accessibilityIdentifier = identifier
     }
 

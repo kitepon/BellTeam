@@ -315,7 +315,7 @@ private struct ScheduleCard: View {
             }
             // A command is machine text (paths, IDs): the card names its kind; the command itself stays in the editor.
             if entry.schedule.command != nil {
-                BellBadge(text: "AIを起こさずに動く自動の作業", tone: .violet, symbol: "gearshape.2.fill")
+                BellBadge(text: String(localized: "AIを起こさずに動く自動の作業"), tone: .violet, symbol: "gearshape.2.fill")
             } else if let prompt = entry.schedule.prompt {
                 Text(prompt).font(.system(size: 14)).foregroundStyle(BellTheme.muted).lineLimit(3)
             }
@@ -399,7 +399,7 @@ private struct ScheduleEditor: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section(header: BellSectionHeader("担当")) {
+                Section(header: BellSectionHeader(String(localized: "担当"))) {
                     Picker("メンバー・ルーム", selection: $target) {
                         ForEach(targets, id: \.0) { item in Text(item.1).tag(Optional(item.0)) }
                     }
@@ -420,7 +420,7 @@ private struct ScheduleEditor: View {
                         }
                     }
                 }
-                Section(header: BellSectionHeader("実行内容")) {
+                Section(header: BellSectionHeader(String(localized: "実行内容"))) {
                     TextField("予定の名前", text: $name)
                     if room == nil {
                         Picker("種類", selection: $action) {
@@ -441,7 +441,7 @@ private struct ScheduleEditor: View {
                         TextField("依頼する内容", text: $prompt, axis: .vertical).lineLimit(3...8)
                     }
                 }
-                Section(header: BellSectionHeader("タイミング")) {
+                Section(header: BellSectionHeader(String(localized: "タイミング"))) {
                     Picker("繰り返し", selection: $frequency) {
                         Text("一回だけ").tag("once")
                         Text("毎時").tag("hourly")
@@ -548,9 +548,9 @@ private struct ScheduleEditor: View {
         guard let target else { return }
         let content = action == "command" && !target.isRoom ? command : prompt
         guard !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            errorText = "実行内容を入力してください。"; return
+            errorText = String(localized: "実行内容を入力してください。"); return
         }
-        if frequency == "weekly" && weekdays.isEmpty { errorText = "曜日を選んでください。"; return }
+        if frequency == "weekly" && weekdays.isEmpty { errorText = String(localized: "曜日を選んでください。"); return }
         saving = true
         defer { saving = false }
         let parts = Calendar.current.dateComponents([.hour, .minute], from: date)
@@ -600,7 +600,7 @@ private struct ScheduleEditor: View {
 
 extension BellDate {
     static func long(_ value: String) -> String {
-        guard let date = parse(value) else { return "未定" }
+        guard let date = parse(value) else { return String(localized: "未定") }
         return date.formatted(.dateTime.month().day().weekday(.abbreviated).hour().minute())
     }
 }

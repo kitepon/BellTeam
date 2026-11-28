@@ -88,7 +88,7 @@ struct UpdateContent: View {
         if updates.inventory == nil { return updates.failure == nil ? .loading : .unreachable }
         if let operation, !operation.isSettled {
             if operation.admission == .unknown || operation.phase == .unknown { return .unconfirmed }
-            return .updating(Self.phase[operation.phase] ?? "更新しています")
+            return .updating(Self.phase[operation.phase] ?? String(localized: "更新しています"))
         }
         if updates.requestID != nil, updates.operation == nil { return .unconfirmed }
         if let operation, operation.phase == .failed { return .failed(operation.error?.message) }
@@ -134,7 +134,7 @@ struct UpdateContent: View {
     }
 
     /// 操作の失敗は短い案内だけを標準面に出す。元の説明・符号は詳細に残す。
-    var heroNote: String? { updates.message == nil ? nil : "操作を完了できませんでした。内容は「詳細」で確認できます。" }
+    var heroNote: String? { updates.message == nil ? nil : String(localized: "操作を完了できませんでした。内容は「詳細」で確認できます。") }
 
     /// 結果を確かめている間も、正式な候補があれば利用者は別の計画を選べる。同じ計画の再実行はStoreが拒む。
     var offersAnotherPlan: Bool {
@@ -144,18 +144,18 @@ struct UpdateContent: View {
 
     var heroText: (String, String, String, Color) {
         switch status {
-        case .loading: ("arrow.triangle.2.circlepath", "確認しています", "最新の状態かどうかを確かめています。", BellTheme.muted)
-        case .unreachable: ("exclamationmark.triangle", "更新を確認できませんでした", "接続を確かめて、もう一度お試しください。", BellTheme.muted)
-        case .updating(let phase): ("arrow.down.circle", "更新しています", "\(phase)。完了まで、この画面を閉じても大丈夫です。", BellTheme.violet)
-        case .unconfirmed: ("clock.arrow.circlepath", "更新の結果を確認中", "更新の結果を、まだ確認できていません。", BellTheme.muted)
-        case .failed: ("xmark.circle", "更新できませんでした", "更新を完了できませんでした。理由は「詳細」で確認できます。", BellTheme.muted)
-        case .completed: ("checkmark.circle.fill", "更新しました", "\(updatedNames)を新しい版にしました。", BellTheme.mint)
-        case .available: ("arrow.down.circle.fill", candidates.count == 1 ? "\(candidates[0].name)を更新できます" : "\(candidates.count)つ更新できます",
-                          candidates.count == 1 ? "新しい版を使えます。" : "\(candidates.map(\.name).joined(separator: "・"))に新しい版があります。", BellTheme.violet)
-        case .upToDate: ("checkmark.seal.fill", "すべて最新です", "今のところ、新しい更新はありません。", BellTheme.mint)
-        case .waiting(let names): ("checkmark.seal.fill", "更新できるものはすべて最新です",
-                                   "\(names.joined(separator: "・"))は、いまの本体に合う版がまだありません。合う版が出ると、ここで更新できます。", BellTheme.mint)
-        case .unknown: ("questionmark.circle", "更新を確認できませんでした", "時間をおいて、もう一度確認してください。", BellTheme.muted)
+        case .loading: ("arrow.triangle.2.circlepath", String(localized: "確認しています"), String(localized: "最新の状態かどうかを確かめています。"), BellTheme.muted)
+        case .unreachable: ("exclamationmark.triangle", String(localized: "更新を確認できませんでした"), String(localized: "接続を確かめて、もう一度お試しください。"), BellTheme.muted)
+        case .updating(let phase): ("arrow.down.circle", String(localized: "更新しています"), String(localized: "\(phase)。完了まで、この画面を閉じても大丈夫です。"), BellTheme.violet)
+        case .unconfirmed: ("clock.arrow.circlepath", String(localized: "更新の結果を確認中"), String(localized: "更新の結果を、まだ確認できていません。"), BellTheme.muted)
+        case .failed: ("xmark.circle", String(localized: "更新できませんでした"), String(localized: "更新を完了できませんでした。理由は「詳細」で確認できます。"), BellTheme.muted)
+        case .completed: ("checkmark.circle.fill", String(localized: "更新しました"), String(localized: "\(updatedNames)を新しい版にしました。"), BellTheme.mint)
+        case .available: ("arrow.down.circle.fill", candidates.count == 1 ? String(localized: "\(candidates[0].name)を更新できます") : String(localized: "\(candidates.count)つ更新できます"),
+                          candidates.count == 1 ? String(localized: "新しい版を使えます。") : String(localized: "\(candidates.map(\.name).joined(separator: "・"))に新しい版があります。"), BellTheme.violet)
+        case .upToDate: ("checkmark.seal.fill", String(localized: "すべて最新です"), String(localized: "今のところ、新しい更新はありません。"), BellTheme.mint)
+        case .waiting(let names): ("checkmark.seal.fill", String(localized: "更新できるものはすべて最新です"),
+                                   String(localized: "\(names.joined(separator: "・"))は、いまの本体に合う版がまだありません。合う版が出ると、ここで更新できます。"), BellTheme.mint)
+        case .unknown: ("questionmark.circle", String(localized: "更新を確認できませんでした"), String(localized: "時間をおいて、もう一度確認してください。"), BellTheme.muted)
         }
     }
 
@@ -260,12 +260,12 @@ struct UpdateContent: View {
     /// 計画の検証と責任はサーバーが持つので、確認すれば実行できる。
     static func planWording(_ plan: UpdatePlan) -> (title: String, button: String, serverPlan: String?) {
         guard plan.action == .unknown || plan.scope == .unknown else {
-            return plan.action == .rollback ? ("戻す前の確認", "戻す", nil) : ("更新の前に", "更新を始める", nil)
+            return plan.action == .rollback ? (String(localized: "戻す前の確認"), String(localized: "戻す"), nil) : (String(localized: "更新の前に"), String(localized: "更新を始める"), nil)
         }
         let targets = plan.targets.map { "\($0.componentId): \(Self.label($0.current)) → \(Self.label($0.published))" }
-        let lines = ["action: \(plan.$action ?? "なし") / scope: \(plan.$scope)",
+        let lines = ["action: \(plan.$action ?? String(localized: "なし")) / scope: \(plan.$scope)",
                      "containerRestart: \(plan.impact.containerRestart)"] + targets
-        return ("サーバーの計画を確認", "実行する", lines.joined(separator: "\n"))
+        return (String(localized: "サーバーの計画を確認"), String(localized: "実行する"), lines.joined(separator: "\n"))
     }
 
     private var changeList: some View {
@@ -306,12 +306,12 @@ struct UpdateContent: View {
         case upToDate, available, updating, failed, incompatible, unknown
         var text: String {
             switch self {
-            case .upToDate: "最新"
-            case .incompatible: "使えない版"
-            case .available: "更新あり"
-            case .updating: "更新中"
-            case .failed: "失敗"
-            case .unknown: "確認できません"
+            case .upToDate: String(localized: "最新")
+            case .incompatible: String(localized: "使えない版")
+            case .available: String(localized: "更新あり")
+            case .updating: String(localized: "更新中")
+            case .failed: String(localized: "失敗")
+            case .unknown: String(localized: "確認できません")
             }
         }
         var tint: Color {
@@ -346,12 +346,12 @@ struct UpdateContent: View {
 
     /// 版はハッシュを見せず、内蔵版・版名・公開日・「公開中の最新版」「今の版」のどれかで出す。
     static func versionName(_ component: UpdateComponent) -> String {
-        guard let current = component.current else { return "版を確認できません" }
-        if current.origin == .builtin { return "最初から入っている版" }
+        guard let current = component.current else { return String(localized: "版を確認できません") }
+        if current.origin == .builtin { return String(localized: "最初から入っている版") }
         let isHash = current.version.count >= 12 && current.version.allSatisfy(\.isHexDigit)
-        if !isHash { return "版 \(current.version)" }
-        if let date = publishedDate(component) { return "\(Self.short(date))に公開された版" }
-        return component.comparison.state == .upToDate ? "公開中の最新版" : "今の版"
+        if !isHash { return String(localized: "版 \(current.version)") }
+        if let date = publishedDate(component) { return String(localized: "\(Self.short(date))に公開された版") }
+        return component.comparison.state == .upToDate ? String(localized: "公開中の最新版") : String(localized: "今の版")
     }
 
     private static func short(_ date: Date) -> String { date.formatted(.dateTime.month().day().hour().minute()) }
@@ -374,9 +374,9 @@ struct UpdateContent: View {
         let name = versionName(component)
         guard let installed = installedDate(component) else { return name }
         if let published = publishedDate(component) {
-            return installed >= published ? "\(Self.short(published))に公開された版を\(Self.short(installed))に入れました" : name
+            return installed >= published ? String(localized: "\(Self.short(published))に公開された版を\(Self.short(installed))に入れました") : name
         }
-        return "\(name) · \(Self.short(installed)) に更新"
+        return String(localized: "\(name) · \(Self.short(installed)) に更新")
     }
 
     static func icon(for id: String) -> String {
@@ -490,10 +490,10 @@ struct UpdateContent: View {
             Text("機能の問題").font(.headline)
             ForEach(problems) { problem in
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("\(componentName(problem.moduleId)) · 再起動の繰り返し · \(problem.status == .resolved ? "解決済み" : "問題あり")")
+                    Text("\(componentName(problem.moduleId)) · 再起動の繰り返し · \(problem.status == .resolved ? String(localized: "解決済み") : String(localized: "問題あり"))")
                         .font(.subheadline.weight(.semibold))
                     Text("再起動回数: \(problem.count) / 集計期間（秒）: \(problem.windowSeconds)")
-                    Text("直近の終了コード: \(problem.lastExit.code.map(String.init) ?? "未観測") / シグナル: \(problem.lastExit.signal ?? "未観測")")
+                    Text("直近の終了コード: \(problem.lastExit.code.map(String.init) ?? String(localized: "未観測")) / シグナル: \(problem.lastExit.signal ?? String(localized: "未観測"))")
                     Text("直近の理由: \(problem.lastReason)")
                 }
                 .accessibilityElement(children: .contain)
@@ -535,8 +535,8 @@ struct UpdateContent: View {
                         jobRows
                     }
                 }
-                if let operation { operationDetail(operation, title: "今回の更新") }
-                if let previous = updates.inventory?.previousOperation { operationDetail(previous, title: "前回の更新") }
+                if let operation { operationDetail(operation, title: String(localized: "今回の更新")) }
+                if let previous = updates.inventory?.previousOperation { operationDetail(previous, title: String(localized: "前回の更新")) }
                 if let plan = updates.plan {
                     Text("計画ID: \(plan.planId)")
                     Text("有効期限: \(BellDate.parse(plan.expiresAt)?.formatted(date: .abbreviated, time: .shortened) ?? plan.expiresAt)")
@@ -579,23 +579,24 @@ struct UpdateContent: View {
             if let error = operation.error { Text("\(error.code): \(error.message)") }
         }
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("update-operation-\(title == "前回の更新" ? "previous" : "current")")
+        .accessibilityIdentifier("update-operation-\(title == String(localized: "前回の更新") ? "previous" : "current")")
     }
 
     private static func label(_ version: UpdateVersion?) -> String {
-        guard let version else { return "確認できません" }
-        return (version.origin == .builtin ? "内蔵版 " : "") + (version.version.count >= 40 ? String(version.version.prefix(12)) : version.version)
+        guard let version else { return String(localized: "確認できません") }
+        let name = version.version.count >= 40 ? String(version.version.prefix(12)) : version.version
+        return version.origin == .builtin ? String(localized: "内蔵版 \(name)") : name
     }
 
-    private static func reason(_ code: String?) -> String { code.map { "（\($0)）" } ?? "" }
+    private static func reason(_ code: String?) -> String { code.map { String(localized: "（\($0)）") } ?? "" }
 
     private static let comparison: [UpdateComponent.Comparison.State: String] = [
-        .upToDate: "公開版と一致", .updateAvailable: "更新あり", .unavailable: "取得できません", .incompatible: "互換性を確認できません", .unknown: "確認不能",
+        .upToDate: String(localized: "公開版と一致"), .updateAvailable: String(localized: "更新あり"), .unavailable: String(localized: "取得できません"), .incompatible: String(localized: "互換性を確認できません"), .unknown: String(localized: "確認不能"),
     ]
     private static let phase: [UpdateOperation.Phase: String] = [
-        .preparing: "準備しています", .applying: "新しい版に切り替えています", .reconnecting: "再接続しています", .verifying: "動作を確かめています",
-        .completed: "更新完了", .failed: "失敗", .unknown: "結果確認中",
+        .preparing: String(localized: "準備しています"), .applying: String(localized: "新しい版に切り替えています"), .reconnecting: String(localized: "再接続しています"), .verifying: String(localized: "動作を確かめています"),
+        .completed: String(localized: "更新完了"), .failed: String(localized: "失敗"), .unknown: String(localized: "結果確認中"),
     ]
-    private static let admission: [UpdateOperation.Admission: String] = [.pending: "受付中", .accepted: "受付済み", .rejected: "未受付", .unknown: "確認不能"]
-    private static let outcome: [UpdateOperation.Outcome: String] = [.pending: "未確認", .succeeded: "成功", .failed: "失敗", .unknown: "確認不能"]
+    private static let admission: [UpdateOperation.Admission: String] = [.pending: String(localized: "受付中"), .accepted: String(localized: "受付済み"), .rejected: String(localized: "未受付"), .unknown: String(localized: "確認不能")]
+    private static let outcome: [UpdateOperation.Outcome: String] = [.pending: String(localized: "未確認"), .succeeded: String(localized: "成功"), .failed: String(localized: "失敗"), .unknown: String(localized: "確認不能")]
 }

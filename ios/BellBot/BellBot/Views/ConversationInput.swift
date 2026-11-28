@@ -56,7 +56,7 @@ struct ConversationInput<AttachmentButton: View>: View {
             .buttonStyle(.plain)
             .accessibilityLabel("送信")
             #if targetEnvironment(macCatalyst)
-            .help("送信（Return）")
+            .help(String(localized: "送信（Return）"))
             #endif
             .disabled(!canSend)
             .padding(.bottom, 1)
@@ -86,10 +86,10 @@ private struct MessageInput: UIViewRepresentable {
         view.pasteConfiguration?.addTypeIdentifiers(forAccepting: UIImage.self)
         view.pasteConfiguration?.addAcceptableTypeIdentifiers([UTType.fileURL.identifier])
         #if targetEnvironment(macCatalyst)
-        view.accessibilityHint = "Returnで送信、Shift+ReturnまたはOption+Returnで改行"
+        view.accessibilityHint = String(localized: "Returnで送信、Shift+ReturnまたはOption+Returnで改行")
         #else
         if UIDevice.current.userInterfaceIdiom == .pad {
-            view.accessibilityHint = "外付けキーボードのReturnで送信、Shift+ReturnまたはOption+Returnで改行"
+            view.accessibilityHint = String(localized: "外付けキーボードのReturnで送信、Shift+ReturnまたはOption+Returnで改行")
         }
         #endif
         update(view)
@@ -209,7 +209,7 @@ final class MessageTextView: UITextView {
                 }
                 return nil
             }
-            if images.isEmpty { onPasteFailure("貼り付けた画像を読み込めませんでした。") }
+            if images.isEmpty { onPasteFailure(String(localized: "貼り付けた画像を読み込めませんでした。")) }
             else { onPasteImages(images) }
             return
         }

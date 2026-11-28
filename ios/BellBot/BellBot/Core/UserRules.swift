@@ -14,15 +14,15 @@ struct UserRulesDocument: Equatable {
             let word = keyword.split(separator: " ").first.map(String.init) ?? keyword
             let base: String
             switch word {
-            case "YOU": base = "あなたは"
-            case "PURPOSE": base = "目的"
-            case "FACT": base = "前提"
-            case "WHEN": base = "いつ"
-            case "DO": base = "する"
-            case "MAY": base = "してよい"
-            case "NEVER": base = "しない"
-            case "WHY": base = "理由"
-            case "DEFAULT": base = "既定"
+            case "YOU": base = String(localized: "あなたは")
+            case "PURPOSE": base = String(localized: "目的")
+            case "FACT": base = String(localized: "前提")
+            case "WHEN": base = String(localized: "いつ")
+            case "DO": base = String(localized: "する")
+            case "MAY": base = String(localized: "してよい")
+            case "NEVER": base = String(localized: "しない")
+            case "WHY": base = String(localized: "理由")
+            case "DEFAULT": base = String(localized: "既定")
             default: base = keyword
             }
             guard word == "DEFAULT", let open = keyword.firstIndex(of: "(") else { return base }

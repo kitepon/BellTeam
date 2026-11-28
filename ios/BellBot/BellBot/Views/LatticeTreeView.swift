@@ -7,6 +7,14 @@ import SwiftUI
 /// 工程表の中央に出すもの：ツリー / 担当 / 過去ログ。切り替えは LatticeChartScreen の @SceneStorage（アプリを開いている間は残る）。
 enum LatticeCenter: String, CaseIterable {
     case tree = "ツリー", lanes = "担当", history = "過去ログ"
+
+    var title: String {
+        switch self {
+        case .tree: String(localized: "ツリー")
+        case .lanes: String(localized: "担当")
+        case .history: String(localized: "過去ログ")
+        }
+    }
 }
 
 /// The wide ツリー's container: the board's cards are found inside `lattice-view-tree` (the lanes board has no container id).

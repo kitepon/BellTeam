@@ -6,7 +6,7 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/kitepon/approval-box-apps.git",
       "state" : {
-        "revision" : "7d687cc4d98f57740de141174eafe24e65326025"
+        "revision" : "696c4607ff2da9d5cbe6dd806bb837b3c31256ac"
       }
     },
     {
@@ -39,7 +39,7 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/kitepon/peer-channel",
       "state" : {
-        "revision" : "a5e47a39d5961242e421987dd1d0ec48192247ff"
+        "revision" : "e3f7ee76950d81afbaee4bb1b5bff69d560b0a1f"
       }
     },
     {

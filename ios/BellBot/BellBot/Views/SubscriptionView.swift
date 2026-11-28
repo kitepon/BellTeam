@@ -14,7 +14,7 @@ private struct SubscriptionContent: View {
 
     private var detail: [String] {
         account.paid.map { paid in
-            ["有効期限：" + (paid.until.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? "期限なし")]
+            [String(localized: "有効期限：\(paid.until.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? String(localized: "期限なし"))")]
         } ?? []
     }
 

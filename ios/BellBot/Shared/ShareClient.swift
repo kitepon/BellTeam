@@ -114,11 +114,11 @@ struct ShareClient {
 
     static func words(_ failure: Error) -> String {
         switch failure as? Failure {
-        case .notSignedIn?: return "BellTeamのアプリを開いて、接続先を設定してください。"
-        case .expired?: return "ログインの期限が切れています。BellTeamのアプリを開いて、ログインし直してください。"
-        case .subscription?: return "AIを使う送信には購読が必要です。BellTeamのアプリで購読を確認してください。"
-        case .http(let status)?: return status == 400 ? "送れませんでした。内容を確かめてください。" : "送れませんでした（\(status)）。少し待って、もう一度お試しください。"
-        case .network?, nil: return "BellTeamにつながりません。ネットワークを確かめて、もう一度お試しください。"
+        case .notSignedIn?: return String(localized: "BellTeamのアプリを開いて、接続先を設定してください。")
+        case .expired?: return String(localized: "ログインの期限が切れています。BellTeamのアプリを開いて、ログインし直してください。")
+        case .subscription?: return String(localized: "AIを使う送信には購読が必要です。BellTeamのアプリで購読を確認してください。")
+        case .http(let status)?: return status == 400 ? String(localized: "送れませんでした。内容を確かめてください。") : String(localized: "送れませんでした（\(status)）。少し待って、もう一度お試しください。")
+        case .network?, nil: return String(localized: "BellTeamにつながりません。ネットワークを確かめて、もう一度お試しください。")
         }
     }
 }

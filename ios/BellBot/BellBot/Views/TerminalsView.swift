@@ -2,7 +2,7 @@ import SwiftUI
 
 // F-SEAT-HOST P2 screens (docs/architecture/modules/apple/terminals.md). Keys show only their state and source, never a value or op://.
 
-private let unsupportedLine = "このBellTeamはまだ端末の登録に対応していません"
+private let unsupportedLine = String(localized: "このBellTeamはまだ端末の登録に対応していません")
 
 #if DEBUG
 /// `-bellbot-preview-terminal add | addmac | detail:<id> | check:<id> | hostkey:<id> | edit:<id> | setkey:<id> | login:<id> | authorize:<id> | attest:<id> | otherways:<id>` opens that state for screenshots
@@ -73,12 +73,12 @@ struct TerminalListPage: View {
                     Button("端末を追加", systemImage: "plus") { adding = true }
                         .accessibilityIdentifier("add-terminal")
                 } header: {
-                    BellSectionHeader("登録した端末")
+                    BellSectionHeader(String(localized: "登録した端末"))
                 } footer: {
                     Text("メンバーの席を、BellTeamの外のMac・Windows PC・Linuxマシンで動かす時に使います。鍵は状態だけを表示し、中身は表示しません。").font(BellTheme.secondaryFont)
                 }
                 if let error = store.terminals.readError {
-                    Section { SettingsBanner(message: "最新の一覧を読み込めませんでした。前に読んだ一覧を表示しています。", detail: error) }
+                    Section { SettingsBanner(message: String(localized: "最新の一覧を読み込めませんでした。前に読んだ一覧を表示しています。"), detail: error) }
                 }
             }
         }
@@ -143,7 +143,7 @@ private struct KeyLook {
         case .pending: (text, symbol, tone) = (state.status, "hourglass", .violet)
         case .configured: (text, symbol, tone) = (state.status, "checkmark.circle.fill", .green)
         case .missing: (text, symbol, tone) = (state.status, "circle.dashed", .gray)
-        case .unsupported: (text, symbol, tone) = configured ? ("設定済み", "checkmark.circle.fill", .green) : ("未設定", "circle.dashed", .gray)
+        case .unsupported: (text, symbol, tone) = configured ? (String(localized: "設定済み"), "checkmark.circle.fill", .green) : (String(localized: "未設定"), "circle.dashed", .gray)
         }
     }
 }
@@ -168,7 +168,7 @@ private struct ReachabilityBadge: View {
             BellBadge(text: check.summary, tone: check.reachable ? .green : .orange,
                       symbol: check.reachable ? "bolt.horizontal.circle.fill" : "bolt.horizontal.circle")
         } else {
-            BellBadge(text: "まだ確かめていません", tone: .gray, symbol: "bolt.horizontal.circle")
+            BellBadge(text: String(localized: "まだ確かめていません"), tone: .gray, symbol: "bolt.horizontal.circle")
         }
     }
 }
@@ -204,7 +204,7 @@ struct TerminalDetailPage: View {
             if let terminal {
                 content(terminal)
             } else {
-                Section { TerminalsCalmLine(text: "この端末の登録が見つかりません。一覧へ戻って読み直してください。") }
+                Section { TerminalsCalmLine(text: String(localized: "この端末の登録が見つかりません。一覧へ戻って読み直してください。")) }
             }
         }
         .settingsSubPage()
@@ -223,7 +223,7 @@ struct TerminalDetailPage: View {
             if let terminal { HostKeyConfirmSheet(terminal: terminal, check: check).environmentObject(store).bellEditorSheet() }
         }
         .sheet(item: $keySheet) { item in
-            SecretInputSheet(request: item.request, title: "\(terminalId)の\(item.kind.title)") { _ in
+            SecretInputSheet(request: item.request, title: String(localized: "\(terminalId)の\(item.kind.title)")) { _ in
                 Task { await store.refreshTerminals() }
             }
             .environmentObject(store)
@@ -299,7 +299,7 @@ struct TerminalDetailPage: View {
             SettingsFlowLayout { heroBadges(terminal) }
         }
         .listRowBackground(Color.clear)
-        Section(header: BellSectionHeader("接続先")) {
+        Section(header: BellSectionHeader(String(localized: "接続先"))) {
             Label(terminal.address, systemImage: "network").textSelection(.enabled)
             DisclosureGroup("詳細") {
                 LabeledContent("ホスト", value: terminal.host)
@@ -312,7 +312,7 @@ struct TerminalDetailPage: View {
         }
         // The hero badge already says 「まだ確かめていません」; this card exists only once there is a result (or a key request) to explain.
         if check != nil || store.terminals.authorizations[terminalId] != nil {
-            Section(header: BellSectionHeader("つながるか")) {
+            Section(header: BellSectionHeader(String(localized: "つながるか"))) {
                 if let check {
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
@@ -379,7 +379,7 @@ struct TerminalDetailPage: View {
                 }
             }
         } header: {
-            BellSectionHeader("ホスト鍵")
+            BellSectionHeader(String(localized: "ホスト鍵"))
         } footer: {
             Text("ホスト鍵は、つなぐ相手が本当にこの端末かを見分ける印です。端末で読んだ指紋と同じ時だけ信用します。").font(BellTheme.secondaryFont)
         }
@@ -396,14 +396,14 @@ struct TerminalDetailPage: View {
                     .accessibilityIdentifier("terminal-keys-unsupported")
             }
         } header: {
-            BellSectionHeader("鍵")
+            BellSectionHeader(String(localized: "鍵"))
         } footer: {
             if terminal.keysRouteAvailable && !keysRouteMissing {
                 Text("鍵は専用の入力欄だけに入れます。1Passwordの参照を先に選べます。中身や参照は、この画面にも会話にも出しません。").font(BellTheme.secondaryFont)
             }
         }
         if let maintenance = terminal.maintenance {
-            Section(header: BellSectionHeader("Claude Codeの更新")) {
+            Section(header: BellSectionHeader(String(localized: "Claude Codeの更新"))) {
                 HStack(alignment: .top, spacing: 10) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Claude Code")
@@ -414,10 +414,10 @@ struct TerminalDetailPage: View {
                     }
                     Spacer(minLength: 8)
                     switch maintenance.outcome {
-                    case "failed": BellBadge(text: "更新できませんでした", tone: .orange, symbol: "exclamationmark.triangle.fill")
-                    case "updated": BellBadge(text: "更新しました", tone: .green, symbol: "arrow.down.circle.fill")
-                    case "current": BellBadge(text: "最新", tone: .green, symbol: "checkmark.circle.fill")
-                    default: BellBadge(text: "確認できません", tone: .gray, symbol: "questionmark.circle")
+                    case "failed": BellBadge(text: String(localized: "更新できませんでした"), tone: .orange, symbol: "exclamationmark.triangle.fill")
+                    case "updated": BellBadge(text: String(localized: "更新しました"), tone: .green, symbol: "arrow.down.circle.fill")
+                    case "current": BellBadge(text: String(localized: "最新"), tone: .green, symbol: "checkmark.circle.fill")
+                    default: BellBadge(text: String(localized: "確認できません"), tone: .gray, symbol: "questionmark.circle")
                     }
                 }
             }
@@ -478,8 +478,8 @@ struct TerminalDetailPage: View {
     /// The server accepts a terminal's first host key by itself; only a check that reports a host-trust reason asks the Owner for the manual fingerprint.
     private var hostKeyReported: Bool { check?.problem == .hostKey }
     private func hostKeyStatus(_ terminal: Terminal) -> String {
-        if check?.problem == .hostKey { return terminal.hostTrusted ? "変わりました" : "まだ確かめていません" }
-        return terminal.hostTrusted ? "信用しています" : "まだ確かめていません"
+        if check?.problem == .hostKey { return terminal.hostTrusted ? String(localized: "変わりました") : String(localized: "まだ確かめていません") }
+        return terminal.hostTrusted ? String(localized: "信用しています") : String(localized: "まだ確かめていません")
     }
 
     private func runCheck() async {
@@ -595,8 +595,8 @@ struct TerminalEditor: View {
         NavigationStack {
             Form {
                 Section {
-                    SettingsSubHeader(symbol: "desktopcomputer", tint: .cyan, title: initial?.terminalId ?? "端末を追加",
-                                      line: initial == nil ? "メンバーの席を動かす、外のMac・Windows PC・Linuxマシンを登録します。" : "接続先と持ち主を直します。")
+                    SettingsSubHeader(symbol: "desktopcomputer", tint: .cyan, title: initial?.terminalId ?? String(localized: "端末を追加"),
+                                      line: initial == nil ? String(localized: "メンバーの席を動かす、外のMac・Windows PC・Linuxマシンを登録します。") : String(localized: "接続先と持ち主を直します。"))
                 }
                 .listRowBackground(Color.clear)
                 if addsThisMac { thisMacSection }
@@ -611,27 +611,27 @@ struct TerminalEditor: View {
                 }
                 Section {
                     if initial == nil {
-                        field("端末の名前（あとで変えられません）", .terminalId, prompt: "owner-macbook", text: $draft.terminalId, identifier: "端末ID")
+                        field(String(localized: "端末の名前（あとで変えられません）"), .terminalId, prompt: "owner-macbook", text: $draft.terminalId, identifier: "端末ID")
                     } else {
                         LabeledContent("端末の名前", value: draft.terminalId)
                     }
                 } header: {
-                    BellSectionHeader("端末")
+                    BellSectionHeader(String(localized: "端末"))
                 } footer: {
                     Text(initial == nil ? "英小文字・数字・ハイフンで付けます。" : "名前は変えられません。")
                         .font(BellTheme.secondaryFont)
                 }
                 Section {
-                    field("ホスト", .host, prompt: "192.168.1.12", text: $draft.host)
-                    field("ユーザー", .user, prompt: "kite", text: $draft.user)
-                    field("ポート", .port, prompt: "22", text: $draft.port, numeric: true)
+                    field(String(localized: "ホスト"), .host, prompt: "192.168.1.12", text: $draft.host)
+                    field(String(localized: "ユーザー"), .user, prompt: "kite", text: $draft.user)
+                    field(String(localized: "ポート"), .port, prompt: "22", text: $draft.port, numeric: true)
                     Picker("OS", selection: $draft.os) {
                         ForEach(TerminalOS.allCases) { Text($0.label).tag($0.rawValue) }
                         if TerminalOS(rawValue: draft.os) == nil { Text(draft.os).tag(draft.os) }
                     }
                     .accessibilityIdentifier("terminal-os-picker")
                 } header: {
-                    BellSectionHeader("SSHの接続先")
+                    BellSectionHeader(String(localized: "SSHの接続先"))
                 } footer: {
                     Text("端末のOSを選びます。フォルダのパスの形と、つなぐための案内がOSで変わります。").font(BellTheme.secondaryFont)
                 }
@@ -644,7 +644,7 @@ struct TerminalEditor: View {
                     .labelsHidden()
                     .accessibilityIdentifier("terminal-owner-picker")
                 } header: {
-                    BellSectionHeader("持ち主")
+                    BellSectionHeader(String(localized: "持ち主"))
                 } footer: {
                     Text(draft.accountOwner == "owner"
                          ? "あなた自身の\(machine)です。メンバーはあなたのClaudeアカウントを使えます。"
@@ -728,7 +728,7 @@ struct TerminalEditor: View {
     private func save() async {
         attempted = true
         errorText = nil
-        guard problems.isEmpty else { errorText = "赤字の欄を直してください。"; return }
+        guard problems.isEmpty else { errorText = String(localized: "赤字の欄を直してください。"); return }
         saving = true
         defer { saving = false }
         do {
@@ -763,10 +763,10 @@ private struct HostKeyConfirmSheet: View {
                         .font(.system(.footnote, design: .monospaced))
                         .textSelection(.enabled)
                 } header: {
-                    BellSectionHeader("確かめ方")
+                    BellSectionHeader(String(localized: "確かめ方"))
                 }
                 if let reported = check?.reportedFingerprint {
-                    Section(header: BellSectionHeader("サーバーが見た指紋")) {
+                    Section(header: BellSectionHeader(String(localized: "サーバーが見た指紋"))) {
                         Text(reported).font(.system(.footnote, design: .monospaced)).textSelection(.enabled)
                         if problem == nil {
                             Label(entered == reported ? "入れた指紋と一致しています" : "入れた指紋と一致しません",
@@ -786,12 +786,12 @@ private struct HostKeyConfirmSheet: View {
                     if !fingerprint.isEmpty, let problem { Text(problem).font(.caption).foregroundStyle(.red) }
                     if let errorText { Text(errorText).font(BellTheme.detailFont).foregroundStyle(.red) }
                 } header: {
-                    BellSectionHeader("端末で読んだ指紋")
+                    BellSectionHeader(String(localized: "端末で読んだ指紋"))
                 } footer: {
                     Text("BellTeamは端末の鍵をもう一度読み、入れた指紋と同じ時だけ信用し直します。違う時は何も変えません。").font(BellTheme.secondaryFont)
                 }
                 if !terminal.sshKeyConfigured {
-                    Section { SettingsBanner(message: "先にSSH鍵を設定してください。鍵が無いと、BellTeamは端末のホスト鍵を読みに行けません。") }
+                    Section { SettingsBanner(message: String(localized: "先にSSH鍵を設定してください。鍵が無いと、BellTeamは端末のホスト鍵を読みに行けません。")) }
                 }
             }
             .disabled(saving)
@@ -851,7 +851,7 @@ struct MemberTerminalSection: View {
                 Button("もう一度読み込む") { Task { await store.refreshTerminals() } }
             case .supported(let list):
                 if !memberFieldsAvailable {
-                    TerminalsCalmLine(text: "このBellTeamはまだメンバーの端末設定に対応していません")
+                    TerminalsCalmLine(text: String(localized: "このBellTeamはまだメンバーの端末設定に対応していません"))
                 } else {
                     Picker("動かす場所", selection: Binding(get: { terminalId }, set: { next in
                         terminalId = next
@@ -869,10 +869,10 @@ struct MemberTerminalSection: View {
                     if !terminalId.isEmpty {
                         if store.terminals.foldersUnsupported {
                             // Older body without the folders route: the typed field, as before the picker.
-                            LabeledContent("フォルダ") { pathField(prompt: "フォルダ") }
+                            LabeledContent("フォルダ") { pathField(prompt: String(localized: "フォルダ")) }
                         } else {
                             LabeledContent("フォルダ") {
-                                Text(projectRoot.isEmpty ? "未選択" : projectRoot)
+                                Text(projectRoot.isEmpty ? String(localized: "未選択") : projectRoot)
                                     .multilineTextAlignment(.trailing)
                                     .foregroundStyle(projectRoot.isEmpty ? .secondary : .primary)
                                     .accessibilityIdentifier("member-project-path")
@@ -894,7 +894,7 @@ struct MemberTerminalSection: View {
                 }
             }
         } header: {
-            BellSectionHeader("端末とフォルダ")
+            BellSectionHeader(String(localized: "端末とフォルダ"))
         } footer: {
             if store.terminals.supported && memberFieldsAvailable {
                 Text(terminalId.isEmpty
@@ -975,7 +975,7 @@ struct TerminalFolderPickerSheet: View {
     private func listed(_ folders: TerminalFolders) -> some View {
         let path = folders.path ?? model.requested
         Section {
-            Text(path ?? "ホーム")
+            Text(path ?? String(localized: "ホーム"))
                 .font(.system(.footnote, design: .monospaced))
                 .accessibilityIdentifier("folder-picker-path")
             if let parent = folders.parent {
@@ -983,7 +983,7 @@ struct TerminalFolderPickerSheet: View {
                     .accessibilityIdentifier("folder-picker-up")
             }
         } header: {
-            BellSectionHeader("いまの場所")
+            BellSectionHeader(String(localized: "いまの場所"))
         }
         if let reason = folders.reason {
             Section { retry(TerminalFolderPicker.sentence(reason: reason, action: folders.action, os: model.os)) }
@@ -1007,7 +1007,7 @@ struct TerminalFolderPickerSheet: View {
                         .accessibilityIdentifier("folder-picker-truncated")
                 }
             } header: {
-                BellSectionHeader("フォルダ")
+                BellSectionHeader(String(localized: "フォルダ"))
             }
             Section {
                 TextField("フォルダ名", text: $model.newName)
@@ -1020,7 +1020,7 @@ struct TerminalFolderPickerSheet: View {
                     Text(note).font(.caption).foregroundStyle(.red).accessibilityIdentifier("folder-picker-create-note")
                 }
             } header: {
-                BellSectionHeader("新しいフォルダ")
+                BellSectionHeader(String(localized: "新しいフォルダ"))
             }
         }
     }

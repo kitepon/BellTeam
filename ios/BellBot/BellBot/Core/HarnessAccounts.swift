@@ -17,7 +17,7 @@ extension HarnessAccounts {
     /// The one limit line of an account ("上限中・11/13 17:00に戻ります（いまは2つ目で動いています）"), nil without a limit.
     @MainActor func limitLine(for slot: AccountSlot) -> String? {
         let secondAvailable = slots.contains { $0.slot == "2nd" && $0.loggedIn == true && !$0.limits.contains { $0.scope == "all" } }
-        return AccountText.limitLine(slot.limits, runningOnOther: slot.slot == "1st" && secondAvailable ? "2つ目" : nil)
+        return AccountText.limitLine(slot.limits, runningOnOther: slot.slot == "1st" && secondAvailable ? String(localized: "2つ目") : nil)
     }
 }
 
@@ -52,7 +52,7 @@ struct BotAccount: Decodable, Equatable {
 @MainActor
 enum AccountText {
     /// Web・Appleで同じ呼び名（Admi合意 2026-11-11）。AIの認証の行は名前の下に、そのアカウントのメールを出す（Root裁定）。
-    static func slotName(_ slot: String) -> String { slot == "2nd" ? "2つ目のアカウント" : "1つ目のアカウント" }
+    static func slotName(_ slot: String) -> String { slot == "2nd" ? String(localized: "2つ目のアカウント") : String(localized: "1つ目のアカウント") }
 
     static func scopeName(_ scope: String) -> String {
         ["fable": "Fable", "opus": "Opus", "sonnet": "Sonnet", "haiku": "Haiku"][scope] ?? scope
@@ -60,7 +60,7 @@ enum AccountText {
 
     /// 解除時刻は日本時間。今日なら時刻だけ、別の日なら日付も付ける。不明なら「解除時刻不明」。
     static func reset(_ iso: String?, now: Date = Date()) -> String {
-        time(iso, now: now).map { "\($0)に解除" } ?? "解除時刻不明"
+        time(iso, now: now).map { String(localized: "\($0)に解除") } ?? String(localized: "解除時刻不明")
     }
 
     /// 日本時間の「HH:mm」（今日以外は「M/d HH:mm」）。読めなければnil。
@@ -79,17 +79,17 @@ enum AccountText {
     /// 「上限中 (HH:MMに解除)」または「Fableのみ上限中 (23:00に解除)」。
     static func limit(_ limit: AccountLimit, now: Date = Date()) -> String {
         let when = reset(limit.resetAt, now: now)
-        return limit.scope == "all" ? "上限中 (\(when))" : "\(scopeName(limit.scope))のみ上限中 (\(when))"
+        return limit.scope == "all" ? String(localized: "上限中 (\(when))") : String(localized: "\(scopeName(limit.scope))のみ上限中 (\(when))")
     }
 
     static func bothLimited(_ scope: AllLimitedScope, now: Date = Date()) -> String {
-        let what = scope.scope == "all" ? "上限中" : "\(scopeName(scope.scope))が上限中"
-        return "1つ目と2つ目のアカウントがどちらも\(what)です（\(reset(scope.earliestResetAt, now: now))）"
+        let what = scope.scope == "all" ? String(localized: "上限中") : String(localized: "\(scopeName(scope.scope))が上限中")
+        return String(localized: "1つ目と2つ目のアカウントがどちらも\(what)です（\(reset(scope.earliestResetAt, now: now))）")
     }
 
     /// 行の下の一行：そのアカウントで動いているメンバーの数だけ（名前は並べない。Root review 2026-11-11）。
     /// 旧本体（Bot項目に`account`が無い）だけが使う。`seats`は最後に起動した記録で、今は別のAIのメンバーも含む。
-    static func seats(_ ids: [String]) -> String { "\(ids.count)人が使用" }
+    static func seats(_ ids: [String]) -> String { String(localized: "\(ids.count)人が使用") }
 
     /// いまそのアカウントで動いているメンバーの数。Bot項目の`account`（本体の`transport.seatAccount`）だけで数える。
     /// 見出しの「N人が使用」（そのAIのメンバー）と、1つ目・2つ目の数の和が一致する（Root 2026-11-12：数が合わないと不具合に見える）。
@@ -100,7 +100,7 @@ enum AccountText {
     }
 
     static func slotUsersLine(_ count: Int) -> String {
-        count == 0 ? "いまこのアカウントで動いているメンバーはいません" : "いま\(count)人がこのアカウントで動いています"
+        count == 0 ? String(localized: "いまこのアカウントで動いているメンバーはいません") : String(localized: "いま\(count)人がこのアカウントで動いています")
     }
 
     /// ログインの札とは別に、上限を1行で。「上限中・11/13 17:00に戻ります（いまは2ndで動いています）」。
@@ -108,10 +108,10 @@ enum AccountText {
     static func limitLine(_ limits: [AccountLimit], runningOnOther other: String? = nil, now: Date = Date()) -> String? {
         guard !limits.isEmpty else { return nil }
         let all = limits.first { $0.scope == "all" }
-        let what = all != nil ? "上限中" : limits.map { scopeName($0.scope) }.joined(separator: "・") + "が上限中"
+        let what = all != nil ? String(localized: "上限中") : String(localized: "\(limits.map { scopeName($0.scope) }.joined(separator: String(localized: "・")))が上限中")
         let times = (all.map { [$0] } ?? limits).compactMap { limit in BellDate.parse(limit.resetAt ?? "").map { (limit, $0) } }
         let earliest = times.min { $0.1 < $1.1 }?.0
-        let when = time(earliest?.resetAt, now: now).map { "・\($0)に戻ります" } ?? "・戻る時刻は分かりません"
-        return what + when + (other.map { "（いまは\($0)で動いています）" } ?? "")
+        let when = time(earliest?.resetAt, now: now).map { String(localized: "・\($0)に戻ります") } ?? String(localized: "・戻る時刻は分かりません")
+        return what + when + (other.map { String(localized: "（いまは\($0)で動いています）") } ?? "")
     }
 }

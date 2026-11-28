@@ -118,14 +118,14 @@ private struct ApprovalCard: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 6) {
                     if done {
-                        ApprovalBadge(text: cancelled ? "取り下げ" : "回答済み", symbol: cancelled ? "xmark" : "checkmark.seal", tone: LatticePalette.muted)
+                        ApprovalBadge(text: cancelled ? String(localized: "取り下げ") : String(localized: "回答済み"), symbol: cancelled ? "xmark" : "checkmark.seal", tone: LatticePalette.muted)
                     } else if held {
-                        ApprovalBadge(text: "保留", symbol: "pause", tone: LatticePalette.muted)
+                        ApprovalBadge(text: String(localized: "保留"), symbol: "pause", tone: LatticePalette.muted)
                     } else {
-                        ApprovalBadge(text: "回答待ち", symbol: "tray", tone: BellTheme.violet)
+                        ApprovalBadge(text: String(localized: "回答待ち"), symbol: "tray", tone: BellTheme.violet)
                     }
-                    if decision.isUrgent && decision.isOpen { ApprovalBadge(text: "急ぎ", symbol: "bolt.fill", tone: LatticePalette.amber) }
-                    if decision.origin.isExternal { ApprovalBadge(text: "外部から", symbol: "arrow.down.right", tone: LatticePalette.muted) }
+                    if decision.isUrgent && decision.isOpen { ApprovalBadge(text: String(localized: "急ぎ"), symbol: "bolt.fill", tone: LatticePalette.amber) }
+                    if decision.origin.isExternal { ApprovalBadge(text: String(localized: "外部から"), symbol: "arrow.down.right", tone: LatticePalette.muted) }
                     Spacer(minLength: 4)
                     Text(LatticeTime.since(decision.createdAt, now: Date())).font(.system(size: 11)).foregroundStyle(LatticePalette.muted)
                 }
@@ -156,7 +156,7 @@ private struct ApprovalCard: View {
                         if let deadline = ApprovalText.deadline(decision.deadline) {
                             ApprovalBadge(text: deadline, symbol: "clock", tone: LatticePalette.muted)
                         }
-                        if decision.recommended != nil { ApprovalBadge(text: "推奨あり", symbol: "star", tone: BellTheme.violet) }
+                        if decision.recommended != nil { ApprovalBadge(text: String(localized: "推奨あり"), symbol: "star", tone: BellTheme.violet) }
                     }
                 }
             }
@@ -176,21 +176,21 @@ private struct ApprovalCard: View {
 
     private func answerText(_ answer: ApprovalAnswer) -> String {
         if let id = answer.optionId, let option = decision.options.first(where: { $0.id == id }) { return option.label }
-        return "指示を返しました"
+        return String(localized: "指示を返しました")
     }
 
     @ViewBuilder private var deliveryBadge: some View {
         switch decision.delivery {
-        case "delivered", "fetched": ApprovalBadge(text: "届きました", symbol: "checkmark", tone: LatticePalette.live)
-        case "unknown": ApprovalBadge(text: "届いたか不明", symbol: "questionmark", tone: LatticePalette.amber)
+        case "delivered", "fetched": ApprovalBadge(text: String(localized: "届きました"), symbol: "checkmark", tone: LatticePalette.live)
+        case "unknown": ApprovalBadge(text: String(localized: "届いたか不明"), symbol: "questionmark", tone: LatticePalette.amber)
         default: EmptyView()
         }
     }
 
     private var accessibility: String {
-        var parts = [done ? "回答済み" : (decision.isHeld ? "保留" : "回答待ち")]
-        if decision.isUrgent && decision.isOpen { parts.append("急ぎ") }
-        if decision.origin.isExternal { parts.append("外部から") }
+        var parts = [done ? String(localized: "回答済み") : (decision.isHeld ? String(localized: "保留") : String(localized: "回答待ち"))]
+        if decision.isUrgent && decision.isOpen { parts.append(String(localized: "急ぎ")) }
+        if decision.origin.isExternal { parts.append(String(localized: "外部から")) }
         parts += [decision.title, ApprovalText.originCaption(decision)]
         if let deadline = ApprovalText.deadline(decision.deadline) { parts.append(deadline) }
         if !done { parts.append(decision.linkNote) }
@@ -201,8 +201,17 @@ private struct ApprovalCard: View {
 // MARK: Screen
 
 private struct ApprovalsScreen: View {
-    enum Tab: String, CaseIterable { case pending = "待ち", held = "保留", done = "済み" }
-    enum Origin: String, CaseIterable { case all = "すべて", bellteam = "BellTeam", external = "外部" }
+    enum Tab: CaseIterable { case pending, held, done }
+    enum Origin: CaseIterable {
+        case all, bellteam, external
+        var title: String {
+            switch self {
+            case .all: String(localized: "すべて")
+            case .bellteam: "BellTeam"
+            case .external: String(localized: "外部")
+            }
+        }
+    }
 
     @ObservedObject var model: ApprovalsModel
     @EnvironmentObject private var store: AppStore
@@ -312,7 +321,7 @@ private struct ApprovalsScreen: View {
     /// The gates (not entitled, not connected, …) draw no list controls: there is nothing to count or switch.
     private var showsData: Bool { model.gate == .ready || model.gate == .reconnecting || model.gate == .loading }
 
-    private func counter(_ label: String, _ value: Int) -> some View {
+    private func counter(_ label: LocalizedStringKey, _ value: Int) -> some View {
         HStack(spacing: 4) {
             Text(label).foregroundStyle(LatticePalette.muted)
             Text("\(value)").fontWeight(.bold).foregroundStyle(LatticePalette.ink).monospacedDigit()
@@ -398,7 +407,7 @@ private struct ApprovalsScreen: View {
     private var originFilter: some View {
         VStack(alignment: .leading, spacing: 6) {
             Picker("出どころ", selection: $origin) {
-                ForEach(Origin.allCases, id: \.self) { o in Text("\(o.rawValue) \(count(tab == .held ? held : pending, o))").tag(o) }
+                ForEach(Origin.allCases, id: \.self) { o in Text("\(o.title) \(count(tab == .held ? held : pending, o))").tag(o) }
             }
             .pickerStyle(.segmented).accessibilityIdentifier("approvals-origin")
             let hidden = origin == .bellteam ? count(tab == .held ? held : pending, .external) : 0
@@ -415,7 +424,7 @@ private struct ApprovalsScreen: View {
         let first = (tab == .held ? [] : pending.filter(matches))
         let second = (tab == .pending ? held.filter(matches) : (tab == .held ? held.filter(matches) : []))
         if first.isEmpty && second.isEmpty {
-            empty(summaryCount(.pending) + summaryCount(.held) == 0 ? ApprovalText.empty : "この条件の決裁はありません。", showDone: true)
+            empty(summaryCount(.pending) + summaryCount(.held) == 0 ? ApprovalText.empty : String(localized: "この条件の決裁はありません。"), showDone: true)
         }
         ForEach(first) { d in cardButton(d, done: false) }
         if tab == .pending && !second.isEmpty {
@@ -525,13 +534,13 @@ private struct ApprovalDetailView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 6) {
                 if d.isOpen {
-                    ApprovalBadge(text: d.isHeld ? "保留" : "回答待ち", symbol: d.isHeld ? "pause" : "tray", tone: d.isHeld ? LatticePalette.muted : BellTheme.violet)
+                    ApprovalBadge(text: d.isHeld ? String(localized: "保留") : String(localized: "回答待ち"), symbol: d.isHeld ? "pause" : "tray", tone: d.isHeld ? LatticePalette.muted : BellTheme.violet)
                 } else {
-                    ApprovalBadge(text: d.status == "cancelled" ? "取り下げ" : "回答済み", symbol: d.status == "cancelled" ? "xmark" : "checkmark.seal")
+                    ApprovalBadge(text: d.status == "cancelled" ? String(localized: "取り下げ") : String(localized: "回答済み"), symbol: d.status == "cancelled" ? "xmark" : "checkmark.seal")
                 }
-                if d.isUrgent && d.isOpen { ApprovalBadge(text: "急ぎ", symbol: "bolt.fill", tone: LatticePalette.amber) }
-                if d.origin.isExternal { ApprovalBadge(text: "外部から", symbol: "arrow.down.right") }
-                if d.amended.is { ApprovalBadge(text: "修正あり", symbol: "pencil", tone: BellTheme.violet) }
+                if d.isUrgent && d.isOpen { ApprovalBadge(text: String(localized: "急ぎ"), symbol: "bolt.fill", tone: LatticePalette.amber) }
+                if d.origin.isExternal { ApprovalBadge(text: String(localized: "外部から"), symbol: "arrow.down.right") }
+                if d.amended.is { ApprovalBadge(text: String(localized: "修正あり"), symbol: "pencil", tone: BellTheme.violet) }
                 Spacer()
                 if let onClose { Button(action: onClose) { Image(systemName: "xmark.circle.fill").font(.title3) }.foregroundStyle(LatticePalette.muted).accessibilityLabel("閉じる") }
             }
@@ -564,7 +573,7 @@ private struct ApprovalDetailView: View {
         .background(LatticePalette.lane, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
-    private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+    private func section<Content: View>(_ title: LocalizedStringKey, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             Text(title).font(.system(size: 11.5, weight: .semibold)).foregroundStyle(LatticePalette.muted)
             content()
@@ -602,7 +611,7 @@ private struct ApprovalDetailView: View {
             if d.status == "answered" {
                 answered(d)
             } else if d.status == "cancelled" {
-                if let reason = d.cancelReason, !reason.isEmpty { Text(verbatim: "AIが取り下げました：\(reason)").font(.system(size: 13.5)).foregroundStyle(LatticePalette.muted) }
+                if let reason = d.cancelReason, !reason.isEmpty { Text(verbatim: String(localized: "AIが取り下げました：\(reason)")).font(.system(size: 13.5)).foregroundStyle(LatticePalette.muted) }
             } else if d.isPending {
                 if sending {
                     HStack(spacing: 8) { ProgressView(); Text("答えを送っています…") }.font(.system(size: 14, weight: .semibold)).foregroundStyle(LatticePalette.muted)
@@ -635,7 +644,7 @@ private struct ApprovalDetailView: View {
                         .background(o.recommended ? AnyShapeStyle(BellTheme.violet) : AnyShapeStyle(LatticePalette.lane), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(o.recommended ? "\(o.label)、推奨" : o.label)
+                    .accessibilityLabel(o.recommended ? String(localized: "\(o.label)、推奨") : o.label)
                 }
                 Button { choice = .text } label: { Label("選ばずに、指示を書いて返す", systemImage: "pencil") }
                     .font(.system(size: 13.5, weight: .semibold)).padding(.top, 2)
@@ -725,18 +734,18 @@ private struct ApprovalDetailView: View {
         }
     }
 
-    static let fieldWords = ["title": "件名", "context": "背景", "options": "選択肢", "deadline": "期限", "urgency": "急ぎ度", "recommendation": "推奨"]
+    static let fieldWords = ["title": String(localized: "件名"), "context": String(localized: "背景"), "options": String(localized: "選択肢"), "deadline": String(localized: "期限"), "urgency": String(localized: "急ぎ度"), "recommendation": String(localized: "推奨")]
 
     static func historyText(_ entry: ApprovalHistoryEntry) -> String? {
         switch entry.kind {
-        case "created": return "依頼を受け付けました"
+        case "created": return String(localized: "依頼を受け付けました")
         case "amended":
             let fields = (entry.fields ?? []).compactMap { fieldWords[$0] }
-            return fields.isEmpty ? "内容を直しました（修正あり）" : "内容を直しました（修正あり）：\(fields.joined(separator: "・"))"
-        case "held": return "保留にしました"
-        case "unheld": return "保留を戻しました"
-        case "answered": return "答えました"
-        case "cancelled": return "取り下げられました"
+            return fields.isEmpty ? String(localized: "内容を直しました（修正あり）") : String(localized: "内容を直しました（修正あり）：\(fields.joined(separator: "・"))")
+        case "held": return String(localized: "保留にしました")
+        case "unheld": return String(localized: "保留を戻しました")
+        case "answered": return String(localized: "答えました")
+        case "cancelled": return String(localized: "取り下げられました")
         default: return nil
         }
     }
@@ -812,15 +821,15 @@ private struct ApprovalChainPanel: View {
 
     private func nextLine(_ link: ApprovalLink) -> String {
         guard let next = link.next.first else { return "" }
-        return "「\(next.title)」へ進めます。"
+        return String(localized: "「\(next.title)」へ進めます。")
     }
 
-    private func miniCard(_ task: ApprovalLinkTask, highlight: Bool, label: String) -> some View {
-        let words = ["done": "済み", "ready": "着手可", "in-progress": "作業中", "blocked": "止まり", "pending": "待ち", "retired": "取り下げ"]
+    private func miniCard(_ task: ApprovalLinkTask, highlight: Bool, label: LocalizedStringKey) -> some View {
+        let words = ["done": String(localized: "済み"), "ready": String(localized: "着手可"), "in-progress": String(localized: "作業中"), "blocked": String(localized: "止まり"), "pending": String(localized: "待ち"), "retired": String(localized: "取り下げ")]
         return VStack(alignment: .leading, spacing: 4) {
             Text(label).font(.system(size: 10.5, weight: .semibold)).foregroundStyle(LatticePalette.muted)
             Text(verbatim: task.title).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(LatticePalette.ink).lineLimit(2)
-            Text(words[task.state] ?? "その他").font(.system(size: 11.5)).foregroundStyle(LatticePalette.muted)
+            Text(words[task.state] ?? String(localized: "その他")).font(.system(size: 11.5)).foregroundStyle(LatticePalette.muted)
         }
         .padding(10).frame(maxWidth: .infinity, alignment: .leading)
         .background(LatticePalette.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))

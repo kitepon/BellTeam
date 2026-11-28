@@ -30,14 +30,14 @@ struct LoginFailure: Error, LocalizedError, Equatable {
 
     var errorDescription: String? {
         switch code {
-        case "SETUP_CODE_REQUIRED": "セットアップコードが違うか、入力されていません。サーバーのコンソールに出ているコードを入れてください。"
-        case "LOGIN_CODE_INVALID": "コードが違うか、すでに使われています。"
-        case "LOGIN_INPUT_INVALID": "ログインの内容を確認できませんでした。"
-        case "LOGIN_RATE_LIMITED": "しばらく待ってからもう一度お試しください。"
-        case "SESSION_STORE_UNAVAILABLE": "サーバーの準備中です。"
-        case "AUDIENCE_UNKNOWN": "このサーバーはこの接続先を知りません。サーバーに登録された接続先で開き直してください。"
-        case "NOT_OWNER_ACCOUNT": "このサーバーの持ち主のアカウントではありません。"
-        default: "BellTeamがログインを受け付けませんでした（\(status)）。"
+        case "SETUP_CODE_REQUIRED": String(localized: "セットアップコードが違うか、入力されていません。サーバーのコンソールに出ているコードを入れてください。")
+        case "LOGIN_CODE_INVALID": String(localized: "コードが違うか、すでに使われています。")
+        case "LOGIN_INPUT_INVALID": String(localized: "ログインの内容を確認できませんでした。")
+        case "LOGIN_RATE_LIMITED": String(localized: "しばらく待ってからもう一度お試しください。")
+        case "SESSION_STORE_UNAVAILABLE": String(localized: "サーバーの準備中です。")
+        case "AUDIENCE_UNKNOWN": String(localized: "このサーバーはこの接続先を知りません。サーバーに登録された接続先で開き直してください。")
+        case "NOT_OWNER_ACCOUNT": String(localized: "このサーバーの持ち主のアカウントではありません。")
+        default: String(localized: "BellTeamがログインを受け付けませんでした（\(status)）。")
         }
     }
 
@@ -139,7 +139,7 @@ final class ServerLoginModel: ObservableObject {
         do {
             let answer = try await client.console(code: trimmed)
             // 応答を取りこぼした時は、新しいコードで入り直す（契約）。
-            guard answer.status ?? .approved == .approved, let token = answer.token else { errorText = "ログインの結果を受け取れませんでした。新しいコードで、もう一度お試しください。"; return }
+            guard answer.status ?? .approved == .approved, let token = answer.token else { errorText = String(localized: "ログインの結果を受け取れませんでした。新しいコードで、もう一度お試しください。"); return }
             await onToken(token, answer.sessionId)
         } catch { errorText = error.localizedDescription }
     }

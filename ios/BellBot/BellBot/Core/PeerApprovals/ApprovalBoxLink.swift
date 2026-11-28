@@ -206,10 +206,10 @@ final class ApprovalBoxLink: ObservableObject, ChildJoinSource {
 
 /// The sentences of the states after the join (the join screen's own are `ChildJoinWords`).
 enum ApprovalBoxWords {
-    static let reconnecting = "つなぎ直しています"
-    static let retryNow = "今すぐ試す"
-    static let notEntitled = "Approval Boxの契約が必要です。契約はApproval Boxのアプリで行います。"
-    static let checkAgain = "確かめ直す"
-    static let updateRequired = "この版では、決裁箱をまだ使えません。アプリを更新してください。"
-    static let adding = "決裁箱への追加を待っています。決裁箱のアプリが開いていると、自動で追加されます。"
+    static let reconnecting = String(localized: "つなぎ直しています")
+    static let retryNow = String(localized: "今すぐ試す")
+    static let notEntitled = String(localized: "Approval Boxの契約が必要です。契約はApproval Boxのアプリで行います。")
+    static let checkAgain = String(localized: "確かめ直す")
+    static let updateRequired = String(localized: "この版では、決裁箱をまだ使えません。アプリを更新してください。")
+    static let adding = String(localized: "決裁箱への追加を待っています。決裁箱のアプリが開いていると、自動で追加されます。")
 }

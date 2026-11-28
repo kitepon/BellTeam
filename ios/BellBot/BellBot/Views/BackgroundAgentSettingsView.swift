@@ -6,11 +6,11 @@ let backgroundAgentHarnesses = [("codex", "Codex"), ("claude", "Claude"), ("grok
 enum EffortText {
     static func label(_ effort: String) -> String {
         switch effort {
-        case "": "CLIの既定"
-        case "low": "低"
-        case "medium": "中"
-        case "high": "高"
-        case "xhigh": "最高"
+        case "": String(localized: "CLIの既定")
+        case "low": String(localized: "低")
+        case "medium": String(localized: "中")
+        case "high": String(localized: "高")
+        case "xhigh": String(localized: "最高")
         default: effort
         }
     }
@@ -27,14 +27,14 @@ struct BackgroundAgentChoices {
     }
 
     func problem(for selection: BackgroundAgentSelection) -> String? {
-        guard let listed = catalog[selection.harness] else { return "モデル候補を読み込めませんでした。" }
+        guard let listed = catalog[selection.harness] else { return String(localized: "モデル候補を読み込めませんでした。") }
         if let error = listed.error { return error.message }
-        if selection.model.isEmpty { return "モデルを選んでください。" }
+        if selection.model.isEmpty { return String(localized: "モデルを選んでください。") }
         guard let choice = listed.models.first(where: { $0.id == selection.model }) else {
-            return "保存されているモデルは現在の候補にありません。選び直してください。"
+            return String(localized: "保存されているモデルは現在の候補にありません。選び直してください。")
         }
-        if choice.efforts.isEmpty { return selection.reasoningEffort.isEmpty ? nil : "このモデルはエフォートを指定できません。" }
-        return choice.efforts.contains(selection.reasoningEffort) ? nil : "このモデルで使えるエフォートを選んでください。"
+        if choice.efforts.isEmpty { return selection.reasoningEffort.isEmpty ? nil : String(localized: "このモデルはエフォートを指定できません。") }
+        return choice.efforts.contains(selection.reasoningEffort) ? nil : String(localized: "このモデルで使えるエフォートを選んでください。")
     }
 }
 
@@ -159,7 +159,7 @@ struct BackgroundAgentEditor: View {
             let response = try await store.api.updateBackgroundAgent(BackgroundAgentUpdate(expectedRevision: revision, selection: draft))
             store.backgroundAgent = response.backgroundAgent
             revision = response.backgroundAgent.revision
-            savedText = "保存しました。"
+            savedText = String(localized: "保存しました。")
         } catch let error where BellAPIError.isAuthenticationError(error) {
             store.requireLogin(for: error)
         } catch {

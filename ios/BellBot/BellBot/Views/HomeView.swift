@@ -108,7 +108,7 @@ struct HomeView: View {
                     .background(.white, in: RoundedRectangle(cornerRadius: 12))
             }
             .accessibilityLabel("メンバーまたはルームを追加")
-            AvatarView(name: store.owner?.name ?? "あなた", avatar: store.owner?.avatar ?? "", color: BellTheme.violet, size: 38)
+            AvatarView(name: store.owner?.name ?? String(localized: "あなた"), avatar: store.owner?.avatar ?? "", color: BellTheme.violet, size: 38)
         }
     }
 
@@ -176,7 +176,7 @@ struct HomeView: View {
         }
     }
 
-    private func sectionTitle(_ title: String, symbol: String) -> some View {
+    private func sectionTitle(_ title: LocalizedStringKey, symbol: String) -> some View {
         HStack(spacing: 8) {
             Image(systemName: symbol)
                 .font(.system(size: 15, weight: .semibold))
@@ -208,7 +208,7 @@ private struct RoomCard: View {
                     .font(.system(size: 17, weight: .bold, design: .rounded))
                     .foregroundStyle(BellTheme.ink)
                     .lineLimit(1)
-                Text(room.recent?.preview ?? (room.purpose.isEmpty ? "チームで話す" : room.purpose))
+                Text(room.recent?.preview ?? (room.purpose.isEmpty ? String(localized: "チームで話す") : room.purpose))
                     .font(.system(size: 13))
                     .foregroundStyle(BellTheme.muted)
                     .lineLimit(2)

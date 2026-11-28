@@ -5,7 +5,7 @@ enum ServerLoginWords {
     static func kind(_ kind: String) -> String {
         switch kind {
         case "web": "Web"
-        case "apple": "iPhone・iPad・Mac"
+        case "apple": String(localized: "iPhone・iPad・Mac")
         case "windows": "Windows"
         case "linux": "Linux"
         case "android": "Android"
@@ -13,24 +13,24 @@ enum ServerLoginWords {
         }
     }
 
-    static func network(_ networkClass: String) -> String { networkClass == "lan" ? "同じネットワークから" : "ネットワークは確認できません" }
+    static func network(_ networkClass: String) -> String { networkClass == "lan" ? String(localized: "同じネットワークから") : String(localized: "ネットワークは確認できません") }
 
     static func origin(_ origin: String) -> String {
         switch origin {
-        case "phone": "スマホで承認"
-        case "console": "サーバーのコンソールのコード"
-        case "added": "「アプリを追加」のコード"
+        case "phone": String(localized: "スマホで承認")
+        case "console": String(localized: "サーバーのコンソールのコード")
+        case "added": String(localized: "「アプリを追加」のコード")
         default: origin
         }
     }
 
-    static let consoleTitle = "サーバーのコンソールのコード"
-    static let sectionTitle = "このサーバーに入っている端末"
+    static let consoleTitle = String(localized: "サーバーのコンソールのコード")
+    static let sectionTitle = String(localized: "このサーバーに入っている端末")
 
     /// 一覧の上の一行。台数は自分の行も数える。
-    static func summary(_ count: Int) -> String { count == 1 ? "この端末だけが入っています" : "\(count)台が入っています" }
+    static func summary(_ count: Int) -> String { count == 1 ? String(localized: "この端末だけが入っています") : String(localized: "\(count)台が入っています") }
 
-    static let addAppNote = "この画面のコードは1回だけ使えて、10分で切れます。購読していない人は、このコードでブラウザー版に入れます。このコードで入ったものは、このアプリが終わると一緒に終わります。"
+    static let addAppNote = String(localized: "この画面のコードは1回だけ使えて、10分で切れます。購読していない人は、このコードでブラウザー版に入れます。このコードで入ったものは、このアプリが終わると一緒に終わります。")
 
     static func date(_ text: String?) -> String? {
         guard let text else { return nil }
@@ -162,7 +162,9 @@ struct DeviceRowInfo: Identifiable, Equatable {
     }
 
     private static func times(created: String?, lastUse: String?) -> String {
-        "入った日時 \(ServerLoginWords.date(created) ?? "")" + (ServerLoginWords.date(lastUse).map { "・最後に使った日時 \($0)" } ?? "")
+        let createdText = ServerLoginWords.date(created) ?? ""
+        guard let usedText = ServerLoginWords.date(lastUse) else { return String(localized: "入った日時 \(createdText)") }
+        return String(localized: "入った日時 \(createdText)・最後に使った日時 \(usedText)")
     }
 
     init(_ entry: ServerLoginClient.SessionEntry) {
@@ -171,7 +173,7 @@ struct DeviceRowInfo: Identifiable, Equatable {
         title = console ? ServerLoginWords.consoleTitle : ServerLoginWords.kind(entry.kind)
         icon = console ? .console : Self.icon(kind: entry.kind, current: entry.current)
         current = entry.current
-        originLine = "\(ServerLoginWords.origin(entry.origin))・\(ServerLoginWords.network(entry.networkClass))"
+        originLine = String(localized: "\(ServerLoginWords.origin(entry.origin))・\(ServerLoginWords.network(entry.networkClass))")
         times = Self.times(created: entry.createdAt, lastUse: entry.lastUsedAt)
     }
 
@@ -222,7 +224,7 @@ struct DeviceRowView: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Text(info.title).font(.headline)
-                    if info.current { BellBadge(text: "このアプリ", tone: .violet) }
+                    if info.current { BellBadge(text: String(localized: "このアプリ"), tone: .violet) }
                 }
                 if let line = info.originLine { Text(line).font(.footnote).foregroundStyle(BellTheme.muted) }
                 Text(info.times).font(.footnote).foregroundStyle(BellTheme.muted)

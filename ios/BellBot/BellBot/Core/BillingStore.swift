@@ -27,8 +27,8 @@ private enum BillingOperation {
     case restore, check
     var text: String {
         switch self {
-        case .restore: "購入を復元しています"
-        case .check: "購読を確認しています"
+        case .restore: String(localized: "購入を復元しています")
+        case .check: String(localized: "購読を確認しています")
         }
     }
 }
@@ -65,7 +65,7 @@ final class BillingStore: ObservableObject {
 
     var working: Bool { operation != nil }
     var checking: Bool { working || reading }
-    var progressText: String { operation?.text ?? "購読を確認しています" }
+    var progressText: String { operation?.text ?? String(localized: "購読を確認しています") }
     var libraryActive: Bool { account?.hasLiveContract == true }
     var hasPaidAccess: Bool { libraryActive }
     /// The wall: only after this device's own store was read and nothing is paid.
@@ -130,7 +130,7 @@ final class BillingStore: ObservableObject {
 
     func requirePaidAccess(initialGuide: Bool = false) async throws {
         guard AppAccess.permitsAI(libraryActive: libraryActive, initialGuide: initialGuide) else {
-            throw BellAPIError.server("AppleアプリからのAI利用には月額購読が必要です。設定の「BellTeamの購読」で購入または復元してください。初期案内と、会話の閲覧・書き出しは無料で使えます。")
+            throw BellAPIError.server(String(localized: "AppleアプリからのAI利用には月額購読が必要です。設定の「BellTeamの購読」で購入または復元してください。初期案内と、会話の閲覧・書き出しは無料で使えます。"))
         }
     }
 
@@ -144,7 +144,7 @@ final class BillingStore: ObservableObject {
         do {
             try await StoreKit.AppStore.sync()
             await account.start()
-            message = hasPaidAccess ? "購読を確認しました。" : "このApple Accountに有効な購読はありません。"
+            message = hasPaidAccess ? String(localized: "購読を確認しました。") : String(localized: "このApple Accountに有効な購読はありません。")
         } catch {
             errorText = error.localizedDescription
             api.diagnostics.report(error, path: "/api/subscription", method: nil, observation: .subscription)
