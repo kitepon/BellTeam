@@ -17,10 +17,12 @@ struct LoginAnswer: Decodable, Equatable {
 
 /// 接続先がホームの契約（GET /api/home/session）を持つ時の探査結果。無い本体はnilで、従来の経路を使う。
 struct HomeProbe: Decodable, Equatable {
+    struct Session: Decodable, Equatable { let id: String }
     static let capabilityName = "login-billing-home/1"
     let capability: String
     let bound: Bool
     let enforced: Bool
+    var session: Session? = nil
 }
 
 struct LoginFailure: Error, LocalizedError, Equatable {

@@ -274,6 +274,7 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
     private let lock = NSLock()
     private let logger = Logger(subsystem: "app.bellteam.bellbot", category: "diagnostics")
     private var serverURL: URL?
+    private var sessionToken: String?
     private var started = false
     private var deviceType = ""
     private var appState = "inactive"
@@ -312,6 +313,12 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
         started = started || shouldStart
         lock.unlock()
         if shouldStart, onReport == nil { MXMetricManager.shared.add(self) }
+    }
+
+    func updateSessionToken(_ token: String?) {
+        lock.lock()
+        sessionToken = token
+        lock.unlock()
     }
 
     func updateAppState(_ state: String) {
@@ -434,6 +441,7 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
         if let onReport { onReport(code, module, version, log); return }
         lock.lock()
         let baseURL = serverURL
+        let token = sessionToken
         lock.unlock()
         guard let baseURL else { return }
         Task {
@@ -442,6 +450,7 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
                 var request = URLRequest(url: url)
                 request.httpMethod = "POST"
                 request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
                 var payload: [String: Any] = [
                     "code": code, "module": module, "app_version": version,
                     "diagnostic_log": log

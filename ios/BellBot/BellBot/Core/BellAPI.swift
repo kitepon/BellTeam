@@ -109,7 +109,9 @@ struct BellEvent: Sendable {
 final class BellAPI {
     var baseURL: URL?
     /// サーバーのセッショントークン（app-sessions.md）。あれば全要求に`Authorization: Bearer`で付ける。
-    var sessionToken: String?
+    var sessionToken: String? {
+        didSet { diagnostics.updateSessionToken(sessionToken) }
+    }
     // 背景で止まった端末の死んだ接続を前面復帰時に捨てるため、flush できる専用セッションを持つ。
     private let session: URLSession
     let diagnostics: BellDiagnostics
@@ -466,7 +468,7 @@ final class BellAPI {
 
     private func request(path: String, method: String) throws -> URLRequest {
         guard let baseURL else { throw BellAPIError.notConfigured }
-        let url = URL(string: path, relativeTo: baseURL)!.absoluteURL
+        guard let url = URL(string: path, relativeTo: baseURL)?.absoluteURL else { throw BellAPIError.invalidResponse }
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -502,8 +504,12 @@ final class BellAPI {
               responseURL.host == baseURL.host,
               responseURL.port == baseURL.port else { throw BellAPIError.unauthorized }
         if keepStatus { return }
-        // 本体のセッションが有効なまま拒まれた403（FORBIDDEN）はトークンを消さない。確定した401だけが認証切れ（Accessの旧経路は403も認証切れ）。
+        // 本体のセッションが有効なまま拒まれた403（FORBIDDEN）はトークンを消さない。確定した401と403 UNAUTHORIZEDだけが認証切れ（Accessの旧経路は403も認証切れ）。
         if http.statusCode == 401 || (http.statusCode == 403 && sessionToken == nil) { throw BellAPIError.unauthorized }
+        if http.statusCode == 403 {
+            struct ErrorCodeOnly: Decodable { let error: String }
+            if (try? decoder.decode(ErrorCodeOnly.self, from: data))?.error == "UNAUTHORIZED" { throw BellAPIError.unauthorized }
+        }
         guard (200..<300).contains(http.statusCode) else {
             struct ErrorBody: Decodable { let error: String; let message: String?; let reason: String? }
             let body = try? decoder.decode(ErrorBody.self, from: data)

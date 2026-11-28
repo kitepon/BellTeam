@@ -306,7 +306,7 @@ final class AppStore: ObservableObject {
             let session: SessionResponse = try await api.get("/api/session")
             authMode = session.authMode
             loginProbe = session.login
-            sessionID = session.sessionId
+            sessionID = session.sessionId ?? homeProbe?.session?.id
             serverPreparing = false
             preparingDelay = 1
             guard session.authenticated else {
@@ -998,7 +998,8 @@ final class AppStore: ObservableObject {
         eventsError = nil
         notificationError = nil
         updateConnectionError()
-        if api.sessionToken != nil || loginProbe?.enforced == true { showServerLogin(); return }
+        if case .serverLogin = phase { return }
+        if api.sessionToken != nil || loginProbe?.enforced == true || homeProbe != nil { showServerLogin(); return }
         phase = authMode == "cloudflare" ? .signIn : .failure(String(localized: "接続先が認証を拒否しました。サーバーの設定を確認してください。"))
     }
 
