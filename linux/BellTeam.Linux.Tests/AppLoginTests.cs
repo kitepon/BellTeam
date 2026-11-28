@@ -127,6 +127,26 @@ public sealed class AppLoginTests
         Assert.True(workspace.Connected); Assert.Null(workspace.ActionError);
     }
 
+    // Android awaits the push unregister between the user's press and the home sign-out: the binding is made at the press, so a switch during that wait leaves the new connection and its token alone.
+    [Theory]
+    [InlineData("http://localhost:2/", false)]
+    [InlineData("http://localhost:1/", true)]
+    public async Task ASignOutBoundAtTheFirstActionSurvivesASwitchDuringAnEarlierAwait(string next, bool sameAddress)
+    {
+        var server = new Server(); var tokens = new MemorySessionTokenStore(); var first = new Uri("http://localhost:1/"); var second = new Uri(next);
+        tokens.Save(first, "tok-old");
+        using var workspace = new LinuxWorkspace(o => new BellApi(o, server) { SessionToken = tokens.Load(o) });
+        await workspace.ConnectAsync("http://localhost:1/", listen: false);
+        var end = HomeSessionEnd.Begin(workspace, tokens);          // at the press
+        var unregister = new TaskCompletionSource();                // stands for PushRegistration.UnregisterAsync, still pending
+        tokens.Save(second, "tok-new"); await workspace.ConnectAsync(next, listen: false);
+        unregister.SetResult(); await unregister.Task;               // the old unregister returns normally
+        Assert.False(await end.EndAsync());
+        Assert.DoesNotContain(server.Calls, call => call.StartsWith("DELETE") || call == "GET /api/home/sessions");
+        Assert.Equal("tok-new", tokens.Load(second)); Assert.Equal(sameAddress ? "tok-new" : null, tokens.Load(first));
+        Assert.True(workspace.Connected); Assert.Null(workspace.ActionError);
+    }
+
     // The ordinary sign-out is unchanged: the own row goes, the token goes, the caller may continue.
     [Fact]
     public async Task ANormalSignOutReportsThatTheConnectionIsStillCurrent()

@@ -715,7 +715,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     {
         if (!model.Connected || !LeavePage()) return;
         INotificationSwitch toggle = (INotificationSwitch?)notifications ?? new StoredNotificationSwitch(settingsStore);
-        var editor = new SettingsWindow(model, OpenConnectionSettings, toggle, async () => { ShowConversation(); if (await HomeSessionEnd.EndAsync(model, tokens)) model.SignOut(); });
+        var editor = new SettingsWindow(model, OpenConnectionSettings, toggle, async () => { var end = HomeSessionEnd.Begin(model, tokens); ShowConversation(); if (await end.EndAsync()) model.SignOut(); });
         model.ReturnToProfile();
         settingsPage = editor; pageArea.Child = editor.AsPage(ShowConversation); pageArea.IsVisible = true; conversationArea.IsVisible = false; UpdateCorner();
         PageReady = editor.InitializeAsync(page);
