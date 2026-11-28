@@ -197,7 +197,7 @@ def serve(via, path, mode, unit=None):
     s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     s.bind(path)
     os.chmod(path, mode)
-    s.listen(32)
+    s.listen(128)  # a burst of ssh clients (a monitor run opens dozens at once) must not overflow the queue
     while True:
         conn, _ = s.accept()
         threading.Thread(target=handle, args=(conn, via, unit), daemon=True).start()
