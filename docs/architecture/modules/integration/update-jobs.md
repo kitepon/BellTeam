@@ -7,7 +7,7 @@ Runtime source contract: [runtime/update-jobs.md](../runtime/update-jobs.md). Ow
 | Existing update surface | Contract |
 | --- | --- |
 | POST /api/updates/plans | Existing preview only; no job is admitted |
-| POST /api/updates/operations | Existing body plus optional idempotencyKey (1..128 printable ASCII); returns202 `{operation}` only after EVERY step's runtime admitJob receipt has been saved in the existing parent ledger |
+| POST /api/updates/operations | Existing body plus optional idempotencyKey (1..128 printable ASCII); returns 202 `{operation}` after every step's runtime admission receipt is saved. If the follow-up job read fails, the initial start returns the saved accepted operation without its optional `jobs` projection and starts the same admitted work. |
 | GET /api/updates/operations/:requestId | `{operation}` with optional `jobs:[record,...]` for new operations; records are freshly read from updater storage. Legacy operations have no invented job |
 | GET /api/updates | Existing inventory plus `jobs:[record,...]`, newest16 across both updater clients; existing operation/previousOperation each retain their own jobs[]. `kind:"runtime"` jobs, runtime rows and runtime plans/operations appear only with `?runtime=1` ([runtime-updates.md slice D](../runtime/runtime-updates.md#inventory-plan-and-start-slice-d)); without it the body is the pre-Z-b2 shape |
 | GET /api/updates/jobs/:kind/:jobId | `{job:record}` read directly from the corresponding updater client; kind is module or container, UUID is validated |
@@ -65,10 +65,14 @@ flowchart LR
   HTTP[Authenticated existing update HTTP] --> Center[Common update center]
   Center --> Executor[Existing parent step ledger]
   Executor --> Admit[Runtime admitJob per step]
-  Admit --> Receipt[All durable receipts saved before202]
+  Admit --> Receipt[All durable receipts saved before 202]
+  Receipt --> InitialRead[Read optional jobs projection]
+  InitialRead -->|success| Acceptance[HTTP 202 operation with jobs]
+  InitialRead -->|read error| SavedAcceptance[HTTP 202 saved accepted operation]
+  InitialRead -->|either result| Work[Start one worker with the saved bindings]
+  Work --> Adapter[Existing controller replace]
   Executor --> Reports[Saved terminal report intents / ACK reconciliation]
   Reports --> Report
-  Executor --> Adapter[Existing controller replace]
   Adapter --> Probe[Runtime actual candidate read]
   Probe --> Report[Runtime updateJob ready or failed]
   Center --> Reader[Runtime job and jobs client reads]
