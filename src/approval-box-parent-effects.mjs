@@ -9,7 +9,16 @@ const text = value => value == null ? '' : String(value)
 const PERMANENT = /^(SENDER_NOT_FOUND|BOT_NOT_FOUND|MESSAGE_REQUIRED)\b/u
 
 // messenger + runAs: the public send path, the same one the sendmessage tool and Lattice's notices use (README section 13, F8). No messenger: the child retries on the next tick.
-export function createApprovalBoxExtensionEffects({ lattice, bots, credentials = null, scope = APPROVAL_BOX_SESSION_SCOPE, messenger = null, runAs = (actor, send) => send() }) {
+export function createApprovalBoxExtensionEffects({ lattice, bots, credentials = null, scope = APPROVAL_BOX_SESSION_SCOPE, decisions = null, messenger = null, runAs = (actor, send) => send() }) {
+  const viaP1 = async (call, gone = null) => {
+    const port = typeof decisions === 'function' ? decisions() : decisions
+    if (!port) throw fail('APPROVAL_BOX_EXTENSION_DECISIONS_UNAVAILABLE', 503)
+    try { return await call(port) } catch (error) {
+      if (error?.kind === 'REFUSED') throw fail('APPROVALS_EFFECT_REFUSED', 409)
+      if (error?.kind === 'GONE' && gone) return gone()
+      throw fail('APPROVAL_BOX_EXTENSION_DECISIONS_UNAVAILABLE', 503)
+    }
+  }
   return async (method, params) => {
     switch (method) {
       // A refused Owner-task write is told apart so the child skips that decision; every other failure ends the tick (the child's retry).
@@ -48,6 +57,11 @@ export function createApprovalBoxExtensionEffects({ lattice, bots, credentials =
         if (typeof credentials?.erase !== 'function') throw unavailable()
         await credentials.erase(scope)
         return { ok: true }
+      // F9 (README section 5b): the Owner-lane filer files, reads and cancels only its own requests, through P1 (decision-port.md, origin lattice). P1 UNAVAILABLE reaches the child as a failed effect;
+      // REFUSED (a 4xx on one request) as APPROVALS_EFFECT_REFUSED so the child skips that card; GONE (Approval Box no longer knows the id) as the result status 'gone'.
+      case 'decisions.file': return viaP1(port => port.file({ title: params.title, context: params.context, options: params.options, requester: params.requester, session_label: params.sessionLabel, origin: 'lattice' }))
+      case 'decisions.read': return viaP1(port => port.read(params.decisionId), () => ({ status: 'gone' }))
+      case 'decisions.cancel': return viaP1(port => port.cancel(params.decisionId, params.reason), () => ({ status: 'gone' }))
       default: throw fail('APPROVAL_BOX_EXTENSION_EFFECT_INVALID', 400)
     }
   }

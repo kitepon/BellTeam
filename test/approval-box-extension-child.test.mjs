@@ -13,7 +13,7 @@ const raw = (id, extra = {}) => ({ id, title: '請求を同じにするか', con
   source: { client: 'claude-code', session_label: 'ブレッディ / billing', requester: 'ブレッディ', requester_bot_id: 'bot-823b56e9', via: 'connector' }, ...extra })
 
 // A fake Approval Box + a fake parent. calls records every effect; `server` answers /v1 paths.
-function harness({ decisions = [], session = { token: 'kss_x', expiresAt: null }, cards = [], me = ME, pairing = null, rowsText = null, bookText = null, seatMessage = null, now = () => Date.parse('2026-11-15T03:00:00Z') } = {}) {
+function harness({ decisions = [], session = { token: 'kss_x', expiresAt: null }, cards = [], me = ME, pairing = null, rowsText = null, bookText = null, seatMessage = null, p1 = null, now = () => Date.parse('2026-11-15T03:00:00Z') } = {}) {
   const calls = [], writes = new Map(), files = new Map(), box = { decisions: new Map(decisions.map(d => [d.id, d])), me, hits: [] }
   let stored = session && JSON.stringify(session)
   const client = {
@@ -42,6 +42,7 @@ function harness({ decisions = [], session = { token: 'kss_x', expiresAt: null }
     if (method === 'session.put') { stored = params.value; return { ok: true } }
     if (method === 'session.erase') { stored = null; return { ok: true } }
     if (method === 'seat.message') { if (!seatMessage) throw new Error('unexpected effect'); return seatMessage(params) }
+    if (method.startsWith('decisions.')) { if (!p1) throw new Error('unexpected effect'); return p1[method.slice('decisions.'.length)](params) }
     if (method === 'members.list') return [{ id: 'bot-823b56e9', name: 'ブレッディ' }]
     if (method === 'lattice.charts') return [{ projectId: 'bellteam', name: 'BellTeam開発', createdBy: 'bot-7b140b27', coordinator: true }]
     if (method === 'lattice.chart') return { cards: chartCards, edges: [] }
@@ -335,4 +336,96 @@ test('module.json source lists every file of src/approval-box-extension* (the pa
   const files = [...readdirSync(new URL('../src/approval-box-extension', import.meta.url)).map(name => `src/approval-box-extension/${name}`),
     ...readdirSync(new URL('../src', import.meta.url)).filter(name => name.startsWith('approval-box-extension-')).map(name => `src/${name}`)]
   assert.deepEqual([...listed].sort(), files.sort())
+})
+
+// F9 (README section 5b): every open Owner-lane card gets one request.
+const ownerCard = (taskId, extra = {}) => ({ id: `p1/${taskId}`, plan: 'p1', taskId, state: 'ready', lane: 'approval-box', title: 'App Storeのプライバシーを直す', ...extra })
+const clock = start => { let t = Date.parse(start); return { now: () => t, advance: ms => { t += ms } } }
+const rowsOf = h => JSON.parse(h.files.get('links.json')).rows
+
+test('F9 O1: an open Owner-lane card gets one request with the L8 label, then is linked; non-Owner and ended cards get none; a second scan files nothing', async () => {
+  const filed = [], p1 = { file: async params => (filed.push(params), { decisionId: 'K-OWN1', existing: false }) }
+  const c = clock('2026-11-28T01:00:00Z')
+  const h = harness({ decisions: [], p1, now: c.now, cards: [ownerCard('t1'), ownerCard('t2', { lane: '指揮官' }), ownerCard('t3', { lane: 'bot-823b56e9' }), ownerCard('t4', { state: 'done' }), ownerCard('t5', { lane: null })] })
+  await h.core.refresh({ since: 0 }, h.effect)
+  assert.deepEqual(filed.map(item => item.sessionLabel), ['Lattice bellteam p1/t1', 'Lattice bellteam p1/t2'])
+  assert.deepEqual(filed[0].options.map(option => option.id), ['done', 'not-yet'])
+  assert.equal(filed[0].title, 'App Storeのプライバシーを直す')
+  assert.match(filed[0].context, /BellTeam開発/u)
+  assert.equal(filed[0].requester, '工程表') // the chart's creator is not in the roster here
+  assert.deepEqual(h.calls.filter(([m]) => m === 'lattice.link').map(([, p]) => p.taskId), ['t1', 't2'])
+  assert.ok(rowsOf(h).every(row => row.filed && row.attached && row.state === 'linked'))
+  c.advance(61_000); filed.length = 0
+  await h.core.refresh({ since: 0 }, h.effect)
+  assert.equal(filed.length, 0, 'a card with a row is never filed again')
+})
+
+test('F9 O5: Approval Box not usable (P1 unavailable, no P1 at all) writes nothing and never breaks the tick', async () => {
+  const down = harness({ decisions: [], p1: { file: async () => { throw Object.assign(new Error('x'), { code: 'APPROVAL_BOX_EXTENSION_DECISIONS_UNAVAILABLE' }) } }, cards: [ownerCard('t1')] })
+  await down.core.refresh({ since: 0 }, down.effect)
+  assert.ok(!down.calls.some(([m]) => m === 'lattice.link') && !down.files.has('links.json'))
+  const refused = harness({ decisions: [], p1: { file: async () => { throw Object.assign(new Error('x'), { code: 'APPROVALS_EFFECT_REFUSED' }) } }, cards: [ownerCard('t1')] })
+  await refused.core.refresh({ since: 0 }, refused.effect)
+  assert.ok(!refused.files.has('links.json'))
+  const none = harness({ decisions: [], cards: [ownerCard('t1')] }) // an old body: the effect is refused as unexpected
+  await none.core.refresh({ since: 0 }, none.effect)
+  assert.ok(!none.files.has('links.json'))
+})
+
+test('F9 O2: "done" starts then finishes the task; "not-yet" notes the reason and asks again after 24 h; cancelled or gone is asked again at once', async () => {
+  const answers = { 'K-A': { status: 'answered', answer: { optionId: 'done' } }, 'K-B': { status: 'answered', answer: { optionId: 'not-yet', text: '来週やる' } }, 'K-C': { status: 'cancelled' }, 'K-D': { status: 'gone' } }
+  let next = 0
+  const p1 = { file: async () => ({ decisionId: ['K-A', 'K-B', 'K-C'][next++], existing: false }), read: async ({ decisionId }) => answers[decisionId] ?? { status: 'pending' } }
+  const c = clock('2026-11-28T01:00:00Z')
+  const h = harness({ decisions: [], p1, now: c.now, cards: [ownerCard('t1'), ownerCard('t2', { state: 'in-progress' }), ownerCard('t3')] })
+  await h.core.refresh({ since: 0 }, h.effect)
+  assert.equal(next, 3)
+  c.advance(61_000)
+  await h.core.refresh({ since: 0 }, h.effect)
+  const verbs = [...h.writes.keys()]
+  assert.ok(verbs.includes('todo start --plan p1 --task t1') && verbs.some(v => v.startsWith('todo done --plan p1 --task t1 --message 指揮官の答え：済んだ')))
+  assert.ok(verbs.some(v => v.startsWith('todo note --plan p1 --task t2 --message 指揮官の答え：まだ（来週やる）')) && !verbs.includes('todo start --plan p1 --task t2'))
+  const rows = rowsOf(h)
+  assert.equal(rows.find(row => row.taskId === 't1').state, 'answered')
+  assert.equal(rows.find(row => row.taskId === 't2').state, 'deferred')
+  assert.ok(!rows.some(row => row.taskId === 't3'), 'a cancelled request leaves no row')
+  // t3 is asked again on the scan after it (cancelled → removed → filed); t2 stays deferred until 24 h pass
+  next = 0; answers['K-A'] = { status: 'pending' }
+  c.advance(61_000)
+  await h.core.refresh({ since: 0 }, h.effect)
+  assert.equal(rowsOf(h).filter(row => row.taskId === 't2').length, 1)
+  c.advance(25 * 3_600_000)
+  await h.core.refresh({ since: 0 }, h.effect)
+  assert.ok(rowsOf(h).some(row => row.taskId === 't2' && row.state === 'linked'), 'asked again after the 24 h')
+})
+
+test('F9 O3: a card that ended on the chart takes its open request with it', async () => {
+  const cancelled = [], p1 = { file: async () => ({ decisionId: 'K-OWN1', existing: false }), read: async () => ({ status: 'pending' }), cancel: async params => (cancelled.push(params), { status: 'cancelled' }) }
+  const c = clock('2026-11-28T01:00:00Z'), cards = [ownerCard('t1')]
+  const h = harness({ decisions: [], p1, now: c.now, cards })
+  await h.core.refresh({ since: 0 }, h.effect)
+  c.advance(61_000); cards[0].state = 'retired'
+  await h.core.refresh({ since: 0 }, h.effect)
+  assert.equal(cancelled.length, 1)
+  assert.equal(cancelled[0].decisionId, 'K-OWN1')
+  assert.equal(rowsOf(h)[0].state, 'closed')
+})
+
+test('F9 O1: a card an AI already attached (a row exists) is not filed again', async () => {
+  const filed = [], p1 = { file: async params => (filed.push(params), { decisionId: 'K-X', existing: false }) }
+  const row = { decisionId: 'K-AAAA', projectId: 'bellteam', plan: 'p1', taskId: 't1', state: 'linked', attached: true, sessionLabel: 'Lattice bellteam p1/t1', handledVersion: 1, updatedAt: '2026-11-15T01:00:00Z' }
+  const h = harness({ decisions: [raw('K-AAAA', { source: { session_label: 'Lattice bellteam p1/t1', requester: 'ブレッディ' } })], p1, cards: [ownerCard('t1')], rowsText: JSON.stringify({ version: 1, rows: [row] }) })
+  await h.core.refresh({ since: 0 }, h.effect)
+  assert.equal(filed.length, 0)
+})
+
+test('F9 protocol: the decisions effects validate their params and results', () => {
+  validateApprovalsEffect('decisions.file', { title: 't', context: 'c', options: [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }], requester: '工程表', sessionLabel: 'Lattice bellteam p/t' })
+  assert.throws(() => validateApprovalsEffect('decisions.file', { title: 't', context: 'c', options: [{ id: 'a', label: 'A' }], requester: 'x', sessionLabel: 's' }))
+  validateApprovalsEffect('decisions.read', { decisionId: 'K-AAAA' }); validateApprovalsEffect('decisions.cancel', { decisionId: 'K-AAAA', reason: 'r' })
+  assert.throws(() => validateApprovalsEffect('decisions.read', { decisionId: 'nope' }))
+  validateApprovalsEffectResult('decisions.file', { decisionId: 'K-AAAA', existing: true })
+  for (const value of [{ status: 'pending' }, { status: 'gone' }, { status: 'answered', answer: { optionId: 'done' } }, { status: 'answered', answer: { text: 'x' } }]) validateApprovalsEffectResult('decisions.read', value)
+  validateApprovalsEffectResult('decisions.cancel', { status: 'cancelled' }); validateApprovalsEffectResult('decisions.cancel', { status: 'gone' })
+  assert.throws(() => validateApprovalsEffectResult('decisions.read', { status: 'other' }), { code: 'APPROVALS_IPC_INVALID' })
 })

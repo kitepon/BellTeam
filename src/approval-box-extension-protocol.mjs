@@ -5,7 +5,7 @@ export const APPROVAL_BOX_EXTENSION_STATE_COMPATIBILITY = Object.freeze({ state:
 export const APPROVAL_BOX_EXTENSION_METHODS = Object.freeze(['summary', 'list', 'get', 'answer', 'hold', 'unhold', 'attachment', 'byTask',
   'connection', 'connect', 'cancelConnect', 'disconnect', 'refresh', 'byDecision'])
 export const APPROVAL_BOX_EXTENSION_EFFECTS = Object.freeze(['lattice.ownerTask', 'lattice.link', 'lattice.chart', 'lattice.charts', 'members.list',
-  'session.get', 'session.put', 'session.erase', 'seat.message'])
+  'session.get', 'session.put', 'session.erase', 'seat.message', 'decisions.file', 'decisions.read', 'decisions.cancel'])
 export const APPROVALS_DECISION_ID = /^K-[A-Z0-9]{4,16}$/u
 const PROJECT_ID = /^[a-z0-9][a-z0-9-]{0,62}$/u
 const REF = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u
@@ -52,6 +52,10 @@ export function validateApprovalsEffect(method, params) {
     : method === 'lattice.link' ? !approvalsObject(params, ['projectId', 'plan', 'taskId']) || !PROJECT_ID.test(params.projectId) || !REF.test(params.plan) || !REF.test(params.taskId)
     : method === 'lattice.chart' ? !approvalsObject(params, ['projectId']) || !PROJECT_ID.test(params.projectId)
     : method === 'session.put' ? !approvalsObject(params, ['value']) || !sendText(params.value, 8192)
+    : method === 'decisions.file' ? !approvalsObject(params, ['title', 'context', 'options', 'requester', 'sessionLabel']) || !sendText(params.title, 200) || !sendText(params.context, 20000) || !sendText(params.requester, 128) || !sendText(params.sessionLabel, 200)
+      || !Array.isArray(params.options) || params.options.length < 2 || params.options.length > 4 || !params.options.every(option => approvalsObject(option, ['id', 'label']) && sendText(option.id, 64) && sendText(option.label, 200))
+    : method === 'decisions.read' ? !approvalsObject(params, ['decisionId']) || !decisionId(params.decisionId)
+    : method === 'decisions.cancel' ? !approvalsObject(params, ['decisionId', 'reason']) || !decisionId(params.decisionId) || !sendText(params.reason, 500)
     : method === 'seat.message' ? !approvalsObject(params, ['target', 'message']) || !sendText(params.target, 128) || !sendText(params.message, 30000)
     : !approvalsObject(params, []) // lattice.charts, members.list, session.get, session.erase
   if (bad) throw approvalsError('APPROVALS_INVALID')
@@ -66,6 +70,10 @@ export function validateApprovalsEffectResult(method, value) {
   else if (method === 'members.list') need(Array.isArray(value) && value.every(member => approvalsObject(member, ['id', 'name']) && str(member.id) && str(member.name)))
   else if (method === 'session.get') need(value === null || approvalsObject(value, ['value']) && str(value.value))
   else if (method === 'session.put' || method === 'session.erase') need(approvalsObject(value, ['ok']) && value.ok === true)
+  else if (method === 'decisions.file') need(approvalsObject(value, ['decisionId', 'existing']) && decisionId(value.decisionId) && typeof value.existing === 'boolean')
+  else if (method === 'decisions.read') need(approvalsObject(value, ['status'], ['answer']) && [...STATUSES, 'gone'].includes(value.status)
+    && (value.answer === undefined || approvalsObject(value.answer, [], ['optionId', 'text']) && (value.answer.optionId === undefined || str(value.answer.optionId)) && (value.answer.text === undefined || str(value.answer.text))))
+  else if (method === 'decisions.cancel') need(approvalsObject(value, ['status']) && (value.status === 'cancelled' || value.status === 'gone'))
   else if (method === 'seat.message') need(approvalsObject(value, ['delivery', 'deliveryId'], ['code']) && str(value.delivery) && strOrNull(value.deliveryId) && (value.code === undefined || str(value.code)))
   else invalid()
 }
