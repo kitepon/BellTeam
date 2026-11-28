@@ -311,6 +311,7 @@
   <data name="LatticeChart_DegradedPills_2" xml:space="preserve"><value>メンバー情報を読み直しています…</value><comment> | sites: LatticeChart.cs:448 DegradedPills: Select() | ja chars: 16</comment></data>
   <data name="LatticeChart_Detail_1" xml:space="preserve"><value>着手 {0} JST</value><comment>{0} = FormatJst(started);  | sites: LatticeChart.cs:438 Detail: statement | ja chars: 10</comment></data>
   <data name="LatticeChart_Detail_2" xml:space="preserve"><value>まだ着手されていません</value><comment> | sites: LatticeChart.cs:438 Detail: statement | ja chars: 11</comment></data>
+  <data name="LatticeChart_Detail_3" xml:space="preserve"><value>次の工程：「{0}」（{1}）、{2}</value><comment>{0} = title; {1} = chart; {2} = state; | sites: LatticeChart.cs Waiters: spoken label of a 詳細 waiter row (screen-spec 詳細: 次の工程 and the waiters) | ja chars: 15</comment></data>
   <data name="LatticeChart_EdgeChip_1" xml:space="preserve"><value>前工程：{0}</value><comment>{0} = Owner(snapshot)(snapshot.Cards.FirstOrDefault(card...;  | sites: LatticeChart.cs:415 EdgeChip: - | ja chars: 7</comment></data>
   <data name="LatticeChart_ExternalChart_1" xml:space="preserve"><value>ほかの工程表</value><comment> | sites: LatticeChart.cs:385 ExternalChart: LatticeChart_ChartName_1() | ja chars: 6</comment></data>
   <data name="LatticeChart_ExternalTitle_1" xml:space="preserve"><value>ほかの工程表の工程</value><comment> | sites: LatticeChart.cs:384 ExternalTitle: - | ja chars: 9</comment></data>

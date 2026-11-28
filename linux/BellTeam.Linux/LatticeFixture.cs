@@ -33,10 +33,14 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
         "t09" => [new { kind = "schedule", state = "open", @ref = "sch-7f3a", reason = "夜間の控えが終わってから", since = Ago(40) }],
         _ => []
     };
+    // Tasks of other charts waiting on a card (README: card `waiters`, ref = an externals[] id; screen-spec 詳細: 次の工程 and the waiters).
+    private static object[] Waiters(string id) => id == "t08"
+        ? [new { @ref = "guide:g/outro", reason = "部品が済んだら案内を書く", since = Ago(30) }, new { @ref = "call-bridge:cb/release", reason = (string?)"橋の新しい版と同じ日に出す", since = Ago(90) }, new { @ref = "guide:g/intro", reason = "", since = Ago(10) }]
+        : [];
     private object[] Cards()
     {
         object Card(string id, string title, string state, string? producer, int depth, string done = "", string memo = "", double? started = null, string? reason = null, string? authored = null, double? finished = null, bool archived = false, bool counted = true)
-            => new { id = $"p1/{id}", plan = "p1", taskId = id, title, state, phase = Phases.FirstOrDefault(phase => phase.Tasks.Contains(id)).Id is { } ph ? $"p1/{ph}" : null, parent = id == "t05" ? "p1/t04" : null, lane = scene == "authored" && authored is not null ? authored : producer, producer = scene == "authored" && authored is not null ? null : producer, depth, doneCondition = done, designMemo = memo, startedAt = started is { } at ? Ago(at) : null, changedAt = Ago(60), blockedReason = reason, doneAt = finished is { } doneAgo ? Ago(doneAgo) : null, archived, counted, connections = Joins(id) };
+            => new { id = $"p1/{id}", plan = "p1", taskId = id, title, state, phase = Phases.FirstOrDefault(phase => phase.Tasks.Contains(id)).Id is { } ph ? $"p1/{ph}" : null, parent = id == "t05" ? "p1/t04" : null, lane = scene == "authored" && authored is not null ? authored : producer, producer = scene == "authored" && authored is not null ? null : producer, depth, doneCondition = done, designMemo = memo, startedAt = started is { } at ? Ago(at) : null, changedAt = Ago(60), blockedReason = reason, doneAt = finished is { } doneAgo ? Ago(doneAgo) : null, archived, counted, connections = Joins(id), waiters = Waiters(id) };
         return [
             Card("t01", "決定済み仕様の確認", "done", "bot-flora", 0, "仕様の要点を一覧にする", finished: 95),
             Card("t02", "Latticeの読取口の確認", "done", "bot-flora", 0, "読取の2つの入口を確かめる", finished: 60 * 27, archived: true),
@@ -59,7 +63,8 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
         bool Finished(string id) => byId[id].GetProperty("state").GetString() is "done" or "retired";
         // externals[]: the other chart's facts for each open `task` connection (drawn as text only).
         var externals = new[] { new { id = "call-bridge:cb/release", projectId = "call-bridge", cardId = "cb/release", chartName = (string?)"通話ブリッジの刷新", title = (string?)"橋の新しい版を出す", state = (string?)"in-progress", finished = false, producer = (string?)"bot-kiro" },
-                                new { id = "guide:g/intro", projectId = "guide", cardId = "g/intro", chartName = (string?)null, title = (string?)null, state = (string?)null, finished = false, producer = (string?)(scene == "unknown" ? "bot-ghost" : null) } };
+                                new { id = "guide:g/intro", projectId = "guide", cardId = "g/intro", chartName = (string?)null, title = (string?)null, state = (string?)null, finished = false, producer = (string?)(scene == "unknown" ? "bot-ghost" : null) },
+                                new { id = "guide:g/outro", projectId = "guide", cardId = "g/outro", chartName = (string?)"紹介ページ", title = (string?)"案内を書き直す", state = (string?)"done", finished = true, producer = (string?)"bot-rapi" } };
         var referenced = byId.Values.Select(card => card.GetProperty("producer").GetString()).Concat(externals.Select(ext => ext.producer)).Append("bot-rapi").ToHashSet();
         var name = Names.GetValueOrDefault(projectId);
         return new

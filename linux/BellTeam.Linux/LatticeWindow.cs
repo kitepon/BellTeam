@@ -737,7 +737,7 @@ internal sealed class LatticeChartPage : Grid
             if (window.OpenDecision is { } openDecision) { var open = Action(LinuxStrings.LatticeWindow_ShowDetail_6, ForwardGlyph); open.Margin = new Thickness(0, 8, 0, 0); var id = decision.DecisionId; open.Click += (_, _) => openDecision(id); body.Children.Add(open); }
         }
         Links(body, LinuxStrings.LatticeWindow_ShowDetail_7, detail.Previous);
-        Links(body, LinuxStrings.LatticeWindow_ShowDetail_8, detail.Next);
+        Links(body, LinuxStrings.LatticeWindow_ShowDetail_8, detail.Next, detail.Waiting);
         var panel = Glass(new ScrollViewer { Content = body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled }, 22, new Thickness(20, 16, 18, 18), 0xFA);
         panel.Width = 400; panel.VerticalAlignment = VerticalAlignment.Top; panel.MaxHeight = 4000;
         AutomationProperties.SetAutomationId(panel, "lattice-detail"); AutomationProperties.SetName(panel, LatticeChart.CardLabel(detail.Card, detail.Producer));
@@ -767,10 +767,10 @@ internal sealed class LatticeChartPage : Grid
         // Markdown shown as plain text (screen-spec: designMemo as plain text).
         body.Children.Add(new TextBox { Classes = { "bare" }, Text = text, FontSize = 14, Foreground = Brush(Ink), TextWrapping = TextWrapping.Wrap, IsReadOnly = true, AcceptsReturn = true });
     }
-    private void Links(StackPanel body, string heading, IReadOnlyList<LatticeLink> links)
+    private void Links(StackPanel body, string heading, IReadOnlyList<LatticeLink> links, IReadOnlyList<LatticeWaiter>? waiters = null)
     {
         var label = Text(heading, 12, Muted, FontWeight.SemiBold); label.Margin = new Thickness(0, 18, 0, 6); body.Children.Add(label);
-        if (links.Count == 0) { body.Children.Add(Text(LinuxStrings.LatticeWindow_Links_1, 13, Muted)); return; }
+        if (links.Count == 0 && waiters is not { Count: > 0 }) { body.Children.Add(Text(LinuxStrings.LatticeWindow_Links_1, 13, Muted)); return; }
         foreach (var link in links)
         {
             var row = new DockPanel();
@@ -780,6 +780,20 @@ internal sealed class LatticeChartPage : Grid
             var frame = new Border { Child = row, CornerRadius = new CornerRadius(12), Padding = new Thickness(10, 8, 10, 8), Margin = new Thickness(0, 0, 0, 6), Background = Brush(Colors.White, 0xB0), BorderBrush = Brush(LatticeLook.Line), BorderThickness = new Thickness(1) };
             var button = Plain(frame, LinuxStrings.LatticeWindow_Links_3(link.Title, LatticeChart.StateInfo(link.State).Badge, LatticeChart.NameOf(link.Producer)));
             var id = link.Id; button.Click += (_, _) => GoTo(id);
+            body.Children.Add(button);
+        }
+        // Tasks of other charts that wait on this card (screen-spec 詳細: 次の工程 and the waiters): the 次の工程 row style, after the successors; tap opens that chart at that card.
+        foreach (var waiter in waiters ?? [])
+        {
+            var row = new DockPanel();
+            var glyph = StateGlyph(waiter.State, 15, waiter.Producer is { Known: true } ? Accent(waiter.Producer.Color) : Violet); glyph.Margin = new Thickness(0, 0, 10, 0); DockPanel.SetDock(glyph, Dock.Left); row.Children.Add(glyph);
+            var arrow = RightIcon(11, Muted); DockPanel.SetDock(arrow, Dock.Right); row.Children.Add(arrow);
+            var text = new StackPanel { Children = { Text(waiter.Title, 13.5, Ink, FontWeight.SemiBold), Text(waiter.Chart, 11.5, Muted), Text(LinuxStrings.LatticeWindow_Links_2(LatticeChart.NameOf(waiter.Producer), waiter.StateText), 11.5, Muted) } };
+            if (waiter.Reason.Length > 0) text.Children.Add(Text(waiter.Reason, 11.5, Muted, wrap: true));
+            row.Children.Add(text);
+            var frame = new Border { Child = row, CornerRadius = new CornerRadius(12), Padding = new Thickness(10, 8, 10, 8), Margin = new Thickness(0, 0, 0, 6), Background = Brush(Colors.White, 0xB0), BorderBrush = Brush(LatticeLook.Line), BorderThickness = new Thickness(1) };
+            var button = Plain(frame, waiter.Label); var target = waiter.External;
+            button.Click += (_, _) => window.OpenCard(target.ProjectId, target.CardId);
             body.Children.Add(button);
         }
     }
