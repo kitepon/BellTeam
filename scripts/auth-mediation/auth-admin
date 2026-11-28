@@ -33,6 +33,8 @@ def main():
     sub.add_parser("token-clear")
     s = sub.add_parser("audit", help="print the last N audit lines (no values)")
     s.add_argument("--last", type=int, default=50)
+    s.add_argument("--since", help="ISO time: only lines at or after it")
+    s.add_argument("--match", help="only lines containing this text (a caller, an item, an outcome)")
     s = sub.add_parser("import", help="import an old broker policy.json (v1)")
     s.add_argument("--host", required=True, choices=["container", "main-server"])
     s.add_argument("file")
@@ -62,7 +64,7 @@ def main():
         ask("token.set", {"value": value})
         print(json.dumps({"change": "token.set"}))
     elif a.cmd == "audit":
-        for line in ask("audit", {"last": a.last})["lines"]:
+        for line in ask("audit", {"last": a.last, **({"since": a.since} if a.since else {}), **({"match": a.match} if a.match else {})})["lines"]:
             print(line)
     elif a.cmd == "token-clear":
         ask("token.clear")

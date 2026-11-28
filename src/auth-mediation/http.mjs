@@ -29,8 +29,10 @@ function target(fields, request) {
   // An encoded slash, backslash, NUL or dot could be read as a separator by the server but not by the URL check below: a path that hides a separator is refused outright.
   if (!/^\/[^\s#\\]*$/u.test(request.path) || /%(?:2f|5c|00|2e|3f|23)/iu.test(request.path.split('?')[0])) throw refuse('The path is not usable.')
   const exact = request.path.split('?')[0] === '/' && base.pathname !== '/' // the base URL carries a path (a webhook): '/' (with its own query, e.g. ?wait=true) means exactly that URL, so the caller never learns the path
-  const url = exact ? new URL(base) : new URL(request.path, base)
-  if (exact) url.search = request.path.includes('?') ? request.path.slice(request.path.indexOf('?')) : ''
+  const relative = !exact && fields.http_paths_relative === '1' // the item reads the caller's path relative to the base path (a webhook: '/messages/<id>' = base + '/messages/<id>'); the default keeps full paths under the base
+  const url = exact || relative ? new URL(base) : new URL(request.path, base)
+  if (relative) url.pathname = base.pathname.replace(/\/$/u, '') + request.path.split('?')[0]
+  if (exact || relative) url.search = request.path.includes('?') ? request.path.slice(request.path.indexOf('?')) : ''
   const prefix = base.pathname.replace(/\/$/u, '')
   if (url.origin !== base.origin || (url.pathname + '/').slice(0, prefix.length + 1) !== prefix + '/') throw refuse('The path leaves the key\'s API.')
   // Per-method path limits: "GET:/messages/,POST:/" = a method listed here may only be used under its paths (relative to the base path). A method not listed is limited only by http_methods.

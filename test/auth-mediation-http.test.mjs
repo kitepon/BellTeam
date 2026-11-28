@@ -388,6 +388,17 @@ test('http method paths: an entry that cannot be read refuses every request of t
   }
 })
 
+test('http_paths_relative: a webhook item reads the caller path relative to the base path; a path that climbs out of the base is refused; without the field the full-path rule stays', async () => {
+  const hook = 'https://discord.example.com/api/webhooks/123456789/AbCdEfGhIjKlMnOpQrStUvWxYz0123'
+  const t = setup({ item: { http_base: hook, http_auth: 'none', http_methods: 'GET POST', http_paths_relative: '1', http_method_paths: 'GET:/messages/' }, answer: () => new Response('{"id":"m1"}') })
+  assert.equal((await ask(t, { method: 'GET', path: '/messages/777?thread_id=5' })).outcome, 'granted'); assert.equal(t.seen[0].url, hook + '/messages/777?thread_id=5')
+  assert.equal((await ask(t, { method: 'GET', path: '/' })).outcome, 'error') // the webhook object itself is still not readable
+  assert.equal((await ask(t, { method: 'GET', path: '/../../../x' })).outcome, 'error'); assert.equal((await ask(t, { method: 'GET', path: '/other' })).outcome, 'error')
+  assert.equal((await ask(t, { method: 'POST', path: '/?wait=true', body: Buffer.from('{}').toString('base64') })).outcome, 'granted'); assert.equal(t.seen[1].url, hook + '?wait=true')
+  const plain = setup({ item: { http_base: hook, http_auth: 'none', http_methods: 'GET' } })
+  assert.equal((await ask(plain, { method: 'GET', path: '/messages/777' })).outcome, 'error'); assert.equal(plain.seen.length, 0) // default unchanged
+})
+
 test('http exact base with a query: "/?wait=true" sends the stored URL with that query; the base path is still not learnable; other paths with the base unchanged', async () => {
   const hook = 'https://discord.example.com/api/webhooks/123456789/AbCdEfGhIjKlMnOpQrStUvWxYz0123'
   const t = setup({ item: { http_base: hook, http_auth: 'none', http_methods: 'POST' }, answer: () => new Response('{"id":"msg1"}') })
