@@ -13,8 +13,8 @@ public class EditorWindow : Window
 {
     protected readonly StackPanel Body = new() { Margin = new Thickness(24) };
     protected readonly TextBlock Status = new() { TextWrapping = TextWrapping.Wrap, Foreground = BellTheme.Red, Margin = new Thickness(8), FontSize = 14, IsVisible = false };
-    protected readonly Button SaveButton = new() { Classes = { "plain" }, Content = "保存", Background = BellTheme.ProminentFill, Foreground = Brushes.White, Margin = new Thickness(8, 0, 0, 0) };
-    protected readonly Button CloseButton = new() { Classes = { "plain" }, Content = "キャンセル", Background = BellTheme.ButtonFill, Foreground = BellTheme.Ink };
+    protected readonly Button SaveButton = new() { Classes = { "plain" }, Content = LinuxStrings.EditorForm_SaveLabel_1, Background = BellTheme.ProminentFill, Foreground = Brushes.White, Margin = new Thickness(8, 0, 0, 0) };
+    protected readonly Button CloseButton = new() { Classes = { "plain" }, Content = LinuxStrings.EditorForm_CloseLabel_2, Background = BellTheme.ButtonFill, Foreground = BellTheme.Ink };
     protected readonly StackPanel Actions = new() { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
     protected Func<Task<bool>>? SaveAction;
     protected bool Busy { get; set; }
@@ -61,8 +61,8 @@ public class EditorWindow : Window
         var close = false;
         try { close = await operation(); }
         catch (OperationCanceledException) when (Token.IsCancellationRequested) { }
-        catch (Exception error) { ShowStatus(error is BellApiException { Status: not null } ? error.Message : "操作の結果を確認できませんでした。現在の状態を確認してください。\n" + error.Message); }
-        finally { Busy = false; Actions.IsEnabled = true; Body.IsEnabled = SaveButton.IsEnabled = !Saved; CloseButton.IsEnabled = true; if (Saved) CloseButton.Content = "閉じる"; }
+        catch (Exception error) { ShowStatus(error is BellApiException { Status: not null } ? error.Message : LinuxStrings.EditorWindow_RunAsync_1(error.Message)); }
+        finally { Busy = false; Actions.IsEnabled = true; Body.IsEnabled = SaveButton.IsEnabled = !Saved; CloseButton.IsEnabled = true; if (Saved) CloseButton.Content = LinuxStrings.ApprovalsViews_NotUsable_1; }
         if (close) { if (closePage is { } returnToHost) returnToHost(); else Close(); }
     }
     protected void ShowStatus(string text) { Status.Text = text; Status.IsVisible = text.Length != 0; }

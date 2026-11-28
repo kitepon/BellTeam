@@ -35,10 +35,10 @@ public sealed class MessageCard : ContentControl
     // Reply (conversation reply.md): the quote above the text (tap = jump), the reply icon of the action row under the bubble and the right-click menu.
     private Button? quoteButton;
     private TextBlock? quoteName, quoteText, quoteNote;
-    private readonly Button replyButton = ActionButton(Icons.Reply, "このメッセージに返信");
+    private readonly Button replyButton = ActionButton(Icons.Reply, LinuxStrings.MessageCard_replyButton_1);
     // Forward (conversation forward.md): the forward icon next to reply, and the mark / quoted content of a forwarded or shared row.
-    private readonly Button forwardButton = ActionButton(Icons.Export, "このメッセージを転送");
-    private readonly Button copyButton = ActionButton(Icons.Copy, "このメッセージをコピー");
+    private readonly Button forwardButton = ActionButton(Icons.Export, LinuxStrings.MessageCard_forwardButton_1);
+    private readonly Button copyButton = ActionButton(Icons.Copy, LinuxStrings.MessageCard_copyButton_1);
     // Owner 11/17 (a304): three small always-visible icons under the bubble, at its bottom right, the same on every platform.
     private readonly StackPanel actions = new() { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
     private TextBlock? originMark;
@@ -71,7 +71,7 @@ public sealed class MessageCard : ContentControl
     // 「分身」: a violet capsule with the branch mark (Mac ForkSeatBadge, arrow.triangle.branch). The screen reader reads the text 「分身」.
     private static Border ForkBadge()
     {
-        var label = new TextBlock { Text = "分身", FontSize = 14, FontWeight = FontWeight.SemiBold, Foreground = BellTheme.Violet, VerticalAlignment = VerticalAlignment.Center };
+        var label = new TextBlock { Text = LinuxStrings.MessageCard_ForkBadge_1, FontSize = 14, FontWeight = FontWeight.SemiBold, Foreground = BellTheme.Violet, VerticalAlignment = VerticalAlignment.Center };
         return new Border
         {
             Background = new SolidColorBrush(Color.FromArgb(191, 0xE8, 0xE0, 0xFF)), CornerRadius = new CornerRadius(99), Padding = new Thickness(8, 2, 8, 2), Margin = new Thickness(0, 0, 6, 0),
@@ -140,13 +140,13 @@ public sealed class MessageCard : ContentControl
         else if (machineLine is not null) machineLine.Update(message);
         else if (machineWords is not null) machineWords.Text = message.MachineEvent!.Text;
         else if (secret is not null || question is not null) UpdateRequest(message);
-        else if (peerLabel is not null) peerLabel.Text = $"{message.PeerName ?? "メンバー"}との連絡";
+        else if (peerLabel is not null) peerLabel.Text = LinuxStrings.MessageCard_Render_2(message.PeerName ?? LinuxStrings.MemberEditors_Build_9);
     }
 
     // "<name>との連絡 ›": the message itself opens in the 「メンバー間の連絡」 sheet.
     private void BuildPeer(TimelineMessage message)
     {
-        var label = new TextBlock { FontSize = 14, Foreground = BellTheme.Muted, VerticalAlignment = VerticalAlignment.Center, Text = $"{message.PeerName ?? "メンバー"}との連絡" };
+        var label = new TextBlock { FontSize = 14, Foreground = BellTheme.Muted, VerticalAlignment = VerticalAlignment.Center, Text = LinuxStrings.MessageCard_Render_2(message.PeerName ?? LinuxStrings.MemberEditors_Build_9) };
         var capsule = new Border
         {
             Background = new SolidColorBrush(Color.FromArgb(191, 255, 255, 255)), CornerRadius = new CornerRadius(99), Padding = new Thickness(15, 9, 15, 9),
@@ -229,11 +229,11 @@ public sealed class MessageCard : ContentControl
 
     private MenuFlyout ReplyMenu()
     {
-        var part = new MenuItem { Header = "引用して返信" }; var whole = new MenuItem { Header = "返信" }; var copy = new MenuItem { Header = "コピー" };
+        var part = new MenuItem { Header = LinuxStrings.MessageCard_ReplyMenu_1 }; var whole = new MenuItem { Header = LinuxStrings.MessageCard_ReplyMenu_2 }; var copy = new MenuItem { Header = LinuxStrings.MessageCard_ReplyMenu_3 };
         part.Click += (_, _) => { if (body!.SelectedText is { Length: > 0 } text) workspace.StartQuote(Message, new QuoteSelection(text)); };
         whole.Click += (_, _) => workspace.StartQuote(Message);
         copy.Click += async (_, _) => { if (body!.SelectedText is { Length: > 0 } text && TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard) await clipboard.SetTextAsync(text); };
-        var forward = new MenuItem { Header = "転送" }; forward.Click += (_, _) => this.FindAncestorOfType<IMessageHost>()?.ShowForwardSheet(Message);
+        var forward = new MenuItem { Header = LinuxStrings.ForwardViews_Forward_4 }; forward.Click += (_, _) => this.FindAncestorOfType<IMessageHost>()?.ShowForwardSheet(Message);
         var flyout = new MenuFlyout { Items = { part, whole, forward, copy } };
         flyout.Opening += (_, _) => { forward.IsEnabled = Timeline.IsForwardable(Message); whole.IsEnabled = Timeline.IsQuotable(Message); var selected = !string.IsNullOrWhiteSpace(body!.SelectedText); part.IsEnabled = whole.IsEnabled && selected; copy.IsEnabled = selected; };
         return flyout;
@@ -272,7 +272,7 @@ public sealed class MessageCard : ContentControl
         UpdateAccent();
         images!.Update(hasStack ? [] : urls, outgoing); images.IsVisible = urls.Length == 1;
         var count = message.ImageCount ?? 1;
-        imageLabel!.Text = count > 1 ? $"画像{count}枚" : "画像";
+        imageLabel!.Text = count > 1 ? LinuxStrings.ForwardViews_Share_2(count) : LinuxStrings.AvatarEditor_Images_1;
         imagePlaceholder!.IsVisible = message.Image == true && urls.Length == 0;
         // a471-thinking-bubble: a shown thinking row is this bubble with its whole text lighter and slanted (Mac is the reference); copy only, so reply and forward stay on the answer bubbles.
         var thinking = Timeline.IsThinkingBubble(message);
@@ -292,7 +292,7 @@ public sealed class MessageCard : ContentControl
             quoteText!.Text = Timeline.QuoteBody(quote);
             quoteNote!.Text = Timeline.QuoteNote(quote) ?? ""; quoteNote.IsVisible = quoteNote.Text.Length != 0;
             quoteButton.IsHitTestVisible = quoteButton.Focusable = quote.Available;
-            AutomationProperties.SetName(quoteButton, quote.Available ? $"返信先 {quoteName.Text}: {quoteText.Text}。押すと元のメッセージへ移動します。" : quoteNote.Text.Length == 0 ? Timeline.UnavailableQuote : quoteText.Text + "。" + Timeline.UnavailableQuote);
+            AutomationProperties.SetName(quoteButton, quote.Available ? LinuxStrings.MessageCard_UpdateRow_3(quoteName.Text, quoteText.Text) : quoteNote.Text.Length == 0 ? Timeline.UnavailableQuote : LinuxStrings.MessageCard_UpdateRow_4(quoteText.Text, Timeline.UnavailableQuote));
         }
         replyButton.IsVisible = Timeline.IsQuotable(message); forwardButton.IsVisible = Timeline.IsForwardable(message); copyButton.IsVisible = (forwardButton.IsVisible || thinking) && !string.IsNullOrEmpty(CopyText(message));
         actions.IsVisible = replyButton.IsVisible || forwardButton.IsVisible || copyButton.IsVisible;

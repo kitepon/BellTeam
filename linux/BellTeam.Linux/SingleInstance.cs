@@ -31,7 +31,7 @@ internal sealed class SingleInstance : IDisposable
                 catch (SocketException) { File.Delete(path); }
             }
         }
-        if (listener is null) throw new IOException("1利用者1窓の接続を作れませんでした: " + path);
+        if (listener is null) throw new IOException(LinuxStrings.SingleInstance_SingleInstance_1(path));
         // Linux only: the connect permission of the socket is the user's alone (the guard is for the platform analyzer).
         if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
         _ = ListenAsync(activate);
@@ -50,7 +50,7 @@ internal sealed class SingleInstance : IDisposable
             try { client = await listener!.AcceptAsync(stop.Token); }
             catch (OperationCanceledException) when (stop.IsCancellationRequested) { return; }
             catch (ObjectDisposedException) { return; }
-            catch (SocketException error) { Console.Error.WriteLine("既存の窓を開く接続に失敗しました。" + error.Message); return; }
+            catch (SocketException error) { Console.Error.WriteLine(LinuxStrings.SingleInstance_ListenAsync_1(error.Message)); return; }
             using (client)
             {
                 try { if (await client.ReceiveAsync(new byte[1], stop.Token) != 0) activate(); }

@@ -72,6 +72,6 @@ public sealed class SetupApi(BellApi api)
     {
         try { return await api.PostAsync<SetupState>(path, body, token); }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
-        catch (Exception error) { throw new BellApiException("操作の結果を確認できませんでした。入力欄を閉じて、認証の状態を更新して確認してください。", (error as BellApiException)?.Status); }
+        catch (Exception error) { throw new BellApiException(CoreStrings.HarnessAuthenticationApi_WriteAsync_1, (error as BellApiException)?.Status); }
     }
 }

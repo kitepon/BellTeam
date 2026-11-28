@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!-- Japanese source catalog (neutral language ja). Edit text here, never in code. Format entries use {0}, {1}: see each comment. Other languages: Strings.<culture>.resx. -->
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="AccessLogin_AccessLoginPage_1" xml:space="preserve"><value>接続先を変更</value><comment> | sites: AccessLogin.cs:68 AccessLoginPage: Capsule(8,13) ; PhoneSettingsPage.cs:28 PhoneSettingsPage: Capsule(8,13) | ja chars: 6</comment></data>
+  <data name="AccessLogin_AccessLoginPage_2" xml:space="preserve"><value>外部ログインにはHTTPSの接続先を指定してください。</value><comment> | sites: AccessLogin.cs:71 AccessLoginPage: status.Text = ...;  | ja chars: 27</comment></data>
+  <data name="AccessLogin_AccessLoginPage_3" xml:space="preserve"><value>Cloudflare Accessでログインしてください。完了すると自動で接続します。</value><comment> | sites: AccessLogin.cs:76 AccessLoginPage: status.Text = ...;  | ja chars: 43</comment></data>
+  <data name="AccessLogin_CheckAsync_1" xml:space="preserve"><value>ログイン後の接続を確認できませんでした。接続先を確認してください。</value><comment> | sites: AccessLogin.cs:95 CheckAsync: status.Text = ...;  | ja chars: 33</comment></data>
+  <data name="AccessLogin_status_1" xml:space="preserve"><value>ログイン画面を開いています…</value><comment> | sites: AccessLogin.cs:57 status: Text = ...; {TextWrapping = TextWrapping.Wrap, FontSize = 14, Margin = new Thickness(12, 8)} | ja chars: 14</comment></data>
+  <data name="AccountCard_Cancel_1" xml:space="preserve"><value>購読を止めるには、Google Playの定期購入の管理から解約してください。</value><comment> | sites: AccountCard.cs:212 Cancel: - | ja chars: 39</comment></data>
+  <data name="AccountCard_Subscription_1" xml:space="preserve"><value>購読はGoogle Playのものなので、この操作では解約されません。解約はGoogle Playの「定期購入」から行ってください。</value><comment> | sites: AccountCard.cs:211 Subscription: - | ja chars: 66</comment></data>
+  <data name="PhoneSettingsPage_Link_1" xml:space="preserve"><value>ページを開けませんでした。{0}</value><comment>{0} = error.Message;  | sites: PhoneSettingsPage.cs:76 Link: Banner() | ja chars: 16</comment></data>
+  <data name="PhoneSettingsPage_PhoneSettingsPage_1" xml:space="preserve"><value>AI・端末・追加機能などの設定</value><comment> | sites: PhoneSettingsPage.cs:20 PhoneSettingsPage: Content = ...; {Padding = new Thickness(16, 12), HorizontalAlignment = HorizontalAlignment.Stretch} | ja chars: 15</comment></data>
+  <data name="PhoneSettingsPage_PhoneSettingsPage_10" xml:space="preserve"><value>このアプリについて</value><comment> | sites: PhoneSettingsPage.cs:50 PhoneSettingsPage: CardTitle(17) | ja chars: 9</comment></data>
+  <data name="PhoneSettingsPage_PhoneSettingsPage_11" xml:space="preserve"><value>アプリの版</value><comment> | sites: PhoneSettingsPage.cs:51 PhoneSettingsPage: Text(13) | ja chars: 5</comment></data>
+  <data name="PhoneSettingsPage_PhoneSettingsPage_2" xml:space="preserve"><value>接続</value><comment> | sites: PhoneSettingsPage.cs:25 PhoneSettingsPage: CardTitle(17) | ja chars: 2</comment></data>
+  <data name="PhoneSettingsPage_PhoneSettingsPage_3" xml:space="preserve"><value>つないでいるサーバー</value><comment> | sites: PhoneSettingsPage.cs:26 PhoneSettingsPage: Text(13) | ja chars: 10</comment></data>
+  <data name="PhoneSettingsPage_PhoneSettingsPage_5" xml:space="preserve"><value>サインアウト</value><comment> | sites: PhoneSettingsPage.cs:33 PhoneSettingsPage: Capsule(8,13) | ja chars: 6</comment></data>
+  <data name="PhoneSettingsPage_PhoneSettingsPage_6" xml:space="preserve"><value>利用と課金</value><comment> | sites: PhoneSettingsPage.cs:41 PhoneSettingsPage: CardTitle(17) | ja chars: 5</comment></data>
+  <data name="PhoneSettingsPage_PhoneSettingsPage_7" xml:space="preserve"><value>Web版は無料です。サーバーとAIは、ご自身の契約で利用します。</value><comment> | sites: PhoneSettingsPage.cs:42 PhoneSettingsPage: Text(14) | ja chars: 32</comment></data>
+  <data name="PhoneSettingsPage_PhoneSettingsPage_8" xml:space="preserve"><value>プライバシー方針</value><comment> | sites: PhoneSettingsPage.cs:46 PhoneSettingsPage: Link() | ja chars: 8</comment></data>
+  <data name="PhoneSettingsPage_PhoneSettingsPage_9" xml:space="preserve"><value>サポート</value><comment> | sites: PhoneSettingsPage.cs:46 PhoneSettingsPage: Link() | ja chars: 4</comment></data>
+  <data name="PhoneSettingsPage_Version_1" xml:space="preserve"><value>不明</value><comment> | sites: PhoneSettingsPage.cs:66 Version: - | ja chars: 2</comment></data>
+  <data name="PhoneShell_AttachAsync_1" xml:space="preserve"><value>画像を添付</value><comment> | sites: PhoneShell.cs:321 AttachAsync: Title = ...; {} | ja chars: 5</comment></data>
+  <data name="PhoneShell_AttachAsync_2" xml:space="preserve"><value>画像を添付できませんでした。{0}</value><comment>{0} = error.Message;  | sites: PhoneShell.cs:331 AttachAsync: ReportDraftError() | ja chars: 17</comment></data>
+  <data name="PhoneShell_DeleteAccountAsync_1" xml:space="preserve"><value>通知の登録</value><comment> | sites: PhoneShell.cs:213 DeleteAccountAsync: Add() | ja chars: 5</comment></data>
+  <data name="PhoneShell_DeleteAccountAsync_2" xml:space="preserve"><value>決裁箱のサインイン</value><comment> | sites: PhoneShell.cs:214 DeleteAccountAsync: Add() | ja chars: 9</comment></data>
+  <data name="PhoneShell_DeleteAccountAsync_3" xml:space="preserve"><value>BellTeamの購読の確認</value><comment> | sites: PhoneShell.cs:215 DeleteAccountAsync: Add() | ja chars: 14</comment></data>
+  <data name="PhoneShell_PhoneShell_1" xml:space="preserve"><value>工程表</value><comment> | sites: PhoneShell.cs:97 PhoneShell: Capsule(12,14) | ja chars: 3</comment></data>
+  <data name="PhoneShell_PhoneShell_2" xml:space="preserve"><value>相関図</value><comment> | sites: PhoneShell.cs:98 PhoneShell: Capsule(12,14) | ja chars: 3</comment></data>
+  <data name="PhoneShell_PhoneShell_3" xml:space="preserve"><value>最新へ</value><comment> | sites: PhoneShell.cs:112 PhoneShell: SetName() | ja chars: 3</comment></data>
+  <data name="PhoneShell_PhoneShell_4" xml:space="preserve"><value>設定</value><comment> | sites: PhoneShell.cs:131 PhoneShell: Text = ...; {FontSize = 17} | ja chars: 2</comment></data>
+  <data name="PhoneShell_RoutePush_1" xml:space="preserve"><value>通知の会話が見つかりません。メンバーとルームの一覧を更新してください。</value><comment> | sites: PhoneShell.cs:390 RoutePush: ReportActionError() | ja chars: 35</comment></data>
+  <data name="PhoneShell_ShowApprovals_1" xml:space="preserve"><value>決裁のメンバーの会話が見つかりません。メンバーとルームの一覧を更新してください。</value><comment> | sites: PhoneShell.cs:278 ShowApprovals: OpenChatAsync() | ja chars: 40</comment></data>
+  <data name="PhoneShell_ShowDeletionResult_1" xml:space="preserve"><value>閉じる</value><comment> | sites: PhoneShell.cs:230 ShowDeletionResult: new AlertChoice() | ja chars: 3</comment></data>
+  <data name="PhoneShell_ShowForwardSheet_1" xml:space="preserve"><value>転送</value><comment> | sites: PhoneShell.cs:364 ShowForwardSheet: OpenSheet() | ja chars: 2</comment></data>
+  <data name="PhoneShell_ShowLatestButton_1" xml:space="preserve"><value>新着メッセージ ↓</value><comment> | sites: PhoneShell.cs:425 ShowLatestButton: latest.Content = ...;  | ja chars: 9</comment></data>
+  <data name="PhoneShell_ShowLattice_1" xml:space="preserve"><value>工程表のメンバーの会話が見つかりません。メンバーとルームの一覧を更新してください。</value><comment> | sites: PhoneShell.cs:284 ShowLattice: OpenChatAsync() | ja chars: 41</comment></data>
+  <data name="PhoneShell_ShowPeerSheet_1" xml:space="preserve"><value>メンバー間の連絡</value><comment> | sites: PhoneShell.cs:365 ShowPeerSheet: OpenSheet() | ja chars: 8</comment></data>
+  <data name="PhoneShell_ShowWorkGraph_1" xml:space="preserve"><value>相関図のメンバーの会話が見つかりません。メンバーとルームの一覧を更新してください。</value><comment> | sites: PhoneShell.cs:290 ShowWorkGraph: OpenChatAsync() | ja chars: 41</comment></data>
+  <data name="PhoneShell_UpdateApprovalsEntry_1" xml:space="preserve"><value>決裁箱 {0}</value><comment>{0} = view.Pending;  | sites: PhoneShell.cs:302 UpdateApprovalsEntry: approvalsEntry.Content = ...;  | ja chars: 7</comment></data>
+  <data name="PhoneShell_UpdateApprovalsEntry_2" xml:space="preserve"><value>決裁箱</value><comment> | sites: PhoneShell.cs:302 UpdateApprovalsEntry: approvalsEntry.Content = ...;  | ja chars: 3</comment></data>
+  <data name="PhoneShell_UpdateQuoteBar_1" xml:space="preserve"><value>の発言の一部への返信</value><comment> | sites: PhoneShell.cs:311 UpdateQuoteBar: quoteName.Text = ...;  | ja chars: 10</comment></data>
+  <data name="PhoneShell_UpdateQuoteBar_2" xml:space="preserve"><value>への返信</value><comment> | sites: PhoneShell.cs:311 UpdateQuoteBar: quoteName.Text = ...;  | ja chars: 4</comment></data>
+  <data name="PhoneShell_composer_1" xml:space="preserve"><value>メッセージ</value><comment> | sites: PhoneShell.cs:60 composer: PlaceholderText = ...; {TextWrapping = TextWrapping.Wrap, MinHeight = 24, MaxHeight = 124, FontSize = 16} ; PushNotifications.cs:25 Ensure: new NotificationChannel() {} | ja chars: 5</comment></data>
+  <data name="PhoneShell_latest_1" xml:space="preserve"><value>最新へ ↓</value><comment> | sites: PhoneShell.cs:58 latest: Content = ...; {HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 12)} ; PhoneShell.cs:425 ShowLatestButton: latest.Content = ...;  | ja chars: 5</comment></data>
+  <data name="PhoneShell_search_1" xml:space="preserve"><value>メンバー・ルームを検索</value><comment> | sites: PhoneShell.cs:45 search: PlaceholderText = ...; {FontSize = 16, MinHeight = 44} | ja chars: 11</comment></data>
+  <data name="PhoneShell_send_1" xml:space="preserve"><value>送信</value><comment> | sites: PhoneShell.cs:61 send: Content = ...; {Padding = new Thickness(18, 10)} | ja chars: 2</comment></data>
+  <data name="PushNotifications_Ensure_2" xml:space="preserve"><value>メンバーの返信・秘密情報の入力・選んでほしいこと</value><comment> | sites: PushNotifications.cs:25 Ensure: Description = ...; {} | ja chars: 24</comment></data>
+</root>

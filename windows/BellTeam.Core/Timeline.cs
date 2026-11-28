@@ -27,15 +27,15 @@ public static class Timeline
 
     public static string StatusText(string? status) => status switch
     {
-        "submitting" => "受付確認中", "accepted" => "受付済み・反映待ち", "queued" => "送信待ち", "running" => "処理中",
-        "stopped" => "中断", "delivered" => "配達済み", "failed" => "配達失敗", _ => ""
+        "submitting" => CoreStrings.Timeline_StatusText_1, "accepted" => CoreStrings.Timeline_StatusText_2, "queued" => CoreStrings.QueueState_Line_1, "running" => CoreStrings.QueueState_Line_2,
+        "stopped" => CoreStrings.Timeline_StatusText_5, "delivered" => CoreStrings.Timeline_StatusText_6, "failed" => CoreStrings.Timeline_StatusText_7, _ => ""
     };
 
     public static string DeliveryLabel(TimelineMessage message, bool isRoom)
     {
         if (!message.IsOutgoing) return "";
         var existing = StatusText(DeliveryStatus(message));
-        if (!isRoom) return message.Delivery == "failed" && AcceptedUnknown(message.DeliveryTracking) ? "受付済み・完了未確認" : existing;
+        if (!isRoom) return message.Delivery == "failed" && AcceptedUnknown(message.DeliveryTracking) ? CoreStrings.Timeline_DeliveryLabel_1 : existing;
         if (message.Deliveries.ValueKind != JsonValueKind.Array) return existing;
         var hasUnknown = false;
         var hasFailure = Matches(message.Routing, "status", "failed");
@@ -46,7 +46,7 @@ public static class Timeline
             if (item.TryGetProperty("deliveryTracking", out var tracking) && AcceptedUnknown(tracking)) hasUnknown = true;
             else hasFailure = true;
         }
-        return hasUnknown ? hasFailure ? "配達失敗" : "完了未確認の宛先あり" : existing;
+        return hasUnknown ? hasFailure ? CoreStrings.Timeline_StatusText_7 : CoreStrings.Timeline_DeliveryLabel_3 : existing;
     }
 
     // Under a room message: who was chosen to reply. The names come from the caller so Core stays free of member lists.
@@ -55,12 +55,12 @@ public static class Timeline
         if (!isRoom || message.Routing.ValueKind != JsonValueKind.Object || !message.Routing.TryGetProperty("status", out var status) || status.ValueKind != JsonValueKind.String) return null;
         switch (status.GetString())
         {
-            case "pending": return "返信者を判定中";
-            case "failed": return "返信者の判定に失敗";
+            case "pending": return CoreStrings.Timeline_ReplyLabel_1;
+            case "failed": return CoreStrings.Timeline_ReplyLabel_2;
             case "ready":
                 var names = message.Routing.TryGetProperty("responders", out var responders) && responders.ValueKind == JsonValueKind.Array
                     ? responders.EnumerateArray().Where(item => item.ValueKind == JsonValueKind.String).Select(item => memberName(item.GetString()!) ?? item.GetString()!).ToArray() : [];
-                return "返信: " + (names.Length == 0 ? "なし" : string.Join("、", names));
+                return CoreStrings.ConversationDraft_Label_3((names.Length == 0 ? CoreStrings.OnePassword_ConnectionLine_2 : string.Join(CoreStrings.Approvals_CardRow_3, names)));
             default: return null;
         }
     }
@@ -101,38 +101,37 @@ public static class Timeline
         if (origin.ContentStart >= runes.Length) return (text.TrimEnd(), "");
         return (string.Concat(runes.Take(origin.ContentStart)).TrimEnd(), string.Concat(runes.Skip(origin.ContentStart)));
     }
-    public static string? OriginMark(MessageOrigin origin) => origin.Kind switch { "forward" => "転送", "share" => origin.App is { Length: > 0 } app ? "共有 · " + app : "共有", _ => null };
+    public static string? OriginMark(MessageOrigin origin) => origin.Kind switch { "forward" => CoreStrings.Timeline_OriginMark_1, "share" => origin.App is { Length: > 0 } app ? CoreStrings.Timeline_OriginMark_2(app) : CoreStrings.Timeline_OriginMark_3, _ => null };
     // Plain words for the refusals of a forward (forward.md "Failure handling"); anything else keeps the server's own message.
     public static string ForwardRefusal(BellApiException error) => error.Code switch
     {
-        "FILE_NOT_SUPPORTED" => "画像つきの発言はまだ転送できません。本文だけを新しいメッセージとして送ってください。",
-        "FORWARD_SOURCE_NOT_FOUND" => "転送する発言が見つかりません。画面を更新してから、もう一度お試しください。",
-        "FILE_TOO_LARGE" or "TOO_MANY_FILES" => "ファイルは1つ20MiBまで、1回に5つまでです。小さくするか分けて送ってください。",
-        "ORIGIN_INVALID" => "転送の内容を受け付けられませんでした。",
+        "FILE_NOT_SUPPORTED" => CoreStrings.Timeline_ForwardRefusal_1,
+        "FORWARD_SOURCE_NOT_FOUND" => CoreStrings.Timeline_ForwardRefusal_2,
+        "FILE_TOO_LARGE" or "TOO_MANY_FILES" => CoreStrings.Timeline_ForwardRefusal_3,
+        "ORIGIN_INVALID" => CoreStrings.Timeline_ForwardRefusal_4,
         _ => error.Message
     };
     // Plain words for the refusals of a share-in (forward.md "Failure handling"); anything else keeps the server's own message.
     public static string ShareRefusal(BellApiException error) => error.Code switch
     {
-        "FILE_NOT_SUPPORTED" => "画像ではないファイルはまだ共有できません。ファイルを外して、文章・URL・画像だけを送ってください。",
-        "FILE_TOO_LARGE" or "TOO_MANY_FILES" => "ファイルは1つ20MiBまで、1回に5つまでです。小さくするか分けて送ってください。",
-        "ORIGIN_INVALID" => "共有の内容を受け付けられませんでした。文章は2万字まで、URLは20個までです。",
+        "FILE_NOT_SUPPORTED" => CoreStrings.Timeline_ShareRefusal_1,
+        "FILE_TOO_LARGE" or "TOO_MANY_FILES" => CoreStrings.Timeline_ForwardRefusal_3,
+        "ORIGIN_INVALID" => CoreStrings.Timeline_ShareRefusal_3,
         _ => error.Message
     };
-    public const string UnavailableQuote = "元のメッセージを表示できません";
-    public const string QuoteNotFound = "元のメッセージは見つかりません";
+    public static string UnavailableQuote  => CoreStrings.Timeline_UnavailableQuote_1;
+    public static string QuoteNotFound  => CoreStrings.Timeline_QuoteNotFound_1;
     // reply.md "What the client draws": an unavailable part shows its saved excerpt and the fixed line under it; an unavailable whole-message reply shows only the fixed line.
-    public static string QuoteBody(ReplyReference quote) => !quote.Available && !quote.Part ? UnavailableQuote : quote.Text.Length == 0 ? quote.Image ? "（画像）" : "" : quote.Truncated ? quote.Text + "…" : quote.Text;
+    public static string QuoteBody(ReplyReference quote) => !quote.Available && !quote.Part ? UnavailableQuote : quote.Text.Length == 0 ? quote.Image ? CoreStrings.Timeline_QuoteBody_1 : "" : quote.Truncated ? quote.Text + "…" : quote.Text;
     public static string? QuoteNote(ReplyReference quote) => !quote.Available && quote.Part ? UnavailableQuote : null;
 
     // Mac BellDate.short / BellDate.long.
-    private static readonly System.Globalization.CultureInfo Japanese = new("ja-JP");
     public static string ShortTime(DateTimeOffset at, DateTimeOffset now)
     {
         var local = at.ToLocalTime(); var today = now.ToLocalTime().Date;
-        return local.Date == today ? local.ToString("H:mm", System.Globalization.CultureInfo.InvariantCulture) : local.Date == today.AddDays(-1) ? "昨日" : $"{local.Month}月{local.Day}日";
+        return local.Date == today ? local.ToString(CoreStrings.Pattern_Time) : local.Date == today.AddDays(-1) ? CoreStrings.Approvals_DayHeading_2 : CoreStrings.Approvals_DayHeading_3(local.Month, local.Day);
     }
-    public static string LongTime(DateTimeOffset at) => at.ToLocalTime().ToString("M月d日(ddd) H:mm", Japanese);
+    public static string LongTime(DateTimeOffset at) => at.ToLocalTime().ToString(CoreStrings.Timeline_LongTime_1);
 
     // 最新ページは既存行の本文・配送状態を更新し、差分ページは30件を超える新着を補う。
     public static TimelineMessage[] Merge(IEnumerable<TimelineMessage> loaded, IEnumerable<TimelineMessage> updates)

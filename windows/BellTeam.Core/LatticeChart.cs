@@ -125,12 +125,21 @@ public sealed record LatticeListItem(string ProjectId, string Name, bool Coordin
 
 public static class LatticeChart
 {
-    public const string UnknownMember = "名簿にないメンバー", Unassigned = "担当なし", OwnerId = "owner", OwnerFallback = "指揮官";
-    public const string Reconnecting = "工程表に再接続しています…", ListEmpty = "工程表はまだありません。メンバーがLatticeで工程をつくると、ここに並びます。",
-        NewChart = "工程表はメンバーがLatticeでつくります。権限も参加登録もなく、誰でも開けます。", OldServer = "このサーバーではまだ工程表を使えません。", OldServerNext = "サーバーが更新されると使えるようになります。",
-        NotFound = "この工程表は見つかりません。", Unavailable = "この工程表はまだ読めません。", UnavailableNext = "記録が整うと自動で表示します。", NoCards = "この工程表にはまだ工程がありません。",
-        LoginRequired = "ログインが必要です。ログインし直すと、自動で表示します。";
-    public static readonly IReadOnlyDictionary<string, string> DecisionStates = new Dictionary<string, string> { ["pending"] = "待ち", ["held"] = "保留", ["answered"] = "回答済み", ["cancelled"] = "取り下げ" };
+    public static string UnknownMember  => CoreStrings.LatticeChart_UnknownMember_1;
+    public static string Unassigned  => CoreStrings.LatticeChart_Unassigned_1;
+    public const string OwnerId = "owner";
+    public static string OwnerFallback  => CoreStrings.LatticeChart_OwnerFallback_1;
+    public static string Reconnecting  => CoreStrings.LatticeChart_Reconnecting_1;
+    public static string ListEmpty  => CoreStrings.LatticeChart_ListEmpty_1;
+    public static string NewChart  => CoreStrings.LatticeChart_NewChart_1;
+    public static string OldServer  => CoreStrings.LatticeChart_OldServer_1;
+    public static string OldServerNext  => CoreStrings.LatticeChart_OldServerNext_1;
+    public static string NotFound  => CoreStrings.LatticeChart_NotFound_1;
+    public static string Unavailable  => CoreStrings.LatticeChart_Unavailable_1;
+    public static string UnavailableNext  => CoreStrings.LatticeChart_UnavailableNext_1;
+    public static string NoCards  => CoreStrings.LatticeChart_NoCards_1;
+    public static string LoginRequired  => CoreStrings.LatticeChart_LoginRequired_1;
+    public static readonly IReadOnlyDictionary<string, string> DecisionStates = new Dictionary<string, string> { ["pending"] = CoreStrings.LatticeChart_DecisionStates_1, ["held"] = CoreStrings.Approvals_BadgesOf_2, ["answered"] = CoreStrings.Approvals_BadgesOf_3, ["cancelled"] = CoreStrings.Approvals_BadgesOf_4 };
     /// <summary>web decisionOf: a non-empty decisionId and a known status (the title is optional: ids and state only since the /v1 close), else null (no 決裁 block).</summary>
     public static LatticeDecision? DecisionOf(JsonElement value)
         => value.ValueKind == JsonValueKind.Object && value.TryGetProperty("decisionId", out var id) && id.ValueKind == JsonValueKind.String && id.GetString() is { Length: > 0 } decisionId
@@ -139,28 +148,28 @@ public static class LatticeChart
 
     public static LatticeStateInfo StateInfo(string? state) => state switch
     {
-        "ready" => new("着手可", "ready"), "in-progress" => new("作業中", "working"), "blocked" => new("ブロック", "blocked"),
-        "done" => new("完了", "done"), "retired" => new("取り下げ", "retired"), _ => new("未着手", "pending")
+        "ready" => new(CoreStrings.LatticeChart_StateInfo_1, "ready"), "in-progress" => new(CoreStrings.LatticeChart_StateInfo_2, "working"), "blocked" => new(CoreStrings.LatticeChart_StateInfo_3, "blocked"),
+        "done" => new(CoreStrings.GoalModels_StatusTitle_6, "done"), "retired" => new(CoreStrings.Approvals_BadgesOf_4, "retired"), _ => new(CoreStrings.LatticeChart_StateInfo_6, "pending")
     };
     public static bool Finished(string? state) => state is "done" or "retired";
 
     /// <summary>The chart's name everywhere it is named: its name, else 「作った人の工程表」 from the app's roster, else 名前のない工程表. The project id never appears.</summary>
     public static string ChartName(string? name, string? createdBy, Func<string, string?> rosterName)
-        => name is { Length: > 0 } ? name : createdBy is { Length: > 0 } && rosterName(createdBy) is { Length: > 0 } creator ? creator + "の工程表" : "名前のない工程表";
+        => name is { Length: > 0 } ? name : createdBy is { Length: > 0 } && rosterName(createdBy) is { Length: > 0 } creator ? CoreStrings.LatticeChart_ChartName_1(creator) : CoreStrings.LatticeChart_ChartName_2;
 
     // Reconnect wait: 1, 2, 4 … 30 s (each ±20%), forever while open.
     public static int BackoffMs(int attempt, Func<double>? random = null)
         => (int)Math.Min(30000, Math.Round(Math.Min(30000, 1000 * Math.Pow(2, Math.Max(0, attempt))) * (0.8 + 0.4 * (random ?? Random.Shared.NextDouble)())));
 
     private static readonly TimeZoneInfo Jst = TimeZoneInfo.CreateCustomTimeZone("JST", TimeSpan.FromHours(9), "JST", "JST");
-    public static string FormatJst(DateTimeOffset? value) => value is { } at ? TimeZoneInfo.ConvertTime(at, Jst).ToString("M月d日 HH:mm", CultureInfo.InvariantCulture) : "";
+    public static string FormatJst(DateTimeOffset? value) => value is { } at ? TimeZoneInfo.ConvertTime(at, Jst).ToString(CoreStrings.LatticeChart_FormatJst_1) : "";
     public static string SinceText(DateTimeOffset? value, DateTimeOffset now)
     {
         var minutes = value is { } at ? Math.Max(0, (int)Math.Floor((now - at).TotalMinutes)) : 0;
-        if (minutes < 1) return "1分未満";
-        if (minutes < 60) return $"{minutes}分";
-        if (minutes < 1440) return minutes % 60 != 0 ? $"{minutes / 60}時間{minutes % 60}分" : $"{minutes / 60}時間";
-        return $"{minutes / 1440}日";
+        if (minutes < 1) return CoreStrings.LatticeChart_SinceText_1;
+        if (minutes < 60) return CoreStrings.LatticeChart_SinceText_2(minutes);
+        if (minutes < 1440) return minutes % 60 != 0 ? CoreStrings.LatticeChart_SinceText_3(minutes / 60, minutes % 60) : CoreStrings.LatticeChart_SinceText_4(minutes / 60);
+        return CoreStrings.LatticeChart_SinceText_5(minutes / 1440);
     }
 
     public static Func<string?, LatticePerson?> Lookup(LatticeSnapshot snapshot)
@@ -181,7 +190,16 @@ public static class LatticeChart
     }
 
     // Lanes per owner (known members by name, then authored lane texts by name, then unknown members, then 担当なし), columns by depth; cards of one lane and depth stack.
-    public const double CardWidth = 168, CardHeight = 108, CardDoneHeight = 50, ColumnWidth = 236, LabelWidth = 132, Top = 14, LaneMin = 116, LaneGap = 10, LanePad = 10, StackGap = 10;
+    public const double CardWidth = 168;
+        public const double CardHeight = 108;
+        public const double CardDoneHeight = 50;
+        public const double ColumnWidth = 236;
+        public const double LabelWidth = 132;
+        public const double Top = 14;
+        public const double LaneMin = 116;
+        public const double LaneGap = 10;
+        public const double LanePad = 10;
+        public const double StackGap = 10;
     public static double HeightOf(LatticeCard card) => Finished(card.State) ? CardDoneHeight : CardHeight;
     public static LatticeLayout Layout(LatticeSnapshot snapshot)
     {
@@ -212,8 +230,15 @@ public static class LatticeChart
 
     // ツリー (screen-spec "ツリー"): chart -> phases -> cards (under `parent`, else their phase, else the chart). Leaves take one row each, a parent sits at the
     // middle of its children. Port of layoutTree in web/lattice-chart-model.js; sizes are the Web px.
-    public const double TreeRow = 40, TreeBoxHeight = 32, TreeGap = 36, TreeTop = 16, TreeLeft = 16, TreeRootWidth = 168, TreePhaseWidth = 196, TreeCardWidth = 300;
-    public const string UnnamedPhase = "名前のないまとまり";
+    public const double TreeRow = 40;
+            public const double TreeBoxHeight = 32;
+            public const double TreeGap = 36;
+            public const double TreeTop = 16;
+            public const double TreeLeft = 16;
+            public const double TreeRootWidth = 168;
+            public const double TreePhaseWidth = 196;
+            public const double TreeCardWidth = 300;
+    public static string UnnamedPhase  => CoreStrings.LatticeChart_UnnamedPhase_1;
     public static string PhaseTone(IEnumerable<LatticeCard> cards)
     {
         var list = cards.ToList();
@@ -289,10 +314,10 @@ public static class LatticeChart
         foreach (var card in rows)
         {
             var day = card.DoneAt is { } at ? Local(at).Date : (DateTime?)null;
-            var heading = day is not { } date ? "日時の分からない工程" : date == today ? "今日" : date == today.AddDays(-1) ? "昨日" : date.ToString("M月d日", CultureInfo.InvariantCulture);
+            var heading = day is not { } date ? CoreStrings.LatticeChart_History_1 : date == today ? CoreStrings.Approvals_DayHeading_1 : date == today.AddDays(-1) ? CoreStrings.Approvals_DayHeading_2 : date.ToString(CoreStrings.LatticeChart_History_4);
             if (groups.Count == 0 || groups[^1].Heading != heading) groups.Add((heading, []));
-            var owner = ownerOf(card); var info = StateInfo(card.State); var time = card.DoneAt is { } done ? Local(done).ToString("HH:mm", CultureInfo.InvariantCulture) : "";
-            groups[^1].Rows.Add(new(card.Id, card, owner, info, time, $"{Title(card)}、{info.Badge}{(time.Length > 0 ? $"、{heading} {time}" : "")}、{NameOf(owner)}"));
+            var owner = ownerOf(card); var info = StateInfo(card.State); var time = card.DoneAt is { } done ? Local(done).ToString(CoreStrings.Pattern_TimePadded) : "";
+            groups[^1].Rows.Add(new(card.Id, card, owner, info, time, CoreStrings.LatticeChart_History_6(Title(card), info.Badge, (time.Length > 0 ? CoreStrings.LatticeChart_History_5(heading, time) : ""), NameOf(owner))));
         }
         return new(rows.Count, groups.Select(group => new LatticeHistoryGroup(group.Heading, group.Rows)).ToList());
     }
@@ -308,7 +333,8 @@ public static class LatticeChart
         var u = 1 - t;
         return (u * u * u * c.X0 + 3 * u * u * t * c.X1 + 3 * u * t * t * c.X2 + t * t * t * c.X3, u * u * u * c.Y0 + 3 * u * u * t * c.Y1 + 3 * u * t * t * c.Y2 + t * t * t * c.Y3);
     }
-    public const double FlowSpawnMs = 600, FlowTravelMs = 1400;
+    public const double FlowSpawnMs = 600;
+    public const double FlowTravelMs = 1400;
     /// <summary>Waiting edge particles: one every 600 ms, 1.4 s toward the waiter. The progress (0..1) of each particle in flight.</summary>
     public static IEnumerable<double> FlowPositions(double nowMs)
     {
@@ -336,27 +362,27 @@ public static class LatticeChart
         {
             "in-progress" => $"{info.Badge} {SinceText(card?.StartedAt, now)}",
             "blocked" => card?.BlockedReason is { Length: > 0 } reason ? $"{info.Badge}: {reason}" : info.Badge,
-            "pending" or "ready" => member is not null ? $"{info.Badge}: 担当 {member.Name}" : Unassigned,
+            "pending" or "ready" => member is not null ? CoreStrings.LatticeChart_ProducerStateText_1(info.Badge, member.Name) : Unassigned,
             _ => info.Badge
         };
     }
     public static string CardLabel(LatticeCard card, LatticePerson? member)
-        => $"{Title(card)}、{StateInfo(card.State).Badge}、つくっている {NameOf(member)}{(OpenConnections(card).Any() ? $"、接続 {OpenConnections(card).Count()}" : "")}";
-    public static string Title(LatticeCard? card) => card?.Title is { Length: > 0 } title ? title : "名前のない工程";
+        => CoreStrings.LatticeChart_CardLabel_2(Title(card), StateInfo(card.State).Badge, NameOf(member), (OpenConnections(card).Any() ? CoreStrings.LatticeChart_CardLabel_1(OpenConnections(card).Count()) : ""));
+    public static string Title(LatticeCard? card) => card?.Title is { Length: > 0 } title ? title : CoreStrings.LatticeChart_Title_1;
     /// <summary>The line under a card: the reason when blocked, the producer when not started, who is making it while in progress.</summary>
     public static string CardNote(LatticeCard card, LatticePerson? member) => card.State switch
     {
         "blocked" => card.BlockedReason ?? "",
-        "pending" or "ready" => member is not null ? $"担当 {member.Name}" : Unassigned,
-        "in-progress" => member is not null ? $"{member.Name}がつくっています" : "",
+        "pending" or "ready" => member is not null ? CoreStrings.LatticeChart_CardNote_1(member.Name) : Unassigned,
+        "in-progress" => member is not null ? CoreStrings.LatticeChart_CardNote_2(member.Name) : "",
         _ => ""
     };
 
     // 別の工程表の工程につながる接続 (externals[], screen-spec 接続 and ブロック): title and chart name fall back to words, an unread state reads 読めていません.
-    public const string ExternalUnread = "読めていません";
+    public static string ExternalUnread  => CoreStrings.LatticeChart_ExternalUnread_1;
     private static Dictionary<string, LatticeExternal> Externals(LatticeSnapshot snapshot) => (snapshot.Externals ?? []).GroupBy(ext => ext.Id).ToDictionary(group => group.Key, group => group.First());
-    public static string ExternalTitle(LatticeExternal ext) => ext.Title is { Length: > 0 } title ? title : "ほかの工程表の工程";
-    public static string ExternalChart(LatticeExternal ext) => $"{(ext.ChartName is { Length: > 0 } name ? name : "ほかの工程表")}の工程表";
+    public static string ExternalTitle(LatticeExternal ext) => ext.Title is { Length: > 0 } title ? title : CoreStrings.LatticeChart_ExternalTitle_1;
+    public static string ExternalChart(LatticeExternal ext) => CoreStrings.LatticeChart_ChartName_1((ext.ChartName is { Length: > 0 } name ? name : CoreStrings.LatticeChart_ExternalChart_1));
     // A task of another chart carries no start time, so 作業中 has no minutes.
     private static string ExternalState(LatticeExternal ext, LatticePerson? producer, DateTimeOffset now)
         => ext.State is null ? ExternalUnread : ext.State == "in-progress" ? StateInfo(ext.State).Badge : ProducerStateText(null, ext.State, producer, now);
@@ -369,24 +395,24 @@ public static class LatticeChart
         var lookup = Lookup(snapshot); var ownerOf = Owner(snapshot); var externals = Externals(snapshot);
         return OpenEntries(snapshot).OrderBy(item => item.Entry.Since ?? DateTimeOffset.MaxValue).ThenBy(item => item.Card.Id, StringComparer.Ordinal).Select(item =>
         {
-            var (card, entry) = item; var owner = ownerOf(card); var ownerText = owner is null ? Unassigned : $"担当 {owner.Name}"; var headline = Title(card); var who = $"「{headline}」（{ownerText}）は、";
+            var (card, entry) = item; var owner = ownerOf(card); var ownerText = owner is null ? Unassigned : CoreStrings.LatticeChart_CardNote_1(owner.Name); var headline = Title(card); var who = CoreStrings.LatticeChart_ConnectionRows_2(headline, ownerText);
             LatticeConnectionRow Row(string mark, string label, LatticePerson? agent = null, string title = "", string? chart = null, LatticePerson? producer = null, string stateText = "", LatticeStateInfo? info = null, bool emphasized = false, LatticeCardRef? external = null)
                 => new(ConnectionKey(card, entry), entry.Kind!, card.Id, owner, headline, ownerText, SinceText(entry.Since, now), entry.Reason ?? "", mark, agent, title, chart, producer, stateText, info ?? StateInfo(null), emphasized, producer?.CanChat == true, external, label);
-            if (entry.Kind == "schedule") return Row("予定の結果が条件になっています", $"{who}予定の結果が条件になっています");
+            if (entry.Kind == "schedule") return Row(CoreStrings.LatticeChart_ConnectionRows_3, CoreStrings.LatticeChart_ConnectionRows_4(who));
             if (entry.Kind == "priority")
             {
-                var agent = lookup(entry.Agent); var mark = $"{NameOf(agent)}が、着手できるようになったらすぐ動きたいと伝えています";
+                var agent = lookup(entry.Agent); var mark = CoreStrings.LatticeChart_ConnectionRows_5(NameOf(agent));
                 return Row(mark, who + mark, agent);
             }
             var id = entry.Ref ?? ""; var colon = id.IndexOf(':');
             var ext = externals.GetValueOrDefault(id) ?? new LatticeExternal(id, colon < 0 ? id : id[..colon], colon < 0 ? "" : id[(colon + 1)..], null, null, null, false, null);
             var producer = ext.Producer is { Length: > 0 } maker ? lookup(maker) : null; var title = ExternalTitle(ext); var chart = ExternalChart(ext); var state = ExternalState(ext, producer, now);
-            return Row("この工程の完了が条件になっています", $"{who}「{title}」（{chart}）の完了が条件になっています。つくっているのは{NameOf(producer)}、{state}", null, title, chart, producer, state, StateInfo(ext.State), ext.State == "blocked", new(ext.ProjectId, ext.CardId));
+            return Row(CoreStrings.LatticeChart_ConnectionRows_6, CoreStrings.LatticeChart_ConnectionRows_7(who, title, chart, NameOf(producer), state), null, title, chart, producer, state, StateInfo(ext.State), ext.State == "blocked", new(ext.ProjectId, ext.CardId));
         }).ToList();
     }
     /// <summary>The chip on a line to a card still being made: 「前工程：◯◯」, ◯◯ = the owner of the card the edge starts from, 担当なし when it has none.</summary>
     public static string EdgeChip(LatticeSnapshot snapshot, LatticeEdge edge)
-        => $"前工程：{Owner(snapshot)(snapshot.Cards.FirstOrDefault(card => card.Id == edge.From))?.Name ?? Unassigned}";
+        => CoreStrings.LatticeChart_EdgeChip_1(Owner(snapshot)(snapshot.Cards.FirstOrDefault(card => card.Id == edge.From))?.Name ?? Unassigned);
     public static IReadOnlyList<LatticeRailItem> Rail(LatticeSnapshot snapshot, LatticeLayout layout)
         => layout.Lanes.Where(lane => lane.BotId is not null && lane.Member?.IsOwner != true).Select(lane => new LatticeRailItem(lane.BotId!, lane.Member!,
             snapshot.Cards.Any(card => card.Producer == lane.BotId && card.State == "in-progress"), snapshot.Cards.Any(card => card.Producer == lane.BotId && card.State == "blocked"),
@@ -409,17 +435,17 @@ public static class LatticeChart
         return new(card, ownerOf(card), StateInfo(card.State), ProducerStateText(card, card.State, ownerOf(card), now),
             snapshot.Edges.Where(edge => edge.To == cardId).Select(edge => Link(edge.From)).OfType<LatticeLink>().ToList(),
             snapshot.Edges.Where(edge => edge.From == cardId).Select(edge => Link(edge.To)).OfType<LatticeLink>().Where(link => link.State != "retired").ToList(),   // a retired card is no live successor (a185, as Web)
-            card.StartedAt is { } started ? $"着手 {FormatJst(started)} JST" : "まだ着手されていません");
+            card.StartedAt is { } started ? CoreStrings.LatticeChart_Detail_1(FormatJst(started)) : CoreStrings.LatticeChart_Detail_2);
     }
 
     public static LatticeBanner? Banner(LatticeSnapshot snapshot) => snapshot.State switch
     {
-        "unverified" => new("amber", "工程表の記録に食い違いがあります。読める分だけ表示しています。", "直り次第、自動で最新に戻ります。", false),
-        "last_verified" => new("grey", $"いまの記録が読めないため、最後に確認できた状態{(snapshot.VerifiedAt is { } at ? $"（{FormatJst(at)} JST）" : "")}を表示しています。", "読めるようになると自動で切り替わります。", true),
+        "unverified" => new("amber", CoreStrings.LatticeChart_Banner_1, CoreStrings.LatticeChart_Banner_2, false),
+        "last_verified" => new("grey", CoreStrings.LatticeChart_Banner_4((snapshot.VerifiedAt is { } at ? CoreStrings.LatticeChart_Banner_3(FormatJst(at)) : "")), CoreStrings.LatticeChart_Banner_5, true),
         _ => null
     };
     public static IReadOnlyList<string> DegradedPills(LatticeSnapshot snapshot)
-        => snapshot.Degraded.Select(key => key switch { "lattice-read" => "最新の記録を読み直しています…", "members" => "メンバー情報を読み直しています…", _ => null }).OfType<string>().Distinct().ToList();
+        => snapshot.Degraded.Select(key => key switch { "lattice-read" => CoreStrings.LatticeChart_DegradedPills_1, "members" => CoreStrings.LatticeChart_DegradedPills_2, _ => null }).OfType<string>().Distinct().ToList();
 
     public static LatticeDiff Diff(LatticeSnapshot? previous, LatticeSnapshot next)
     {
@@ -444,8 +470,8 @@ public static class LatticeChart
             var counts = chart.Counts ?? new(0, 0, 0, 0, 0);
             var name = ChartName(chart.Name, chart.CreatedBy, id => roster(id)?.Name);
             return new LatticeListItem(chart.ProjectId, name, chart.Coordinator, counts.Done, counts.Total, counts.Connections, members,
-                counts.Total > 0 ? Math.Min(1, (double)counts.Done / counts.Total) : 0, chart.UpdatedAt is { } at ? $"更新 {FormatJst(at)}" : "",
-                $"{name}{(chart.Coordinator ? "、統括の工程表" : "")}、完了 {counts.Done}/{counts.Total}、接続 {counts.Connections}{(chart.Reminders == true ? "、催促オン" : "")}{(members.Count > 0 ? "、動いているのは" + string.Join("、", members.Select(member => member.Name)) : "")}", chart.Reminders == true);
+                counts.Total > 0 ? Math.Min(1, (double)counts.Done / counts.Total) : 0, chart.UpdatedAt is { } at ? CoreStrings.LatticeChart_ListItems_1(FormatJst(at)) : "",
+                CoreStrings.LatticeChart_ListItems_6(name, (chart.Coordinator ? CoreStrings.LatticeChart_ListItems_2 : ""), counts.Done, counts.Total, counts.Connections, (chart.Reminders == true ? CoreStrings.LatticeChart_ListItems_3 : ""), (members.Count > 0 ? CoreStrings.LatticeChart_ListItems_5(string.Join(CoreStrings.Approvals_CardRow_3, members.Select(member => member.Name))) : "")), chart.Reminders == true);
         }).ToList();
     public static string? CoordinatorBotId(LatticeChartList list) => list.Charts.FirstOrDefault(chart => chart.Coordinator && chart.CreatedBy is { Length: > 0 })?.CreatedBy;
 }
@@ -589,7 +615,7 @@ public static class LatticeApi
             if (name != "snapshot") continue;
             LatticeSnapshot? snapshot;
             try { snapshot = JsonSerializer.Deserialize<LatticeSnapshot>(data, BellApi.Json); }
-            catch (JsonException error) { throw new BellApiException("工程表のデータを読み取れませんでした。" + error.Message); }
+            catch (JsonException error) { throw new BellApiException(CoreStrings.LatticeChart_LatticeEventsAsync_1(error.Message)); }
             if (snapshot is not null) yield return snapshot;
         }
     }

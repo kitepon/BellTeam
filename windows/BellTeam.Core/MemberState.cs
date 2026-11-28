@@ -21,7 +21,7 @@ public abstract class LenientObjectReader<T> : JsonConverter<T?> where T : class
 public sealed record SeatLaunch(string? Code, string? Action)
 {
     // The one plain line (same as Web and the Mac SeatLaunch.line): the action, or the code when the action is blank.
-    public string Line => new[] { Action, Code }.Select(text => text?.Trim()).FirstOrDefault(text => !string.IsNullOrEmpty(text)) is { } reason ? "端末で起動できません：" + reason : "端末で起動できません。";
+    public string Line => new[] { Action, Code }.Select(text => text?.Trim()).FirstOrDefault(text => !string.IsNullOrEmpty(text)) is { } reason ? CoreStrings.MemberState_Line_1(reason) : CoreStrings.MemberState_Line_2;
 }
 public sealed class SeatLaunchReader : LenientObjectReader<SeatLaunch> { protected override SeatLaunch From(JsonElement element) => new(Text(element, "code"), Text(element, "action")); }
 
@@ -36,10 +36,10 @@ public sealed record ConfigurationApplication(string? State, string? Message)
         var record = bot.ConfigurationApplication;
         return record?.State switch
         {
-            "pending" => "現在の作業が終わった後に設定を反映します。適用はまだ確認できていません。",
+            "pending" => CoreStrings.MemberState_Line_3,
             "failed" => string.IsNullOrEmpty(record.Message) ? null : record.Message,
-            "accepted" => "CLIが設定変更を受け付けました。",
-            _ => bot.Online ? "保存した希望設定です。稼働中のCLIへの適用は未確認です。" : "次回の起動に使う希望設定です。"
+            "accepted" => CoreStrings.MemberState_Line_4,
+            _ => bot.Online ? CoreStrings.MemberState_Line_5 : CoreStrings.MemberState_Line_6
         };
     }
     // The state that picks the icon and colour: only the three recorded states; anything else is a plain line.

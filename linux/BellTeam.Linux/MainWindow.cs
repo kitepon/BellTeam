@@ -38,7 +38,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     private readonly StackPanel list = new();
     private readonly Dictionary<ChatTarget, ConversationRow> rows = [];
     private bool listQueued;
-    private readonly TextBox search = new() { Classes = { "bare" }, FontSize = 16, PlaceholderText = "メンバー・ルームを検索", VerticalContentAlignment = VerticalAlignment.Center };
+    private readonly TextBox search = new() { Classes = { "bare" }, FontSize = 16, PlaceholderText = LinuxStrings.MainWindow_search_1, VerticalContentAlignment = VerticalAlignment.Center };
     private readonly TextBlock searchHint = new() { Text = "Ctrl+K", FontSize = 14, Foreground = BellTheme.Muted, VerticalAlignment = VerticalAlignment.Center };
     private readonly Button clearSearch;
     private readonly Button addMenu;
@@ -49,7 +49,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     private readonly Button approvalsEntry;
     private readonly Border accountsBanner = new() { Background = new SolidColorBrush(Color.Parse("#1FFF9500")), CornerRadius = new CornerRadius(10), Padding = new Thickness(11, 7), Margin = new Thickness(0, 8, 0, 0), IsVisible = false };
     private readonly TextBlock accountsText = new() { Foreground = new SolidColorBrush(Color.Parse("#C77700")), FontSize = 13, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap };
-    private readonly TextBlock notFound = BellTheme.Text("見つかりませんでした", 13, BellTheme.Muted, margin: new Thickness(24, 16));
+    private readonly TextBlock notFound = BellTheme.Text(LinuxStrings.MainWindow_notFound_1, 13, BellTheme.Muted, margin: new Thickness(24, 16));
     private readonly TextBlock onlineSummary = new() { FontSize = 14, Foreground = BellTheme.Muted };
     private readonly TextBlock ownerName = new() { FontSize = 14, Foreground = BellTheme.Muted, MaxWidth = 140, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
     private readonly Button[] nav;
@@ -68,7 +68,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     private readonly AvatarTile emptyAvatar = new() { Width = 72, Height = 72, HorizontalAlignment = HorizontalAlignment.Center };
     private readonly TextBlock emptyTitle = BellTheme.Text("", 18, BellTheme.Ink, FontWeight.SemiBold, new Thickness(0, 13, 0, 0));
     private readonly StackPanel failedConversation = new() { VerticalAlignment = VerticalAlignment.Top, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(30, 60, 30, 0), IsVisible = false };
-    private readonly Button latest = new() { Classes = { "plain" }, Content = "最新へ ↓", HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 12), Background = BellTheme.ProminentFill, Foreground = Brushes.White, IsVisible = false };
+    private readonly Button latest = new() { Classes = { "plain" }, Content = LinuxStrings.MainWindow_latest_1, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 12), Background = BellTheme.ProminentFill, Foreground = Brushes.White, IsVisible = false };
     private readonly SeatLaunchBar seatLaunchBar = new();
     private readonly SeatApprovalBar seatApprovalBar = new();
     private readonly Button exportButton;
@@ -84,7 +84,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     private readonly Border quoteBar = new() { Background = new SolidColorBrush(Color.FromArgb(166, 0xE8, 0xE0, 0xFF)), CornerRadius = new CornerRadius(16), Padding = new Thickness(14, 6, 6, 6), Margin = new Thickness(0, 0, 0, 8), IsVisible = false };
     private string? shownQuoteId;
     private readonly TextBlock replyLabel = new() { FontSize = 14, FontWeight = FontWeight.SemiBold, Foreground = BellTheme.Violet, VerticalAlignment = VerticalAlignment.Center };
-    private readonly TextBox composer = new() { Classes = { "bare" }, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 24, MaxHeight = 124, FontSize = 18, Margin = new Thickness(0, 8), PlaceholderText = "メッセージを入力…" };
+    private readonly TextBox composer = new() { Classes = { "bare" }, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 24, MaxHeight = 124, FontSize = 18, Margin = new Thickness(0, 8), PlaceholderText = LinuxStrings.MainWindow_composer_1 };
     private readonly Button attach, stopCurrent, send;
 
     // ---- status band, startup, overlays ----
@@ -115,15 +115,15 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
         // The Approval Box client of this PC (client-v0.5.md): /v1 now, the device session when the server says peer_channel; the server decides, no flag.
         approvalBox = new LinuxApprovalBoxDevice(SettingsStore.UserDirectory, () => [.. model.Bots.Select(bot => (bot.Id, bot.DisplayName))]);
         approvals = new ApprovalsHub(model, approvalBox.Source); approvalBox.Attach(approvals); approvalsEntry = BuildApprovalsEntry(); approvals.Changed += UpdateApprovalsEntry;
-        clearSearch = Flat(Icons.Close, 12, "検索を消去", () => { model.Search = ""; search.Text = ""; search.Focus(); }); clearSearch.IsVisible = false;
+        clearSearch = Flat(Icons.Close, 12, LinuxStrings.MainWindow_MainWindow_1, () => { model.Search = ""; search.Text = ""; search.Focus(); }); clearSearch.IsVisible = false;
         exportButton = BuildExport();
-        attach = CircleOrFlat(Icons.Paperclip, 22, BellTheme.Violet, "画像を添付", AttachAsync, "画像ファイルを添付。ここへドロップ、入力欄へ貼り付けもできます");
-        stopCurrent = Circle(BellTheme.Red, "今の動作を止める", () => _ = model.StopCurrentAsync(), "今の動作を止める");
+        attach = CircleOrFlat(Icons.Paperclip, 22, BellTheme.Violet, LinuxStrings.MainWindow_MainWindow_2, AttachAsync, LinuxStrings.MainWindow_MainWindow_3);
+        stopCurrent = Circle(BellTheme.Red, LinuxStrings.MainWindow_MainWindow_4, () => _ = model.StopCurrentAsync(), LinuxStrings.MainWindow_MainWindow_4);
         stopCurrent.Content = new Border { Width = 13, Height = 13, CornerRadius = new CornerRadius(2.5), Background = Brushes.White };
-        send = Circle(BellTheme.Violet, "送信", () => _ = model.SendAsync(), "送信（Enter）"); send.Content = Icons.Draw(Icons.Send, 20, Brushes.White, thickness: 2.4);
+        send = Circle(BellTheme.Violet, LinuxStrings.MainWindow_MainWindow_6, () => _ = model.SendAsync(), LinuxStrings.MainWindow_MainWindow_7); send.Content = Icons.Draw(Icons.Send, 20, Brushes.White, thickness: 2.4);
         replyTarget = BuildReplyTarget();
-        reconnect = StripButton("再接続", () => { if (model.Server.Length != 0) { ShowConversation(); _ = ConnectAsync(model.Server); } });
-        changeServer = StripButton("接続先", OpenConnectionSettings);
+        reconnect = StripButton(LinuxStrings.MainWindow_MainWindow_8, () => { if (model.Server.Length != 0) { ShowConversation(); _ = ConnectAsync(model.Server); } });
+        changeServer = StripButton(LinuxStrings.MainWindow_MainWindow_9, OpenConnectionSettings);
         attachmentScroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, Content = attachments, IsVisible = false };
         nav = [];
         var navButtons = new List<Button>();
@@ -166,7 +166,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
         var sidebar = BuildSidebar(navButtons);
         main.ColumnDefinitions[0].MinWidth = 320; main.ColumnDefinitions[0].MaxWidth = 420;
         main.Children.Add(sidebar);
-        var splitter = new GridSplitter { Width = 5, Background = Brushes.Transparent, ResizeDirection = GridResizeDirection.Columns, ResizeBehavior = GridResizeBehavior.PreviousAndNext }; AutomationProperties.SetName(splitter, "サイドバーの幅");
+        var splitter = new GridSplitter { Width = 5, Background = Brushes.Transparent, ResizeDirection = GridResizeDirection.Columns, ResizeBehavior = GridResizeBehavior.PreviousAndNext }; AutomationProperties.SetName(splitter, LinuxStrings.MainWindow_BuildRoot_1);
         Grid.SetColumn(splitter, 1); main.Children.Add(splitter);
         BuildConversation();
         Grid.SetColumn(conversationArea, 2); Grid.SetColumn(pageArea, 2); Grid.SetColumnSpan(pageArea, 2); main.Children.Add(conversationArea); main.Children.Add(pageArea);
@@ -195,9 +195,9 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     {
         var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12, Children = { Icons.Draw(Icons.PlusCircle, 20, BellTheme.Ink), Icons.Draw(Icons.ChevronDown, 12, BellTheme.Ink) } };
         var button = new Button { Classes = { "plain" }, Background = new SolidColorBrush(Color.Parse("#1F767680")), Padding = new Thickness(12, 6), Foreground = BellTheme.Ink, VerticalAlignment = VerticalAlignment.Center, Content = content };
-        AutomationProperties.SetName(button, "追加"); ToolTip.SetTip(button, "追加");
-        var addMember = new MenuItem { Header = "メンバーを追加" }; addMember.Click += (_, _) => ShowMemberSheet();
-        var addRoom = new MenuItem { Header = "ルームを作成" }; addRoom.Click += (_, _) => ShowRoomSheet(null);
+        AutomationProperties.SetName(button, LinuxStrings.MainWindow_BuildAddMenu_1); ToolTip.SetTip(button, LinuxStrings.MainWindow_BuildAddMenu_1);
+        var addMember = new MenuItem { Header = LinuxStrings.MainWindow_Inspector_ShowMemberSheet_1 }; addMember.Click += (_, _) => ShowMemberSheet();
+        var addRoom = new MenuItem { Header = LinuxStrings.MainWindow_BuildAddMenu_4 }; addRoom.Click += (_, _) => ShowRoomSheet(null);
         button.Flyout = new MenuFlyout { Items = { addMember, addRoom }, Placement = PlacementMode.BottomEdgeAlignedRight };
         return button;
     }
@@ -208,7 +208,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
         var disc = new Grid { Width = 18, Height = 18, Children = { new Avalonia.Controls.Shapes.Ellipse { Fill = BellTheme.Violet }, Icons.Draw(UpdateIcons.ArrowDown, 10, Brushes.White, thickness: 3.2) } };
         ((Control)disc.Children[1]).HorizontalAlignment = HorizontalAlignment.Center;
         var button = new Button { Classes = { "plain" }, Background = new SolidColorBrush(Color.Parse("#E4DDFB")), Padding = new Thickness(6), CornerRadius = new CornerRadius(99), VerticalAlignment = VerticalAlignment.Center, IsVisible = false, Content = disc, Name = "update-badge" };
-        AutomationProperties.SetName(button, "更新があります。アップデートを開く"); ToolTip.SetTip(button, "アップデート"); button.Click += (_, _) => ShowUpdates();
+        AutomationProperties.SetName(button, LinuxStrings.MainWindow_BuildUpdateBadge_1); ToolTip.SetTip(button, LinuxStrings.MainWindow_BuildUpdateBadge_2); button.Click += (_, _) => ShowUpdates();
         return button;
     }
 
@@ -219,21 +219,21 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
         titleRow.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, Children = { Icons.Draw(Icons.Sparkle, 26, BellTheme.Violet, filled: true, thickness: 0), new TextBlock { Text = "BellTeam", FontSize = 22, FontWeight = FontWeight.Bold, VerticalAlignment = VerticalAlignment.Center }, updateBadge } });
         var searchRight = new Grid { Children = { searchHint, clearSearch } }; DockPanel.SetDock(searchRight, Dock.Right);
         var magnifier = Icons.Draw(Icons.Search, 18, BellTheme.Muted); magnifier.Margin = new Thickness(0, 0, 8, 0); DockPanel.SetDock(magnifier, Dock.Left);
-        AutomationProperties.SetName(search, "メンバー・ルームを検索"); ToolTip.SetTip(search, "メンバー・ルームを検索（Ctrl+K）");
+        AutomationProperties.SetName(search, LinuxStrings.MainWindow_search_1); ToolTip.SetTip(search, LinuxStrings.MainWindow_BuildSidebar_2);
         search.TextChanged += (_, _) => { var text = search.Text ?? ""; clearSearch.IsVisible = text.Length != 0; searchHint.IsVisible = text.Length == 0; if (model.Search != text) model.Search = text; };
         var searchBox = new Border { Background = new SolidColorBrush(Color.Parse("#EFFFFFFF")), CornerRadius = new CornerRadius(10), Padding = new Thickness(11, 9), Child = new DockPanel { Children = { searchRight, magnifier, search } } };
-        accountsBanner.Child = accountsText; AutomationProperties.SetName(accountsBanner, "アカウントの上限");
+        accountsBanner.Child = accountsText; AutomationProperties.SetName(accountsBanner, LinuxStrings.MainWindow_BuildSidebar_3);
         var top = new StackPanel { Margin = new Thickness(18, 20, 18, 10), Children = { titleRow, searchBox, accountsBanner, approvalsEntry } };
         DockPanel.SetDock(top, Dock.Top);
 
         // Footer: 予定 and 設定 at the ends, ゴール, 相関図 and 工程表 spaced between (Mac footer). 予定, ゴール and 設定 open an empty placeholder page in this stage.
         var footerGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,*,Auto,*,Auto,*,Auto") };
         void Add(Button button, int column) { button.IsEnabled = false; Grid.SetColumn(button, column); footerGrid.Children.Add(button); navButtons.Add(button); }
-        Add(NavButton(Icons.Calendar, "予定", "予定（Ctrl+2）", ShowSchedules), 0);
-        Add(NavButton(Icons.Target, "ゴール", "ゴール（Ctrl+3）", ShowGoals), 2);
-        Add(NavButton(GraphIcon.Draw(18, BellTheme.Ink), "相関図", "相関図（Ctrl+4）", () => ShowWorkGraph()), 4);
-        Add(NavButton(LatticeLook.Icon(LatticeLook.ListGlyph, 18, LatticeLook.Ink), "工程表", "工程表（Ctrl+5）", () => ShowLattice()), 6);
-        Add(NavButton(Icons.Gear, "設定", "設定（Ctrl+,）", () => ShowSettings()), 8);
+        Add(NavButton(Icons.Calendar, LinuxStrings.MainWindow_BuildSidebar_4, LinuxStrings.MainWindow_BuildSidebar_5, ShowSchedules), 0);
+        Add(NavButton(Icons.Target, LinuxStrings.GoalViews_Render_3, LinuxStrings.MainWindow_BuildSidebar_7, ShowGoals), 2);
+        Add(NavButton(GraphIcon.Draw(18, BellTheme.Ink), LinuxStrings.MainWindow_BuildSidebar_8, LinuxStrings.MainWindow_BuildSidebar_9, () => ShowWorkGraph()), 4);
+        Add(NavButton(LatticeLook.Icon(LatticeLook.ListGlyph, 18, LatticeLook.Ink), LinuxStrings.LatticeWindow_LatticeWindow_1, LinuxStrings.MainWindow_BuildSidebar_11, () => ShowLattice()), 6);
+        Add(NavButton(Icons.Gear, LinuxStrings.FeatureEditor_InitializeAsync_5, LinuxStrings.MainWindow_BuildSidebar_13, () => ShowSettings()), 8);
         var summaryRow = new DockPanel { Margin = new Thickness(4, 0), Children = { ownerName, new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { new Avalonia.Controls.Shapes.Ellipse { Width = 6, Height = 6, Fill = BellTheme.Mint, Margin = new Thickness(0, 0, 7, 0) }, onlineSummary } } } };
         DockPanel.SetDock(ownerName, Dock.Right);
         var footer = new StackPanel { Margin = new Thickness(14), Children = { new Border { BorderBrush = BellTheme.Line, BorderThickness = new Thickness(0, 1, 0, 0), Padding = new Thickness(0, 8), Child = footerGrid }, summaryRow } };
@@ -241,7 +241,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
 
         notFound.IsVisible = false; notFound.VerticalAlignment = VerticalAlignment.Top; notFound.IsHitTestVisible = false;
         var listArea = new Grid { Children = { new ScrollViewer { HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = list }, notFound } };
-        AutomationProperties.SetName(list, "メンバーとルーム");
+        AutomationProperties.SetName(list, LinuxStrings.MainWindow_BuildSidebar_14);
         return new Border { Background = BellTheme.SidebarFill, BorderBrush = BellTheme.Line, BorderThickness = new Thickness(0, 0, 1, 0), Child = new DockPanel { Children = { top, footer, listArea } } };
     }
     private static Button NavButton(string icon, string text, string tip, Action click) => NavButton(Icons.Draw(icon, 18, BellTheme.Ink, thickness: 1.6), text, tip, click);
@@ -254,13 +254,13 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     {
         // Mac window toolbar button: a violet filled circle with a white glyph.
         var button = new Button { Classes = { "plain" }, Width = 38, Height = 38, Padding = default, CornerRadius = new CornerRadius(19), Background = BellTheme.Violet, HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center, Content = Icons.Draw(Icons.Export, 20, Brushes.White) };
-        AutomationProperties.SetName(button, "会話を書き出す"); ToolTip.SetTip(button, "会話を書き出す"); button.Click += async (_, _) => await ExportAsync(); return button;
+        AutomationProperties.SetName(button, LinuxStrings.MainWindow_BuildExport_1); ToolTip.SetTip(button, LinuxStrings.MainWindow_BuildExport_1); button.Click += async (_, _) => await ExportAsync(); return button;
     }
     private Button BuildReplyTarget()
     {
         var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { Icons.Draw(Icons.Send, 14, BellTheme.Violet), replyLabel, Icons.Draw(Icons.ChevronDown, 10, BellTheme.Violet) } };
         var button = new Button { Classes = { "plain" }, Padding = default, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 8), IsVisible = false, Background = Brushes.Transparent, Content = new Border { Background = new SolidColorBrush(Color.Parse("#BFE8E0FF")), CornerRadius = new CornerRadius(99), Padding = new Thickness(11, 7), Child = content } };
-        AutomationProperties.SetName(button, "返信先"); button.Click += (_, _) => ShowReplyMenu(button); return button;
+        AutomationProperties.SetName(button, LinuxStrings.MainWindow_BuildReplyTarget_1); button.Click += (_, _) => ShowReplyMenu(button); return button;
     }
 
     private void BuildConversation()
@@ -273,9 +273,9 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
 
         var messages = new ItemsControl { ItemsSource = model.Messages, ItemTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<MessageItem>((item, _) => new MessageCard(item, model)) };
         // Mac queueStrip: one line per running or queued delivery; in a room each member's line has its own stop button.
-        queueStrip.Child = queueRows; AutomationProperties.SetName(queueStrip, "処理中");
+        queueStrip.Child = queueRows; AutomationProperties.SetName(queueStrip, LinuxStrings.MainWindow_BuildConversation_1);
         var stack = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(18, 20, 18, 18), Children = { messages, queueStrip } };
-        messageColumn.Children.Add(stack); messageScroll.Content = messageColumn; AutomationProperties.SetName(messageScroll, "会話");
+        messageColumn.Children.Add(stack); messageScroll.Content = messageColumn; AutomationProperties.SetName(messageScroll, LinuxStrings.MainWindow_BuildConversation_2);
         Grid.SetRow(messageScroll, 1);
         messageStack = stack;
         messageScroll.PropertyChanged += (_, args) => { if (args.Property == ScrollViewer.ViewportProperty) { messageColumn.MinHeight = messageScroll.Viewport.Height; FillScreen(); } };
@@ -294,31 +294,31 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
         };
         model.ScrollToMessage += (id, quote) => Dispatcher.UIThread.Post(() => ScrollToMessageRow(stack, id, quote), DispatcherPriority.Background);
         var cancelQuote = new Button { Classes = { "plain" }, Width = 32, Height = 32, Padding = default, CornerRadius = new CornerRadius(16), Background = Brushes.Transparent, HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0), Content = Icons.Draw(Icons.Close, 12, BellTheme.Muted, thickness: 2.2) };
-        AutomationProperties.SetName(cancelQuote, "返信をやめる"); ToolTip.SetTip(cancelQuote, "返信をやめる"); cancelQuote.Click += (_, _) => { model.CancelQuote(); composer.Focus(); };
+        AutomationProperties.SetName(cancelQuote, LinuxStrings.MainWindow_BuildConversation_3); ToolTip.SetTip(cancelQuote, LinuxStrings.MainWindow_BuildConversation_3); cancelQuote.Click += (_, _) => { model.CancelQuote(); composer.Focus(); };
         Grid.SetColumn(cancelQuote, 1);
         quoteBar.Child = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Children = { new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { quoteBarName, quoteBarText } }, cancelQuote } };
-        AutomationProperties.SetName(quoteBar, "返信先");
+        AutomationProperties.SetName(quoteBar, LinuxStrings.MainWindow_BuildReplyTarget_1);
         DragDrop.SetAllowDrop(messageScroll, true); messageScroll.AddHandler(DragDrop.DragOverEvent, ImagesDragOver); messageScroll.AddHandler(DragDrop.DropEvent, ImagesDrop);
 
         welcome.Children.Add(Icons.Draw(Icons.Chat, 56, BellTheme.Violet, thickness: 1.4)); ((Control)welcome.Children[0]).HorizontalAlignment = HorizontalAlignment.Center; ((Control)welcome.Children[0]).Margin = new Thickness(0, 0, 0, 18);
-        var welcomeTitle = BellTheme.Text("チームと、同じデスクで。", 29, BellTheme.Ink, FontWeight.Bold); welcomeTitle.TextAlignment = TextAlignment.Center; welcome.Children.Add(welcomeTitle);
-        var welcomeNote = BellTheme.Text("左のメンバーやルームを選んで、会話を始めましょう。", 16, BellTheme.Muted, margin: new Thickness(0, 14, 0, 0)); welcomeNote.TextAlignment = TextAlignment.Center; welcome.Children.Add(welcomeNote);
-        welcome.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 30, 0, 0), Spacing = 25, Children = { BellTheme.Text("検索  Ctrl+K", 14, BellTheme.Muted), BellTheme.Text("送信  Enter", 14, BellTheme.Muted) } });
+        var welcomeTitle = BellTheme.Text(LinuxStrings.MainWindow_BuildConversation_6, 29, BellTheme.Ink, FontWeight.Bold); welcomeTitle.TextAlignment = TextAlignment.Center; welcome.Children.Add(welcomeTitle);
+        var welcomeNote = BellTheme.Text(LinuxStrings.MainWindow_BuildConversation_7, 16, BellTheme.Muted, margin: new Thickness(0, 14, 0, 0)); welcomeNote.TextAlignment = TextAlignment.Center; welcome.Children.Add(welcomeNote);
+        welcome.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 30, 0, 0), Spacing = 25, Children = { BellTheme.Text(LinuxStrings.MainWindow_BuildConversation_8, 14, BellTheme.Muted), BellTheme.Text(LinuxStrings.MainWindow_BuildConversation_9, 14, BellTheme.Muted) } });
         Grid.SetRow(welcome, 1); Grid.SetRow(loadingSpinner, 1); Grid.SetRow(emptyConversation, 1); Grid.SetRow(failedConversation, 1); Grid.SetRow(latest, 1);
         emptyConversation.Children.Add(emptyAvatar); emptyConversation.Children.Add(emptyTitle);
-        var emptyNote = BellTheme.Text("最初のメッセージを送ってみてね。", 15, BellTheme.Muted, margin: new Thickness(0, 13, 0, 0)); emptyNote.TextAlignment = TextAlignment.Center; emptyConversation.Children.Add(emptyNote);
+        var emptyNote = BellTheme.Text(LinuxStrings.MainWindow_BuildConversation_10, 15, BellTheme.Muted, margin: new Thickness(0, 13, 0, 0)); emptyNote.TextAlignment = TextAlignment.Center; emptyConversation.Children.Add(emptyNote);
         var failedIcon = Icons.Draw(Icons.Warning, 36, BellTheme.Muted, thickness: 1.5); failedIcon.HorizontalAlignment = HorizontalAlignment.Center; failedConversation.Children.Add(failedIcon);
-        var failedTitle = BellTheme.Text("会話を読み込めませんでした", 18, BellTheme.Ink, FontWeight.SemiBold, new Thickness(0, 12, 0, 0)); failedTitle.TextAlignment = TextAlignment.Center; failedConversation.Children.Add(failedTitle);
-        var failedNote = BellTheme.Text("再読み込みしてください。", 15, BellTheme.Muted, margin: new Thickness(0, 8, 0, 0)); failedNote.TextAlignment = TextAlignment.Center; failedConversation.Children.Add(failedNote);
-        var reload = new Button { Classes = { "plain" }, Content = "再読み込み", HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 16, 0, 0), Background = Brushes.White, BorderBrush = BellTheme.Line, BorderThickness = new Thickness(1), Foreground = BellTheme.Violet };
-        AutomationProperties.SetName(reload, "再読み込み"); reload.Click += async (_, _) => { if (model.Selected is { } entry) await model.SelectAsync(entry); }; failedConversation.Children.Add(reload);
-        latest.Click += (_, _) => { unreadNew = false; messageColumn.FollowNewest(); latest.IsVisible = false; }; AutomationProperties.SetName(latest, "最新へ");
+        var failedTitle = BellTheme.Text(LinuxStrings.MainWindow_BuildConversation_11, 18, BellTheme.Ink, FontWeight.SemiBold, new Thickness(0, 12, 0, 0)); failedTitle.TextAlignment = TextAlignment.Center; failedConversation.Children.Add(failedTitle);
+        var failedNote = BellTheme.Text(LinuxStrings.MainWindow_BuildConversation_12, 15, BellTheme.Muted, margin: new Thickness(0, 8, 0, 0)); failedNote.TextAlignment = TextAlignment.Center; failedConversation.Children.Add(failedNote);
+        var reload = new Button { Classes = { "plain" }, Content = LinuxStrings.MainWindow_BuildConversation_13, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 16, 0, 0), Background = Brushes.White, BorderBrush = BellTheme.Line, BorderThickness = new Thickness(1), Foreground = BellTheme.Violet };
+        AutomationProperties.SetName(reload, LinuxStrings.MainWindow_BuildConversation_13); reload.Click += async (_, _) => { if (model.Selected is { } entry) await model.SelectAsync(entry); }; failedConversation.Children.Add(reload);
+        latest.Click += (_, _) => { unreadNew = false; messageColumn.FollowNewest(); latest.IsVisible = false; }; AutomationProperties.SetName(latest, LinuxStrings.MainWindow_BuildConversation_15);
 
         // Composer band (Mac composer): notices and attachments sit above the reply target and the input.
-        stopNoticeBox.Child = stopNoticeText; AutomationProperties.SetName(stopNoticeBox, "停止の結果");
+        stopNoticeBox.Child = stopNoticeText; AutomationProperties.SetName(stopNoticeBox, LinuxStrings.MainWindow_BuildConversation_16);
         composer.AddHandler(KeyDownEvent, ComposerKeyDown, RoutingStrategies.Tunnel);
         composer.TextChanged += (_, _) => { if (syncingComposer) return; syncingComposer = true; try { model.DraftText = composer.Text ?? ""; } finally { syncingComposer = false; } };
-        AutomationProperties.SetName(composer, "メッセージ"); ToolTip.SetTip(composer, "Enterで送信・Shift+Enterで改行");
+        AutomationProperties.SetName(composer, LinuxStrings.MainWindow_BuildConversation_17); ToolTip.SetTip(composer, LinuxStrings.MainWindow_BuildConversation_18);
         DragDrop.SetAllowDrop(composer, true); composer.AddHandler(DragDrop.DragOverEvent, ImagesDragOver); composer.AddHandler(DragDrop.DropEvent, ImagesDrop);
         var input = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,Auto") };
         composer.VerticalAlignment = VerticalAlignment.Bottom; composer.Margin = new Thickness(0, 8, 12, 8);
@@ -406,7 +406,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     private async void Select(ConversationEntry entry)
     {
         if (model.Selected?.Target == entry.Target && pageArea.IsVisible == false) return;
-        if (settingsPage is { CanNavigateAway: false }) { model.ReportActionError("操作が終わってから会話を開いてください。"); return; }
+        if (settingsPage is { CanNavigateAway: false }) { model.ReportActionError(LinuxStrings.MainWindow_Select_1); return; }
         ShowConversation();
         if (model.Selected?.Target != entry.Target) await model.SelectAsync(entry);
     }
@@ -432,7 +432,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
         var idle = empty && !model.Loading && !model.HasActivity;
         emptyConversation.IsVisible = idle && !model.LoadFailed;
         failedConversation.IsVisible = idle && model.LoadFailed;
-        emptyTitle.Text = model.Title + "と話しましょう";
+        emptyTitle.Text = LinuxStrings.MainWindow_UpdateWelcome_1(model.Title);
     }
     private void UpdateQueue()
     {
@@ -446,7 +446,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
             if (row.StopBotId is { } id)
             {
                 var stop = new Button { Classes = { "plain" }, Content = row.StopLabel, Margin = new Thickness(8, 0, 0, 0), Padding = new Thickness(10, 3), FontSize = 13, FontWeight = FontWeight.Normal, Foreground = BellTheme.Ink, Background = Brushes.White, BorderBrush = BellTheme.Line, BorderThickness = new Thickness(1), IsEnabled = model.StopEnabled };
-                AutomationProperties.SetName(stop, $"{row.Name}の今の動作を止める"); var name = row.Name; stop.Click += async (_, _) => await model.StopAsync(id, name);
+                AutomationProperties.SetName(stop, LinuxStrings.MainWindow_UpdateQueue_1(row.Name)); var name = row.Name; stop.Click += async (_, _) => await model.StopAsync(id, name);
                 DockPanel.SetDock(stop, Dock.Right); line.Children.Add(stop);
             }
             var spinner = new Spinner(BellTheme.Violet) { Margin = new Thickness(0, 0, 9, 0) }; DockPanel.SetDock(spinner, Dock.Left); line.Children.Add(spinner);
@@ -471,7 +471,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
         var quote = model.Quote;
         quoteBar.IsVisible = quote is not null;
         if (quote is null) { shownQuoteId = null; return; }
-        quoteBarName.Text = (quote.SenderName ?? "") + (quote.Part ? "の発言の一部への返信" : "への返信"); quoteBarText.Text = Timeline.QuoteBody(quote).ReplaceLineEndings(" ");
+        quoteBarName.Text = (quote.SenderName ?? "") + (quote.Part ? LinuxStrings.MainWindow_UpdateQuoteBar_1 : LinuxStrings.MainWindow_UpdateQuoteBar_2); quoteBarText.Text = Timeline.QuoteBody(quote).ReplaceLineEndings(" ");
         if (shownQuoteId != quote.Id) composer.Focus();
         shownQuoteId = quote.Id;
     }
@@ -514,7 +514,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     {
         var atBottom = messageScroll.Extent.Height - messageScroll.Viewport.Height - messageScroll.Offset.Y < 80;
         if (atBottom) unreadNew = false;
-        latest.Content = unreadNew ? "新着メッセージ ↓" : "最新へ ↓";
+        latest.Content = unreadNew ? LinuxStrings.MainWindow_ShowLatestButton_1 : LinuxStrings.MainWindow_latest_1;
         latest.IsVisible = !(atBottom && !unreadNew) && model.HasSelection && model.Messages.Count != 0;
     }
     // a471-scrollback (machine-stream.md "History pages of a long stream", the same spec on every client): older pages are read from the scroll motion, while
@@ -564,12 +564,12 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     private async Task ExportAsync()
     {
         if (model.Selected is not { } entry) return;
-        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions { SuggestedFileName = $"BellTeam-{entry.Target.Id}.json", DefaultExtension = "json", FileTypeChoices = [new FilePickerFileType("JSONファイル") { Patterns = ["*.json"] }] });
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions { SuggestedFileName = $"BellTeam-{entry.Target.Id}.json", DefaultExtension = "json", FileTypeChoices = [new FilePickerFileType(LinuxStrings.MainWindow_ExportAsync_1) { Patterns = ["*.json"] }] });
         if (file?.TryGetLocalPath() is { } path) await model.ExportAsync(path);
     }
     private async Task AttachAsync()
     {
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = "画像を添付", AllowMultiple = true, FileTypeFilter = [new FilePickerFileType("画像") { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.webp", "*.gif"] }] });
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = LinuxStrings.MainWindow_MainWindow_2, AllowMultiple = true, FileTypeFilter = [new FilePickerFileType(LinuxStrings.AvatarEditor_Images_1) { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.webp", "*.gif"] }] });
         var paths = files.Select(file => file.TryGetLocalPath()).OfType<string>().ToArray();
         if (paths.Length != 0) await model.AttachFilesAsync(paths);
     }
@@ -608,7 +608,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
                 }
             }
         }
-        catch (Exception) { model.ReportDraftError("貼り付けた画像を読み込めませんでした。"); return; }
+        catch (Exception) { model.ReportDraftError(LinuxStrings.MainWindow_PasteAsync_1); return; }
         composer.Paste();
     }
     // Mac targetPicker: "返信者を自動選択" (off when routing is off), then a check per member.
@@ -619,17 +619,17 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
         {
             var item = new MenuItem { Header = header, IsEnabled = enabled, ToggleType = MenuItemToggleType.CheckBox, IsChecked = on }; item.Click += (_, _) => click(); return item;
         }
-        menu.Items.Add(Item("返信者を自動選択", !model.ReplyMembers.Any(member => member.Selected), model.RoutingEnabled, model.ClearReplyMembers));
+        menu.Items.Add(Item(LinuxStrings.MainWindow_ShowReplyMenu_1, !model.ReplyMembers.Any(member => member.Selected), model.RoutingEnabled, model.ClearReplyMembers));
         foreach (var member in model.ReplyMembers.ToArray()) menu.Items.Add(Item(member.Name, member.Selected, true, () => model.ToggleReplyMember(member)));
         menu.ShowAt(button);
     }
 
     // ---- the 相関図 and 工程表 windows (Mac openWindow): one each; a second open brings the existing one forward ----
-    public WorkGraphWindow? ShowWorkGraph() => ShowSeparate(() => WorkGraphWindow.Open(model, botId => OpenConversationFromWindowAsync(botId, "相関図のメンバーの会話が見つかりません。メンバーとルームの一覧を更新してください。")));
+    public WorkGraphWindow? ShowWorkGraph() => ShowSeparate(() => WorkGraphWindow.Open(model, botId => OpenConversationFromWindowAsync(botId, LinuxStrings.MainWindow_ShowWorkGraph_1)));
     internal ApprovalsWindow? ShowApprovals(string? decisionId = null)
     {
         var window = ShowSeparate(() => ApprovalsWindow.Open(approvals, model, (project, card) => ShowLattice()?.OpenCard(project, card),
-            botId => _ = OpenConversationFromWindowAsync(botId, "決裁のメンバーの会話が見つかりません。メンバーとルームの一覧を更新してください。")));
+            botId => _ = OpenConversationFromWindowAsync(botId, LinuxStrings.MainWindow_ShowApprovals_1)));
         if (window is not null && decisionId is not null) window.Select(decisionId);
         return window;
     }
@@ -644,7 +644,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
         var view = Approvals.EntryView(approvals.Summary, null);
         var lit = view.Pending > 0; var violet = LatticeLook.Violet;
         var tile = new Border { Width = 34, Height = 34, CornerRadius = new CornerRadius(10), Background = LatticeLook.Brush(violet, lit ? (byte)0x26 : (byte)0x14), Child = LatticeLook.Icon(ApprovalsWindow.Inbox, 19, violet) };
-        var texts = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(11, 0, 0, 0), Children = { LatticeLook.Text("決裁箱", 15, LatticeLook.Ink, FontWeight.SemiBold), LatticeLook.Text(view.Sub, 12, LatticeLook.Muted) } };
+        var texts = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(11, 0, 0, 0), Children = { LatticeLook.Text(LinuxStrings.ApprovalsViews_Toolbar_1, 15, LatticeLook.Ink, FontWeight.SemiBold), LatticeLook.Text(view.Sub, 12, LatticeLook.Muted) } };
         var tail = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Spacing = 6 };
         if (view.Urgent) tail.Children.Add(LatticeLook.Icon(ApprovalsWindow.Bolt, 16, LatticeLook.Amber));
         if (lit) tail.Children.Add(LatticeLook.Pill(LatticeLook.Text(view.Pending.ToString(), 12.5, Colors.White, FontWeight.Bold), violet, 0xFF, new Thickness(9, 2, 9, 2)));
@@ -654,10 +654,10 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
             CornerRadius = new CornerRadius(14), Padding = new Thickness(10, 8, 12, 8), Background = LatticeLook.Brush(Colors.White, lit ? (byte)0xF2 : (byte)0xA0), Child = dock,
             BorderBrush = LatticeLook.Brush(violet, lit ? (byte)0x90 : (byte)0x00), BorderThickness = new Thickness(lit ? 1.4 : 1), BoxShadow = lit ? new BoxShadows(new BoxShadow { Blur = 20, Color = Color.FromArgb(0x30, violet.R, violet.G, violet.B) }) : default
         };
-        Avalonia.Automation.AutomationProperties.SetName(approvalsEntry, view.Label); ToolTip.SetTip(approvalsEntry, "決裁箱");
+        Avalonia.Automation.AutomationProperties.SetName(approvalsEntry, view.Label); ToolTip.SetTip(approvalsEntry, LinuxStrings.ApprovalsViews_Toolbar_1);
         approvalsEntry.IsEnabled = model.Connected;
     }
-    public LatticeWindow? ShowLattice() => ShowSeparate(() => LatticeWindow.Open(model, botId => OpenConversationFromWindowAsync(botId, "工程表のメンバーの会話が見つかりません。メンバーとルームの一覧を更新してください。"), id => ShowApprovals(id)));
+    public LatticeWindow? ShowLattice() => ShowSeparate(() => LatticeWindow.Open(model, botId => OpenConversationFromWindowAsync(botId, LinuxStrings.MainWindow_ShowLattice_1), id => ShowApprovals(id)));
     private T? ShowSeparate<T>(Func<T> open) where T : Window
     {
         if (!model.Connected) return null;
@@ -693,7 +693,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
         model.ReturnToProfile();
         var stack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, Spacing = 10 };
         stack.Children.Add(BellTheme.Text(title, 29, BellTheme.Ink, FontWeight.Bold)); ((TextBlock)stack.Children[0]).TextAlignment = TextAlignment.Center;
-        stack.Children.Add(BellTheme.Text($"{title}はLinux版ではまだ使えません。", 16, BellTheme.Muted)); ((TextBlock)stack.Children[1]).TextAlignment = TextAlignment.Center;
+        stack.Children.Add(BellTheme.Text(LinuxStrings.MainWindow_ShowPage_1(title), 16, BellTheme.Muted)); ((TextBlock)stack.Children[1]).TextAlignment = TextAlignment.Center;
         pageArea.Child = stack; pageArea.IsVisible = true; conversationArea.IsVisible = false; UpdateCorner();
     }
     private void ShowConversation()
@@ -705,7 +705,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     private bool LeavePage()
     {
         if (settingsPage is not { } open) return true;
-        if (!open.CanNavigateAway) { model.ReportActionError("操作が終わってから画面を切り替えてください。"); return false; }
+        if (!open.CanNavigateAway) { model.ReportActionError(LinuxStrings.MainWindow_LeavePage_1); return false; }
         settingsPage = null; open.ClosePage(); return true;
     }
 
@@ -745,11 +745,11 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     public void ShowServerSetup() => ShowStartup(StartupPhase.Setup);
     // Render seams: the screens that need no server.
     public void ShowStartupForRender(StartupPhase phase, string? message = null) => ShowStartup(phase, message);
-    public void ShowServerGuide() { CloseSheet(); OpenSheet("サーバーの導入ガイド", new ServerGuideView()); }
+    public void ShowServerGuide() { CloseSheet(); OpenSheet(LinuxStrings.MainWindow_ShowServerGuide_1, new ServerGuideView()); }
     // Settings needs a live connection, so an unreachable saved server is changed from the connection strip.
     public void OpenConnectionSettings()
     {
-        if (settingsPage is { CanNavigateAway: false }) { model.ReportActionError("操作が終わってから接続先を変更してください。"); return; }
+        if (settingsPage is { CanNavigateAway: false }) { model.ReportActionError(LinuxStrings.MainWindow_OpenConnectionSettings_1); return; }
         ShowConversation(); ShowServerSetup();
     }
     // a485: a server that enforces app sessions is answered by its own login (the code screen); a server without them keeps today's view. A refused stored token is gone for good.
@@ -856,11 +856,11 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     // A notification click: the update centre, or the conversation it came from. Only for the server this window is connected to.
     public async Task OpenNotificationAsync(string server, ChatTarget? target)
     {
-        if (server != model.Server || !model.Connected) { model.ReportActionError(target is null ? "通知の接続先へ接続してから、更新センターを開いてください。" : "通知の接続先へ接続してから、会話を開いてください。"); return; }
+        if (server != model.Server || !model.Connected) { model.ReportActionError(target is null ? LinuxStrings.MainWindow_OpenNotificationAsync_1 : LinuxStrings.MainWindow_OpenNotificationAsync_2); return; }
         Raise();
         if (target is null) { ShowUpdates(); return; }
         var entry = model.Conversations.FirstOrDefault(item => item.Target == target);
-        if (entry is null) { model.ReportActionError("通知の会話が見つかりません。メンバーとルームの一覧を更新してください。"); return; }
+        if (entry is null) { model.ReportActionError(LinuxStrings.MainWindow_OpenNotificationAsync_3); return; }
         ShowConversation(); await model.SelectAsync(entry);
     }
     // A second launch raises this window.
@@ -880,10 +880,10 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     public void CloseSheet() { AfterSheetCloses(); sheetContent = null; sheetHost.Content = null; sheet.IsVisible = false; }
     // Mac PeerMessageSheet in the shared in-window sheet.
     // 転送 (forward.md): the sheet that opens from a message's 転送 button or menu.
-    public DestinationSheet ShowForwardSheet(TimelineMessage message) { CloseSheet(); var view = DestinationSheet.Forward(model, message, CloseSheet); OpenSheet("転送", view); return view; }
+    public DestinationSheet ShowForwardSheet(TimelineMessage message) { CloseSheet(); var view = DestinationSheet.Forward(model, message, CloseSheet); OpenSheet(LinuxStrings.ForwardViews_Forward_4, view); return view; }
     // 共有: what another app dragged into the conversation (Linux has no share sheet); the open conversation is the default destination.
-    public DestinationSheet ShowShareSheet(ShareContent content, ImageAttachment[] images, int skipped) { CloseSheet(); var view = DestinationSheet.Share(model, content, images, skipped, CloseSheet); OpenSheet("共有", view); return view; }
-    public void ShowPeerSheet(TimelineMessage message) { CloseSheet(); OpenSheet("メンバー間の連絡", new PeerMessageView(model, message)); }
+    public DestinationSheet ShowShareSheet(ShareContent content, ImageAttachment[] images, int skipped) { CloseSheet(); var view = DestinationSheet.Share(model, content, images, skipped, CloseSheet); OpenSheet(LinuxStrings.ForwardViews_Share_6, view); return view; }
+    public void ShowPeerSheet(TimelineMessage message) { CloseSheet(); OpenSheet(LinuxStrings.MainWindow_ShowPeerSheet_1, new PeerMessageView(model, message)); }
     // The sidebar Update badge (and an update notification) opens the Update sheet over the window, as on the Mac. It reads again every time it opens.
     private UpdateContent? sheetContent;
     private Task updateNotice = Task.CompletedTask;
@@ -895,7 +895,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
     public void ShowUpdateSheet()
     {
         if (!model.Connected) return;
-        if (sheetContent is null) { CloseSheet(); OpenSheet("アップデート", sheetContent = new UpdateContent(model, settingsStore)); }
+        if (sheetContent is null) { CloseSheet(); OpenSheet(LinuxStrings.MainWindow_BuildUpdateBadge_2, sheetContent = new UpdateContent(model, settingsStore)); }
         SheetReady = sheetContent.RefreshAsync();
     }
     private Task RefreshUpdateNoticeAsync() => updateNotice = ReadUpdateNoticeAsync();
@@ -961,7 +961,7 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
         Closing += (_, _) =>
         {
             try { settingsStore.Save(settingsStore.Load() with { Window = new(Position.X, Position.Y, Width, Height, WindowState == WindowState.Maximized) }); }
-            catch (Exception error) { Console.Error.WriteLine("窓の位置を保存できませんでした。" + error.Message); }
+            catch (Exception error) { Console.Error.WriteLine(LinuxStrings.MainWindow_RestorePlacement_1(error.Message)); }
         };
     }
 
@@ -984,6 +984,6 @@ public sealed partial class MainWindow : Window, IMessageHost, IInspectorHost
 internal sealed class SeatLaunchBar : Border
 {
     private readonly TextBlock text = new() { Foreground = BellTheme.Red, FontSize = 13, LineHeight = 18, MaxLines = 3, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis };
-    public SeatLaunchBar() { Background = new SolidColorBrush(Color.Parse("#CCFFFFFF")); Padding = new Thickness(16, 6); Child = text; IsVisible = false; AutomationProperties.SetName(this, "起動できない理由"); }
+    public SeatLaunchBar() { Background = new SolidColorBrush(Color.Parse("#CCFFFFFF")); Padding = new Thickness(16, 6); Child = text; IsVisible = false; AutomationProperties.SetName(this, LinuxStrings.MainWindow_SeatLaunchBar_1); }
     public void Show(string? line) { text.Text = line ?? ""; IsVisible = line is not null; }
 }

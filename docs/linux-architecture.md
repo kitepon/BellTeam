@@ -166,6 +166,17 @@ Mac版と同じ構成で、[Windowsアーキテクチャ](windows-architecture.m
 
 - 外部のアドレスを開く処理は`ExternalLink.Launch`の一か所（既定は.NETのシェル実行＝xdg-open）。シェルの無いアプリ（Android）が`Opener`を差し替えるための窓口で、Linuxの動作は変わらない。
 
+## 画面の文言（多言語対応 第1段）
+
+この変更が触るのは**画面に出る文言の置き場（UIの文言資源）だけ**である。機能・入出力・データと状態の持ち主・接続・失敗の扱いは変わらず、Coreの公開APIと返す文言も同じ（日本語の出力は1バイトも変わらない）。
+
+- 画面の文言はコードに書かず、.NETの資源ファイル（`.resx`）に置く。原文は日本語（既定の言語＝`NeutralResourcesLanguage("ja")`）。コードは型付きの取り出し口を呼ぶ：Core（`windows/BellTeam.Core/Resources/Strings.resx`＋`CoreStrings`）、Linuxの画面（`linux/BellTeam.Linux/Resources/Strings.resx`＋`LinuxStrings`。Androidも同じ画面部品なので同じ資源を取り込む）、Android固有（`android/BellTeam.Android/Text/Strings.resx`＋`AndroidStrings`）。取り出し口は`scripts/i18n`が作る生成物で、文言を直す時は`.resx`を直す。
+- 言語はOSの設定に従う（`CultureInfo.CurrentUICulture`。アプリ内の言語選択は置かない）。他の言語の訳は`Strings.<言語>.resx`として足す（第2段）。足されるまでは、どのOSの言語でも日本語が出る。
+- 日付・時刻・数値は`CurrentCulture`の書式で出す。書式の型（`H:mm`・`M/d`・`yyyy/M/d H:mm`など）は資源（`Pattern_*`、`*_Date_*`）に置き、言語ごとに訳せる。日本語OSの出力は今までと同じ。JSTで見せる所（`LatticeChart.FormatJst`など）は時刻帯をJSTのままにし、型だけを資源にした。
+- 文言を組み立てる連結・補間は、`{0}`・`{1}`の書式文字列（`string.Format`）にした。各項目の`<comment>`に、`{n}`の中身、使われている場所（ファイル・行・メンバー・受け取る部品と隣の数値）、日本語の文字数を`scripts/i18n --annotate`で書く（訳す側が枠に収める手がかり。実測の幅は含まない）。
+- 比較・照合に使う日本語（比較の相手、正規表現など）は文言ではなくデータなので、`scripts/i18n/allowlist.txt`に理由つきで置く。新しい日本語の文字列がコードに入ると`NoHardCodedTextTests`が失敗する（置き場は資源か、許可表）。
+- 見た目は変えない：描画の場面（`--render-*`の46場面）を変更前後で重ねて、時計の数字と回転する輪の位相以外の差が無いことを確かめた。
+
 ## 導入と更新
 
 導入も更新も、ターミナルで次の1行を実行する（x64・arm64のLinux、通常の利用者、管理者権限・.NET・ソースの取得は不要）。

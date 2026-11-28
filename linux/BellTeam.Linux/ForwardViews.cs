@@ -24,8 +24,8 @@ public sealed class DestinationSheet : ScrollViewer, ISheetSave
     private bool sending;
     public bool CanSave => !sending && chosen is not null;
     public event Action? CanSaveChanged;
-    string ISheetSave.CloseLabel => "キャンセル";
-    string ISheetSave.SaveLabel => sending ? busyLabel + "中…" : label;
+    string ISheetSave.CloseLabel => LinuxStrings.EditorForm_CloseLabel_2;
+    string ISheetSave.SaveLabel => sending ? LinuxStrings.ForwardViews_SaveLabel_1(busyLabel) : label;
     bool ISheetSave.CanClose => !sending;
     public string ErrorText => error.Text ?? "";
     // Render seam: what a person would have picked and typed, and a refusal.
@@ -55,7 +55,7 @@ public sealed class DestinationSheet : ScrollViewer, ISheetSave
         form.Children.Add(new ScrollViewer { Content = destinations, MaxHeight = 330, VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto });
         // The refusal sits under the list, above the comment, so it stays on screen when the sheet is tall.
         error.Margin = new Thickness(0, 10, 0, 0); form.Children.Add(error);
-        form.Children.Add(Header("コメント（任意）")); AutomationProperties.SetName(comment, "コメント"); form.Children.Add(comment);
+        form.Children.Add(Header(LinuxStrings.ForwardViews_DestinationSheet_1)); AutomationProperties.SetName(comment, LinuxStrings.ForwardViews_DestinationSheet_2); form.Children.Add(comment);
         Content = form;
     }
     private void Choose(ConversationEntry entry) { chosen = entry; UpdateRows(); CanSaveChanged?.Invoke(); }
@@ -80,12 +80,12 @@ public sealed class DestinationSheet : ScrollViewer, ISheetSave
     // The sheet of the 転送 button: the picked message, then the destination.
     public static DestinationSheet Forward(LinuxWorkspace workspace, TimelineMessage message, Action close)
     {
-        var text = message.QuoteText; if (text.Length == 0 && message.DisplayedImageUrls.Length != 0) text = "（画像）";
+        var text = message.QuoteText; if (text.Length == 0 && message.DisplayedImageUrls.Length != 0) text = LinuxStrings.ForwardViews_Forward_1;
         // Drawn the way the conversation draws the message (no literal ** or - marks), clipped to a few lines.
         var body = new MarkdownView { FontSize = 15, Foreground = BellTheme.Muted };
         try { body.Source = text; } catch (NotSupportedException) { body.ShowText(text); }
         var preview = Quote(new Border { Child = body, MaxHeight = 96, ClipToBounds = true }, BellTheme.Violet);
-        return new DestinationSheet(workspace, "転送する発言", preview, "転送先", "転送", "転送", (target, comment) => workspace.ForwardAsync(message, target, comment), close);
+        return new DestinationSheet(workspace, LinuxStrings.ForwardViews_Forward_2, preview, LinuxStrings.ForwardViews_Forward_3, LinuxStrings.ForwardViews_Forward_4, LinuxStrings.ForwardViews_Forward_4, (target, comment) => workspace.ForwardAsync(message, target, comment), close);
     }
 
     // The sheet of a drop from another app (Linux has no share sheet): the dropped text, links and images, then the destination (the open conversation is picked).
@@ -94,10 +94,10 @@ public sealed class DestinationSheet : ScrollViewer, ISheetSave
         var parts = new StackPanel();
         if (content.Text is { Length: > 0 } text) parts.Children.Add(new TextBlock { Text = text, FontSize = 15, TextWrapping = TextWrapping.Wrap, MaxHeight = 110, TextTrimming = TextTrimming.CharacterEllipsis });
         foreach (var url in content.Urls) parts.Children.Add(new TextBlock { Text = url, FontSize = 14, Foreground = BellTheme.Violet, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 3, 0, 0) });
-        if (images.Length != 0) parts.Children.Add(new TextBlock { Text = images.Length == 1 ? "画像1枚" : $"画像{images.Length}枚", FontSize = 14, Foreground = BellTheme.Muted, Margin = new Thickness(0, 3, 0, 0) });
+        if (images.Length != 0) parts.Children.Add(new TextBlock { Text = images.Length == 1 ? LinuxStrings.ForwardViews_Share_1 : LinuxStrings.ForwardViews_Share_2(images.Length), FontSize = 14, Foreground = BellTheme.Muted, Margin = new Thickness(0, 3, 0, 0) });
         // Files that are not images cannot be sent yet (forward.md "Files"); the rest still goes, and the Owner is told plainly.
-        var note = skipped == 0 ? null : $"画像ではないファイル（または大きすぎる画像）{skipped}個は、まだ送れないので外しました。";
-        return new DestinationSheet(workspace, "共有する内容", Quote(parts, BellTheme.Muted), "共有先", "共有", "共有", (target, comment) => workspace.ShareAsync(target, comment, content, images), close, workspace.Selected, note);
+        var note = skipped == 0 ? null : LinuxStrings.ForwardViews_Share_3(skipped);
+        return new DestinationSheet(workspace, LinuxStrings.ForwardViews_Share_4, Quote(parts, BellTheme.Muted), LinuxStrings.ForwardViews_Share_5, LinuxStrings.ForwardViews_Share_6, LinuxStrings.ForwardViews_Share_6, (target, comment) => workspace.ShareAsync(target, comment, content, images), close, workspace.Selected, note);
     }
 }
 

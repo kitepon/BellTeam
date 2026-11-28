@@ -69,6 +69,10 @@ flowchart TD
 - LAN上のサーバーは平文のhttpなので、Androidの`UsesCleartextTraffic`を有効にする（接続先の検査は`ServerOrigin`が行い、httpsかlocalhost・LANのhttpだけを通す）。
 - 書き込み（POST・PUT・DELETE）は自動で再送しない。SSEと一覧の読み直しは、Coreの上限付きバックオフ（`ReconnectBackoff`）で再試行を続ける。起動の失敗画面は同じ間隔で自動再試行し、回数の上限で打ち切らない。
 
+## 画面の文言（多言語対応 第1段）
+
+Androidの画面はLinuxと同じ画面部品なので、文言の置き場もLinuxの資源を取り込む（`LinuxStrings`＋`linux/BellTeam.Linux/Resources/Strings.resx`を`BellTeam.Android.csproj`でリンク）。Android固有の文言（通知の名前など）は`android/BellTeam.Android/Text/Strings.resx`（`AndroidStrings`）。マニフェストとアプリ名に日本語は無いので、`strings.xml`は今は置かない。触るのは画面の文言の置き場だけで、機能・入出力・状態・接続・失敗の扱いは変わらない。詳しい規則は[linux-architecture.md](linux-architecture.md)の「画面の文言」。
+
 ## 現在の範囲と順序
 
 1. 済：接続先の入力・起動の各画面（Mac版と同じ。キーボードの上に持ち上げ、入力欄を表示位置へ送る）・会話一覧（アバター・在席・要約）・会話（履歴・返信/転送/コピーの印・送信）・戻る・設定の頁（接続・利用と課金・アプリの版）。エミュレーター（API 36）で本番サーバーに接続して確認。

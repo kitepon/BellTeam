@@ -96,7 +96,7 @@ public sealed class UpdateContent : UserControl, IDisposable
         {
             try { await center.ReadAsync(request, Token); }
             catch (OperationCanceledException) when (Token.IsCancellationRequested) { return; }
-            catch (Exception error) { actionMessage = "更新の結果を確認できません。同じ要求を照会し直します。更新は送り直しません。" + error.Message; }
+            catch (Exception error) { actionMessage = LinuxStrings.UpdateContent_RequeryAsync_1(error.Message); }
         }
     }
 
@@ -105,7 +105,7 @@ public sealed class UpdateContent : UserControl, IDisposable
         choosing = false; plan = null; actionMessage = null; Busy = true; Render();
         try { plan = await center.PlanAsync(componentId, Token); confirmedRestart = false; }
         catch (OperationCanceledException) when (Token.IsCancellationRequested) { }
-        catch (Exception error) { actionMessage = "更新計画を取得できませんでした。" + error.Message; }
+        catch (Exception error) { actionMessage = LinuxStrings.UpdateContent_PlanAsync_1(error.Message); }
         finally { Busy = false; if (!disposed) Render(); }
     }
     private async Task ExecuteAsync(UpdatePlan target)
@@ -231,20 +231,20 @@ public sealed class UpdateContent : UserControl, IDisposable
         Grid.SetColumn(texts, 1); row.Children.Add(texts); column.Children.Add(row);
         if (actionMessage is not null)
         {
-            var note = new Border { Background = Tint(GreyColor, .12), CornerRadius = new CornerRadius(10), Padding = new Thickness(10), Margin = new Thickness(0, 16, 0, 0), Child = InfoLine(UpdateIcons.Info, "操作を完了できませんでした。内容は「詳細」で確認できます。", BellTheme.Ink, 12) };
+            var note = new Border { Background = Tint(GreyColor, .12), CornerRadius = new CornerRadius(10), Padding = new Thickness(10), Margin = new Thickness(0, 16, 0, 0), Child = InfoLine(UpdateIcons.Info, LinuxStrings.UpdateContent_HeroCard_1, BellTheme.Ink, 12) };
             AutomationProperties.SetAutomationId(note, "update-message"); column.Children.Add(note);
         }
         void Choose() { if (candidates.Length == 1) _ = PlanAsync(candidates[0].Id); else { choosing = true; Render(); } }
         void AddButton(Button button, string id) { button.Margin = new Thickness(0, 16, 0, 0); AutomationProperties.SetAutomationId(button, id); column.Children.Add(button); }
-        if (kind == UpdateKind.Available && plan is null) AddButton(Pill("更新する", true, Choose, CanStartPlan), "update-start");
-        else if (kind == UpdateKind.Failed && plan is null && candidates.Length > 0) AddButton(Pill("もう一度更新する", true, Choose, CanStartPlan), "update-start");
+        if (kind == UpdateKind.Available && plan is null) AddButton(Pill(LinuxStrings.UpdateContent_HeroCard_2, true, Choose, CanStartPlan), "update-start");
+        else if (kind == UpdateKind.Failed && plan is null && candidates.Length > 0) AddButton(Pill(LinuxStrings.UpdateContent_HeroCard_3, true, Choose, CanStartPlan), "update-start");
         else if (kind is UpdateKind.Unreachable or UpdateKind.Unconfirmed or UpdateKind.Failed or UpdateKind.Unknown)
         {
-            AddButton(Pill("状況を確認", false, () => { actionMessage = null; _ = RefreshAsync(); }), "update-refresh");
+            AddButton(Pill(LinuxStrings.UpdateContent_HeroCard_4, false, () => { actionMessage = null; _ = RefreshAsync(); }), "update-refresh");
             // An unconfirmed result still lets the owner pick a fresh plan; the same plan is refused by UpdateCenter.PlanAsync.
             if (kind == UpdateKind.Unconfirmed && plan is null && CanStartPlan && candidates.Length > 0)
             {
-                var another = Capsule("別の更新を選ぶ", Brushes.Transparent, BellTheme.Violet, 8, 13, new Thickness(8, 6)); another.HorizontalAlignment = HorizontalAlignment.Center;
+                var another = Capsule(LinuxStrings.UpdateContent_HeroCard_5, Brushes.Transparent, BellTheme.Violet, 8, 13, new Thickness(8, 6)); another.HorizontalAlignment = HorizontalAlignment.Center;
                 another.Click += (_, _) => Choose(); AddButton(another, "update-another-plan");
             }
         }
@@ -253,7 +253,7 @@ public sealed class UpdateContent : UserControl, IDisposable
 
     private Control Chooser()
     {
-        var column = new StackPanel(); column.Children.Add(Label("どれを更新しますか", 15, BellTheme.Ink, FontWeight.SemiBold, new Thickness(0, 0, 0, 4)));
+        var column = new StackPanel(); column.Children.Add(Label(LinuxStrings.UpdateContent_Chooser_1, 15, BellTheme.Ink, FontWeight.SemiBold, new Thickness(0, 0, 0, 4)));
         foreach (var item in candidates)
         {
             var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
@@ -261,14 +261,14 @@ public sealed class UpdateContent : UserControl, IDisposable
             var id = item.Id; var choice = MacUi.Bare(grid, () => _ = PlanAsync(id), item.Name); choice.Margin = new Thickness(0, 6); choice.IsEnabled = CanStartPlan;
             AutomationProperties.SetAutomationId(choice, "update-choose-" + item.Id); column.Children.Add(choice);
         }
-        var cancel = Capsule("やめる", Brushes.Transparent, BellTheme.Violet, 8, 13, new Thickness(0, 6, 8, 2)); cancel.HorizontalAlignment = HorizontalAlignment.Left; cancel.Click += (_, _) => { choosing = false; Render(); };
+        var cancel = Capsule(LinuxStrings.ApprovalsDetail_Answering_5, Brushes.Transparent, BellTheme.Violet, 8, 13, new Thickness(0, 6, 8, 2)); cancel.HorizontalAlignment = HorizontalAlignment.Left; cancel.Click += (_, _) => { choosing = false; Render(); };
         column.Children.Add(cancel);
         return Card(column);
     }
 
     private Control Confirmation(UpdatePlan target)
     {
-        var names = string.Join("、", target.Targets.Select(item => UpdateScreen.ComponentName(inventory, item.ComponentId)));
+        var names = string.Join(LinuxStrings.ApprovalsDetail_Answered_4, target.Targets.Select(item => UpdateScreen.ComponentName(inventory, item.ComponentId)));
         var ready = CanStartPlan && target.Compatibility.Compatible && target.Capability.Supported && target.ExpiresAt > DateTimeOffset.UtcNow;
         var wording = UpdateScreen.PlanWording(target);
         var column = new StackPanel();
@@ -276,15 +276,15 @@ public sealed class UpdateContent : UserControl, IDisposable
         column.Children.Add(Label(names, 14, BellTheme.Ink, FontWeight.SemiBold, new Thickness(0, 12, 0, 0)));
         if (wording.ServerPlan is not null) { var raw = Label(wording.ServerPlan, 11.5, BellTheme.Muted, margin: new Thickness(0, 12, 0, 0), mono: true); AutomationProperties.SetAutomationId(raw, "update-server-plan"); column.Children.Add(raw); }
         var impact = InfoLine(target.Impact.ContainerRestart ? UpdateIcons.Pause : UpdateIcons.Info, target.Impact.Description, BellTheme.Muted); impact.Margin = new Thickness(0, 12, 0, 0); column.Children.Add(impact);
-        if (!target.Compatibility.Compatible || !target.Capability.Supported) column.Children.Add(Label("この更新は、今の状態では適用できません。時間をおいて確認してください。", 13, BellTheme.Ink, margin: new Thickness(0, 12, 0, 0)));
+        if (!target.Compatibility.Compatible || !target.Capability.Supported) column.Children.Add(Label(LinuxStrings.UpdateContent_Confirmation_2, 13, BellTheme.Ink, margin: new Thickness(0, 12, 0, 0)));
         if (target.Impact.ContainerRestart)
         {
-            var toggle = new CheckBox { Content = "会話と処理が一時止まることを確認しました", IsChecked = confirmedRestart, FontSize = 13, Foreground = BellTheme.Ink, Margin = new Thickness(0, 12, 0, 0), VerticalContentAlignment = VerticalAlignment.Center };
+            var toggle = new CheckBox { Content = LinuxStrings.UpdateContent_Confirmation_3, IsChecked = confirmedRestart, FontSize = 13, Foreground = BellTheme.Ink, Margin = new Thickness(0, 12, 0, 0), VerticalContentAlignment = VerticalAlignment.Center };
             toggle.IsCheckedChanged += (_, _) => { if ((toggle.IsChecked == true) != confirmedRestart) { confirmedRestart = toggle.IsChecked == true; Render(); } };
             AutomationProperties.SetAutomationId(toggle, "update-restart-confirm"); column.Children.Add(toggle);
         }
         var buttons = new Grid { Margin = new Thickness(0, 12, 0, 0), ColumnDefinitions = new ColumnDefinitions("Auto,12,*") };
-        buttons.Children.Add(Pill("やめる", false, () => { plan = null; Render(); }));
+        buttons.Children.Add(Pill(LinuxStrings.ApprovalsDetail_Answering_5, false, () => { plan = null; Render(); }));
         var go = Pill(wording.Button, true, () => _ = ExecuteAsync(target), ready && (!target.Impact.ContainerRestart || confirmedRestart)); Grid.SetColumn(go, 2);
         AutomationProperties.SetAutomationId(go, "update-execute"); buttons.Children.Add(go);
         column.Children.Add(buttons);
@@ -294,7 +294,7 @@ public sealed class UpdateContent : UserControl, IDisposable
     private Control AttentionBanner((UpdateComponent Component, UpdatePartStatus Status)[] parts)
     {
         var column = new StackPanel();
-        var header = InfoLine(Icons.Warning, "確認が必要な機能があります", Solid(RedColor), 15);
+        var header = InfoLine(Icons.Warning, LinuxStrings.UpdateContent_AttentionBanner_1, Solid(RedColor), 15);
         ((Grid)header).Children.OfType<TextBlock>().Last().FontWeight = FontWeight.SemiBold; column.Children.Add(header);
         foreach (var part in parts)
         {
@@ -310,7 +310,7 @@ public sealed class UpdateContent : UserControl, IDisposable
     private Control PartList()
     {
         var section = new StackPanel();
-        section.Children.Add(Label("機能", 12, BellTheme.Secondary, FontWeight.SemiBold, new Thickness(6, 0, 0, 8)));
+        section.Children.Add(Label(LinuxStrings.UpdateContent_PartList_1, 12, BellTheme.Secondary, FontWeight.SemiBold, new Thickness(6, 0, 0, 8)));
         var rows = new StackPanel(); var components = inventory!.Components;
         for (var index = 0; index < components.Length; index++)
         {
@@ -341,7 +341,7 @@ public sealed class UpdateContent : UserControl, IDisposable
 
     private Control ChangeList(string[] changes)
     {
-        var column = new StackPanel(); column.Children.Add(Label("更新内容", 15, BellTheme.Ink, FontWeight.SemiBold));
+        var column = new StackPanel(); column.Children.Add(Label(LinuxStrings.UpdateContent_ChangeList_1, 15, BellTheme.Ink, FontWeight.SemiBold));
         foreach (var change in changes)
         {
             var line = InfoLine(Icons.Sparkle, change, BellTheme.Ink, filled: true, iconColor: BellTheme.Violet); line.Margin = new Thickness(0, 10, 0, 0); column.Children.Add(line);
@@ -355,76 +355,76 @@ public sealed class UpdateContent : UserControl, IDisposable
         {
             var item = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
             item.Children.Add(Label(UpdateScreen.ComponentName(inventory, job.Target.ModuleId), 13, BellTheme.Ink, FontWeight.SemiBold));
-            item.Children.Add(Label("状態: " + job.State, 13));
-            item.Children.Add(Label("ジョブID: " + job.JobId, 11.5, BellTheme.Muted, mono: true));
+            item.Children.Add(Label(LinuxStrings.UpdateContent_JobRows_1(job.State), 13));
+            item.Children.Add(Label(LinuxStrings.UpdateContent_JobRows_2(job.JobId), 11.5, BellTheme.Muted, mono: true));
             if (job.Reason is { } reason) item.Children.Add(Label(reason.Code + " / " + reason.Message, 13, Solid(RedColor)));
             AutomationProperties.SetAutomationId(item, "update-job-" + job.JobId); yield return item;
         }
     }
     private Control JobList(UpdateJob[] jobs)
     {
-        var column = new StackPanel(); column.Children.Add(Label("ジョブの状態", 15, BellTheme.Ink, FontWeight.SemiBold));
+        var column = new StackPanel(); column.Children.Add(Label(LinuxStrings.UpdateContent_JobList_1, 15, BellTheme.Ink, FontWeight.SemiBold));
         foreach (var row in JobRows(jobs)) column.Children.Add(row);
         return Card(column, 16);
     }
     private Control ProblemList(UpdateProblem[] problems)
     {
-        var column = new StackPanel(); column.Children.Add(Label("機能の問題", 15, BellTheme.Ink, FontWeight.SemiBold));
+        var column = new StackPanel(); column.Children.Add(Label(LinuxStrings.UpdateContent_ProblemList_1, 15, BellTheme.Ink, FontWeight.SemiBold));
         foreach (var problem in problems)
         {
             var item = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
-            item.Children.Add(Label($"{UpdateScreen.ComponentName(inventory, problem.ModuleId)} · 再起動の繰り返し · {(problem.Status == "resolved" ? "解決済み" : "問題あり")}", 13, BellTheme.Ink, FontWeight.SemiBold));
-            item.Children.Add(Label($"再起動回数: {problem.Count} / 集計期間（秒）: {problem.WindowSeconds}", 13));
-            item.Children.Add(Label($"直近の終了コード: {(problem.LastExit.Code?.ToString() ?? "未観測")} / シグナル: {problem.LastExit.Signal ?? "未観測"}", 13));
-            item.Children.Add(Label("直近の理由: " + problem.LastReason, 13));
+            item.Children.Add(Label(LinuxStrings.UpdateContent_ProblemList_4(UpdateScreen.ComponentName(inventory, problem.ModuleId), (problem.Status == "resolved" ? LinuxStrings.UpdateContent_ProblemList_2 : LinuxStrings.UpdateContent_ProblemList_3)), 13, BellTheme.Ink, FontWeight.SemiBold));
+            item.Children.Add(Label(LinuxStrings.UpdateContent_ProblemList_5(problem.Count, problem.WindowSeconds), 13));
+            item.Children.Add(Label(LinuxStrings.UpdateContent_ProblemList_8((problem.LastExit.Code?.ToString() ?? LinuxStrings.UpdateContent_ProblemList_6), problem.LastExit.Signal ?? LinuxStrings.UpdateContent_ProblemList_6), 13));
+            item.Children.Add(Label(LinuxStrings.UpdateContent_ProblemList_9(problem.LastReason), 13));
             AutomationProperties.SetAutomationId(item, "update-problem-" + problem.Fingerprint); column.Children.Add(item);
         }
         return Card(column, 16);
     }
 
     // ---- 詳細 (technical values; closed by default) ----
-    private static string Reason(string? code) => code is null ? "" : "（" + code + "）";
+    private static string Reason(string? code) => code is null ? "" : LinuxStrings.RequestCards_RefreshKeys_1(code);
     private Control Details(UpdateJob[] jobs, UpdateRequest[] requests)
     {
         var lines = new StackPanel { Margin = new Thickness(0, 10, 0, 0), IsVisible = detailsOpen };
         void Line(string text, bool heading = false) => lines.Children.Add(Label(text, heading ? 13 : 11.5, heading ? BellTheme.Ink : BellTheme.Muted, heading ? FontWeight.SemiBold : FontWeight.Normal, new Thickness(0, heading ? 14 : 3, 0, 0), mono: !heading));
-        if (actionMessage is not null) Line("お知らせ: " + actionMessage);
+        if (actionMessage is not null) Line(LinuxStrings.UpdateContent_Details_1(actionMessage));
         // An unreadable inventory (for example 503 UNREADABLE) shows the reason as is; no state is made up.
-        if (readError is not null) Line("取得エラー: " + readError);
-        if (inventory?.Notice is { } notice) Line("サーバー: " + notice.Message + Reason(notice.Code));
+        if (readError is not null) Line(LinuxStrings.UpdateContent_Details_2(readError));
+        if (inventory?.Notice is { } notice) Line(LinuxStrings.UpdateContent_Details_3(notice.Message, Reason(notice.Code)));
         foreach (var component in inventory?.Components ?? [])
         {
             Line(component.Name, true); Line(component.Description);
-            Line($"稼働中: {UpdateScreen.Label(component.Current)} / 公開版: {UpdateScreen.Label(component.Published)}");
-            Line("比較: " + UpdateScreen.ComparisonText(component.Comparison.State) + Reason(component.Comparison.Reason));
-            if (component.Capability.Reason is { } why) Line($"更新: できません（{why}）");
-            if (component.Availability.Available == false) Line("利用: できません" + Reason(component.Availability.Reason));
-            if (component.Part?.LatestJob is { } job) { Line($"最新のジョブ: {job.JobId} / {job.Kind} / {job.State} / {job.Outcome} / {job.At}"); if (job.Reason is { } reason) Line(reason.Code + " / " + reason.Message); }
+            Line(LinuxStrings.UpdateContent_Details_4(UpdateScreen.Label(component.Current), UpdateScreen.Label(component.Published)));
+            Line(LinuxStrings.UpdateContent_Details_5(UpdateScreen.ComparisonText(component.Comparison.State), Reason(component.Comparison.Reason)));
+            if (component.Capability.Reason is { } why) Line(LinuxStrings.UpdateContent_Details_6(why));
+            if (component.Availability.Available == false) Line(LinuxStrings.UpdateContent_Details_7(Reason(component.Availability.Reason)));
+            if (component.Part?.LatestJob is { } job) { Line(LinuxStrings.UpdateContent_Details_8(job.JobId, job.Kind, job.State, job.Outcome, job.At)); if (job.Reason is { } reason) Line(reason.Code + " / " + reason.Message); }
         }
-        if (Parts().Length > 0 && jobs.Length > 0) { Line("ジョブの記録", true); foreach (var row in JobRows(jobs)) lines.Children.Add(row); }
+        if (Parts().Length > 0 && jobs.Length > 0) { Line(LinuxStrings.UpdateContent_Details_9, true); foreach (var row in JobRows(jobs)) lines.Children.Add(row); }
         void Operation(UpdateOperation? value, string title)
         {
             if (value is null) return;
-            Line(title, true); Line("要求ID: " + value.RequestId);
-            Line($"{UpdateScreen.PhaseText(value.Phase)} / 受付: {UpdateScreen.AdmissionText(value.Admission)} / 実行: {UpdateScreen.OutcomeText(value.Execution)} / 稼働確認: {UpdateScreen.OutcomeText(value.Verification)}");
+            Line(title, true); Line(LinuxStrings.UpdateContent_Details_10(value.RequestId));
+            Line(LinuxStrings.UpdateContent_Details_11(UpdateScreen.PhaseText(value.Phase), UpdateScreen.AdmissionText(value.Admission), UpdateScreen.OutcomeText(value.Execution), UpdateScreen.OutcomeText(value.Verification)));
             if (value.Error is { } error) Line(error.Code + ": " + error.Message);
         }
-        Operation(current, "今回の更新"); if (inventory?.PreviousOperation is { } previous && previous.RequestId != current?.RequestId) Operation(previous, "前回の更新");
-        if (plan is { } open) { Line("計画ID: " + open.PlanId); Line("有効期限: " + open.ExpiresAt.LocalDateTime); }
+        Operation(current, LinuxStrings.UpdateContent_Details_12); if (inventory?.PreviousOperation is { } previous && previous.RequestId != current?.RequestId) Operation(previous, LinuxStrings.UpdateContent_Details_13);
+        if (plan is { } open) { Line(LinuxStrings.UpdateContent_Details_14(open.PlanId)); Line(LinuxStrings.UpdateContent_Details_15(open.ExpiresAt.LocalDateTime)); }
         if (requests.Length > 0)
         {
-            Line("保持している操作結果", true);
+            Line(LinuxStrings.UpdateContent_Details_16, true);
             foreach (var request in requests)
             {
-                Line("要求ID: " + request.RequestId); Line("計画ID: " + request.PlanId);
-                if (request.Result is { } result) Line($"{UpdateScreen.PhaseText(result.Phase)} / 受付: {UpdateScreen.AdmissionText(result.Admission)}");
+                Line(LinuxStrings.UpdateContent_Details_10(request.RequestId)); Line(LinuxStrings.UpdateContent_Details_14(request.PlanId));
+                if (request.Result is { } result) Line(LinuxStrings.UpdateContent_Details_19(UpdateScreen.PhaseText(result.Phase), UpdateScreen.AdmissionText(result.Admission)));
                 if (request.Rejection is { } note) Line(note);
             }
         }
         // The Windows Expander with its own disclosure template: a header row with a chevron, the lines below it.
         var header = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
-        header.Children.Add(Label("詳細", 13)); var chevron = Icons.Draw(detailsOpen ? Icons.ChevronDown : Icons.ChevronRight, 12, BellTheme.Ink); chevron.Margin = new Thickness(0, 0, 6, 0); Grid.SetColumn(chevron, 1); header.Children.Add(chevron);
-        var toggle = MacUi.Bare(header, () => { detailsOpen = !detailsOpen; Render(); }, "詳細");
+        header.Children.Add(Label(LinuxStrings.UpdateContent_Details_20, 13)); var chevron = Icons.Draw(detailsOpen ? Icons.ChevronDown : Icons.ChevronRight, 12, BellTheme.Ink); chevron.Margin = new Thickness(0, 0, 6, 0); Grid.SetColumn(chevron, 1); header.Children.Add(chevron);
+        var toggle = MacUi.Bare(header, () => { detailsOpen = !detailsOpen; Render(); }, LinuxStrings.UpdateContent_Details_20);
         var expander = new StackPanel { Margin = new Thickness(4, 0), Children = { toggle, lines } };
         AutomationProperties.SetAutomationId(expander, "update-details");
         return expander;

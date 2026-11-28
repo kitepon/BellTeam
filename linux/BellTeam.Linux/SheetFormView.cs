@@ -48,8 +48,8 @@ public abstract class SheetFormView : Grid, ISheetSave, IDisposable
     public virtual bool CanSave => Ready && !busy && !SaveBlocked;
     public virtual bool CanClose => !busy;
     protected virtual bool SaveBlocked => false;
-    public virtual string CloseLabel => "キャンセル";
-    public virtual string SaveLabel => "保存";
+    public virtual string CloseLabel => LinuxStrings.EditorForm_CloseLabel_2;
+    public virtual string SaveLabel => LinuxStrings.EditorForm_SaveLabel_1;
     public abstract Task SaveAsync();
     protected void Notify() => CanSaveChanged?.Invoke();
 

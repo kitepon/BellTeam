@@ -18,7 +18,7 @@ public sealed record AvatarCropOutcome(string DataUrl, AvatarSelection? Selectio
 
 internal static class AvatarHost
 {
-    public static readonly FilePickerFileType Images = new("画像") { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.webp", "*.gif"] };
+    public static readonly FilePickerFileType Images = new(LinuxStrings.AvatarEditor_Images_1) { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.webp", "*.gif"] };
     // The window that shows sheets (the crop sheet among them), found through the tree so an editor not yet shown still resolves it.
     public static IInspectorHost? Of(Visual element)
     {
@@ -28,7 +28,7 @@ internal static class AvatarHost
     public static async Task<Bitmap> DecodeAsync(string dataUrl)
     {
         var comma = dataUrl.IndexOf(',');
-        if (comma < 0 || !dataUrl.StartsWith("data:image/", StringComparison.Ordinal)) throw new InvalidDataException("アバターの形式が一致しません。");
+        if (comma < 0 || !dataUrl.StartsWith("data:image/", StringComparison.Ordinal)) throw new InvalidDataException(LinuxStrings.AvatarEditor_DecodeAsync_1);
         return await AvaloniaImageCodec.Instance.DecodeAsync(Convert.FromBase64String(dataUrl[(comma + 1)..]));
     }
     // One image file picked in the owner window; null when the picker was cancelled.
@@ -72,20 +72,20 @@ public sealed class AvatarPicker : StackPanel
         ChooseButton = choose;
         Children.Add(choose);
         if (!quiet) { status.FontSize = 12; status.Foreground = Brushes.Firebrick; status.HorizontalAlignment = HorizontalAlignment.Center; return; }
-        var remove = new Button { Classes = { "plain" }, Content = "写真を取り外す", HorizontalAlignment = HorizontalAlignment.Center, Background = Brushes.Transparent, Foreground = Brushes.SlateGray, FontSize = 12, FontWeight = FontWeight.Normal, Padding = new Thickness(6, 1), Margin = new Thickness(0, 0, 0, 2) };
-        AutomationProperties.SetName(remove, "写真を取り外す");
-        remove.Click += (_, _) => { Value = ""; Selection = null; image.Source = null; placeholder.IsVisible = true; status.Text = "保存すると写真を取り外します。"; status.IsVisible = true; };
+        var remove = new Button { Classes = { "plain" }, Content = LinuxStrings.AvatarEditor_AvatarPicker_1, HorizontalAlignment = HorizontalAlignment.Center, Background = Brushes.Transparent, Foreground = Brushes.SlateGray, FontSize = 12, FontWeight = FontWeight.Normal, Padding = new Thickness(6, 1), Margin = new Thickness(0, 0, 0, 2) };
+        AutomationProperties.SetName(remove, LinuxStrings.AvatarEditor_AvatarPicker_1);
+        remove.Click += (_, _) => { Value = ""; Selection = null; image.Source = null; placeholder.IsVisible = true; status.Text = LinuxStrings.AvatarEditor_AvatarPicker_3; status.IsVisible = true; };
         Children.Add(remove);
     }
     private async Task ChooseAsync()
     {
         var host = AvatarHost.Of(this);
-        var path = await AvatarHost.PickImageAsync(host?.OwnerWindow, "画像を選ぶ");
+        var path = await AvatarHost.PickImageAsync(host?.OwnerWindow, LinuxStrings.AvatarEditor_ChooseAsync_1);
         if (path is null) return;
         try
         {
             var loaded = await AvaloniaImageCodec.Instance.ReadAsync(path);
-            var outcome = await (host ?? throw new InvalidOperationException("画像の調整画面を開けません。")).CropAsync(loaded.Preview, variant, null, keepSelection);
+            var outcome = await (host ?? throw new InvalidOperationException(LinuxStrings.AvatarEditor_ChooseAsync_2)).CropAsync(loaded.Preview, variant, null, keepSelection);
             if (outcome is null) return;
             Value = outcome.DataUrl; Selection = outcome.Selection; await LoadAsync(); Chosen?.Invoke(outcome);
         }
@@ -106,11 +106,11 @@ public sealed class AvatarPicker : StackPanel
         if (requested.Length == 0) { image.Source = null; placeholder.IsVisible = true; return; }
         try
         {
-            var comma = requested.IndexOf(','); if (comma < 0 || !requested.StartsWith("data:image/", StringComparison.Ordinal)) throw new InvalidDataException("アバターの形式が一致しません。");
+            var comma = requested.IndexOf(','); if (comma < 0 || !requested.StartsWith("data:image/", StringComparison.Ordinal)) throw new InvalidDataException(LinuxStrings.AvatarEditor_DecodeAsync_1);
             var bitmap = await decode(Convert.FromBase64String(requested[(comma + 1)..]));
             if (Value == requested) { image.Source = bitmap; placeholder.IsVisible = false; ShowStatus(""); }
         }
-        catch (Exception error) { if (Value == requested) ShowStatus("画像を読み込めませんでした。" + error.Message); }
+        catch (Exception error) { if (Value == requested) ShowStatus(LinuxStrings.AvatarEditor_LoadAsync_2(error.Message)); }
     }
 }
 
@@ -133,14 +133,14 @@ public sealed class AvatarCropView : Grid
         image.Source = original; preview.Children.Add(image);
         Background = BellTheme.ConversationBackground;
         var column = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-        column.Children.Add(new TextBlock { Text = "画像をドラッグして、使いたい部分を枠に合わせてね。", FontSize = 13, Foreground = FormUi.Muted, TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 0, 0, 20) });
+        column.Children.Add(new TextBlock { Text = LinuxStrings.AvatarEditor_AvatarCropView_1, FontSize = 13, Foreground = FormUi.Muted, TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 0, 0, 20) });
         var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
         // The frame's corner is 0.18 of its side, as on the Mac.
         row.Children.Add(new Border { Child = preview, Width = 320, Height = 320, CornerRadius = new CornerRadius(57.6), ClipToBounds = true });
         var controls = new StackPanel { Width = 240, Margin = new Thickness(28, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
-        controls.Children.Add(new TextBlock { Text = "拡大・縮小", FontSize = 13, FontWeight = FontWeight.SemiBold, Foreground = FormUi.Ink, Margin = new Thickness(0, 0, 0, 12) });
+        controls.Children.Add(new TextBlock { Text = LinuxStrings.AvatarEditor_AvatarCropView_2, FontSize = 13, FontWeight = FontWeight.SemiBold, Foreground = FormUi.Ink, Margin = new Thickness(0, 0, 0, 12) });
         var zoom = FormUi.Violetize(new Slider { Minimum = 1, Maximum = 3, Value = crop.Zoom }); ZoomSlider = zoom;
-        AutomationProperties.SetName(zoom, "アバター画像の拡大・縮小"); AutomationProperties.SetName(preview, "アバター画像の切り抜き位置");
+        AutomationProperties.SetName(zoom, LinuxStrings.AvatarEditor_AvatarCropView_3); AutomationProperties.SetName(preview, LinuxStrings.AvatarEditor_AvatarCropView_4);
         zoom.ValueChanged += (_, args) => { crop.SetZoom(args.NewValue); Update(); }; controls.Children.Add(zoom); controls.Children.Add(error);
         row.Children.Add(controls); column.Children.Add(row); Children.Add(column);
         preview.PointerPressed += (_, args) => { if (!args.GetCurrentPoint(preview).Properties.IsLeftButtonPressed) return; start = args.GetPosition(preview); offset = new(crop.OffsetX, crop.OffsetY); args.Pointer.Capture(preview); };
@@ -153,11 +153,11 @@ public sealed class AvatarCropView : Grid
     public AvatarCropOutcome? TryUse()
     {
         string render;
-        try { render = Encode(original, crop); } catch (Exception) { error.Text = "写真を読み込めませんでした。"; return null; }
+        try { render = Encode(original, crop); } catch (Exception) { error.Text = LinuxStrings.AvatarEditor_TryUse_1; return null; }
         if (!wantsSelection) return new(render, null);
         string? source;
         try { source = EncodeSource(original); } catch (Exception) { source = null; }
-        if (source is null) { error.Text = "元画像を保存できませんでした。別の画像を選んでください。"; return null; }
+        if (source is null) { error.Text = LinuxStrings.AvatarEditor_TryUse_2; return null; }
         return new(render, new AvatarSelection(render, source, crop.Rect));
     }
     public string ErrorText => error.Text ?? "";

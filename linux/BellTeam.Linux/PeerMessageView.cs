@@ -14,7 +14,7 @@ public sealed class PeerMessageView : ScrollViewer
     {
         VerticalScrollBarVisibility = ScrollBarVisibility.Auto; HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled; Background = BellTheme.ConversationBackground;
         var panel = new StackPanel { Margin = new Thickness(22) };
-        panel.Children.Add(new TextBlock { Text = message.PeerName ?? "メンバー", FontSize = 22, FontWeight = FontWeight.Bold, TextWrapping = TextWrapping.Wrap });
+        panel.Children.Add(new TextBlock { Text = message.PeerName ?? LinuxStrings.MemberEditors_Build_9, FontSize = 22, FontWeight = FontWeight.Bold, TextWrapping = TextWrapping.Wrap });
         panel.Children.Add(new TextBlock { Text = Timeline.LongTime(message.At), FontSize = 14, Foreground = BellTheme.Muted, Margin = new Thickness(0, 15, 0, 0) });
         if (message.Message is { } text) panel.Children.Add(new MarkdownView { FontSize = 18, Source = text, Margin = new Thickness(0, 15, 0, 0) });
         if (message.DisplayedImageUrls.Length != 0)

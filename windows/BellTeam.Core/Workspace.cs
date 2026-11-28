@@ -9,21 +9,21 @@ public sealed record ConversationEntry(ChatTarget Target, string Name, string Su
 {
     // The amber badge on a member's row while one of its seats waits on a tool approval (seat-approval-clients); null for a room and for a member with none.
     public string? SeatApprovalBadge => SeatApproval is null ? null : SeatApprovalText.Badge;
-    public string Group => Target.IsRoom ? "ルーム" : "メンバー";
+    public string Group => Target.IsRoom ? CoreStrings.Workspace_Group_1 : CoreStrings.MessageNotification_FromRecent_5;
     public string Initial => Name.Length == 0 ? "?" : System.Globalization.StringInfo.GetNextTextElement(Name);
     public string Presence => Bot is { Online: true } ? "●" : "";
     public bool FastMode => Bot?.FastMode == true;
     public bool IsMember => Bot is not null;
     public bool Pinned => Bot?.PinnedAt is not null;
     public string PinBadge => Pinned ? "  📌" : "";
-    public string PinMenuText => Pinned ? "ピン留めを外す" : "ピン留め";
+    public string PinMenuText => Pinned ? CoreStrings.Workspace_PinMenuText_1 : CoreStrings.Workspace_PinMenuText_2;
     // The red line under a member's summary and on top of its conversation; null for a room and for a member with no notice.
     public string? SeatLaunchLine => Bot?.SeatLaunch?.Line;
     public string PreviewText => TextContent.Normalize(Subtitle).Replace('\n', ' ');
     // Mac BotPresenceDot: red (pulsing in the row template) while working, mint when online, the line colour when offline; each app maps the tone to its colour.
     public PresenceTone PresenceTone => Working ? PresenceTone.Working : Bot?.Online == true ? PresenceTone.Online : PresenceTone.Offline;
-    public string PresenceLabel => Working ? "仕事中" : Bot?.Online == true ? "オンライン・待機中" : "オフライン";
-    public string FastModeBadge => FastMode ? "  ⚡ ファスト" : "";
+    public string PresenceLabel => Working ? CoreStrings.Workspace_PresenceLabel_1 : Bot?.Online == true ? CoreStrings.Workspace_PresenceLabel_2 : CoreStrings.Workspace_PresenceLabel_3;
+    public string FastModeBadge => FastMode ? CoreStrings.Workspace_FastModeBadge_1 : "";
     // The independent large image (Mac avatar-large); null while the large slot shows the small image.
     public string? LargeAvatarUrl => Origin is not null && Bot is { UsesSmallImage: false } bot ? Origin + $"api/bots/{Uri.EscapeDataString(Target.Id)}/avatar-large?v={bot.AvatarLargeVersion}" : null;
     public string? AvatarUrl => Origin is not null && (Bot?.AvatarVersion ?? Room?.AvatarVersion ?? "").Length != 0 ? Origin + $"api/{(Target.IsRoom ? "rooms" : "bots")}/{Uri.EscapeDataString(Target.Id)}/avatar?v={Bot?.AvatarVersion ?? Room!.AvatarVersion}" : null;
@@ -71,15 +71,15 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
     private string search = "";
     private string? connectionError;
     private bool needsLogin;
-    private string connectionStatus = "接続先を設定してください。";
-    public string OwnerName { get; private set; } = "あなた";
+    private string connectionStatus = CoreStrings.Workspace_connectionStatus_1;
+    public string OwnerName { get; private set; } = CoreStrings.Approvals_HistoryRows_1;
     /// <summary>The Owner's open seat tool approvals, oldest first (seat-approvals.md); empty when the body has none or cannot say. Read again on every server event and after every answer.</summary>
     public IReadOnlyList<SeatApproval> SeatApprovals => seatApprovals;
     public event Action? SeatApprovalsChanged;
     /// <summary>Answers one entry (approve_once or deny), then reads the entries again whatever the outcome: a 409 means another front answered first.</summary>
     public async Task<SeatApprovalOutcome> AnswerSeatApprovalAsync(SeatApproval approval, string decision)
     {
-        var current = api ?? throw new BellApiException("接続先を設定してください。"); var token = connection!.Token;
+        var current = api ?? throw new BellApiException(CoreStrings.Workspace_connectionStatus_1); var token = connection!.Token;
         var outcome = await current.AnswerSeatApprovalAsync(approval.Id, decision, token);
         try { await RefreshAsync(current, token); }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
@@ -114,14 +114,14 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
     public ObservableCollection<MessageItem> Messages { get; } = [];
     public CancellationToken ViewToken => selection?.Token ?? connection?.Token ?? CancellationToken.None;
     public CancellationToken ConnectionToken => connection?.Token ?? CancellationToken.None;
-    public ManagementApi Management => new(api ?? throw new BellApiException("接続先を設定してください。"));
-    public PlanningApi Planning => new(api ?? throw new BellApiException("接続先を設定してください。"));
-    public GoalsApi Goals => new(api ?? throw new BellApiException("接続先を設定してください。"));
+    public ManagementApi Management => new(api ?? throw new BellApiException(CoreStrings.Workspace_connectionStatus_1));
+    public PlanningApi Planning => new(api ?? throw new BellApiException(CoreStrings.Workspace_connectionStatus_1));
+    public GoalsApi Goals => new(api ?? throw new BellApiException(CoreStrings.Workspace_connectionStatus_1));
     // 端末 (16a): the registry as last read and the check results live for one connection, as on the Mac (empty after a reconnect and a sign-out).
     private TerminalsModel? terminals;
     // 16c: this PC's facts; a render or a test sets another before Terminals is first used.
     public IThisPc ThisPc { get; set; } = new ThisPcSystem();
-    public TerminalsModel Terminals => terminals ??= new(new TerminalsApi(api ?? throw new BellApiException("接続先を設定してください。")), ThisPc);
+    public TerminalsModel Terminals => terminals ??= new(new TerminalsApi(api ?? throw new BellApiException(CoreStrings.Workspace_connectionStatus_1)), ThisPc);
     public event Action? ServerChanged;
     // The member and room lists were just read again (an open editor checks whether its member is gone).
     public event Action? RosterChanged;
@@ -143,7 +143,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
     public bool ScreenMachine => screenMachine;
     public string? ScreenError => screenError;
     // Mac status line: a failed read shows its error instead (in red), otherwise "1秒ごとに更新" while the seat is online.
-    public string ScreenStatus => screenError ?? (screenOnline ? "1秒ごとに更新" : "停止中");
+    public string ScreenStatus => screenError ?? (screenOnline ? CoreStrings.Workspace_ScreenStatus_1 : CoreStrings.SettingsModels_RowText_1);
     public ScreenInputModel? ScreenInput => screenInput;
     private TaskCompletionSource screenFirstRead = new(TaskCreationOptions.RunContinuationsAsynchronously);
     // Completes when the first read of the open screen (and its approval check) has finished or failed; the renders and tests wait on it.
@@ -152,7 +152,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
     public Action<Exception, string, string>? ScreenFailureReport { get; set; }
     private void SetScreen(string raw, bool online, string? error, bool machine)
     {
-        var text = raw.Length != 0 ? raw : online ? "画面は空です" : "次のメッセージで起動します";
+        var text = raw.Length != 0 ? raw : online ? CoreStrings.Workspace_SetScreen_1 : CoreStrings.Workspace_SetScreen_2;
         // Only a real change is published, so the terminal's selection and scroll position survive an unchanged second.
         var changed = text != screenText || online != screenOnline || error != screenError || machine != screenMachine;
         screenRaw = raw; screenText = text; screenOnline = online; screenError = error; screenMachine = machine;
@@ -172,12 +172,12 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
     public bool HasSelection => selected is not null;
     public bool Connected => ready;
     public bool Opening { get; private set; }
-    public string EditLabel => IsRoom ? "ルームを編集" : "メンバーを編集";
+    public string EditLabel => IsRoom ? CoreStrings.Workspace_EditLabel_1 : CoreStrings.Workspace_EditLabel_2;
     public bool CanAttach => HasSelection && Draft is { Attaching: false };
     public bool IsRoom => selected?.Target.IsRoom == true;
-    public string Title => selected?.Name ?? "チームと、同じデスクで。";
-    public string OnlineSummary => $"{all.Count(entry => entry.Bot?.Online == true)}人オンライン";
-    public string ConversationSubtitle => selected?.Bot is { } bot ? bot.Online ? "オンライン" : "オフライン" : selected?.Room is { } room ? $"{room.MemberIds.Length}人のルーム" : "";
+    public string Title => selected?.Name ?? CoreStrings.Workspace_Title_1;
+    public string OnlineSummary => CoreStrings.Workspace_OnlineSummary_1(all.Count(entry => entry.Bot?.Online == true));
+    public string ConversationSubtitle => selected?.Bot is { } bot ? bot.Online ? CoreStrings.Workspace_ConversationSubtitle_1 : CoreStrings.Workspace_PresenceLabel_3 : selected?.Room is { } room ? CoreStrings.Workspace_ConversationSubtitle_3(room.MemberIds.Length) : "";
     private QueueItem[] SelectedQueue => selected is { } entry ? QueueItem.DisplayItems(queue.Where(item => entry.Target.IsRoom ? item.Context == "room" && item.ContextId == entry.Target.Id : item.BotId == entry.Target.Id)) : [];
     public string ActivityText => selected is { } entry ? string.Join('\n', SelectedQueue.Select(item => item.Line(entry.Name))) : "";
     public bool HasActivity => SelectedQueue.Length != 0;
@@ -206,7 +206,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
     private ConversationDraft? Draft => selected is null ? null : drafts.GetValueOrDefault((Server, selected.Target));
     public string DraftText { get => Draft?.Text ?? ""; set { if (Draft is { } draft) draft.Text = value; Changed(); Changed(nameof(CanSend)); } }
     public string? SendError => Draft?.Error;
-    public string SendLabel => Draft?.Attaching == true ? "画像を読込中…" : Draft?.Sending == true ? "送信中…" : "送信";
+    public string SendLabel => Draft?.Attaching == true ? CoreStrings.Workspace_SendLabel_1 : Draft?.Sending == true ? CoreStrings.Workspace_SendLabel_2 : CoreStrings.Workspace_SendLabel_3;
     public bool CanSend => api is not null && selected is not null && !Loading && Draft is { Sending: false, Attaching: false, HasContent: true };
     public ObservableCollection<MemberChoice> ReplyMembers { get; } = [];
     // Reply to a chosen message (conversation reply.md). Not the room's 返信者 (ReplyMembers): that picks who answers, this picks what is answered.
@@ -238,8 +238,8 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
         else if (!HasMore && ConnectionError is null) ActionError = Timeline.QuoteNotFound;
     }
     public string Profile => selected?.Bot is { } bot
-        ? $"{bot.DisplayName}\n{(bot.Online ? "オンライン" : "オフライン")}\n\nプロフィール\n\n役職\n{Empty(bot.Position)}\n\n背景・見た目・関係性\n{Empty(bot.ProfileText)}\n\n性格・考え方\n{Empty(bot.Personality)}\n\n口調\n{Empty(bot.SpeechStyle)}\n\n担当する仕事\n{Empty(bot.Role)}\n\nAI\nハーネス: {bot.Harness}\nモデル: {Empty(bot.Model, "既定")}"
-        : selected?.Room is { } room ? $"{room.Name}\n\nこの部屋で共有する仕事\n{Empty(room.Purpose)}\n\n参加メンバー\n{string.Join('\n', room.MemberIds.Select(id => all.FirstOrDefault(item => item.Target == new ChatTarget(id, false))?.Name ?? id))}" : "左のメンバーやルームを選んで、会話を始めましょう。";
+        ? CoreStrings.Workspace_Profile_4(bot.DisplayName, (bot.Online ? CoreStrings.Workspace_ConversationSubtitle_1 : CoreStrings.Workspace_PresenceLabel_3), Empty(bot.Position), Empty(bot.ProfileText), Empty(bot.Personality), Empty(bot.SpeechStyle), Empty(bot.Role), bot.Harness, Empty(bot.Model, CoreStrings.UserRules_Label_9))
+        : selected?.Room is { } room ? CoreStrings.Workspace_Profile_5(room.Name, Empty(room.Purpose), string.Join('\n', room.MemberIds.Select(id => all.FirstOrDefault(item => item.Target == new ChatTarget(id, false))?.Name ?? id))) : CoreStrings.Workspace_Profile_6;
     private static string Empty(string value, string replacement = "未設定") => string.IsNullOrWhiteSpace(value) ? replacement : value;
     public event PropertyChangedEventHandler? PropertyChanged;
     public event Action<bool>? ScrollToBottom;
@@ -271,7 +271,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
         if (keep) { selection?.Dispose(); selection = CancellationTokenSource.CreateLinkedTokenSource(connection.Token); }
         if (!keep) selected = null;
         stoppingBotId = null; stopResult = null; loadFailed = false; routingEnabled = null;
-        pendingBotDeletions.Clear(); queue = []; Owner = null; OwnerName = "あなた"; AuthMode = "local";
+        pendingBotDeletions.Clear(); queue = []; Owner = null; OwnerName = CoreStrings.Approvals_HistoryRows_1; AuthMode = "local";
         if (!keep) { all.Clear(); pendingSends.Clear(); Entries.Clear(); Messages.Clear(); ReplyMembers.Clear(); }
         Changed(nameof(OwnerName)); Changed(nameof(AuthMode)); Changed(nameof(OnlineSummary));
         if (!keep) HasMore = false;
@@ -281,7 +281,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
         ConnectionRetryable = true;
         NeedsLogin = false;
         ActionError = null;
-        ConnectionStatus = "接続を確認しています…";
+        ConnectionStatus = CoreStrings.Workspace_ConnectAsync_2;
         var current = api;
         current.AuthenticationRequired += () => { if (api == current) NeedsLogin = true; };
         var token = connection.Token;
@@ -291,16 +291,16 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
             token.ThrowIfCancellationRequested();
             var session = await current.GetAsync<SessionInfo>("/api/session", token);
             AuthMode = session.AuthMode; Login = session.Login; Changed(nameof(AuthMode)); Changed(nameof(Login));
-            if (!session.Authenticated) { ConnectionRetryable = false; NeedsLogin = session.AuthMode == "cloudflare" || SessionLoginRequired; throw new BellApiException(SessionLoginRequired ? "このサーバーにログインしてください。" : NeedsLogin ? "Cloudflare Accessへログインしてください。" : "接続先が認証を拒否しました。サーバーの設定を確認してください。"); }
+            if (!session.Authenticated) { ConnectionRetryable = false; NeedsLogin = session.AuthMode == "cloudflare" || SessionLoginRequired; throw new BellApiException(SessionLoginRequired ? CoreStrings.Workspace_ConnectAsync_3 : NeedsLogin ? CoreStrings.BellApi_RawAsync_1 : CoreStrings.Workspace_ConnectAsync_5); }
             await RefreshAsync(current, token);
             ready = true; Changed(nameof(Connected));
-            ConnectionStatus = "接続済み";
+            ConnectionStatus = CoreStrings.Workspace_ConnectAsync_6;
             if (listen) _ = ListenAsync(current, token);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         // a485 (app-sessions.md 7a): the server cannot judge a session right now (restart, rollback). The stored token stays; the page retries on the backoff.
-        catch (BellApiException unavailable) when (unavailable.Code == "SESSION_STORE_UNAVAILABLE") { if (api == current) { ConnectionError = "サーバーの準備中です。"; ConnectionStatus = "接続できませんでした。"; } }
-        catch (Exception error) { if (api == current) { if (error is BellApiException { RequiresLogin: true }) ConnectionRetryable = false; ConnectionError = error.Message; ConnectionStatus = "接続できませんでした。"; } }
+        catch (BellApiException unavailable) when (unavailable.Code == "SESSION_STORE_UNAVAILABLE") { if (api == current) { ConnectionError = CoreStrings.SignIn_ServerNotReady_1; ConnectionStatus = CoreStrings.Workspace_ConnectAsync_8; } }
+        catch (Exception error) { if (api == current) { if (error is BellApiException { RequiresLogin: true }) ConnectionRetryable = false; ConnectionError = error.Message; ConnectionStatus = CoreStrings.Workspace_ConnectAsync_8; } }
     }
 
     // Trony 11-08: only cancel, sign-out and a refused login stop; every other failure is shown and reconnects on the backoff (the Mac stops on a malformed stream).
@@ -311,7 +311,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
         BellApiException { Status: { } status } when (int)status == 429 || (int)status >= 500 => BellApiException.ConnectFailedMessage,
         // The 30 s handshake limit cancels without our token being cancelled: that is a connection failure too.
         System.Net.Http.HttpRequestException or IOException or OperationCanceledException => BellApiException.ConnectFailedMessage,
-        _ => BellApiException.ConnectFailedMessage + "（" + error.Message + "）"
+        _ => CoreStrings.Workspace_ReconnectText_1(BellApiException.ConnectFailedMessage, error.Message)
     };
 
     // One stream at a time: after it ends or fails to open, wait the backoff (0/1/2/4/8/15 s) and open the next. Only cancel, sign-out, a new connection or a non-retryable error leaves the loop.
@@ -328,7 +328,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
                     var hadError = ConnectionError is not null; var recovered = reconnecting is not null;
                     if (recovered && ConnectionError == reconnecting) ConnectionError = null;
                     reconnecting = null;
-                    ConnectionStatus = "接続済み・新着を受信中";
+                    ConnectionStatus = CoreStrings.Workspace_ListenAsync_1;
                     var typeName = item.TryGetProperty("type", out var type) && type.ValueKind == System.Text.Json.JsonValueKind.String ? type.GetString() : null;
                     if (typeName == "updates") UpdatesChanged?.Invoke();
                     else if (typeName is not null && (typeName.StartsWith("login.") || typeName.StartsWith("session."))) LoginEvent?.Invoke();
@@ -342,7 +342,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
                 if (api != current || token.IsCancellationRequested) return;
                 reconnecting = ReconnectText(error);
                 ConnectionError = reconnecting ?? error.Message;
-                ConnectionStatus = reconnecting is null ? "新着の受信が停止しました。" : "新着を再接続しています…";
+                ConnectionStatus = reconnecting is null ? CoreStrings.Workspace_ListenAsync_2 : CoreStrings.Workspace_ListenAsync_3;
                 if (reconnecting is null) return;
             }
             // Mac: a stream that stayed up over 30 s starts the schedule again; a connection that drops at once keeps backing off.
@@ -376,7 +376,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
                 // An optional setting: its failure must not fail the list refresh.
                 try { await LoadRoutingAsync(current, token); }
                 catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
-                catch (Exception error) { SetRouting(null); ActionError = "返信者の自動選択の設定を読み取れませんでした。" + error.Message; }
+                catch (Exception error) { SetRouting(null); ActionError = CoreStrings.Workspace_RefreshAsync_1(error.Message); }
             }
             token.ThrowIfCancellationRequested();
             Owner = owner.Owner; OwnerName = owner.Owner.Name; Changed(nameof(OwnerName));
@@ -454,7 +454,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
             {
                 try { await LoadRoutingAsync(api, token); }
                 catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-                catch (Exception error) { if (!token.IsCancellationRequested) { SetRouting(null); ActionError = "返信者の自動選択の設定を読み取れませんでした。" + error.Message; } }
+                catch (Exception error) { if (!token.IsCancellationRequested) { SetRouting(null); ActionError = CoreStrings.Workspace_RefreshAsync_1(error.Message); } }
             }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
@@ -560,12 +560,12 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
     // else the refusal in plain words (nothing was sent then). The destination's own screen is read again when it is the one open.
     public async Task<string?> ForwardAsync(TimelineMessage message, ChatTarget destination, string comment)
     {
-        if (api is null || connection is null || selected is null || !Timeline.IsForwardable(message)) return "転送できる状態ではありません。";
+        if (api is null || connection is null || selected is null || !Timeline.IsForwardable(message)) return CoreStrings.Workspace_ForwardAsync_1;
         var current = api; var token = connection.Token; var from = selected.Target;
         try { await current.SendAsync(destination, comment.Trim(), [], null, token, forward: new ForwardSource(from.IsRoom ? "room" : "bot", from.Id, message.Id)); }
         catch (BellApiException error) when (error.Status is not null) { return Timeline.ForwardRefusal(error); }
-        catch (Exception error) { return (BellApiException.IsResultUnconfirmed(error) ? "操作の結果を確認できませんでした。再操作する前に、現在の状態を更新して確認してください。\n" : "") + error.Message; }
-        if (api == current && selected?.Target == destination) { try { await RefreshAsync(current, token); } catch (OperationCanceledException) when (token.IsCancellationRequested) { } catch (Exception error) { if (api == current) ConnectionError = "転送は受け付けられました。会話の更新に失敗しました。" + error.Message; } }
+        catch (Exception error) { return (BellApiException.IsResultUnconfirmed(error) ? CoreStrings.Workspace_ForwardAsync_2 : "") + error.Message; }
+        if (api == current && selected?.Target == destination) { try { await RefreshAsync(current, token); } catch (OperationCanceledException) when (token.IsCancellationRequested) { } catch (Exception error) { if (api == current) ConnectionError = CoreStrings.Workspace_ForwardAsync_3(error.Message); } }
         return null;
     }
 
@@ -573,13 +573,13 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
     // It needs no open conversation (the share window has none); an open destination is read again.
     public async Task<string?> ShareAsync(ChatTarget destination, string comment, ShareContent content, ImageAttachment[] images)
     {
-        if (api is null || connection is null) return "BellTeamに接続していません。BellTeamを開いて接続してから、もう一度共有してください。";
-        if (!content.HasContent(images.Length)) return "共有する内容がありません。";
+        if (api is null || connection is null) return CoreStrings.Workspace_ShareAsync_1;
+        if (!content.HasContent(images.Length)) return CoreStrings.Workspace_ShareAsync_2;
         var current = api; var token = connection.Token;
         try { await current.SendAsync(destination, comment.Trim(), images, null, token, share: content); }
         catch (BellApiException error) when (error.Status is not null) { return Timeline.ShareRefusal(error); }
-        catch (Exception error) { return (BellApiException.IsResultUnconfirmed(error) ? "操作の結果を確認できませんでした。再操作する前に、現在の状態を更新して確認してください。\n" : "") + error.Message; }
-        if (api == current && selected?.Target == destination) { try { await RefreshAsync(current, token); } catch (OperationCanceledException) when (token.IsCancellationRequested) { } catch (Exception error) { if (api == current) ConnectionError = "共有は受け付けられました。会話の更新に失敗しました。" + error.Message; } }
+        catch (Exception error) { return (BellApiException.IsResultUnconfirmed(error) ? CoreStrings.Workspace_ForwardAsync_2 : "") + error.Message; }
+        if (api == current && selected?.Target == destination) { try { await RefreshAsync(current, token); } catch (OperationCanceledException) when (token.IsCancellationRequested) { } catch (Exception error) { if (api == current) ConnectionError = CoreStrings.Workspace_ShareAsync_4(error.Message); } }
         return null;
     }
 
@@ -607,13 +607,13 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
         catch (Exception error)
         {
             if (api == current) ChangePending(key, echo, null);
-            draft.FailSend(content, (BellApiException.IsResultUnconfirmed(error) ? "操作の結果を確認できませんでした。再操作する前に、現在の状態を更新して確認してください。\n" : "") + error.Message);
+            draft.FailSend(content, (BellApiException.IsResultUnconfirmed(error) ? CoreStrings.Workspace_ForwardAsync_2 : "") + error.Message);
             DraftChanged();
             return;
         }
         try { await RefreshAsync(current, token); }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-        catch (Exception error) { if (api == current) ConnectionError = "送信は受け付けられました。会話の更新に失敗しました。" + error.Message; }
+        catch (Exception error) { if (api == current) ConnectionError = CoreStrings.Workspace_SendAsync_2(error.Message); }
     }
 
     // Never resent on its own: a stop whose result is unknown is reported as such and the owner decides.
@@ -648,7 +648,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
     {
         if (api is null || connection is null) return;
         try { await RefreshAsync(api, connection.Token); }
-        catch (Exception error) { ActionError = "保存は受け付けられましたが、一覧の更新を確認できませんでした。" + error.Message; }
+        catch (Exception error) { ActionError = CoreStrings.Workspace_RefreshManagementAsync_1(error.Message); }
     }
     // Mac requestBotDeletion / confirmBotDeletion: DELETE answers 202 (accepted only). The member counts as deleting until a list read no longer has it.
     private readonly HashSet<string> pendingBotDeletions = [];
@@ -670,7 +670,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
     // A read only. Throws when the list cannot be read; the caller keeps the member as pending then.
     public async Task<bool> ConfirmBotDeletionAsync(string id)
     {
-        if (api is null || connection is null) throw new BellApiException("接続先を設定してください。");
+        if (api is null || connection is null) throw new BellApiException(CoreStrings.Workspace_connectionStatus_1);
         await RefreshAsync(api, connection.Token);
         return !HasBot(id);
     }
@@ -683,13 +683,13 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
     public Task<TImage> AvatarAsync(string url)
     {
         if (avatars.TryGetValue(url, out var existing)) return existing;
-        async Task<TImage> Load() => await codec.DecodeAsync(await (api ?? throw new BellApiException("接続先を設定してください。")).ImageAsync(url, ConnectionToken));
+        async Task<TImage> Load() => await codec.DecodeAsync(await (api ?? throw new BellApiException(CoreStrings.Workspace_connectionStatus_1)).ImageAsync(url, ConnectionToken));
         var task = Load(); avatars[url] = task; return task;
     }
     public async Task AttachFilesAsync(string[] paths)
     {
         if (Draft is not { } draft) return;
-        if (draft.Attaching) { ActionError = "画像の読み込みが終わってから追加してください。"; return; }
+        if (draft.Attaching) { ActionError = CoreStrings.Workspace_AttachFilesAsync_1; return; }
         var key = (Server, selected!.Target);
         draft.Attaching = true; ActionError = null; DraftChanged();
         try
@@ -699,15 +699,15 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
             if (!drafts.TryGetValue(key, out var current) || current != draft) return;
             foreach (var image in loaded) { attachmentPreviews[image.Data] = image.Preview; draft.Attachments.Add(image.Data); }
         }
-        catch (Exception error) { ActionError = "画像を読み込めませんでした。" + error.Message; }
+        catch (Exception error) { ActionError = CoreStrings.Workspace_AttachFilesAsync_2(error.Message); }
         finally { draft.Attaching = false; DraftChanged(); }
     }
     public void AttachClipboardImage(TImage bitmap)
     {
         if (Draft is not { } draft) return;
-        if (draft.Attaching) { ActionError = "画像の読み込みが終わってから追加してください。"; return; }
+        if (draft.Attaching) { ActionError = CoreStrings.Workspace_AttachFilesAsync_1; return; }
         var (png, previewImage) = codec.Pasted(bitmap);
-        var data = new ImageAttachment("貼り付けた画像.png", "image/png", png);
+        var data = new ImageAttachment(CoreStrings.Workspace_AttachClipboardImage_2, "image/png", png);
         attachmentPreviews[data] = previewImage; draft.Attachments.Add(data); DraftChanged();
     }
     public void RemoveAttachment(ImageAttachment image)
@@ -720,21 +720,21 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
         if (api is null || selected is null) return;
         ActionError = null;
         try { var bytes = await api.ExportAsync(selected.Target, connection!.Token); await File.WriteAllBytesAsync(path, bytes); }
-        catch (Exception error) { ActionError = "書き出せませんでした（" + error.Message + "）"; }
+        catch (Exception error) { ActionError = CoreStrings.Workspace_ExportAsync_1(error.Message); }
     }
     public async Task<byte[]> ImageAsync(string path, CancellationToken token)
     {
         if (preview) return PreviewImagePng.ToArray();
-        return await (api ?? throw new BellApiException("接続先を設定してください。")).ImageAsync(path, token);
+        return await (api ?? throw new BellApiException(CoreStrings.Workspace_connectionStatus_1)).ImageAsync(path, token);
     }
     // The preview's 2x2 lilac/sand checker as PNG (was encoded from a WPF bitmap; now fixed bytes so Core stays UI-free).
     private static readonly byte[] PreviewImagePng = [137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 2, 0, 0, 0, 2, 8, 6, 0, 0, 0, 114, 182, 13, 36, 0, 0, 0, 22, 73, 68, 65, 84, 120, 156, 99, 120, 54, 109, 203, 255, 105, 251, 46, 253, 103, 0, 17, 32, 14, 0, 112, 66, 12, 169, 254, 53, 102, 152, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130];
-    public async Task<SecretRequest> FinishSecretAsync(string id, SecretSubmission? submission) => await (api ?? throw new BellApiException("接続先を設定してください。")).FinishSecretAsync(id, submission, connection!.Token);
-    public async Task<OnePasswordKey[]?> SecretKeysAsync(string id) => await new SecretRequestApi(api ?? throw new BellApiException("接続先を設定してください。")).KeysAsync(id, connection!.Token);
+    public async Task<SecretRequest> FinishSecretAsync(string id, SecretSubmission? submission) => await (api ?? throw new BellApiException(CoreStrings.Workspace_connectionStatus_1)).FinishSecretAsync(id, submission, connection!.Token);
+    public async Task<OnePasswordKey[]?> SecretKeysAsync(string id) => await new SecretRequestApi(api ?? throw new BellApiException(CoreStrings.Workspace_connectionStatus_1)).KeysAsync(id, connection!.Token);
     // The stored raw line of an entry whose text was cut (machine-stream.md).
-    public async Task<string> MachineLineAsync(string botId, int seq) => (await (api ?? throw new BellApiException("接続先を設定してください。")).GetAsync<MachineLine>($"/api/bots/{Uri.EscapeDataString(botId)}/machine-events/{seq}", connection!.Token)).Line;
-    public async Task<MachineRequest> AnswerSeatRequestAsync(string id, MachineAnswer[]? answers, string? decision) => await (api ?? throw new BellApiException("接続先を設定してください。")).AnswerSeatRequestAsync(id, answers, decision, connection!.Token);
-    public async Task<OwnerQuestion> AnswerAsync(string id, string? choice, string? text) => await (api ?? throw new BellApiException("接続先を設定してください。")).AnswerAsync(id, choice, text, connection!.Token);
+    public async Task<string> MachineLineAsync(string botId, int seq) => (await (api ?? throw new BellApiException(CoreStrings.Workspace_connectionStatus_1)).GetAsync<MachineLine>($"/api/bots/{Uri.EscapeDataString(botId)}/machine-events/{seq}", connection!.Token)).Line;
+    public async Task<MachineRequest> AnswerSeatRequestAsync(string id, MachineAnswer[]? answers, string? decision) => await (api ?? throw new BellApiException(CoreStrings.Workspace_connectionStatus_1)).AnswerSeatRequestAsync(id, answers, decision, connection!.Token);
+    public async Task<OwnerQuestion> AnswerAsync(string id, string? choice, string? text) => await (api ?? throw new BellApiException(CoreStrings.Workspace_connectionStatus_1)).AnswerAsync(id, choice, text, connection!.Token);
     public void ReturnToProfile()
     {
         screenCancellation?.Cancel(); screenCancellation?.Dispose(); screenCancellation = null; screenInput?.Retire(); screenInput = null; ScreenVisible = false;
@@ -786,31 +786,31 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
     public void SignOut()
     {
         connection?.Cancel(); selection?.Cancel(); ReturnToProfile(); ready = false; selected = null; stoppingBotId = null; stopResult = null; loadFailed = false; routingEnabled = null; terminals = null;
-        all.Clear(); queue = []; Entries.Clear(); Messages.Clear(); ReplyMembers.Clear(); drafts.Clear(); pendingSends.Clear(); attachmentPreviews.Clear(); avatars.Clear(); Owner = null; OwnerName = "あなた"; AccountsBanner = ""; Changed(nameof(AccountsBanner));
-        HasMore = false; Loading = false; ConnectionError = ActionError = null; NeedsLogin = AuthMode == "cloudflare" || SessionLoginRequired; ConnectionStatus = "ログアウトしました。";
+        all.Clear(); queue = []; Entries.Clear(); Messages.Clear(); ReplyMembers.Clear(); drafts.Clear(); pendingSends.Clear(); attachmentPreviews.Clear(); avatars.Clear(); Owner = null; OwnerName = CoreStrings.Approvals_HistoryRows_1; AccountsBanner = ""; Changed(nameof(AccountsBanner));
+        HasMore = false; Loading = false; ConnectionError = ActionError = null; NeedsLogin = AuthMode == "cloudflare" || SessionLoginRequired; ConnectionStatus = CoreStrings.Workspace_SignOut_2;
         foreach (var name in new[] { nameof(Connected), nameof(Selected), nameof(HasSelection), nameof(IsRoom), nameof(Title), nameof(Profile), nameof(OwnerName), nameof(OnlineSummary), nameof(ActivityText), nameof(HasActivity), nameof(ActivityRows), nameof(StopEnabled), nameof(CurrentBotCanStop), nameof(StopResult), nameof(LoadFailed), nameof(RoutingEnabled), nameof(ReplyTargetLabel), nameof(CanShowScreen) }) Changed(name);
         DraftChanged();
     }
     public void LoadPreview()
     {
         preview = true;
-        all = [new(new("preview", false), "ベル", "Windowsアプリを確認しています", DateTimeOffset.Now,
-            new Bot { Id = "preview", Name = "ベル", DisplayName = "ベル", Online = true, Position = "技術パートナー", ProfileText = "これは表示確認用の人工データです。", Role = "Windowsアプリの開発" }, null,
-            SeatApproval: new SeatApproval { Id = "sa-preview-0000000000000000-1", BotId = "preview", BotName = "ベル", Harness = "codex", Tool = "Bash", Command = "git push --force origin main", Reason = "Codexが承認を待っています。", Since = DateTimeOffset.Now })];
+        all = [new(new("preview", false), CoreStrings.Workspace_LoadPreview_1, CoreStrings.Workspace_LoadPreview_2, DateTimeOffset.Now,
+            new Bot { Id = "preview", Name = CoreStrings.Workspace_LoadPreview_1, DisplayName = CoreStrings.Workspace_LoadPreview_1, Online = true, Position = CoreStrings.Workspace_LoadPreview_5, ProfileText = CoreStrings.Workspace_LoadPreview_6, Role = CoreStrings.Workspace_LoadPreview_7 }, null,
+            SeatApproval: new SeatApproval { Id = "sa-preview-0000000000000000-1", BotId = "preview", BotName = CoreStrings.Workspace_LoadPreview_1, Harness = "codex", Tool = "Bash", Command = "git push --force origin main", Reason = CoreStrings.Workspace_LoadPreview_9, Since = DateTimeOffset.Now })];
         seatApprovals = all.Select(entry => entry.SeatApproval).OfType<SeatApproval>().ToArray(); SeatApprovalsChanged?.Invoke();   // the seat-approval entry of the preview (--render-preview)
-        Filter(); ConnectionStatus = "表示確認用の人工データ";
+        Filter(); ConnectionStatus = CoreStrings.Workspace_LoadPreview_10;
     }
     private static TimelineMessage[] PreviewMessages() => [
-        new() { Id = "preview1", At = DateTimeOffset.Now, Direction = "outgoing", Message = "Windows版でも、会話を読みやすくしたい。" },
-        new() { Id = "preview2", At = DateTimeOffset.Now, Direction = "incoming", Message = "**画像・カードの表示確認です。**", Image = true, ImageUrls = ["/api/message-images/user/preview.png"] },
-        new() { Id = "preview-secret", At = DateTimeOffset.Now, SecretRequest = new() { Id = "preview-secret", BotId = "preview", ToolId = "test", Label = "確認用の入力", Message = "これは表示確認用の人工データです。", Status = "pending" } },
-        new() { Id = "preview-question", At = DateTimeOffset.Now, OwnerQuestion = new() { Id = "preview-question", BotId = "preview", Question = "どちらから始めましょうか。", Options = ["画像を確認", "会話を書き出す"], AllowOther = true, Status = "open" } }
+        new() { Id = "preview1", At = DateTimeOffset.Now, Direction = "outgoing", Message = CoreStrings.Workspace_PreviewMessages_1 },
+        new() { Id = "preview2", At = DateTimeOffset.Now, Direction = "incoming", Message = CoreStrings.Workspace_PreviewMessages_2, Image = true, ImageUrls = ["/api/message-images/user/preview.png"] },
+        new() { Id = "preview-secret", At = DateTimeOffset.Now, SecretRequest = new() { Id = "preview-secret", BotId = "preview", ToolId = "test", Label = CoreStrings.Workspace_PreviewMessages_3, Message = CoreStrings.Workspace_LoadPreview_6, Status = "pending" } },
+        new() { Id = "preview-question", At = DateTimeOffset.Now, OwnerQuestion = new() { Id = "preview-question", BotId = "preview", Question = CoreStrings.Workspace_PreviewMessages_5, Options = [CoreStrings.Workspace_PreviewMessages_6, CoreStrings.Workspace_PreviewMessages_7], AllowOther = true, Status = "open" } }
     ];
     public void Dispose() { ReturnToProfile(); connection?.Cancel(); selection?.Cancel(); connection?.Dispose(); selection?.Dispose(); api?.Dispose(); api = null; attachmentPreviews.Clear(); avatars.Clear(); drafts.Clear(); }
 }
 
-public sealed record ActivityRow(string Text, string? StopBotId, string Name, bool Stopping) { public string StopLabel => Stopping ? "停止中…" : "止める"; }
-public sealed record AttachmentPreview<TImage>(ImageAttachment Data, TImage Preview, int Number = 0) { public string Name => Data.Name; public string RemoveLabel => $"添付画像{Number}を外す"; }
+public sealed record ActivityRow(string Text, string? StopBotId, string Name, bool Stopping) { public string StopLabel => Stopping ? CoreStrings.Workspace_StopLabel_1 : CoreStrings.StoreAccount_StopAllOthersConfirm_1; }
+public sealed record AttachmentPreview<TImage>(ImageAttachment Data, TImage Preview, int Number = 0) { public string Name => Data.Name; public string RemoveLabel => CoreStrings.Workspace_RemoveLabel_1(Number); }
 
 public sealed class MemberChoice(string id, string name, bool selected)
 {

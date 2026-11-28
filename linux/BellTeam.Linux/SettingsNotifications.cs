@@ -18,11 +18,11 @@ public sealed class StoredNotificationSwitch(SettingsStore store) : INotificatio
     public event PropertyChangedEventHandler? PropertyChanged;
     public bool Enabled { get; private set; } = store.Load().NotificationsEnabled;
     public string? Error { get; private set; }
-    public string Status => Error ?? (Enabled ? "アプリが起きている間だけ通知します。" : "通知はオフです。");
+    public string Status => Error ?? (Enabled ? LinuxStrings.DesktopNotifications_Status_1 : LinuxStrings.DesktopNotifications_Status_2);
     public Task SetEnabledAsync(bool enabled)
     {
         try { store.Save(store.Load() with { NotificationsEnabled = enabled }); Enabled = enabled; Error = null; }
-        catch (Exception error) { Error = "通知の設定を変更できませんでした。" + error.Message; }
+        catch (Exception error) { Error = LinuxStrings.DesktopNotifications_SetEnabledAsync_1(error.Message); }
         foreach (var name in new[] { nameof(Enabled), nameof(Error), nameof(Status) }) PropertyChanged?.Invoke(this, new(name));
         return Task.CompletedTask;
     }

@@ -45,7 +45,7 @@ public sealed class ConversationRow : Button
         pin.Click += async (_, _) =>
         {
             try { await workspace.SetPinnedAsync(Entry.Target.Id, !Entry.Pinned); }
-            catch (Exception error) when (error is not OperationCanceledException) { workspace.ReportActionError("ピン留めを変えられませんでした。" + error.Message); }
+            catch (Exception error) when (error is not OperationCanceledException) { workspace.ReportActionError(LinuxStrings.ConversationRow_ConversationRow_1(error.Message)); }
         };
         Update(entry);
     }
@@ -56,7 +56,7 @@ public sealed class ConversationRow : Button
         Entry = entry;
         if (avatar.Entry?.AvatarUrl != entry.AvatarUrl || avatar.Entry?.Name != entry.Name || avatar.Entry?.Bot?.Color != entry.Bot?.Color || avatar.Entry?.Bot?.Avatar != entry.Bot?.Avatar) avatar.Entry = entry;
         name.Text = entry.Name; badge.Text = entry.FastModeBadge; pinMark.Text = entry.Pinned ? "  📌" : "";
-        pin.Header = entry.Pinned ? "ピン留めを外す" : "ピン留め"; ContextMenu = entry.IsMember ? menu : null;
+        pin.Header = entry.Pinned ? LinuxStrings.ConversationRow_Update_1 : LinuxStrings.ConversationRow_Update_2; ContextMenu = entry.IsMember ? menu : null;
         summary.Text = entry.PreviewText; summary.MaxLines = entry.IsMember ? 2 : 1;
         seatLaunch.Text = entry.SeatLaunchLine; seatLaunch.IsVisible = entry.SeatLaunchLine is not null;
         seatApproval.Text = entry.SeatApprovalBadge ?? ""; seatApproval.IsVisible = entry.SeatApprovalBadge is not null;

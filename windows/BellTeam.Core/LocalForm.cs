@@ -17,9 +17,12 @@ public static class LocalFormIds
 {
     // Test purchases (TestFlight / App Review) are Apple Sandbox transactions; every BellTeam client takes them (Owner 2026-11-24, after fox refused iPhone 199 with sandbox_refused). Play license-test purchases carry no such flag in the library: Play's own signature check takes them.
     public const bool AppleAcceptsSandbox = true;
-    public const string AppleBundleId = "dev.kitepon.bellbot", ProductId = "dev.kitepon.bellbot.monthly", PlayPackage = "dev.kitepon.bellbot";
+    public const string AppleBundleId = "dev.kitepon.bellbot";
+    public const string ProductId = "dev.kitepon.bellbot.monthly";
+    public const string PlayPackage = "dev.kitepon.bellbot";
     // Apple's web sign-in of a device that is not Apple's (library contract 1.46): BellTeam's Services ID and the library's return page registered on it (Tronie/Mint 2026-11-24).
-    public const string AppleServicesId = "dev.kitepon.bellbot.signin", AppleReturnUrl = "https://login-billing.kitepon.dev/apple-return";
+    public const string AppleServicesId = "dev.kitepon.bellbot.signin";
+        public const string AppleReturnUrl = "https://login-billing.kitepon.dev/apple-return";
     // Every Google client id of BellTeam (Web, iOS, Android, Desktop): the audiences a phone's token may carry.
     public static readonly string[] GoogleClientIds = new[] { "ld7o5f8j3smgqu2h1va43lt4au031s3i", "rmloup01smiuuv79m0tga49vtpobnsn4", "4ks1an9gat7npa9fdkok70kadrsp80rt", "7qi9ui73upodrlerlotlftk3vk82hprp", "be6dklphci1vbljimpg3ljpr5nc19cvv", "ktbg3e8931u0jv94c2fhccrig8ppau78", "lofu7qohq45fhbfup8k3ottlgat415pk" }
         .Select(id => "316260984663-" + id + ".apps.googleusercontent.com").ToArray();
@@ -33,57 +36,64 @@ public static class LocalFormIds
 // The one deviation: Windows/Linux name the private-network step (PrivateNetwork), which the contract asks of a PC whose network is marked Public. Never 「同じWi-Fi」: a wired PC on the same LAN qualifies (the Owner, contract 11.12).
 public static class LocalFormText
 {
-    public const string CardTitle = "BellTeamの購読";
-    public const string StatusUnpaid = "購読はまだありません。";
+    public static string CardTitle  => CoreStrings.LocalForm_CardTitle_1;
+    public static string StatusUnpaid  => CoreStrings.LocalForm_StatusUnpaid_1;
     // "購読中です。（{date time}まで）"; no "（…）" when the purchase has no end date.
-    public static string Status(DateTimeOffset? until) => until is { } end ? "購読中です。（" + End(end) + "まで）" : "購読中です。";
+    public static string Status(DateTimeOffset? until) => until is { } end ? CoreStrings.LocalForm_Status_1(End(end)) : CoreStrings.LocalForm_Status_2;
     // Kept for the cards that show the paid line: it is the status line of the table.
     public static string Paid(DateTimeOffset until) => Status(until);
-    public const string PaidOk = "購読を確認しました。";
-    public const string Title = "購読しているスマホで確認する";
-    public const string Lead = "この端末にQRを出します。2台は同じネットワーク（同じLAN）につないでください。";
-    public const string Google = "QRを出す（Google）";
-    public const string Apple = "QRを出す（Apple）";
-    public const string QrLabel = "確認用のQRコード";
-    public const string Waiting = "スマホの返事を待っています";
+    public static string PaidOk  => CoreStrings.LocalForm_PaidOk_1;
+    public static string Title  => CoreStrings.LocalForm_Title_1;
+    public static string Lead  => CoreStrings.LocalForm_Lead_1;
+    public static string Google  => CoreStrings.LocalForm_Google_1;
+    public static string Apple  => CoreStrings.LocalForm_Apple_1;
+    public static string QrLabel  => CoreStrings.LocalForm_QrLabel_1;
+    public static string Waiting  => CoreStrings.LocalForm_Waiting_1;
     // time = when the QR stops being taken (10 minutes after it was shown).
-    public static string WaitingUntil(DateTimeOffset expiry) => "スマホの返事を待っています（" + expiry.ToLocalTime().ToString("H:mm") + "まで）";
-    public const string Cancel = "やめる";
-    public const string PeriodEnded = "購読の期間が終わっています。新しいQRを出してください。";
+    public static string WaitingUntil(DateTimeOffset expiry) => CoreStrings.LocalForm_WaitingUntil_1(expiry.ToLocalTime().ToString(CoreStrings.Pattern_Time));
+    public static string Cancel  => CoreStrings.AccountDeletionText_ConfirmNo_1;
+    public static string PeriodEnded  => CoreStrings.LocalForm_PeriodEnded_1;
     // Not in the table: the cards of Linux/Android show them today; Windows' firewall step is the contract's (Windows, first listen).
-    public const string Window = "このQRは、このパソコンが待っている間だけ使えます（10分）。";
-    public const string NewQr = "新しいQRを出す";
-    public const string Firewall = "Windowsのファイアウォールの確認が出たら、許可してください。";
+    public static string Window  => CoreStrings.LocalForm_Window_1;
+    public static string NewQr  => CoreStrings.LocalForm_NewQr_1;
+    public static string Firewall  => CoreStrings.LocalForm_Firewall_1;
     // Shown under the QR while the PC waits for the phone's reply (Owner's fox with ESET, 2026-11-24): what to change when the answer never arrives. PublicNetwork only when Windows classes the connected network Public.
-    public const string PublicNetwork = "このパソコンのネットワークが「パブリック」になっているため、スマホの返事を受け取れないことがあります。Windowsの「設定」→「ネットワークとインターネット」で、つないでいるネットワークを「プライベート」に変えてください。";
-    public const string Blocked = "それでも返事が届かない時は、セキュリティソフトの設定で、BellTeamの通信（同じネットワーク内の受信）を許可してください。";
+    public static string PublicNetwork  => CoreStrings.LocalForm_PublicNetwork_1;
+    public static string Blocked  => CoreStrings.LocalForm_Blocked_1;
     // BellTeam's own guidance (the Owner, contract 1.50: 0.22.1 removed the library's LocalGuidance), word for word on every client. FirstSignIn: on the first sign-in screen, before the Apple / Google buttons. Qr: beside the local form's QR.
     // The first screen (the Owner 2026-11-24: the parent-approval process on the first screen, 決裁箱 0.2.2 as the model): the app's name, one line of purpose, then the sign-in; after sign-in on a device not yet approved, this title over the QR with its validity.
-    public const string AppName = "BellTeam", Purpose = "AIのチームに、スマホやPCから指示できます。", WaitingTitle = "使っている端末の承認を待っています";
-    public static string ValidUntil(DateTimeOffset expiry) => expiry.ToLocalTime().ToString("H:mm") + " まで有効";
-    public const string FirstSignIn = "すでにほかの端末で使っている方は、同じアカウントでサインインしてから、次に出るQRコードを使用中の端末のカメラで読んでください。";
+    public const string AppName = "BellTeam";
+            public static string Purpose  => CoreStrings.LocalForm_Purpose_1;
+            public static string WaitingTitle  => CoreStrings.LocalForm_WaitingTitle_1;
+    public static string ValidUntil(DateTimeOffset expiry) => CoreStrings.LocalForm_ValidUntil_1(expiry.ToLocalTime().ToString(CoreStrings.Pattern_Time));
+    public static string FirstSignIn  => CoreStrings.LocalForm_FirstSignIn_1;
     // Devices that cannot become a parent (Windows and Linux only; the Owner 2026-11-24): the lead above the sign-in buttons. iPhone, Mac and Android keep FirstSignIn.
-    public const string FirstSignInChildOnly = "本アプリケーションを使用するには、iPhone、iPad、Mac、Android等の購読済みの端末で、サインイン後に表示されるQRコードを読み取る必要があります。";
-    public const string Qr = "親となる端末（課金操作をするカメラのあるスマートフォンがお勧め）のカメラでQRコードを読んでください。";
+    public static string FirstSignInChildOnly  => CoreStrings.LocalForm_FirstSignInChildOnly_1;
+    public static string Qr  => CoreStrings.LocalForm_Qr_1;
     // login-billing 1.60 (Owner 2026-11-27, K-A9DW3Q): the join code beside the QR, to see and copy (it holds an identity token, so it is pasted, not typed), and the words around the return link of a phone that could not reach this device.
-    public const string CodeLabel = "参加コード", CodeCopy = "コードをコピー", CodeCopied = "コピーしました";   // the same words as ChildJoinText.CodeLabel/CopyCode (Windows)
-    public const string CodeHint = "QRを読めない時は、このコードをコピーして、親となる端末の「コードを貼り付ける」に貼り付けてください。";
-    public const string PasteLabel = "コードを貼り付ける", PasteUse = "このコードで承認する";
-    public const string ReturnLead = "相手の端末には直接届きませんでした。次のリンクで、QRを出している端末に戻ってください。", ReturnOpen = "リンクを開く", ReturnCopy = "リンクをコピー";
-    public const string OutdatedPeer = "QRが正しくないか、相手の端末のBellTeamが古い可能性があります。2台とも最新版に更新してから、相手の画面で新しいQRを出してください。";
-    public const string PermissionDenied = "設定でこのアプリのローカルネットワークを許可してから、新しいQRでお試しください。";
-    public const string ApproveLead = "承認したい端末に出ているQRを読み取ります。自分で始めたものだけ承認してください。2台は同じネットワーク（同じLAN）につないでください。";
-    private static string End(DateTimeOffset end) => end.ToLocalTime().ToString("yyyy年M月d日 H:mm");
+    public static string CodeLabel  => CoreStrings.ChildJoin_CodeLabel_1;
+        public static string CodeCopy  => CoreStrings.ChildJoin_CopyCode_1;
+        public static string CodeCopied  => CoreStrings.LocalForm_CodeCopied_1;
+    public static string CodeHint  => CoreStrings.LocalForm_CodeHint_1;
+    public static string PasteLabel  => CoreStrings.LocalForm_PasteLabel_1;
+    public static string PasteUse  => CoreStrings.LocalForm_PasteUse_1;
+    public static string ReturnLead  => CoreStrings.LocalForm_ReturnLead_1;
+    public static string ReturnOpen  => CoreStrings.LocalForm_ReturnOpen_1;
+    public static string ReturnCopy  => CoreStrings.LocalForm_ReturnCopy_1;
+    public static string OutdatedPeer  => CoreStrings.LocalForm_OutdatedPeer_1;
+    public static string PermissionDenied  => CoreStrings.LocalForm_PermissionDenied_1;
+    public static string ApproveLead  => CoreStrings.LocalForm_ApproveLead_1;
+    private static string End(DateTimeOffset end) => end.ToLocalTime().ToString(CoreStrings.GoalModels_Date_1);
 
     // The outcomes of a try in the table's sentences. Paid is spoken by Status / PaidOk.
     public static string Of(LocalFormOutcome outcome) => outcome switch
     {
-        LocalFormOutcome.SameWifi => "スマホからこの端末に届きませんでした。2台を同じネットワーク（同じLAN）につないでから、もう一度お試しください。",
-        LocalFormOutcome.PrivateNetwork => "スマホからこの端末に届きませんでした。2台を同じネットワーク（同じLAN）につないでから、もう一度お試しください。このパソコンのネットワークは「プライベート ネットワーク」にしてください。",
-        LocalFormOutcome.NoPurchase => "その端末には購読がありません。購読している端末で読み取ってください。",
-        LocalFormOutcome.AnotherAccount => "別のアカウントです。相手の端末と同じアカウントでサインインしてください。",
-        LocalFormOutcome.Refused => "QRが正しくありません。相手の画面で新しいQRを出してください。",
-        LocalFormOutcome.Ended => "QRの待ち時間（10分）が過ぎました。新しいQRを出してください。",
+        LocalFormOutcome.SameWifi => CoreStrings.LocalForm_Of_1,
+        LocalFormOutcome.PrivateNetwork => CoreStrings.LocalForm_Of_2,
+        LocalFormOutcome.NoPurchase => CoreStrings.LocalForm_Of_3,
+        LocalFormOutcome.AnotherAccount => CoreStrings.LocalForm_Of_4,
+        LocalFormOutcome.Refused => CoreStrings.LocalForm_Of_5,
+        LocalFormOutcome.Ended => CoreStrings.LocalForm_Of_6,
         LocalFormOutcome.LocalNetworkDenied => PermissionDenied,
         LocalFormOutcome.Lapsed => PeriodEnded,
         _ => throw new ArgumentOutOfRangeException(nameof(outcome), outcome, "Paid is spoken by Status / PaidOk"),
@@ -99,16 +109,16 @@ public static class LocalFormText
         "request_invalid" or "other_request" => OutdatedPeer,
         "other_account" => Of(LocalFormOutcome.AnotherAccount),
         "request_expired" or "request_gone" => Of(LocalFormOutcome.Ended),
-        "device_refused" => "相手が返事を受け取りませんでした。相手の画面で新しいQRを出してください。",
-        "connection_closed" => "相手との接続が途中で切れました。新しいQRでもう一度お試しください。",
+        "device_refused" => CoreStrings.LocalForm_Failure_1,
+        "connection_closed" => CoreStrings.LocalForm_Failure_2,
         "ended" => PeriodEnded,
-        "purchase_failed" or "purchase_unverified" => "購入を完了できませんでした。もう一度お試しください。",   // the Apple app's sentence (LocalAccount.words), no code
-        "not_paid" or "revoked" or "proof_invalid" or "not_this_app" or "product_unknown" or "sandbox_refused" => "購入を確かめられませんでした（" + code + "）。",
-        "bad_request" or "provider_unsupported" => "この端末ではそのアカウントでサインインできません。",
-        "network" or "unreachable" => "つながりません。ネットワークを確かめて、もう一度お試しください。",
-        "signin_required" => "サインインしてから、もう一度お試しください。",
-        "return_not_received" => "サインインの結果が戻ってきませんでした。もう一度お試しください。",
-        "signin_failed" => detail is { Length: > 0 } why ? "サインインできませんでした（" + why + "）。" : "サインインできませんでした。もう一度お試しください。",
-        _ => "処理できませんでした（" + code + "）。",
+        "purchase_failed" or "purchase_unverified" => CoreStrings.LocalForm_Failure_3,   // the Apple app's sentence (LocalAccount.words), no code
+        "not_paid" or "revoked" or "proof_invalid" or "not_this_app" or "product_unknown" or "sandbox_refused" => CoreStrings.LocalForm_Failure_4(code),
+        "bad_request" or "provider_unsupported" => CoreStrings.LocalForm_Failure_5,
+        "network" or "unreachable" => CoreStrings.LocalForm_Failure_6,
+        "signin_required" => CoreStrings.LocalForm_Failure_7,
+        "return_not_received" => CoreStrings.LocalForm_Failure_8,
+        "signin_failed" => detail is { Length: > 0 } why ? CoreStrings.LocalForm_Failure_9(why) : CoreStrings.LocalForm_Failure_10,
+        _ => CoreStrings.LocalForm_Failure_11(code),
     };
 }

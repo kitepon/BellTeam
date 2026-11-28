@@ -72,7 +72,7 @@ public sealed class WorkGraphCanvas : Control
         try { await Model.RunAsync(opener, source.Token); }
         catch (OperationCanceledException) when (source.IsCancellationRequested) { }
         // A bug in the model is shown, not swallowed: the stream is not retried.
-        catch (Exception error) { fault = "相関図でエラーが起きました: " + error.Message; }
+        catch (Exception error) { fault = LinuxStrings.WorkGraphView_RunAsync_1(error.Message); }
         finally
         {
             if (ReferenceEquals(cancel, source)) { cancel = null; ticker.Stop(); }
@@ -118,11 +118,11 @@ public sealed class WorkGraphCanvas : Control
     {
         var next = Model.Connection switch
         {
-            WorkGraphConnection.Unsupported => ("このサーバーでは相関図をまだ使えません", (string?)null),
+            WorkGraphConnection.Unsupported => (LinuxStrings.WorkGraphView_UpdateStatus_1, (string?)null),
             WorkGraphConnection.Failed => (Model.FailedMessage, null),
-            WorkGraphConnection.Reconnecting => (null, "再接続中…"),
-            WorkGraphConnection.Unreadable => (null, "相関図の応答を読めませんでした。再接続しています…"),
-            WorkGraphConnection.Live when Model.Degraded => (null, "一部の情報を取得できていません"),
+            WorkGraphConnection.Reconnecting => (null, LinuxStrings.WorkGraphView_UpdateStatus_2),
+            WorkGraphConnection.Unreadable => (null, LinuxStrings.WorkGraphView_UpdateStatus_3),
+            WorkGraphConnection.Live when Model.Degraded => (null, LinuxStrings.WorkGraphView_UpdateStatus_4),
             _ => (null, null)
         };
         if (fault is not null) next = (fault, null);
@@ -389,7 +389,7 @@ public sealed class WorkGraphCanvas : Control
         // A soft violet circle (220 pt, 8 %) stands in for the Mac's blurred one.
         var glow = new RadialGradientBrush { GradientStops = [new GradientStop(Color.FromArgb(20, 0x61, 0x47, 0xD4), .55), new GradientStop(Color.FromArgb(0, 0x61, 0x47, 0xD4), 1)] };
         context.DrawEllipse(glow, null, center, 160, 160);
-        var text = WorkGraphText.Caption("いま動いているメンバーはいません", NameFontSize, WorkGraphText.Muted);
+        var text = WorkGraphText.Caption(LinuxStrings.WorkGraphView_DrawEmpty_1, NameFontSize, WorkGraphText.Muted);
         context.DrawText(text, new Point(center.X - text.Width / 2, center.Y - text.Height / 2));
     }
 
@@ -502,11 +502,11 @@ public sealed class WorkGraphCanvas : Control
         {
             if (!Model.Bodies.TryGetValue(item.Id, out var body)) return null;
             var minutes = Math.Max(0, (int)((Model.Clock() - body.ActiveSince) / 60));
-            return body.Node.Working ? $"{body.Node.Name}、作業中、{minutes}分前から" : $"{body.Node.Name}、依頼の相手";
+            return body.Node.Working ? LinuxStrings.WorkGraphView_Describe_1(body.Node.Name, minutes) : LinuxStrings.WorkGraphView_Describe_2(body.Node.Name);
         }
         if (!Model.Lines.TryGetValue(item.Id, out var line)) return null;
         string Name(string id) => Model.Bodies.TryGetValue(id, out var body) ? body.Node.Name : id;
-        var sentence = $"{Name(line.Edge.From)}から{Name(line.Edge.To)}へ依頼";
+        var sentence = LinuxStrings.WorkGraphView_Describe_3(Name(line.Edge.From), Name(line.Edge.To));
         return line.Edge.ChipText is { } label ? $"{sentence}: {label}" : sentence;
     }
 
@@ -527,7 +527,7 @@ internal sealed class WorkGraphPeer(WorkGraphCanvas owner) : ControlAutomationPe
 {
     protected override AutomationControlType GetAutomationControlTypeCore() => AutomationControlType.Group;
     protected override string GetClassNameCore() => nameof(WorkGraphCanvas);
-    protected override string GetNameCore() => "相関図";
+    protected override string GetNameCore() => LinuxStrings.MainWindow_BuildSidebar_8;
     protected override IReadOnlyList<AutomationPeer> GetChildrenCore() => owner.Items().Select(item => (AutomationPeer)new WorkGraphItemPeer(this, owner, item)).ToList();
 }
 

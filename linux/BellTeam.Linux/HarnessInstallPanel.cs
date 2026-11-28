@@ -46,7 +46,7 @@ public sealed class HarnessInstallPanel : StackPanel
     {
         message.Text = Install.Message; message.Foreground = Install.NeedsAttention ? SettingsUi.Orange : SettingsUi.Muted;
         // As the Mac: a spinner while the server installs, the press is the primary button for an AI that cannot run and a quiet one for an AI that runs, and says 始めています… while it is sent.
-        var label = pressing ? "始めています…" : Install.ButtonLabel; var missing = Install.State is "not_installed" or "installing" or "failed";
+        var label = pressing ? LinuxStrings.HarnessInstallPanel_Show_1 : Install.ButtonLabel; var missing = Install.State is "not_installed" or "installing" or "failed";
         press.Content = label; AutomationProperties.SetName(press, name + " " + label);
         press.Background = missing ? SettingsUi.Violet : BellTheme.ButtonFill; press.Foreground = missing ? Brushes.White : SettingsUi.Ink;
         spinner.IsVisible = Install.Busy || Install.State == "installing";
@@ -78,7 +78,7 @@ public sealed class HarnessInstallPanel : StackPanel
                 await Task.Delay(wait, lifetime);
                 try { Apply((await api.InstallStatusAsync(harness, lifetime)).Install); Say(null); wait = Every; }
                 catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { return; }
-                catch (Exception error) { Say("状態を読めませんでした。読み直します。" + error.Message); wait = TimeSpan.FromTicks(Math.Min(Longest.Ticks, wait.Ticks * 2)); }
+                catch (Exception error) { Say(LinuxStrings.HarnessInstallPanel_PollAsync_1(error.Message)); wait = TimeSpan.FromTicks(Math.Min(Longest.Ticks, wait.Ticks * 2)); }
             }
         }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }

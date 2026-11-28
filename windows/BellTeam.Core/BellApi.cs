@@ -17,9 +17,9 @@ public sealed class BellApiException(string message, HttpStatusCode? status = nu
     public static bool IsResultUnconfirmed(Exception error) => error is not BellApiException { Status: not null } || (int)((BellApiException)error).Status! >= 500;
     // The update stream closed after it had opened (Mac: 更新の接続が切れました。再接続しています。).
     public const string StreamEndedCode = "EVENTS_ENDED";
-    public const string StreamEndedMessage = "更新の接続が切れました。再接続しています。";
+    public static string StreamEndedMessage  => CoreStrings.BellApi_StreamEndedMessage_1;
     // Mac events(): connecting failed (network, 429, 5xx); retried by the caller.
-    public const string ConnectFailedMessage = "更新へ接続できません。再接続しています。";
+    public static string ConnectFailedMessage  => CoreStrings.BellApi_ConnectFailedMessage_1;
     // A 403 that carries a server error code is an app refusal (owner required), not a lost sign-in.
     public bool RequiresLogin => Status is HttpStatusCode.Unauthorized || Status is HttpStatusCode.Forbidden && Code is null || (int?)Status is >= 300 and < 400;
 }
@@ -78,7 +78,7 @@ public sealed class BellApi : IDisposable
         using var request = new HttpRequestMessage(HttpMethod.Post, target.Path + "/messages") { Content = JsonContent.Create(body, options: Json) };
         var result = await JsonAsync<JsonElement>(request, token);
         if (result.ValueKind == JsonValueKind.Object && result.TryGetProperty(target.IsRoom ? "id" : "delivery_id", out var id) && id.ValueKind == JsonValueKind.String && id.GetString() is { Length: > 0 } accepted) return accepted;
-        throw new BellApiException("BellTeamからの送信応答を読み取れませんでした。");
+        throw new BellApiException(CoreStrings.BellApi_SendAsync_1);
     }
 
     // Never retried by the caller: a stop whose result is unknown is reported, not resent.
@@ -86,7 +86,7 @@ public sealed class BellApi : IDisposable
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, new ChatTarget(botId, false).Path + "/stop");
         var (result, status) = await JsonWithStatusAsync<BotStopResponse>(request, token);
-        return result.Outcome(status, botId) ?? throw new BellApiException("BellTeamからの応答を読み取れませんでした。");
+        return result.Outcome(status, botId) ?? throw new BellApiException(CoreStrings.BellApi_StopBotAsync_1);
     }
     public async Task<T> PostAsync<T>(string path, object body, CancellationToken token = default, TimeSpan? limit = null)
         => await WriteAsync<T>(HttpMethod.Post, path, body, token, limit);
@@ -114,7 +114,7 @@ public sealed class BellApi : IDisposable
             request.Headers.CacheControl = new CacheControlHeaderValue { NoStore = true };
             return (await JsonAsync<SecretResponse>(request, token)).Request;
         }
-        catch (Exception) { throw new BellApiException("登録結果を確認できませんでした。閉じて最新の状態を確認してください。"); }
+        catch (Exception) { throw new BellApiException(CoreStrings.BellApi_FinishSecretAsync_1); }
     }
 
     public async Task<OwnerQuestion> AnswerAsync(string id, string? choice, string? text, CancellationToken token = default)
@@ -128,14 +128,14 @@ public sealed class BellApi : IDisposable
     {
         var url = new Uri(Origin, path);
         if (url.GetLeftPart(UriPartial.Authority) != Origin.GetLeftPart(UriPartial.Authority))
-            throw new BellApiException("画像の接続先がBellTeamと異なります。");
+            throw new BellApiException(CoreStrings.BellApi_ImageAsync_1);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
         timeout.CancelAfter(TimeSpan.FromSeconds(30));
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         using var response = await client.SendAsync(request, timeout.Token);
         await ValidateAsync(response, timeout.Token);
         if (response.Content.Headers.ContentType?.MediaType is not ("image/png" or "image/jpeg" or "image/webp" or "image/gif"))
-            throw new BellApiException("画像ではない応答を受け取りました。");
+            throw new BellApiException(CoreStrings.BellApi_ImageAsync_2);
         return await response.Content.ReadAsByteArrayAsync(timeout.Token);
     }
 
@@ -143,7 +143,7 @@ public sealed class BellApi : IDisposable
     {
         var document = await GetAsync<JsonElement>(target.Path + "/export", token);
         if (document.ValueKind != JsonValueKind.Object || !document.TryGetProperty("format", out var format) || format.GetString() != "bellteam.conversation.v1")
-            throw new BellApiException("会話の書き出し形式を読み取れませんでした。");
+            throw new BellApiException(CoreStrings.BellApi_ExportAsync_1);
         return JsonSerializer.SerializeToUtf8Bytes(document, new JsonSerializerOptions(Json) { WriteIndented = true });
     }
 
@@ -163,7 +163,7 @@ public sealed class BellApi : IDisposable
         if (status is >= 300 and < 400 || status == 401 || status == 403 && !isJson)
         {
             AuthenticationRequired?.Invoke();
-            throw new BellApiException("Cloudflare Accessへログインしてください。", response.StatusCode);
+            throw new BellApiException(CoreStrings.BellApi_RawAsync_1, response.StatusCode);
         }
         if (!isJson) return (status, null);
         try { using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(timeout.Token)); return (status, document.RootElement.Clone()); }
@@ -179,13 +179,13 @@ public sealed class BellApi : IDisposable
         using var response = await client.SendAsync(request, timeout.Token);
         await ValidateAsync(response, timeout.Token);
         if (response.Content.Headers.ContentType?.MediaType != "application/json")
-            throw new BellApiException("BellTeamからの応答がJSONではありません。接続先を確認してください。");
+            throw new BellApiException(CoreStrings.BellApi_JsonWithStatusAsync_1);
         try
         {
             return (await response.Content.ReadFromJsonAsync<T>(Json, timeout.Token)
-                ?? throw new BellApiException("BellTeamからの応答が空です。"), (int)response.StatusCode);
+                ?? throw new BellApiException(CoreStrings.BellApi_JsonWithStatusAsync_2), (int)response.StatusCode);
         }
-        catch (JsonException error) { throw new BellApiException("BellTeamからの応答を読み取れませんでした。" + error.Message); }
+        catch (JsonException error) { throw new BellApiException(CoreStrings.BellApi_JsonWithStatusAsync_3(error.Message)); }
     }
 
     private async Task ValidateAsync(HttpResponseMessage response, CancellationToken token)
@@ -202,7 +202,7 @@ public sealed class BellApi : IDisposable
         if (status is >= 300 and < 400 || status is 401 or 403)
         {
             AuthenticationRequired?.Invoke();
-            throw new BellApiException("Cloudflare Accessへログインしてください。", response.StatusCode);
+            throw new BellApiException(CoreStrings.BellApi_RawAsync_1, response.StatusCode);
         }
         if (response.IsSuccessStatusCode) return;
         body ??= await response.Content.ReadAsStringAsync(token);
@@ -220,7 +220,7 @@ public sealed class BellApi : IDisposable
                 else if (root.TryGetProperty("error", out var error) && error.ValueKind == JsonValueKind.String)
                     detail = error.GetString()!;
             }
-            catch (JsonException) { detail += "（エラー応答のJSONを読み取れませんでした）"; }
+            catch (JsonException) { detail += CoreStrings.BellApi_ValidateAsync_2; }
         }
         throw new BellApiException("BellTeam: " + detail, response.StatusCode, code, reason);
     }
@@ -270,7 +270,7 @@ public sealed class BellApi : IDisposable
             await ValidateAsync(response, handshake.Token);
             handshake.CancelAfter(Timeout.InfiniteTimeSpan);
             if (response.Content.Headers.ContentType?.MediaType != "text/event-stream")
-                throw new BellApiException("新着の応答がSSEではありません。");
+                throw new BellApiException(CoreStrings.BellApi_OpenEventStreamAsync_1);
             return response;
         }
         catch { response.Dispose(); throw; }

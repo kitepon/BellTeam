@@ -6,24 +6,35 @@ namespace BellTeam.Core;
 /// </summary>
 public static class ChildJoinText
 {
-    public const string Title = "決裁箱につなぎます", Lead = "この端末を、あなたの決裁箱に子の端末として追加します。";
-    public const string WaitingTitle = "決裁箱の承認を待っています", QrLabel = "決裁箱につなぐQRコード";
+    public static string Title  => CoreStrings.ChildJoin_Title_1;
+    public static string Lead  => CoreStrings.ChildJoin_Lead_1;
+    public static string WaitingTitle  => CoreStrings.ChildJoin_WaitingTitle_1;
+    public static string QrLabel  => CoreStrings.ChildJoin_QrLabel_1;
     // The code beside the QR (login-billing 1.60): Approval Box's own paste field takes it, which is how a phone that is also the parent joins.
     // CodeHint: a PC (the QR is read by the phone that has 決裁箱). CodeHintPhone: a phone, where the parent is usually this same phone, so the first action opens the code in 決裁箱; the other cases follow in the same words.
-    public const string CodeOpen = "決裁箱で開く";
-    public const string CodeHint = "決裁箱のあるスマートフォンでQRコードを読むか、このコードをコピーして、決裁箱の「ほかの端末を追加する」に貼り付けてください。";
-    public const string CodeHintPhone = "このスマートフォンに決裁箱がある時は、「決裁箱で開く」を押してください。ほかの端末で承認する時は、その端末でQRコードを読むか、このコードをコピーして決裁箱の「ほかの端末を追加する」に貼り付けてください。";
-    public const string Failed = "つなげませんでした。もう一度つないでください。";
+    public static string CodeOpen  => CoreStrings.ChildJoin_CodeOpen_1;
+    public static string CodeHint  => CoreStrings.ChildJoin_CodeHint_1;
+    public static string CodeHintPhone  => CoreStrings.ChildJoin_CodeHintPhone_1;
+    public static string Failed  => CoreStrings.ChildJoin_Failed_1;
     // The join code beside the QR (login-billing 0.25, the Owner's K-A9DW3Q): for a QR that cannot be read, e.g. on the same phone. Wording is BellTeam's own until Rapi's table says otherwise.
-    public const string CodeLabel = "参加コード", CopyCode = "コードをコピー";
-    public const string CodeLead = "QRを読めない時は、このコードをコピーして、決裁箱のアプリに貼り付けてください。";
+    public static string CodeLabel  => CoreStrings.ChildJoin_CodeLabel_1;
+        public static string CopyCode  => CoreStrings.ChildJoin_CopyCode_1;
+    public static string CodeLead  => CoreStrings.ChildJoin_CodeLead_1;
     // other_account: this device and the parent are signed in to different accounts (no server, no ID).
-    public const string OtherAccount = "この端末と親の端末で、サインインしているアカウントが違います。親の端末と同じアカウント（AppleかGoogle）でこの端末にサインインして、もう一度QRコードを出してください。";
-    public const string Removed = "決裁箱で、この端末のつなぎが外されました。";
-    public const string Joining = "つないでいます…", Reconnecting = "つなぎ直しています", Joined = "決裁箱につながっています";
-    public const string NotEntitled = "Approval Boxの契約が必要です。契約はApproval Boxのアプリで行います。";
-    public const string UpdateRequired = "この版では、決裁箱をまだ使えません。アプリを更新してください。";
-    public const string Connect = "決裁箱につなぐ", ConnectAgain = "もう一度つなぐ", Leave = "つなぎを外す", LeaveYes = "外す", LeaveNo = "やめる", Retry = "今すぐ試す", Recheck = "確かめ直す";
+    public static string OtherAccount  => CoreStrings.ChildJoin_OtherAccount_1;
+    public static string Removed  => CoreStrings.ChildJoin_Removed_1;
+    public static string Joining  => CoreStrings.ChildJoin_Joining_1;
+    public static string Reconnecting  => CoreStrings.Approvals_DeviceReconnecting_1;
+    public static string Joined  => CoreStrings.ChildJoin_Joined_1;
+    public static string NotEntitled  => CoreStrings.Approvals_DeviceNotEntitled_1;
+    public static string UpdateRequired  => CoreStrings.Approvals_DeviceUpdateNeeded_1;
+    public static string Connect  => CoreStrings.ChildJoin_Connect_1;
+    public static string ConnectAgain  => CoreStrings.ChildJoin_ConnectAgain_1;
+    public static string Leave  => CoreStrings.ChildJoin_Leave_1;
+    public static string LeaveYes  => CoreStrings.ChildJoin_LeaveYes_1;
+    public static string LeaveNo  => CoreStrings.AccountDeletionText_ConfirmNo_1;
+    public static string Retry  => CoreStrings.ChildJoin_Retry_1;
+    public static string Recheck  => CoreStrings.ChildJoin_Recheck_1;
 
     /// <summary>The line under a failed join: the library's own code never reaches the person; only other_account has its own sentence.</summary>
     /// <summary>words: the library's own text for a local-network cause, shown word for word (login-billing 1.61).</summary>

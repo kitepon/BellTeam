@@ -13,23 +13,23 @@ public sealed record AiControl
     public string[] UnconfirmedBotIds { get; init; } = [];
     public string StatusText => State switch
     {
-        AiControlState.Enabled => "いまは全員が動ける状態です。",
-        AiControlState.Stopping => "全員へ停止の指示を送っています。",
-        AiControlState.Stopped => "全員へ停止の指示を送りました。OFFにすると、また依頼を受け付けます。",
-        _ => "止まったか確かめられませんでした。全体停止はONのままです。"
+        AiControlState.Enabled => CoreStrings.SettingsModels_StatusText_1,
+        AiControlState.Stopping => CoreStrings.SettingsModels_StatusText_2,
+        AiControlState.Stopped => CoreStrings.SettingsModels_StatusText_3,
+        _ => CoreStrings.SettingsModels_StatusText_4
     };
     // Trailing text of the 全体停止 row in the category list.
-    public string RowText => State switch { AiControlState.Stopped or AiControlState.Stopping => "停止中", AiControlState.Unconfirmed => "確認できません", _ => "動作中" };
+    public string RowText => State switch { AiControlState.Stopped or AiControlState.Stopping => CoreStrings.SettingsModels_RowText_1, AiControlState.Unconfirmed => CoreStrings.SettingsModels_RowText_2, _ => CoreStrings.SettingsModels_RowText_3 };
     public bool Alert => State == AiControlState.Unconfirmed;
     public bool CanRefresh => State is AiControlState.Stopping or AiControlState.Unconfirmed;
-    public string? UnconfirmedText => State == AiControlState.Unconfirmed && UnconfirmedBotIds.Length != 0 ? $"止まったことを確かめられなかったメンバー: {UnconfirmedBotIds.Length}人" : null;
+    public string? UnconfirmedText => State == AiControlState.Unconfirmed && UnconfirmedBotIds.Length != 0 ? CoreStrings.SettingsModels_UnconfirmedText_1(UnconfirmedBotIds.Length) : null;
     public static Dictionary<string, object?> Body(bool paused) => new() { ["paused"] = paused };
     // The PATCH is never resent; after a failure the current value is read again and this says what happened (null: nothing to add).
     public static string? FailureNote(int? status, AiControlState after) => status switch
     {
-        503 => "変更を保存できませんでした。現在の状態を表示しています。",
-        502 => after == AiControlState.Stopped ? null : "停止操作の結果を確認できませんでした。現在の状態を表示しています。",
-        _ => "通信後の現在の状態を読み直しました。"
+        503 => CoreStrings.SettingsModels_FailureNote_1,
+        502 => after == AiControlState.Stopped ? null : CoreStrings.SettingsModels_FailureNote_2,
+        _ => CoreStrings.SettingsModels_FailureNote_3
     };
 }
 public sealed record AiControlResponse { public required AiControl Control { get; init; } }
@@ -39,14 +39,14 @@ public sealed record BackgroundAgentSelection(string Harness, string Model, stri
 // Notice (a366) is GET /api/settings backgroundAgentNotice: set only while the stored selection is the retired Antigravity; it is never sent back.
 public sealed record BackgroundAgentRecord(string? Revision, BackgroundAgentSelection? Selection, string? Notice = null)
 {
-    public static string Describe(BackgroundAgentSelection selection) => string.Join(" · ", selection.Harness, selection.Model, selection.ReasoningEffort.Length == 0 ? "CLIの既定" : selection.ReasoningEffort);
-    public string Summary => Selection is null ? "未設定" : Describe(Selection);
+    public static string Describe(BackgroundAgentSelection selection) => string.Join(" · ", selection.Harness, selection.Model, selection.ReasoningEffort.Length == 0 ? CoreStrings.AvatarImages_DefaultValue_1 : selection.ReasoningEffort);
+    public string Summary => Selection is null ? CoreStrings.PlanningModels_StatusText_4 : Describe(Selection);
     // The first save must send expectedRevision: null explicitly; omitting the key is rejected by the server.
     public Dictionary<string, object?> UpdateBody(BackgroundAgentSelection draft) => new() { ["expectedRevision"] = Revision, ["harness"] = draft.Harness, ["model"] = draft.Model, ["reasoningEffort"] = draft.ReasoningEffort };
     public static BackgroundAgentRecord? Read(JsonElement settings)
     {
         if (!settings.TryGetProperty("backgroundAgent", out var value)) return null;
-        var record = value.Deserialize<BackgroundAgentRecord>(BellApi.Json) ?? throw new BellApiException("要約のAIの設定を読み取れませんでした。");
+        var record = value.Deserialize<BackgroundAgentRecord>(BellApi.Json) ?? throw new BellApiException(CoreStrings.SettingsModels_Read_1);
         return settings.TryGetProperty("backgroundAgentNotice", out var notice) && notice.ValueKind == JsonValueKind.String ? record with { Notice = notice.GetString() } : record;
     }
 }
@@ -60,14 +60,14 @@ public static class BackgroundAgentChoices
     // Decides saveability from the model catalog alone; a value missing from the catalog is never replaced by another.
     public static string? Problem(Dictionary<string, HarnessModels> catalog, BackgroundAgentSelection selection)
     {
-        if (selection.Harness.Length == 0) return "CLIを選んでください。";
-        if (!catalog.TryGetValue(selection.Harness, out var listed)) return "モデル候補を読み込めませんでした。";
+        if (selection.Harness.Length == 0) return CoreStrings.SettingsModels_Problem_1;
+        if (!catalog.TryGetValue(selection.Harness, out var listed)) return CoreStrings.ManagementModels_FastUnavailableReason_1;
         if (listed.Error is { } error) return error.Message;
-        if (selection.Model.Length == 0) return "モデルを選んでください。";
+        if (selection.Model.Length == 0) return CoreStrings.SettingsModels_Problem_3;
         var choice = listed.Models.FirstOrDefault(item => item.Id == selection.Model);
-        if (choice is null) return "保存されているモデルは現在の候補にありません。選び直してください。";
-        if (choice.Efforts.Length == 0) return selection.ReasoningEffort.Length == 0 ? null : "このモデルはエフォートを指定できません。";
-        return choice.Efforts.Contains(selection.ReasoningEffort) ? null : "このモデルで使えるエフォートを選んでください。";
+        if (choice is null) return CoreStrings.SettingsModels_Problem_4;
+        if (choice.Efforts.Length == 0) return selection.ReasoningEffort.Length == 0 ? null : CoreStrings.SettingsModels_Problem_5;
+        return choice.Efforts.Contains(selection.ReasoningEffort) ? null : CoreStrings.SettingsModels_Problem_6;
     }
 }
 
@@ -79,23 +79,23 @@ public enum HarnessTone { Muted, Good, Warning }
 // State text and action label of one AI-authentication row in the AI settings card (Mac HarnessAuthenticationRow).
 public sealed record HarnessRowState(string Title, HarnessTone Tone, string Action)
 {
-    public static readonly HarnessRowState Checking = new("確認中", HarnessTone.Muted, "確認する");
-    public static readonly HarnessRowState Unavailable = new("確認できません", HarnessTone.Warning, "確認する");
+    public static readonly HarnessRowState Checking = new(CoreStrings.SettingsModels_Checking_1, HarnessTone.Muted, CoreStrings.SettingsModels_Checking_2);
+    public static readonly HarnessRowState Unavailable = new(CoreStrings.SettingsModels_RowText_2, HarnessTone.Warning, CoreStrings.SettingsModels_Checking_2);
     // An unreadable status is shown as unavailable, never as 未認証.
     public static HarnessRowState From(string? status, bool? reloginSupported) => status switch
     {
-        "authenticated" => new("認証済み", HarnessTone.Good, reloginSupported == false ? "詳しく見る" : "認証し直す"),
-        "blocked" => new("未認証", HarnessTone.Warning, "認証する"),
-        "waiting" => new("認証中", HarnessTone.Muted, "続ける"),
+        "authenticated" => new(CoreStrings.SettingsModels_From_1, HarnessTone.Good, reloginSupported == false ? CoreStrings.SettingsModels_From_2 : CoreStrings.SettingsModels_From_3),
+        "blocked" => new(CoreStrings.SettingsModels_From_4, HarnessTone.Warning, CoreStrings.SettingsModels_From_5),
+        "waiting" => new(CoreStrings.SettingsModels_From_6, HarnessTone.Muted, CoreStrings.SettingsModels_From_7),
         _ => Unavailable
     };
     // One Claude account slot (「1stアカウント」/「2ndアカウント」): the same badge and button wording as the other AI rows (Mac f37b05a4).
     // a451: an AI that cannot run shows the install state in the row and the install button as its action.
     public static HarnessRowState FromInstall(HarnessCliInstall install) => install.State switch
     {
-        "not_installed" => new("未導入", HarnessTone.Warning, install.ButtonLabel),
-        "installing" => new("導入中", HarnessTone.Muted, install.ButtonLabel),
-        "failed" => new("導入できません", HarnessTone.Warning, install.ButtonLabel),
+        "not_installed" => new(CoreStrings.SettingsModels_FromInstall_1, HarnessTone.Warning, install.ButtonLabel),
+        "installing" => new(CoreStrings.SettingsModels_FromInstall_2, HarnessTone.Muted, install.ButtonLabel),
+        "failed" => new(CoreStrings.SettingsModels_FromInstall_3, HarnessTone.Warning, install.ButtonLabel),
         _ => Checking
     };
     public static HarnessRowState FromSlot(string? status) => From(status, reloginSupported: null);

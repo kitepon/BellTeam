@@ -14,13 +14,12 @@ public sealed record GoalBinding(string SessionId, string LaunchId, string Threa
 
 public static class GoalText
 {
-    private static readonly CultureInfo Japanese = CultureInfo.GetCultureInfo("ja-JP");
-    public static string Number(double value) => value.ToString("#,##0.###", Japanese);
-    public static string Date(string text) => DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var at) ? at.ToLocalTime().ToString("yyyy年M月d日 H:mm", Japanese) : text;
+    public static string Number(double value) => value.ToString("#,##0.###", CultureInfo.CurrentCulture);
+    public static string Date(string text) => DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var at) ? at.ToLocalTime().ToString(CoreStrings.GoalModels_Date_1, CultureInfo.CurrentCulture) : text;
     public static string StatusTitle(string status) => status switch
     {
-        "active" => "進行中", "paused" => "一時停止", "blocked" => "進行できない状態",
-        "usageLimited" => "利用制限", "budgetLimited" => "予算に到達", "complete" => "完了", _ => status
+        "active" => CoreStrings.GoalModels_StatusTitle_1, "paused" => CoreStrings.GoalModels_StatusTitle_2, "blocked" => CoreStrings.GoalModels_StatusTitle_3,
+        "usageLimited" => CoreStrings.GoalModels_StatusTitle_4, "budgetLimited" => CoreStrings.GoalModels_StatusTitle_5, "complete" => CoreStrings.GoalModels_StatusTitle_6, _ => status
     };
 }
 
@@ -42,8 +41,8 @@ public sealed record CodexGoal(string Text, string Status, long? Budget, long To
     public override string StatusTitle => GoalText.StatusTitle(Status);
     public override bool IsActive => Status == "active";
     public override bool IsPaused => Status == "paused";
-    public override string UsageText => $"使用量 {GoalText.Number(TokensUsed)} / 予算 {(Budget is { } budget ? GoalText.Number(budget) : "指定なし")} · 作業時間 {GoalText.Number(TimeUsedSeconds)}秒";
-    public override string? ElapsedText => GoalText.Number(TimeUsedSeconds) + "秒";
+    public override string UsageText => CoreStrings.GoalModels_UsageText_2(GoalText.Number(TokensUsed), (Budget is { } budget ? GoalText.Number(budget) : CoreStrings.GoalModels_UsageText_1), GoalText.Number(TimeUsedSeconds));
+    public override string? ElapsedText => CoreStrings.GoalModels_ElapsedText_1(GoalText.Number(TimeUsedSeconds));
 }
 
 public sealed record ClaudeGoalStatus(string Type, string Condition, bool Met, bool? Sentinel, long? Tokens, double? DurationMs, long? Iterations);
@@ -51,31 +50,31 @@ public sealed record ClaudeGoalStatus(string Type, string Condition, bool Met, b
 public sealed record ClaudeGoal(ClaudeGoalStatus Native, long? ReportedTurns) : NativeGoal
 {
     public override string Objective => Native.Condition;
-    public override string StatusTitle => "進行中";
+    public override string StatusTitle => CoreStrings.GoalModels_StatusTitle_1;
     public override bool IsActive => true;
     public override string UsageText
     {
         get
         {
             var parts = new List<string>();
-            if (Native.Tokens is { } tokens) parts.Add($"使用トークン {GoalText.Number(tokens)}");
-            if (Native.DurationMs is { } duration) parts.Add($"実行時間 {GoalText.Number(duration)}ミリ秒");
-            if (Native.Iterations is { } iterations) parts.Add($"反復数 {GoalText.Number(iterations)}");
-            if (ReportedTurns is { } turns) parts.Add($"CLI表示ターン数 {GoalText.Number(turns)}");
-            return parts.Count == 0 ? "使用量・作業時間はまだ取得していません。" : string.Join(" · ", parts);
+            if (Native.Tokens is { } tokens) parts.Add(CoreStrings.GoalModels_UsageText_3(GoalText.Number(tokens)));
+            if (Native.DurationMs is { } duration) parts.Add(CoreStrings.GoalModels_UsageText_4(GoalText.Number(duration)));
+            if (Native.Iterations is { } iterations) parts.Add(CoreStrings.GoalModels_UsageText_5(GoalText.Number(iterations)));
+            if (ReportedTurns is { } turns) parts.Add(CoreStrings.GoalModels_UsageText_6(GoalText.Number(turns)));
+            return parts.Count == 0 ? CoreStrings.GoalModels_UsageText_7 : string.Join(" · ", parts);
         }
     }
-    public override string? ElapsedText => Native.DurationMs is { } duration ? GoalText.Number(duration) + "ミリ秒" : null;
+    public override string? ElapsedText => Native.DurationMs is { } duration ? CoreStrings.GoalModels_ElapsedText_2(GoalText.Number(duration)) : null;
 }
 
 // "/goal status" (Active|UserPaused with a phase and a token count) or "goal detail" (display strings from the CLI).
 public sealed record GrokCurrentStatus(bool Detail, bool Active, bool Paused, string Phase, long? TokensUsed, string StatusDisplay, string? PhaseDisplay, string BudgetDisplay, string ElapsedDisplay)
 {
-    public string StatusTitle => Detail ? StatusDisplay : $"{(Paused ? "一時停止" : "進行中")} · {PhaseTitle}";
-    private string PhaseTitle => Phase switch { "Idle" => "待機", "Planning" => "計画中", _ => "実行中" };
+    public string StatusTitle => Detail ? StatusDisplay : $"{(Paused ? CoreStrings.GoalModels_StatusTitle_2 : CoreStrings.GoalModels_StatusTitle_1)} · {PhaseTitle}";
+    private string PhaseTitle => Phase switch { "Idle" => CoreStrings.GoalModels_PhaseTitle_1, "Planning" => CoreStrings.GoalModels_PhaseTitle_2, _ => CoreStrings.GoalModels_PhaseTitle_3 };
     public string UsageText => Detail
         ? string.Join(" · ", new[] { PhaseDisplay, BudgetDisplay, ElapsedDisplay }.OfType<string>())
-        : $"使用トークン {GoalText.Number(TokensUsed ?? 0)} · 経過 {ElapsedDisplay}";
+        : CoreStrings.GoalModels_UsageText_8(GoalText.Number(TokensUsed ?? 0), ElapsedDisplay);
 }
 
 public sealed record GrokGoal(string Text, GrokCurrentStatus Current) : NativeGoal
@@ -90,7 +89,7 @@ public sealed record GrokGoal(string Text, GrokCurrentStatus Current) : NativeGo
 
 public sealed record GoalNativeHistory(string Terminal, ClaudeGoalStatus Native)
 {
-    public string Title => Terminal == "cleared" ? "取消" : "達成";
+    public string Title => Terminal == "cleared" ? CoreStrings.GoalModels_Title_1 : CoreStrings.GoalModels_Title_2;
 }
 
 public sealed record GoalSnapshot(string BotId, GoalAvailability Availability, GoalCapabilities Capabilities, GoalFieldCapabilities FieldCapabilities, GoalBinding? Binding,
@@ -113,65 +112,65 @@ public sealed record GoalSnapshot(string BotId, GoalAvailability Availability, G
         {
             if (Goal is not { } goal) return [];
             var names = new List<string>();
-            if (!Capabilities.Edit || !(FieldCapabilities.Edit.Objective || FieldCapabilities.Edit.TokenBudget)) names.Add("編集");
-            if (goal.IsActive && !Capabilities.Pause) names.Add("一時停止");
-            if (goal.IsPaused && !Capabilities.Resume) names.Add("再開");
-            if (!Capabilities.Clear) names.Add("取り消し");
+            if (!Capabilities.Edit || !(FieldCapabilities.Edit.Objective || FieldCapabilities.Edit.TokenBudget)) names.Add(CoreStrings.GoalModels_UnavailableActions_1);
+            if (goal.IsActive && !Capabilities.Pause) names.Add(CoreStrings.GoalModels_StatusTitle_2);
+            if (goal.IsPaused && !Capabilities.Resume) names.Add(CoreStrings.GoalModels_UnavailableActions_3);
+            if (!Capabilities.Clear) names.Add(CoreStrings.GoalModels_UnavailableActions_4);
             return [.. names];
         }
     }
-    public string PageFootnote => (Capabilities.Pause || Capabilities.Resume ? "一時停止したゴールは再開できます。" : "") + (Capabilities.Clear ? "取り消すとゴールは消えます。" : "") + "今の処理を中断するには会話の停止ボタンを使ってください。";
-    public string UnavailableMessage => Message ?? (Availability == GoalAvailability.Unsupported ? "このメンバーではゴール機能を使えません。" : IsIdle ? "休止中です。メッセージを送ると再開します。" : "ゴールの状態を取得できません。");
-    public string? HistoryText => NativeHistory is { } history ? $"前のゴール：{history.Title} · {history.Native.Condition}" : null;
-    public string? ObservedText => ObservedAt is { } at ? "取得 " + GoalText.Date(at) : null;
+    public string PageFootnote => CoreStrings.GoalModels_PageFootnote_3((Capabilities.Pause || Capabilities.Resume ? CoreStrings.GoalModels_PageFootnote_1 : "") + (Capabilities.Clear ? CoreStrings.GoalModels_PageFootnote_2 : ""));
+    public string UnavailableMessage => Message ?? (Availability == GoalAvailability.Unsupported ? CoreStrings.GoalModels_UnavailableMessage_1 : IsIdle ? CoreStrings.GoalModels_UnavailableMessage_2 : CoreStrings.GoalModels_UnavailableMessage_3);
+    public string? HistoryText => NativeHistory is { } history ? CoreStrings.GoalModels_HistoryText_1(history.Title, history.Native.Condition) : null;
+    public string? ObservedText => ObservedAt is { } at ? CoreStrings.GoalModels_ObservedText_1(GoalText.Date(at)) : null;
     // Chat pill: the elapsed text beside the status, only for an available snapshot with a goal.
-    public string? PillElapsed => Availability == GoalAvailability.Available && Goal is { } goal ? goal.ElapsedText ?? "時間未取得" : null;
+    public string? PillElapsed => Availability == GoalAvailability.Available && Goal is { } goal ? goal.ElapsedText ?? CoreStrings.GoalModels_PillElapsed_1 : null;
 }
 
 public static class GoalParser
 {
-    private static BellApiException Bad(string detail) => new("BellTeamからの応答を読み取れませんでした。" + detail);
+    private static BellApiException Bad(string detail) => new(CoreStrings.BellApi_JsonWithStatusAsync_3(detail));
     private static string Snake(string name) => string.Concat(name.Select(letter => char.IsUpper(letter) ? "_" + char.ToLowerInvariant(letter) : letter.ToString()));
     private static JsonElement? Find(JsonElement parent, string name)
     {
-        if (parent.ValueKind != JsonValueKind.Object) throw Bad($"（{name}）");
+        if (parent.ValueKind != JsonValueKind.Object) throw Bad(CoreStrings.AppLogin_RefusedText_4(name));
         if (!parent.TryGetProperty(name, out var value) && !parent.TryGetProperty(Snake(name), out value)) return null;
         return value.ValueKind == JsonValueKind.Null ? null : value;
     }
-    private static JsonElement Need(JsonElement parent, string name) => Find(parent, name) ?? throw Bad($"（{name}）");
-    private static string Text(JsonElement parent, string name) => Need(parent, name) is { ValueKind: JsonValueKind.String } value ? value.GetString()! : throw Bad($"（{name}）");
-    private static string? OptText(JsonElement parent, string name) => Find(parent, name) is { } value ? value.ValueKind == JsonValueKind.String ? value.GetString() : throw Bad($"（{name}）") : null;
-    private static bool Flag(JsonElement parent, string name) => Need(parent, name) is { ValueKind: JsonValueKind.True or JsonValueKind.False } value ? value.GetBoolean() : throw Bad($"（{name}）");
-    private static bool? OptFlag(JsonElement parent, string name) => Find(parent, name) is { } value ? value.ValueKind is JsonValueKind.True or JsonValueKind.False ? value.GetBoolean() : throw Bad($"（{name}）") : null;
-    private static long Whole(JsonElement parent, string name) => OptWhole(parent, name) ?? throw Bad($"（{name}）");
-    private static long? OptWhole(JsonElement parent, string name) => Find(parent, name) is { } value ? value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out var number) ? number : throw Bad($"（{name}）") : null;
-    private static double Real(JsonElement parent, string name) => OptReal(parent, name) ?? throw Bad($"（{name}）");
-    private static double? OptReal(JsonElement parent, string name) => Find(parent, name) is { } value ? value.ValueKind == JsonValueKind.Number ? value.GetDouble() : throw Bad($"（{name}）") : null;
+    private static JsonElement Need(JsonElement parent, string name) => Find(parent, name) ?? throw Bad(CoreStrings.AppLogin_RefusedText_4(name));
+    private static string Text(JsonElement parent, string name) => Need(parent, name) is { ValueKind: JsonValueKind.String } value ? value.GetString()! : throw Bad(CoreStrings.AppLogin_RefusedText_4(name));
+    private static string? OptText(JsonElement parent, string name) => Find(parent, name) is { } value ? value.ValueKind == JsonValueKind.String ? value.GetString() : throw Bad(CoreStrings.AppLogin_RefusedText_4(name)) : null;
+    private static bool Flag(JsonElement parent, string name) => Need(parent, name) is { ValueKind: JsonValueKind.True or JsonValueKind.False } value ? value.GetBoolean() : throw Bad(CoreStrings.AppLogin_RefusedText_4(name));
+    private static bool? OptFlag(JsonElement parent, string name) => Find(parent, name) is { } value ? value.ValueKind is JsonValueKind.True or JsonValueKind.False ? value.GetBoolean() : throw Bad(CoreStrings.AppLogin_RefusedText_4(name)) : null;
+    private static long Whole(JsonElement parent, string name) => OptWhole(parent, name) ?? throw Bad(CoreStrings.AppLogin_RefusedText_4(name));
+    private static long? OptWhole(JsonElement parent, string name) => Find(parent, name) is { } value ? value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out var number) ? number : throw Bad(CoreStrings.AppLogin_RefusedText_4(name)) : null;
+    private static double Real(JsonElement parent, string name) => OptReal(parent, name) ?? throw Bad(CoreStrings.AppLogin_RefusedText_4(name));
+    private static double? OptReal(JsonElement parent, string name) => Find(parent, name) is { } value ? value.ValueKind == JsonValueKind.Number ? value.GetDouble() : throw Bad(CoreStrings.AppLogin_RefusedText_4(name)) : null;
 
-    public static GoalSnapshot[] ParseList(JsonElement root) => Need(root, "goals") is { ValueKind: JsonValueKind.Array } list ? [.. list.EnumerateArray().Select(ParseSnapshot)] : throw Bad("（goals）");
+    public static GoalSnapshot[] ParseList(JsonElement root) => Need(root, "goals") is { ValueKind: JsonValueKind.Array } list ? [.. list.EnumerateArray().Select(ParseSnapshot)] : throw Bad(CoreStrings.GoalModels_ParseList_1);
     public static GoalSnapshot ParseDetail(JsonElement root) => ParseSnapshot(Need(root, "snapshot"));
 
     public static GoalSnapshot ParseSnapshot(JsonElement item)
     {
-        var availability = Text(item, "availability") switch { "available" => GoalAvailability.Available, "unsupported" => GoalAvailability.Unsupported, "unavailable" => GoalAvailability.Unavailable, _ => throw Bad("（availability）") };
+        var availability = Text(item, "availability") switch { "available" => GoalAvailability.Available, "unsupported" => GoalAvailability.Unsupported, "unavailable" => GoalAvailability.Unavailable, _ => throw Bad(CoreStrings.GoalModels_ParseSnapshot_1) };
         var capabilities = Need(item, "capabilities");
         var fields = Need(item, "fieldCapabilities");
         GoalFields Fields(string name) { var value = Need(fields, name); return new(Flag(value, "objective"), Flag(value, "tokenBudget"), Flag(value, "combined")); }
         var binding = Find(item, "binding") is { } wire ? new GoalBinding(Text(wire, "sessionId"), Text(wire, "launchId"), Text(wire, "threadId")) : null;
         var history = Find(item, "nativeHistory") is { } past ? new GoalNativeHistory(Terminal(Text(past, "terminal")), Claude(Need(past, "native"))) : null;
-        if (history is not null && Text(Need(item, "nativeHistory"), "kind") != "claude-code") throw Bad("（nativeHistory）");
+        if (history is not null && Text(Need(item, "nativeHistory"), "kind") != "claude-code") throw Bad(CoreStrings.GoalModels_ParseSnapshot_2);
         return new GoalSnapshot(Text(item, "botId"), availability,
             new GoalCapabilities(Flag(capabilities, "inspect"), Flag(capabilities, "create"), Flag(capabilities, "edit"), Flag(capabilities, "pause"), Flag(capabilities, "resume"), Flag(capabilities, "clear")),
             new GoalFieldCapabilities(Fields("create"), Fields("edit")), binding,
             Find(item, "goal") is { } goal ? Goal(goal) : null, history, OptText(item, "observedAt"), OptText(item, "message"), OptText(item, "reason"));
     }
 
-    private static string Terminal(string value) => value is "cleared" or "achieved" ? value : throw Bad("（terminal）");
+    private static string Terminal(string value) => value is "cleared" or "achieved" ? value : throw Bad(CoreStrings.GoalModels_Terminal_1);
     private static ClaudeGoalStatus Claude(JsonElement native) => new(Text(native, "type"), Text(native, "condition"), Flag(native, "met"), OptFlag(native, "sentinel"), OptWhole(native, "tokens"), OptReal(native, "durationMs"), OptWhole(native, "iterations"));
     private static CodexGoal Codex(JsonElement native)
     {
         var status = Text(native, "status");
-        if (status is not ("active" or "paused" or "blocked" or "usageLimited" or "budgetLimited" or "complete")) throw Bad("（status）");
+        if (status is not ("active" or "paused" or "blocked" or "usageLimited" or "budgetLimited" or "complete")) throw Bad(CoreStrings.GoalModels_Codex_1);
         return new(Text(native, "objective"), status, OptWhole(native, "tokenBudget"), Whole(native, "tokensUsed"), Real(native, "timeUsedSeconds"));
     }
 
@@ -183,27 +182,27 @@ public static class GoalParser
             case "codex-cli": return Codex(Need(goal, "native"));
             case "claude-code":
                 var native = Claude(Need(goal, "native"));
-                if (native.Type != "goal_status" || native.Met || Text(goal, "phase") != "active") throw Bad("（claude-code）");
+                if (native.Type != "goal_status" || native.Met || Text(goal, "phase") != "active") throw Bad(CoreStrings.GoalModels_Goal_1);
                 return new ClaudeGoal(native, OptWhole(goal, "reportedTurns"));
             case "grok-cli":
                 var current = Need(goal, "currentStatus");
                 var elapsed = Text(current, "elapsedDisplay");
-                if (elapsed.Length == 0) throw Bad("（currentStatus）");
+                if (elapsed.Length == 0) throw Bad(CoreStrings.GoalModels_Goal_2);
                 var objective = Text(Need(goal, "native"), "objective");
                 switch (Text(current, "source"))
                 {
                     case "/goal status":
                         var status = Text(current, "status");
                         var phase = Text(current, "phase");
-                        if (status is not ("Active" or "UserPaused") || phase is not ("Idle" or "Planning" or "Executing")) throw Bad("（currentStatus）");
+                        if (status is not ("Active" or "UserPaused") || phase is not ("Idle" or "Planning" or "Executing")) throw Bad(CoreStrings.GoalModels_Goal_2);
                         return new GrokGoal(objective, new(false, status == "Active", status == "UserPaused", phase, Whole(current, "tokensUsed"), "", null, "", elapsed));
                     case "goal detail":
                         var detail = Text(current, "status");
-                        if (detail is not ("Active" or "Paused")) throw Bad("（currentStatus）");
+                        if (detail is not ("Active" or "Paused")) throw Bad(CoreStrings.GoalModels_Goal_2);
                         return new GrokGoal(objective, new(true, detail == "Active", detail == "Paused", OptText(current, "phase") ?? "", OptWhole(current, "tokensUsed"), Text(current, "statusDisplay"), OptText(current, "phaseDisplay"), Text(current, "budgetDisplay"), elapsed));
-                    default: throw Bad("（currentStatus）");
+                    default: throw Bad(CoreStrings.GoalModels_Goal_2);
                 }
-            default: throw Bad("（kind）");
+            default: throw Bad(CoreStrings.GoalModels_Goal_6);
         }
     }
 }
@@ -214,8 +213,10 @@ public enum GoalPageState { Loading, Unread, Unconfirmed, List }
 // Mac ChatGoalBar (#1116, apple/goals.md 「pillの文」「未対応」「失敗表示」): whole sentences only, one failure sentence, no pill for an unsupported bot.
 public static class GoalPillText
 {
-    public const string Checking = "ゴールを確認しています", None = "ゴールは設定されていません", Unread = "ゴールの状態を確認できません";
-    public const string UnreadDetail = "現在のゴールを確認できません。状態を更新してください。";
+    public static string Checking  => CoreStrings.GoalModels_Checking_1;
+    public static string None  => CoreStrings.GoalModels_None_1;
+    public static string Unread  => CoreStrings.GoalModels_Unread_1;
+    public static string UnreadDetail  => CoreStrings.GoalModels_UnreadDetail_1;
     // null: the bot has no goal feature, so there is no pill. An idle seat has no running goal, so it reads as none.
     public static (string Title, GoalPillTone Tone)? Pill(GoalModel goals, string botId)
     {

@@ -9,7 +9,7 @@ public sealed record MemberFolderRefusal(string Text, bool OffersCreate);
 
 public static class MemberFolder
 {
-    public const string CreateTitle = "このフォルダを作って保存";
+    public static string CreateTitle  => CoreStrings.MemberFolders_CreateTitle_1;
 
     // `<home>/BellTeam/<slug>` in the terminal's form: `/Users/<user>` (macOS), `/home/<user>` (Linux), `C:\Users\<user>` (Windows).
     // slug = trimmed name with `/`, `\`, `:`, NUL -> `-`, `member` when empty, `.` or `..`.
@@ -40,12 +40,12 @@ public static class MemberFolder
         var machine = TerminalOS.Machine(os);
         return code switch
         {
-            "FOLDER_MISSING" => $"このフォルダは{machine}にありません。作るか、あるフォルダを選んでください",
-            "FOLDER_NOT_DIRECTORY" => "これはファイルです。フォルダを選んでください",
-            "FOLDER_NOT_WRITABLE" => $"この{machine}のユーザーが書き込めるフォルダを選んでください",
+            "FOLDER_MISSING" => CoreStrings.MemberFolders_Words_1(machine),
+            "FOLDER_NOT_DIRECTORY" => CoreStrings.MemberFolders_Words_2,
+            "FOLDER_NOT_WRITABLE" => CoreStrings.MemberFolders_Words_3(machine),
             "FOLDER_NOT_PERMITTED" => os == TerminalOS.Macos
-                ? "Macがこのフォルダを開かせてくれません。デスクトップ・書類・ダウンロードの外を選ぶか、リモートログインの「リモートユーザにフルディスクアクセスを許可」をオンにしてください"
-                : $"{machine}がこのフォルダを開かせてくれません。この{machine}のユーザーが開けるフォルダを選んでください",
+                ? CoreStrings.MemberFolders_Words_4
+                : CoreStrings.MemberFolders_Words_5(machine, machine),
             _ => null
         };
     }
@@ -54,9 +54,9 @@ public static class MemberFolder
     public static MemberFolderRefusal? Refusal(string? code, string folder, string os = TerminalOS.Macos)
     {
         if (code is null) return null;
-        if (code == "TERMINAL_NOT_FOUND") return new("この端末は登録されていません。", false);
+        if (code == "TERMINAL_NOT_FOUND") return new(CoreStrings.MemberFolders_Refusal_1, false);
         if (!code.StartsWith("FOLDER_", StringComparison.Ordinal)) return null;
-        return new($"{Words(code, os) ?? "このフォルダは使えません"}（{folder}）。", code == "FOLDER_MISSING");
+        return new(CoreStrings.MemberFolders_Refusal_3(Words(code, os) ?? CoreStrings.MemberFolders_Refusal_2, folder), code == "FOLDER_MISSING");
     }
 }
 
@@ -69,7 +69,7 @@ public static class MemberBinding
         if (terminalId.Length != 0 && !TerminalPattern.Whole(terminalId, "[A-Za-z0-9][A-Za-z0-9._-]{0,127}")) return TerminalErrorText.Member("BOT_TERMINAL_ID_INVALID");
         if (projectRoot.Length != 0 && FolderProblem(projectRoot, os) is { } folder) return folder;
         if ((terminalId.Length == 0) != (projectRoot.Length == 0))
-            return terminalId.Length == 0 ? TerminalErrorText.Member("BOT_REMOTE_BINDING_INVALID") : "フォルダを入れてください。端末で席が起動する場所です。";
+            return terminalId.Length == 0 ? TerminalErrorText.Member("BOT_REMOTE_BINDING_INVALID") : CoreStrings.MemberFolders_Problem_1;
         return null;
     }
 
@@ -110,24 +110,25 @@ public sealed record TerminalFolderStatus { public string? Path { get; init; } p
 
 public static class TerminalFolderPicker
 {
-    public const string EmptyText = "フォルダはありません", TruncatedText = "フォルダが多いため、すべては表示していません。",
-        ReadFailedText = "フォルダの一覧を読み込めませんでした。つながりを確かめて、もう一度お試しください。",
-        UnsupportedText = "このBellTeamはまだ、フォルダを選ぶ画面に対応していません。「ほかの方法」でパスを入力してください。",
-        CreateFailedText = "フォルダを作れたか確かめられませんでした。一覧で確かめてください。";
-    public static string UnreachableText(string os = TerminalOS.Macos) => $"いまこの端末に届きません。{TerminalOS.Machine(os)}が起きていて同じネットワークにあるか確かめて、もう一度お試しください。";
+    public static string EmptyText  => CoreStrings.MemberFolders_EmptyText_1;
+    public static string TruncatedText  => CoreStrings.MemberFolders_TruncatedText_1;
+    public static string ReadFailedText  => CoreStrings.MemberFolders_ReadFailedText_1;
+    public static string UnsupportedText  => CoreStrings.MemberFolders_UnsupportedText_1;
+    public static string CreateFailedText  => CoreStrings.MemberFolders_CreateFailedText_1;
+    public static string UnreachableText(string os = TerminalOS.Macos) => CoreStrings.MemberFolders_UnreachableText_1(TerminalOS.Machine(os));
 
     // The name is trimmed; the result is what is sent. A null problem = usable. The server only ever sees ChildPath.
     // terminals: an entry name never holds `/`, `\` (Windows also `:`) or NUL.
     public static (string Name, string? Problem) Name(string raw, string os = TerminalOS.Macos)
     {
         var name = raw.Trim();
-        var problem = name.Length == 0 ? "フォルダの名前を入れてください。"
-            : name.Contains('/') ? "名前に「/」は使えません。"
-            : name.Contains('\\') ? "名前に「\\」は使えません。"
-            : os == TerminalOS.Windows && name.Contains(':') ? "名前に「:」は使えません。"
-            : name is "." or ".." ? "「.」と「..」は名前にできません。"
-            : name.Contains('\0') ? "名前に使えない文字があります。"
-            : Encoding.UTF8.GetByteCount(name) > 255 ? "名前が長すぎます（255バイトまで）。"
+        var problem = name.Length == 0 ? CoreStrings.MemberFolders_Name_1
+            : name.Contains('/') ? CoreStrings.MemberFolders_Name_2
+            : name.Contains('\\') ? CoreStrings.MemberFolders_Name_3
+            : os == TerminalOS.Windows && name.Contains(':') ? CoreStrings.MemberFolders_Name_4
+            : name is "." or ".." ? CoreStrings.MemberFolders_Name_5
+            : name.Contains('\0') ? CoreStrings.MemberFolders_Name_6
+            : Encoding.UTF8.GetByteCount(name) > 255 ? CoreStrings.MemberFolders_Name_7
             : null;
         return (name, problem);
     }
@@ -142,14 +143,14 @@ public static class TerminalFolderPicker
     // One plain sentence for a reason. Unreachable reasons never read as an empty list; FOLDER_NOT_PERMITTED is S5's sentence.
     public static string Sentence(string reason, string? action, string os = TerminalOS.Macos)
     {
-        if (reason == "TERMINAL_NOT_FOUND") return "この端末は登録されていません。";
+        if (reason == "TERMINAL_NOT_FOUND") return CoreStrings.MemberFolders_Refusal_1;
         if (reason == "FOLDER_NOT_PERMITTED") return FolderWords(reason, os);
         var check = new TerminalCheck { TerminalId = "", Reachable = false, Reason = reason, Action = action };
         if (check.Problem == TerminalCheck.ProblemKind.Unreachable) return UnreachableText(os);
         if (action?.Trim() is { Length: > 0 } sentence) return sentence;
         return MemberFolder.Words(reason) is not null ? FolderWords(reason, os) : check.Explanation(os) ?? FolderWords(reason, os);
     }
-    private static string FolderWords(string reason, string os) => (MemberFolder.Words(reason, os) ?? "このフォルダは使えません") + "。";
+    private static string FolderWords(string reason, string os) => CoreStrings.MemberFolders_FolderWords_2((MemberFolder.Words(reason, os) ?? CoreStrings.MemberFolders_Refusal_2));
 
     // The query value: everything but unreserved characters and `/` is escaped (a folder may contain `+`, `&`, `#`).
     public static string Query(string path) => Uri.EscapeDataString(path).Replace("%2F", "/");
@@ -192,7 +193,7 @@ public sealed class TerminalFolderPickerModel(string os, Func<string?, Cancellat
         {
             if (mine != sequence) return;
             if (TerminalErrorText.IsFoldersUnsupported(error)) Show(FolderContent.Unsupported);
-            else Show(FolderContent.Failed, failed: TerminalErrorText.Code(error) == "TERMINAL_NOT_FOUND" ? "この端末は登録されていません。" : TerminalFolderPicker.ReadFailedText);
+            else Show(FolderContent.Failed, failed: TerminalErrorText.Code(error) == "TERMINAL_NOT_FOUND" ? CoreStrings.MemberFolders_Refusal_1 : TerminalFolderPicker.ReadFailedText);
         }
     }
 

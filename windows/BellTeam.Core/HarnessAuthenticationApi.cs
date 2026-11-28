@@ -4,7 +4,7 @@ namespace BellTeam.Core;
 
 public sealed record HarnessAuthenticationOption(string Id, string Name, int Members, string? StartWarning, bool? ReloginSupported = null, HarnessCliInstall? Install = null)
 {
-    public string UsageText => Members > 0 ? $"{Members}人が使用" : "使用していません";
+    public string UsageText => Members > 0 ? CoreStrings.HarnessAccounts_SeatsCount_1(Members) : CoreStrings.HarnessAuthenticationApi_UsageText_2;
     public bool NeedsStartConfirmation(AuthenticationState? auth) => ReloginSupported != false && !string.IsNullOrEmpty(StartWarning) && auth?.Status != "blocked";
 }
 public sealed record HarnessAuthenticationsResponse { public required HarnessAuthenticationOption[] Harnesses { get; init; } }
@@ -30,6 +30,6 @@ public sealed class HarnessAuthenticationApi(BellApi api)
         if (action != "input") return await api.PostAsync<HarnessAuthenticationResponse>(Path(harness, slot, action), body, token);
         try { return await api.PostAsync<HarnessAuthenticationResponse>(Path(harness, slot, action), body, token); }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
-        catch (Exception error) { throw new BellApiException("操作の結果を確認できませんでした。入力欄を閉じて、認証の状態を更新して確認してください。", (error as BellApiException)?.Status); }
+        catch (Exception error) { throw new BellApiException(CoreStrings.HarnessAuthenticationApi_WriteAsync_1, (error as BellApiException)?.Status); }
     }
 }

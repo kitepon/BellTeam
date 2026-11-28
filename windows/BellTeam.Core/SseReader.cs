@@ -14,10 +14,10 @@ public static class SseReader
             try
             {
                 using var document = JsonDocument.Parse(item.Data);
-                if (document.RootElement.ValueKind != JsonValueKind.Object) throw new JsonException("オブジェクトが必要です。");
+                if (document.RootElement.ValueKind != JsonValueKind.Object) throw new JsonException(CoreStrings.SseReader_ReadAsync_1);
                 payload = document.RootElement.Clone();
             }
-            catch (JsonException error) { throw new BellApiException("新着のデータを読み取れませんでした。" + error.Message); }
+            catch (JsonException error) { throw new BellApiException(CoreStrings.SseReader_ReadAsync_2(error.Message)); }
             yield return payload;
         }
     }

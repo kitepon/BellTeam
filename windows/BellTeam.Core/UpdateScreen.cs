@@ -8,7 +8,7 @@ public enum UpdateBadge { UpToDate, Available, Updating, Failed, Incompatible, U
 // The Mac UpdateContent state and wording (ios/BellBot/BellBot/Views/UpdateView.swift), computed from the same inventory/operation data.
 public static class UpdateScreen
 {
-    public static string BadgeText(UpdateBadge badge) => badge switch { UpdateBadge.UpToDate => "最新", UpdateBadge.Available => "更新あり", UpdateBadge.Updating => "更新中", UpdateBadge.Failed => "失敗", UpdateBadge.Incompatible => "使えない版", _ => "確認できません" };
+    public static string BadgeText(UpdateBadge badge) => badge switch { UpdateBadge.UpToDate => CoreStrings.SettingsStatus_Update_5, UpdateBadge.Available => CoreStrings.SettingsStatus_Update_3, UpdateBadge.Updating => CoreStrings.SettingsStatus_Update_2, UpdateBadge.Failed => CoreStrings.OnePassword_BadgeText_3, UpdateBadge.Incompatible => CoreStrings.UpdateScreen_BadgeText_5, _ => CoreStrings.SettingsModels_RowText_2 };
 
     public static bool Completed(UpdateOperation value) => value is { Phase: "completed", Admission: "accepted", Execution: "succeeded", Verification: "succeeded" };
     public static bool Failure(UpdateOperation value) => value.Phase == "failed" || value.Execution == "failed" || value.Verification == "failed";
@@ -44,12 +44,12 @@ public static class UpdateScreen
 
     public static string PhaseText(string phase) => phase switch
     {
-        "preparing" => "準備しています", "applying" => "新しい版に切り替えています", "reconnecting" => "再接続しています", "verifying" => "動作を確かめています",
-        "completed" => "更新完了", "failed" => "失敗", "unknown" => "結果確認中", _ => ""
+        "preparing" => CoreStrings.UpdateScreen_PhaseText_1, "applying" => CoreStrings.UpdateScreen_PhaseText_2, "reconnecting" => CoreStrings.UpdateScreen_PhaseText_3, "verifying" => CoreStrings.UpdateScreen_PhaseText_4,
+        "completed" => CoreStrings.UpdateScreen_PhaseText_5, "failed" => CoreStrings.OnePassword_BadgeText_3, "unknown" => CoreStrings.UpdateScreen_PhaseText_7, _ => ""
     };
-    public static string AdmissionText(string value) => value switch { "pending" => "受付中", "accepted" => "受付済み", "rejected" => "未受付", _ => "確認不能" };
-    public static string OutcomeText(string value) => value switch { "pending" => "未確認", "succeeded" => "成功", "failed" => "失敗", _ => "確認不能" };
-    public static string ComparisonText(string value) => value switch { "up_to_date" => "公開版と一致", "update_available" => "更新あり", "unavailable" => "取得できません", "incompatible" => "互換性を確認できません", _ => "確認不能" };
+    public static string AdmissionText(string value) => value switch { "pending" => CoreStrings.UpdateScreen_AdmissionText_1, "accepted" => CoreStrings.UpdateScreen_AdmissionText_2, "rejected" => CoreStrings.UpdateScreen_AdmissionText_3, _ => CoreStrings.UpdateScreen_AdmissionText_4 };
+    public static string OutcomeText(string value) => value switch { "pending" => CoreStrings.UpdateScreen_OutcomeText_1, "succeeded" => CoreStrings.UpdateScreen_OutcomeText_2, "failed" => CoreStrings.OnePassword_BadgeText_3, _ => CoreStrings.UpdateScreen_AdmissionText_4 };
+    public static string ComparisonText(string value) => value switch { "up_to_date" => CoreStrings.UpdateScreen_ComparisonText_1, "update_available" => CoreStrings.SettingsStatus_Update_3, "unavailable" => CoreStrings.UpdateScreen_ComparisonText_3, "incompatible" => CoreStrings.UpdateScreen_ComparisonText_4, _ => CoreStrings.UpdateScreen_AdmissionText_4 };
 
     public static string ComponentName(UpdateInventory? inventory, string id) => inventory?.Components.FirstOrDefault(item => item.Id == id)?.Name ?? id;
 
@@ -58,16 +58,16 @@ public static class UpdateScreen
         var candidates = Candidates(inventory);
         return kind switch
         {
-            UpdateKind.Loading => ("確認しています", "最新の状態かどうかを確かめています。"),
-            UpdateKind.Unreachable => ("更新を確認できませんでした", "接続を確かめて、もう一度お試しください。"),
-            UpdateKind.Updating => ("更新しています", (PhaseText(current?.Phase ?? "") is { Length: > 0 } phase ? phase : "更新しています") + "。完了まで、この画面を閉じても大丈夫です。"),
-            UpdateKind.Unconfirmed => ("更新の結果を確認中", "更新の結果を、まだ確認できていません。"),
-            UpdateKind.Failed => ("更新できませんでした", "更新を完了できませんでした。理由は「詳細」で確認できます。"),
-            UpdateKind.Completed => ("更新しました", string.Join("、", (current?.Plan.Targets ?? []).Select(target => ComponentName(inventory, target.ComponentId))) + "を新しい版にしました。"),
-            UpdateKind.Available => candidates.Length == 1 ? (candidates[0].Name + "を更新できます", "新しい版を使えます。") : (candidates.Length + "つ更新できます", string.Join("・", candidates.Select(item => item.Name)) + "に新しい版があります。"),
-            UpdateKind.UpToDate => ("すべて最新です", "今のところ、新しい更新はありません。"),
-            UpdateKind.Waiting => ("更新できるものはすべて最新です", string.Join("・", Waiting(inventory).Select(item => item.Name)) + "は、いまの本体に合う版がまだありません。合う版が出ると、ここで更新できます。"),
-            _ => ("更新を確認できませんでした", "時間をおいて、もう一度確認してください。")
+            UpdateKind.Loading => (CoreStrings.UpdateScreen_Hero_1, CoreStrings.UpdateScreen_Hero_2),
+            UpdateKind.Unreachable => (CoreStrings.UpdateScreen_Hero_3, CoreStrings.UpdateScreen_Hero_4),
+            UpdateKind.Updating => (CoreStrings.UpdateScreen_Hero_5, CoreStrings.UpdateScreen_Hero_7((PhaseText(current?.Phase ?? "") is { Length: > 0 } phase ? phase : CoreStrings.UpdateScreen_Hero_5))),
+            UpdateKind.Unconfirmed => (CoreStrings.UpdateScreen_Hero_8, CoreStrings.UpdateScreen_Hero_9),
+            UpdateKind.Failed => (CoreStrings.UpdateScreen_Hero_10, CoreStrings.UpdateScreen_Hero_11),
+            UpdateKind.Completed => (CoreStrings.UpdateScreen_Hero_12, CoreStrings.UpdateScreen_Hero_14(string.Join(CoreStrings.Approvals_CardRow_3, (current?.Plan.Targets ?? []).Select(target => ComponentName(inventory, target.ComponentId))))),
+            UpdateKind.Available => candidates.Length == 1 ? (CoreStrings.UpdateScreen_Hero_15(candidates[0].Name), CoreStrings.UpdateScreen_Hero_16) : (CoreStrings.UpdateScreen_Hero_17(candidates.Length), CoreStrings.UpdateScreen_Hero_19(string.Join(CoreStrings.HarnessAccounts_LimitLine_2, candidates.Select(item => item.Name)))),
+            UpdateKind.UpToDate => (CoreStrings.UpdateScreen_Hero_20, CoreStrings.UpdateScreen_Hero_21),
+            UpdateKind.Waiting => (CoreStrings.UpdateScreen_Hero_22, CoreStrings.UpdateScreen_Hero_24(string.Join(CoreStrings.HarnessAccounts_LimitLine_2, Waiting(inventory).Select(item => item.Name)))),
+            _ => (CoreStrings.UpdateScreen_Hero_3, CoreStrings.UpdateScreen_Hero_26)
         };
     }
 
@@ -80,19 +80,19 @@ public static class UpdateScreen
         return component.Comparison.State switch { "up_to_date" => UpdateBadge.UpToDate, "update_available" => UpdateBadge.Available, "incompatible" => UpdateBadge.Incompatible, _ => UpdateBadge.Unknown };
     }
 
-    public static string? Moment(string? value) => DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var at) ? at.ToLocalTime().ToString("M月d日 H\\:mm", CultureInfo.InvariantCulture) : null;
+    public static string? Moment(string? value) => DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var at) ? at.ToLocalTime().ToString(CoreStrings.UpdateScreen_Moment_1) : null;
 
     // Never shows a hash: built-in, a named version, the publish time, or the latest/current wording.
     public static string VersionName(UpdateComponent component)
     {
-        if (component.Current is not { } current) return "版を確認できません";
-        if (current.Origin == "builtin") return "最初から入っている版";
+        if (component.Current is not { } current) return CoreStrings.UpdateScreen_VersionName_1;
+        if (current.Origin == "builtin") return CoreStrings.UpdateScreen_VersionName_2;
         var hash = current.Version.Length >= 12 && current.Version.All(Uri.IsHexDigit);
-        if (!hash) return "版 " + current.Version;
-        if (component.Comparison.State == "up_to_date" && Moment(component.PublishedAt) is { } published) return published + " 公開の版";
-        return component.Comparison.State == "up_to_date" ? "公開中の最新版" : "今の版";
+        if (!hash) return CoreStrings.UpdateScreen_VersionName_3(current.Version);
+        if (component.Comparison.State == "up_to_date" && Moment(component.PublishedAt) is { } published) return CoreStrings.UpdateScreen_VersionName_4(published);
+        return component.Comparison.State == "up_to_date" ? CoreStrings.UpdateScreen_VersionName_5 : CoreStrings.UpdateScreen_VersionName_6;
     }
-    public static string? LastUpdated(UpdateComponent component) => component.Part?.LatestJob is { Outcome: "succeeded" } job && Moment(job.At) is { } at ? at + " に更新" : null;
+    public static string? LastUpdated(UpdateComponent component) => component.Part?.LatestJob is { Outcome: "succeeded" } job && Moment(job.At) is { } at ? CoreStrings.UpdateScreen_LastUpdated_1(at) : null;
 
     public static string[] Changes(UpdateInventory? inventory)
         => (inventory?.Components ?? []).Where(item => item.Comparison.State == "update_available").SelectMany(item => item.Changes).Distinct().ToArray();
@@ -103,9 +103,9 @@ public static class UpdateScreen
     // Known plans use plain wording. An unknown action or scope is shown as the server sent it.
     public static (string Title, string Button, string? ServerPlan) PlanWording(UpdatePlan plan)
     {
-        if (plan.Action is null or "update" or "rollback" && plan.Scope is "all" or "component") return plan.Action == "rollback" ? ("戻す前の確認", "戻す", null) : ("更新の前に", "更新を始める", null);
+        if (plan.Action is null or "update" or "rollback" && plan.Scope is "all" or "component") return plan.Action == "rollback" ? (CoreStrings.UpdateScreen_PlanWording_1, CoreStrings.UpdateScreen_PlanWording_2, null) : (CoreStrings.UpdateScreen_PlanWording_3, CoreStrings.UpdateScreen_PlanWording_4, null);
         var targets = plan.Targets.Select(target => $"{target.ComponentId}: {Label(target.Current)} → {Label(target.Published)}");
-        return ("サーバーの計画を確認", "実行する", string.Join("\n", new[] { $"action: {plan.Action ?? "なし"} / scope: {plan.Scope}", $"containerRestart: {plan.Impact.ContainerRestart}" }.Concat(targets)));
+        return (CoreStrings.UpdateScreen_PlanWording_5, CoreStrings.UpdateScreen_PlanWording_6, string.Join("\n", new[] { $"action: {plan.Action ?? CoreStrings.OnePassword_ConnectionLine_2} / scope: {plan.Scope}", $"containerRestart: {plan.Impact.ContainerRestart}" }.Concat(targets)));
     }
-    public static string Label(UpdateVersion? version) => version is null ? "確認できません" : (version.Origin == "builtin" ? "内蔵版 " : "") + (version.Version.Length >= 40 ? version.Version[..12] : version.Version);
+    public static string Label(UpdateVersion? version) => version is null ? CoreStrings.SettingsModels_RowText_2 : (version.Origin == "builtin" ? CoreStrings.UpdateScreen_Label_2 : "") + (version.Version.Length >= 40 ? version.Version[..12] : version.Version);
 }

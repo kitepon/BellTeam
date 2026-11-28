@@ -9,12 +9,12 @@ public static class ImageFile
         if (bytes.AsSpan().StartsWith(new byte[] { 255, 216, 255 })) return "image/jpeg";
         if (bytes.AsSpan().StartsWith("GIF87a"u8) || bytes.AsSpan().StartsWith("GIF89a"u8)) return "image/gif";
         if (bytes.Length >= 12 && bytes.AsSpan(0, 4).SequenceEqual("RIFF"u8) && bytes.AsSpan(8, 4).SequenceEqual("WEBP"u8)) return "image/webp";
-        throw new InvalidDataException("PNG・JPEG・WebP・GIFの画像を選んでください。");
+        throw new InvalidDataException(CoreStrings.ImageFile_Mime_1);
     }
 
     public static async Task<ImageAttachment> ReadAsync(string path)
     {
-        if (new FileInfo(path).Length > 25 * 1024 * 1024) throw new InvalidDataException("画像1枚は25MBまでです。");
+        if (new FileInfo(path).Length > 25 * 1024 * 1024) throw new InvalidDataException(CoreStrings.ImageFile_ReadAsync_1);
         var bytes = await File.ReadAllBytesAsync(path);
         return new(Path.GetFileName(path), Mime(bytes), bytes);
     }

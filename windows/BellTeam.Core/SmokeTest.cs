@@ -14,14 +14,14 @@ public static class SmokeTest
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
             var session = await api.GetAsync<SessionInfo>("/api/session", timeout.Token);
             result["session"] = session;
-            if (!session.Authenticated) throw new BellApiException("認証が必要です。");
+            if (!session.Authenticated) throw new BellApiException(CoreStrings.SmokeTest_RunAsync_1);
             var bots = await api.GetAsync<BotsResponse>("/api/bots", timeout.Token);
             var rooms = await api.GetAsync<RoomsResponse>("/api/rooms", timeout.Token);
             result["bots"] = bots.Bots.Length;
             result["rooms"] = rooms.Rooms.Length;
             var target = bots.Bots.FirstOrDefault() is { } bot ? new ChatTarget(bot.Id, false)
                 : rooms.Rooms.FirstOrDefault() is { } room ? new ChatTarget(room.Id, true)
-                : throw new BellApiException("読み取りを確かめる会話がありません。");
+                : throw new BellApiException(CoreStrings.SmokeTest_RunAsync_2);
             var page = await api.GetAsync<MessagePage>(target.Path + "/messages?limit=10", timeout.Token);
             result["conversation"] = new { target.Id, target.IsRoom, messages = page.Items.Length, page.HasMore };
             await foreach (var item in api.EventsAsync(timeout.Token))

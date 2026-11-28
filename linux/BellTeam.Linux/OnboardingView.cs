@@ -20,7 +20,7 @@ internal sealed class OnboardingView : StartupBackdrop, IDisposable
     private readonly Action changeServer;
     private readonly CancellationToken lifetime;
     private readonly StackPanel column = new();
-    private readonly TextBox code = new() { PasswordChar = '•', PlaceholderText = "認証コード", FontSize = 13, MaxWidth = 360, HorizontalAlignment = HorizontalAlignment.Left };
+    private readonly TextBox code = new() { PasswordChar = '•', PlaceholderText = LinuxStrings.OnboardingView_code_1, FontSize = 13, MaxWidth = 360, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromSeconds(3) };
     private Window? window;
     private SetupState state;
@@ -36,7 +36,7 @@ internal sealed class OnboardingView : StartupBackdrop, IDisposable
     {
         this.api = api; state = initial; this.ready = ready; this.changeServer = changeServer; this.lifetime = lifetime;
         Children.Add(Scroll(column, 560, new Thickness(28, 56, 28, 28)));
-        AutomationProperties.SetName(code, "認証コード"); code.Name = "harness-auth-input";
+        AutomationProperties.SetName(code, LinuxStrings.OnboardingView_code_1); code.Name = "harness-auth-input";
         AttachedToVisualTree += (_, _) => { window = OwnerWindow.Of(this); if (window is not null) window.Deactivated += Deactivated; };
         DetachedFromVisualTree += (_, _) => { if (window is not null) window.Deactivated -= Deactivated; window = null; code.Clear(); };
         // Mac: polls only while the app is active; the Linux window is the app.
@@ -52,13 +52,13 @@ internal sealed class OnboardingView : StartupBackdrop, IDisposable
     {
         (code.Parent as Panel)?.Children.Remove(code);
         column.Children.Clear();
-        column.Children.Add(MacUi.Text("BellTeamを始める", 34, BellTheme.Ink, FontWeight.Bold));
-        column.Children.Add(MacUi.Text("最初に使うAIを選んで公式サイトで認証します。設定は、そのあと案内役と会話しながら進められます。", 13, BellTheme.Muted, margin: new Thickness(0, 22, 0, 0)));
+        column.Children.Add(MacUi.Text(LinuxStrings.OnboardingView_Render_1, 34, BellTheme.Ink, FontWeight.Bold));
+        column.Children.Add(MacUi.Text(LinuxStrings.OnboardingView_Render_2, 13, BellTheme.Muted, margin: new Thickness(0, 22, 0, 0)));
         if (state.Phase == "select_harness")
             foreach (var harness in state.Harnesses) { var card = HarnessCard(harness); card.Margin = new Thickness(0, 22, 0, 0); column.Children.Add(card); }
         else
         {
-            column.Children.Add(MacUi.Text(state.Harnesses.FirstOrDefault(harness => harness.Id == state.Harness)?.Name ?? "公式認証", 17, BellTheme.Ink, FontWeight.Bold, new Thickness(0, 22, 0, 0)));
+            column.Children.Add(MacUi.Text(state.Harnesses.FirstOrDefault(harness => harness.Id == state.Harness)?.Name ?? LinuxStrings.OnboardingView_Render_3, 17, BellTheme.Ink, FontWeight.Bold, new Thickness(0, 22, 0, 0)));
             // a451: an AI that cannot run says so in the server's words and offers the install; the login follows once it can run.
             if (!HarnessCliInstall.Ready(state.Install))
             {
@@ -70,18 +70,18 @@ internal sealed class OnboardingView : StartupBackdrop, IDisposable
                 column.Children.Add(MacUi.Text(Description(auth), 13, BellTheme.Muted, margin: new Thickness(0, 22, 0, 0)));
                 column.Children.Add(Instructions(auth));
             }
-            var start = MacUi.Prominent("認証を確認して始める", () => _ = StartAsync()); start.IsEnabled = !Locked && HarnessCliInstall.Ready(state.Install) && state.Auth?.Status == "authenticated"; start.Margin = new Thickness(0, 22, 0, 0); column.Children.Add(start);
-            var refresh = MacUi.Bordered("認証の状態を更新", () => _ = RefreshAsync()); refresh.IsEnabled = !busy; refresh.Margin = new Thickness(0, 22, 0, 0); column.Children.Add(refresh);
-            var menu = MacUi.Bordered("使うAIを変更", () => { }); menu.IsEnabled = !Locked; menu.Margin = new Thickness(0, 22, 0, 0); ChooseMenu(menu); column.Children.Add(menu);
+            var start = MacUi.Prominent(LinuxStrings.OnboardingView_Render_4, () => _ = StartAsync()); start.IsEnabled = !Locked && HarnessCliInstall.Ready(state.Install) && state.Auth?.Status == "authenticated"; start.Margin = new Thickness(0, 22, 0, 0); column.Children.Add(start);
+            var refresh = MacUi.Bordered(LinuxStrings.OnboardingView_Render_5, () => _ = RefreshAsync()); refresh.IsEnabled = !busy; refresh.Margin = new Thickness(0, 22, 0, 0); column.Children.Add(refresh);
+            var menu = MacUi.Bordered(LinuxStrings.OnboardingView_Render_6, () => { }); menu.IsEnabled = !Locked; menu.Margin = new Thickness(0, 22, 0, 0); ChooseMenu(menu); column.Children.Add(menu);
         }
         if (busy) column.Children.Add(new Spinner(BellTheme.Secondary, 16) { HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 22, 0, 0) });
         if (ErrorText is { } error) column.Children.Add(MacUi.Text(error, 10, BellTheme.Red, margin: new Thickness(0, 22, 0, 0)));
-        var server = MacUi.Bordered("接続先を変更", changeServer); server.IsEnabled = !busy; server.Margin = new Thickness(0, 22, 0, 0); column.Children.Add(server);
+        var server = MacUi.Bordered(LinuxStrings.ConnectView_ConnectView_5, changeServer); server.IsEnabled = !busy; server.Margin = new Thickness(0, 22, 0, 0); column.Children.Add(server);
     }
     private static string Description(AuthenticationState auth) => auth.Status switch
     {
-        "authenticated" => "認証済みです。確認して案内役との会話を始めてください。", "blocked" => "認証に必要な操作を確認してください。",
-        "failed" => "認証に失敗しました。表示された理由を確認してください。", _ => "公式認証の完了を待っています。"
+        "authenticated" => LinuxStrings.OnboardingView_Description_1, "blocked" => LinuxStrings.HarnessAuthenticationWindow_Render_5,
+        "failed" => LinuxStrings.OnboardingView_Description_3, _ => LinuxStrings.OnboardingView_Description_4
     };
     private Button HarnessCard(HarnessOption harness)
     {
@@ -107,15 +107,15 @@ internal sealed class OnboardingView : StartupBackdrop, IDisposable
             panel.Children.Add(MacUi.Text(ui.Message ?? "", 11, BellTheme.Ink, margin: new Thickness(0, 12, 0, 0)));
             if (ui.OfficialUrl is { } address)
             {
-                var link = MacUi.Link("公式サイトを開く", () => MacUi.OpenUrl(address, message => { writeError = message; Render(); })); link.Margin = new Thickness(0, 12, 0, 0);
+                var link = MacUi.Link(LinuxStrings.OnboardingView_Instructions_1, () => MacUi.OpenUrl(address, message => { writeError = message; Render(); })); link.Margin = new Thickness(0, 12, 0, 0);
                 link.FontWeight = FontWeight.Normal; link.Name = "harness-auth-link"; panel.Children.Add(link);
             }
-            else if (ui.Stage is "open_url" or "device_code" or "paste_code") panel.Children.Add(MacUi.Text("公式サイトのURLを確認できません。状態を更新してください。", 10, BellTheme.Red, margin: new Thickness(0, 12, 0, 0)));
+            else if (ui.Stage is "open_url" or "device_code" or "paste_code") panel.Children.Add(MacUi.Text(LinuxStrings.OnboardingView_Instructions_2, 10, BellTheme.Red, margin: new Thickness(0, 12, 0, 0)));
             if (!string.IsNullOrEmpty(ui.UserCode))
             {
-                panel.Children.Add(MacUi.Text("利用者コード", 10, margin: new Thickness(0, 12, 0, 0)));
+                panel.Children.Add(MacUi.Text(LinuxStrings.HarnessAuthenticationWindow_Render_11, 10, margin: new Thickness(0, 12, 0, 0)));
                 var shown = new TextBox { Classes = { "bare" }, Text = ui.UserCode, IsReadOnly = true, FontFamily = BellTheme.Mono, FontSize = 15, Margin = new Thickness(0, 12, 0, 0) };
-                shown.Name = "harness-auth-code"; AutomationProperties.SetName(shown, "利用者コード"); panel.Children.Add(shown);
+                shown.Name = "harness-auth-code"; AutomationProperties.SetName(shown, LinuxStrings.HarnessAuthenticationWindow_Render_11); panel.Children.Add(shown);
             }
             if (ui.CanReply)
             {
@@ -123,7 +123,7 @@ internal sealed class OnboardingView : StartupBackdrop, IDisposable
                 if (ui.Input == "authorization_code")
                 {
                     code.Margin = new Thickness(0, 12, 0, 0); code.IsEnabled = !locked; panel.Children.Add(code);
-                    var send = MacUi.Bordered("認証コードを送る", () => { var value = code.Text ?? ""; code.Clear(); _ = RespondAsync(ui, new { kind = "authorization_code", value }, value.Length != 0); });
+                    var send = MacUi.Bordered(LinuxStrings.OnboardingView_Instructions_5, () => { var value = code.Text ?? ""; code.Clear(); _ = RespondAsync(ui, new { kind = "authorization_code", value }, value.Length != 0); });
                     send.IsEnabled = !locked && (code.Text ?? "").Length != 0; send.Margin = new Thickness(0, 12, 0, 0);
                     send.Name = "harness-auth-submit"; panel.Children.Add(send);
                     code.TextChanged -= UpdateSend; code.TextChanged += UpdateSend;
@@ -136,7 +136,7 @@ internal sealed class OnboardingView : StartupBackdrop, IDisposable
                         option.Name = "harness-auth-choice-" + choice.Id; panel.Children.Add(option);
                     }
             }
-            else if (ui.Input is not null) panel.Children.Add(MacUi.Text("操作の対象を確認できません。状態を更新してください。", 10, BellTheme.Red, margin: new Thickness(0, 12, 0, 0)));
+            else if (ui.Input is not null) panel.Children.Add(MacUi.Text(LinuxStrings.OnboardingView_Instructions_6, 10, BellTheme.Red, margin: new Thickness(0, 12, 0, 0)));
         }
         else if (!string.IsNullOrEmpty(auth.Message)) panel.Children.Add(MacUi.Text(auth.Message, 11, BellTheme.Ink));
         return panel;
@@ -144,7 +144,7 @@ internal sealed class OnboardingView : StartupBackdrop, IDisposable
 
     // A message of the app itself (not a server answer): shown as is.
     private sealed class Notice(string message) : Exception(message);
-    private static string WriteFailure(Exception error) => error is BellApiException { Status: not null } ? error.Message : "操作の結果を確認できませんでした。現在の状態を確認してください。\n" + error.Message;
+    private static string WriteFailure(Exception error) => error is BellApiException { Status: not null } ? error.Message : LinuxStrings.EditorWindow_RunAsync_1(error.Message);
     // Mac perform(): one operation at a time; a failure is shown, never resent.
     private async Task PerformAsync(Func<Task> action, bool read = false, bool authReply = false)
     {
@@ -160,7 +160,7 @@ internal sealed class OnboardingView : StartupBackdrop, IDisposable
     }
     private void Accept(SetupState next)
     {
-        if (next.Auth is { Status: not ("waiting" or "authenticated" or "blocked" or "failed") }) throw new BellApiException("認証の状態を読み取れませんでした。");
+        if (next.Auth is { Status: not ("waiting" or "authenticated" or "blocked" or "failed") }) throw new BellApiException(LinuxStrings.HarnessAuthenticationWindow_Render_8);
         if (next.Auth != state.Auth) code.Clear();
         state = next;
     }
@@ -171,13 +171,13 @@ internal sealed class OnboardingView : StartupBackdrop, IDisposable
     private Task StartAsync() => PerformAsync(async () =>
     {
         var next = await api.StartAsync(lifetime); Accept(next);
-        if (next.Phase != "ready") throw new Notice("公式認証を完了してから、もう一度確認してください。");
+        if (next.Phase != "ready") throw new Notice(LinuxStrings.OnboardingView_StartAsync_1);
         await ready(next);
     });
     // Mac submitAuthResponse: the prompt must still be the one on screen, and a failed reply needs a status refresh before the next one.
     private Task RespondAsync(AuthenticationUi ui, object response, bool valid) => PerformAsync(async () =>
     {
-        if (needsRefresh || state.Auth?.AuthUi != ui || !ui.CanReply || !valid) throw new Notice("認証画面が更新されました。状態を確認してから操作してください。");
+        if (needsRefresh || state.Auth?.AuthUi != ui || !ui.CanReply || !valid) throw new Notice(LinuxStrings.OnboardingView_RespondAsync_1);
         Accept(await api.RespondAsync(ui, response, lifetime));
     }, authReply: true);
 

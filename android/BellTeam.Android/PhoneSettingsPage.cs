@@ -17,20 +17,20 @@ public sealed class PhoneSettingsPage : ScrollViewer
         var column = new StackPanel { Margin = new Thickness(16, 8, 16, 24), Spacing = 14 };
 
         // The other Mac settings pages (AI, terminals, features, display, update, stop) are the Linux screens, opened as a page of their own.
-        var details = new Button { Classes = { "plain" }, Background = BellTheme.ProminentFill, Foreground = Brushes.White, Padding = new Thickness(16, 12), HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Center, Content = "AI・端末・追加機能などの設定" };
+        var details = new Button { Classes = { "plain" }, Background = BellTheme.ProminentFill, Foreground = Brushes.White, Padding = new Thickness(16, 12), HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Center, Content = AndroidStrings.PhoneSettingsPage_PhoneSettingsPage_1 };
         details.Click += (_, _) => openDetails();
         column.Children.Add(details);
 
         var connection = new StackPanel();
-        connection.Children.Add(CardTitle(SettingsIcons.Globe, "接続", 17));
-        connection.Children.Add(Text("つないでいるサーバー", 13, Muted, null, new Thickness(0, 12, 0, 2)));
+        connection.Children.Add(CardTitle(SettingsIcons.Globe, AndroidStrings.PhoneSettingsPage_PhoneSettingsPage_2, 17));
+        connection.Children.Add(Text(AndroidStrings.PhoneSettingsPage_PhoneSettingsPage_3, 13, Muted, null, new Thickness(0, 12, 0, 2)));
         connection.Children.Add(Text(workspace.Server, 15, Ink));
-        var change = Capsule("接続先を変更", Fill, Ink, 8, 13, new Thickness(14, 8)); change.FontWeight = FontWeight.Normal; change.HorizontalAlignment = HorizontalAlignment.Left; change.Margin = new Thickness(0, 12, 0, 0); change.Click += (_, _) => changeServer();
+        var change = Capsule(AndroidStrings.AccessLogin_AccessLoginPage_1, Fill, Ink, 8, 13, new Thickness(14, 8)); change.FontWeight = FontWeight.Normal; change.HorizontalAlignment = HorizontalAlignment.Left; change.Margin = new Thickness(0, 12, 0, 0); change.Click += (_, _) => changeServer();
         connection.Children.Add(change);
         // Cloudflare Access servers: the login lives in the WebView and the container, so leaving it is an explicit step (Windows has the same button).
         if (workspace.AuthMode == "cloudflare")
         {
-            var leave = Capsule("サインアウト", Fill, Ink, 8, 13, new Thickness(14, 8)); leave.FontWeight = FontWeight.Normal; leave.HorizontalAlignment = HorizontalAlignment.Left; leave.Margin = new Thickness(0, 8, 0, 0); leave.Click += (_, _) => signOut();
+            var leave = Capsule(AndroidStrings.PhoneSettingsPage_PhoneSettingsPage_5, Fill, Ink, 8, 13, new Thickness(14, 8)); leave.FontWeight = FontWeight.Normal; leave.HorizontalAlignment = HorizontalAlignment.Left; leave.Margin = new Thickness(0, 8, 0, 0); leave.Click += (_, _) => signOut();
             connection.Children.Add(leave);
         }
         column.Children.Add(Card(connection));
@@ -38,17 +38,17 @@ public sealed class PhoneSettingsPage : ScrollViewer
         column.Children.Add(Card(new AccountCard(token)));
 
         var billing = new StackPanel();
-        billing.Children.Add(CardTitle(SettingsIcons.Card, "利用と課金", 17));
-        billing.Children.Add(Text("Web版は無料です。サーバーとAIは、ご自身の契約で利用します。", 14, Muted, null, new Thickness(0, 14, 0, 6)));
+        billing.Children.Add(CardTitle(SettingsIcons.Card, AndroidStrings.PhoneSettingsPage_PhoneSettingsPage_6, 17));
+        billing.Children.Add(Text(AndroidStrings.PhoneSettingsPage_PhoneSettingsPage_7, 14, Muted, null, new Thickness(0, 14, 0, 6)));
         var purchase = new BellTeam.Linux.PurchaseEntry(new SubscriptionApi(workspace.Management.Api), token);
         billing.Children.Add(purchase);
         var notice = new StackPanel();
-        billing.Children.Add(Link("プライバシー方針", "privacyPolicyUrl", notice)); billing.Children.Add(Link("サポート", "supportUrl", notice)); billing.Children.Add(notice);
+        billing.Children.Add(Link(AndroidStrings.PhoneSettingsPage_PhoneSettingsPage_8, "privacyPolicyUrl", notice)); billing.Children.Add(Link(AndroidStrings.PhoneSettingsPage_PhoneSettingsPage_9, "supportUrl", notice)); billing.Children.Add(notice);
         column.Children.Add(Card(billing));
 
         var about = new StackPanel();
-        about.Children.Add(CardTitle(SettingsIcons.Info, "このアプリについて", 17));
-        about.Children.Add(Text("アプリの版", 13, Muted, null, new Thickness(0, 12, 0, 2)));
+        about.Children.Add(CardTitle(SettingsIcons.Info, AndroidStrings.PhoneSettingsPage_PhoneSettingsPage_10, 17));
+        about.Children.Add(Text(AndroidStrings.PhoneSettingsPage_PhoneSettingsPage_11, 13, Muted, null, new Thickness(0, 12, 0, 2)));
         about.Children.Add(Text(Version(), 15, Ink));
         column.Children.Add(Card(about));
 
@@ -63,7 +63,7 @@ public sealed class PhoneSettingsPage : ScrollViewer
         return line;
     }
 
-    private static string Version() => MainActivity.Current.PackageManager?.GetPackageInfo(MainActivity.Current.PackageName!, 0)?.VersionName ?? "不明";
+    private static string Version() => MainActivity.Current.PackageManager?.GetPackageInfo(MainActivity.Current.PackageName!, 0)?.VersionName ?? AndroidStrings.PhoneSettingsPage_Version_1;
 
     // The system browser (ExternalLink.Opener); a failure is shown on the page, never swallowed.
     private Button Link(string label, string key, Panel notice)
@@ -73,7 +73,7 @@ public sealed class PhoneSettingsPage : ScrollViewer
         {
             notice.Children.Clear();
             try { ExternalLink.Launch(EmbeddedAsset.ProductUrl(key)); }
-            catch (Exception error) { notice.Children.Add(Banner("ページを開けませんでした。" + error.Message)); }
+            catch (Exception error) { notice.Children.Add(Banner(AndroidStrings.PhoneSettingsPage_Link_1(error.Message))); }
         };
         return button;
     }

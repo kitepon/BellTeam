@@ -16,8 +16,8 @@ public sealed class UserRulesDocument
                 var word = Keyword.Split(' ')[0];
                 var label = word switch
                 {
-                    "YOU" => "あなたは", "PURPOSE" => "目的", "FACT" => "前提", "WHEN" => "いつ", "DO" => "する", "MAY" => "してよい",
-                    "NEVER" => "しない", "WHY" => "理由", "DEFAULT" => "既定", _ => Keyword
+                    "YOU" => CoreStrings.UserRules_Label_1, "PURPOSE" => CoreStrings.UserRules_Label_2, "FACT" => CoreStrings.UserRules_Label_3, "WHEN" => CoreStrings.UserRules_Label_4, "DO" => CoreStrings.UserRules_Label_5, "MAY" => CoreStrings.UserRules_Label_6,
+                    "NEVER" => CoreStrings.UserRules_Label_7, "WHY" => CoreStrings.UserRules_Label_8, "DEFAULT" => CoreStrings.UserRules_Label_9, _ => Keyword
                 };
                 var open = Keyword.IndexOf('(');
                 return word == "DEFAULT" && open >= 0 ? label + " " + Keyword[open..] : label;

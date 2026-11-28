@@ -19,7 +19,11 @@ public sealed record ScreenApprovalAck(string Status);
 /// <summary>State of the key bar and approval banner for one Bot's screen view. No automatic retry: every send is one Owner tap.</summary>
 public sealed class ScreenInputModel(BellApi api, string botId, Action<Exception, string, string>? report = null, TimeSpan? feedback = null)
 {
-    public const string UnavailableCode = "SCREEN_INPUT_UNAVAILABLE", SeatAbsentCode = "SCREEN_SEAT_ABSENT", ChangedCode = "SCREEN_APPROVAL_CHANGED", UnsupportedCode = "SCREEN_APPROVAL_UNSUPPORTED", FailedCode = "SCREEN_INPUT_FAILED";
+    public const string UnavailableCode = "SCREEN_INPUT_UNAVAILABLE";
+    public const string SeatAbsentCode = "SCREEN_SEAT_ABSENT";
+    public const string ChangedCode = "SCREEN_APPROVAL_CHANGED";
+    public const string UnsupportedCode = "SCREEN_APPROVAL_UNSUPPORTED";
+    public const string FailedCode = "SCREEN_INPUT_FAILED";
     private readonly TimeSpan feedbackTime = feedback ?? TimeSpan.FromSeconds(1.2);
     private bool approvalFailureReported, retired;
     private CancellationTokenSource? feedbackTask;
@@ -111,13 +115,13 @@ public sealed class ScreenInputModel(BellApi api, string botId, Action<Exception
         switch (error)
         {
             case BellApiException known when Is(known, 503, UnavailableCode): Available = false; break;
-            case BellApiException known when Is(known, 409, ChangedCode): Notice = "画面が変わりました。もう一度確認してください"; Raise(); await RefreshApprovalAsync(); break;
-            case BellApiException known when Is(known, 422, UnsupportedCode): Approval = null; ApprovalUnsupported = true; Notice = "キーで答えてください"; break;
-            case BellApiException known when Is(known, 409, SeatAbsentCode): Notice = "席が起動していません"; break;
+            case BellApiException known when Is(known, 409, ChangedCode): Notice = CoreStrings.ScreenInput_HandleAsync_1; Raise(); await RefreshApprovalAsync(); break;
+            case BellApiException known when Is(known, 422, UnsupportedCode): Approval = null; ApprovalUnsupported = true; Notice = CoreStrings.ScreenInput_HandleAsync_2; break;
+            case BellApiException known when Is(known, 409, SeatAbsentCode): Notice = CoreStrings.ScreenInput_HandleAsync_3; break;
             // Mac maps every 401/403 here; an app 403 (SCREEN_INPUT_OWNER_REQUIRED) no longer counts as a lost sign-in, so name it too.
-            case BellApiException known when known.RequiresLogin || known.Status == System.Net.HttpStatusCode.Forbidden: Notice = "オーナーとしてログインしていません"; break;
-            case BellApiException known when Is(known, 502, FailedCode): Notice = "送れませんでした"; break;
-            default: Notice = "送れませんでした"; Report(error, path, method); break;
+            case BellApiException known when known.RequiresLogin || known.Status == System.Net.HttpStatusCode.Forbidden: Notice = CoreStrings.ScreenInput_HandleAsync_4; break;
+            case BellApiException known when Is(known, 502, FailedCode): Notice = CoreStrings.ScreenInput_HandleAsync_5; break;
+            default: Notice = CoreStrings.ScreenInput_HandleAsync_5; Report(error, path, method); break;
         }
     }
 

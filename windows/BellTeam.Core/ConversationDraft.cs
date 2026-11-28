@@ -16,7 +16,7 @@ public sealed class ConversationDraft
     public string BeginSend() => BeginSendContent().Text;
     public DraftContent BeginSendContent()
     {
-        if (Sending || Attaching || !HasContent) throw new InvalidOperationException("送信する本文・画像がありません。あるいは送信・読込中です。");
+        if (Sending || Attaching || !HasContent) throw new InvalidOperationException(CoreStrings.ConversationDraft_BeginSendContent_1);
         var sent = new DraftContent(Text.Trim(), Attachments.ToArray(), Targets.ToArray(), Quote, Selection);
         Text = "";
         Quote = null; Selection = null;
@@ -46,7 +46,7 @@ public sealed class ConversationDraft
 public static class ReplyTarget
 {
     public static string Label(bool routingEnabled, IReadOnlyList<string> selectedNames)
-        => selectedNames.Count == 0 ? routingEnabled ? "返信者を自動選択" : "返信するメンバーを選択"
-        : selectedNames.Count == 1 ? "返信: " + selectedNames[0] : $"返信: {selectedNames.Count}人";
-    public const string RoutingUnsetError = "返信者の自動選択は未設定です。入力欄の上で返信するメンバーを選んでください。";
+        => selectedNames.Count == 0 ? routingEnabled ? CoreStrings.ConversationDraft_Label_1 : CoreStrings.ConversationDraft_Label_2
+        : selectedNames.Count == 1 ? CoreStrings.ConversationDraft_Label_3(selectedNames[0]) : CoreStrings.ConversationDraft_Label_4(selectedNames.Count);
+    public static string RoutingUnsetError  => CoreStrings.ConversationDraft_RoutingUnsetError_1;
 }

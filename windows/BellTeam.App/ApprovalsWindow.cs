@@ -218,7 +218,7 @@ internal sealed class ApprovalsPage : Grid
     // MARK: 工程表との連携 (Delta 2026-11-23): the one BellTeam-to-Approval Box connection the server-side link engine needs (entitlement through /v1/me). A small panel, not a gate on the list.
     // The module gives the hosted consent page; the browser does the sign-in; the module polls.
 
-    private const string Lapsed = "許可の待ち時間が過ぎました。もう一度つないでください。", ConnectFailed = Approvals.ConnectFailed, Blocked_ = "決裁箱の画面が開かなかったようです。「もう一度開く」を押してください。",
+    private static readonly string Lapsed = "許可の待ち時間が過ぎました。もう一度つないでください。", ConnectFailed = Approvals.ConnectFailed, Blocked_ = "決裁箱の画面が開かなかったようです。「もう一度開く」を押してください。",
         DropAsk = "決裁箱とのつなぎを外します。外すと、工程表との連携が止まります。", DropFailed = "いまはつなぎを外せませんでした。少し待って、もう一度押してください。";
     internal async Task OpenLinkAsync() { linkOpen = true; connect = new("idle"); Paint(); await ReadConnectionAsync(); }
 

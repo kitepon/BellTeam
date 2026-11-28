@@ -46,39 +46,39 @@ public sealed class HarnessAccountsApi(BellApi api)
 public static class AccountText
 {
     private static readonly TimeSpan Jst = TimeSpan.FromHours(9);
-    public static string? SlotTitle(string? slot) => slot switch { "1st" => "1stアカウント", "2nd" => "2ndアカウント", _ => null };
+    public static string? SlotTitle(string? slot) => slot switch { "1st" => CoreStrings.HarnessAccounts_SlotTitle_1, "2nd" => CoreStrings.HarnessAccounts_SlotTitle_2, _ => null };
 
     // HH:mm in JST; with the date (M/d, as the Web does) when it is not today in JST. An unreadable time is null.
     public static string? ResetTime(string? iso, DateTimeOffset now)
     {
         if (!DateTimeOffset.TryParse(iso, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var at)) return null;
         at = at.ToOffset(Jst); var today = now.ToOffset(Jst).Date;
-        var time = at.ToString("HH:mm", CultureInfo.InvariantCulture);
-        return at.Date == today ? time : $"{at.Month}/{at.Day} {time}";
+        var time = at.ToString(CoreStrings.Pattern_TimePadded);
+        return at.Date == today ? time : $"{at.ToString(CoreStrings.Pattern_MonthDay)} {time}";
     }
     // 'all' → 上限中 (HH:MMに解除); a family → Fableのみ上限中 (HH:MMに解除); no time → 解除時刻不明.
     public static string LimitText(string? scope, string? resetAt, DateTimeOffset now)
     {
-        var family = string.IsNullOrEmpty(scope) || scope == "all" ? "" : char.ToUpperInvariant(scope[0]) + scope[1..] + "のみ";
-        return $"{family}上限中 ({(ResetTime(resetAt, now) is { } time ? time + "に解除" : "解除時刻不明")})";
+        var family = string.IsNullOrEmpty(scope) || scope == "all" ? "" : CoreStrings.HarnessAccounts_LimitText_1(char.ToUpperInvariant(scope[0]) + scope[1..]);
+        return CoreStrings.HarnessAccounts_LimitText_4(family, (ResetTime(resetAt, now) is { } time ? CoreStrings.HarnessAccounts_LimitText_2(time) : CoreStrings.HarnessAccounts_LimitText_3));
     }
     public static string[] BannerTexts(AccountsResponse? list, DateTimeOffset now)
-        => (list?.Claude?.AllLimited ?? []).Select(item => "両方のアカウントで" + LimitText(item.Scope, item.EarliestResetAt, now)).ToArray();
+        => (list?.Claude?.AllLimited ?? []).Select(item => CoreStrings.HarnessAccounts_BannerTexts_1(LimitText(item.Scope, item.EarliestResetAt, now))).ToArray();
     // Mac ClaudeAccountsCard: the account name only when the server sends one; the login state is the row's badge.
     public static string? Login(AccountSlot slot) => string.IsNullOrWhiteSpace(slot.Label) ? null : slot.Label;
     // Mac AccountText.bothLimited: the card's own banner wording (the member-list banner keeps BannerTexts, same as Web).
     public static string[] CardBannerTexts(AccountsResponse? list, DateTimeOffset now)
-        => (list?.Claude?.AllLimited ?? []).Select(item => $"1つ目と2つ目のアカウントがどちらも{(string.IsNullOrEmpty(item.Scope) || item.Scope == "all" ? "上限中" : ScopeName(item.Scope) + "が上限中")}です（{(ResetTime(item.EarliestResetAt, now) is { } time ? time + "に解除" : "解除時刻不明")}）").ToArray();
+        => (list?.Claude?.AllLimited ?? []).Select(item => CoreStrings.HarnessAccounts_CardBannerTexts_5((string.IsNullOrEmpty(item.Scope) || item.Scope == "all" ? CoreStrings.HarnessAccounts_CardBannerTexts_1 : CoreStrings.HarnessAccounts_CardBannerTexts_2(ScopeName(item.Scope))), (ResetTime(item.EarliestResetAt, now) is { } time ? CoreStrings.HarnessAccounts_LimitText_2(time) : CoreStrings.HarnessAccounts_LimitText_3))).ToArray();
     // Mac AccountText.slotName / slotUsers / slotUsersLine / seats / limitLine (settings-user-flow B19/B20, #1117).
-    public static string SlotName(string slot) => slot == "2nd" ? "2つ目のアカウント" : "1つ目のアカウント";
+    public static string SlotName(string slot) => slot == "2nd" ? CoreStrings.HarnessAccounts_SlotName_1 : CoreStrings.HarnessAccounts_SlotName_2;
     // Members running on the slot now, from each bot's own account; null on an older body where no bot has an account (the row then says SeatsCount).
     public static int? SlotUsers(IEnumerable<SeatAccount?> accounts, string harness, string slot)
     {
         var list = accounts.ToList();
         return list.Any(item => item is not null) ? list.Count(item => item?.Harness == harness && item.Slot == slot) : null;
     }
-    public static string SlotUsersLine(int count) => count == 0 ? "いまこのアカウントで動いているメンバーはいません" : $"いま{count}人がこのアカウントで動いています";
-    public static string SeatsCount(AccountSlot slot) => $"{slot.Seats.Length}人が使用";
+    public static string SlotUsersLine(int count) => count == 0 ? CoreStrings.HarnessAccounts_SlotUsersLine_1 : CoreStrings.HarnessAccounts_SlotUsersLine_2(count);
+    public static string SeatsCount(AccountSlot slot) => CoreStrings.HarnessAccounts_SeatsCount_1(slot.Seats.Length);
     // The Mac slot row (HarnessAuthenticationView): how many members run on the slot now from the bots' accounts, else how many seats used it on an older body, else nothing. Never names or ids.
     public static string? UsersLine(IEnumerable<SeatAccount?> accounts, string harness, AccountSlot slot)
         => SlotUsers(accounts, harness, slot.Slot) is { } count ? SlotUsersLine(count) : slot.Seats.Length > 0 ? SeatsCount(slot) : null;
@@ -88,12 +88,12 @@ public static class AccountText
     {
         if (slot.Limits.Length == 0) return null;
         var all = slot.Limits.FirstOrDefault(item => item.Scope == "all");
-        var what = all is not null ? "上限中" : string.Join("・", slot.Limits.Select(item => ScopeName(item.Scope))) + "が上限中";
+        var what = all is not null ? CoreStrings.HarnessAccounts_CardBannerTexts_1 : CoreStrings.HarnessAccounts_CardBannerTexts_2(string.Join(CoreStrings.HarnessAccounts_LimitLine_2, slot.Limits.Select(item => ScopeName(item.Scope))));
         var earliest = (all is not null ? [all] : slot.Limits).Select(item => (Item: item, At: DateTimeOffset.TryParse(item.ResetAt, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var at) ? at : (DateTimeOffset?)null))
             .Where(item => item.At is not null).OrderBy(item => item.At).Select(item => item.Item).FirstOrDefault();
-        var when = ResetTime(earliest?.ResetAt, now) is { } time ? $"・{time}に戻ります" : "・戻る時刻は分かりません";
+        var when = ResetTime(earliest?.ResetAt, now) is { } time ? CoreStrings.HarnessAccounts_LimitLine_4(time) : CoreStrings.HarnessAccounts_LimitLine_5;
         var secondAvailable = harness.Slots.Any(item => item.Slot == "2nd" && item.LoggedIn == true && item.Limits.All(limit => limit.Scope != "all"));
-        return what + when + (slot.Slot == "1st" && secondAvailable ? "（いまは2つ目で動いています）" : "");
+        return what + when + (slot.Slot == "1st" && secondAvailable ? CoreStrings.HarnessAccounts_LimitLine_6 : "");
     }
     // The seat's slot on the member card; nothing for an absent/null account or another harness.
     public static string? SeatText(SeatAccount? account) => account?.Harness == "claude" ? SlotTitle(account.Slot) : null;

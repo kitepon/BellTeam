@@ -19,7 +19,7 @@ public sealed partial class SettingsWindow : EditorWindow, IPageBack
     private readonly INotificationSwitch? notifications;
     private readonly Dictionary<SettingsPage, Border> rows = [];
     private readonly List<(SettingsPage Page, TextBlock Text, IBrush Original)> rowLabels = [];
-    private readonly TextBlock profileName = SettingsUi.Text("あなた", 15, SettingsUi.Ink, FontWeight.SemiBold);
+    private readonly TextBlock profileName = SettingsUi.Text(LinuxStrings.SettingsEditors_profileName_1, 15, SettingsUi.Ink, FontWeight.SemiBold);
     private readonly AvatarTile profileAvatar = new() { Width = 36, Height = 36 };
     // Each list row's live line and badge (Mac SettingsHomeState), drawn from the Core SettingsSummary by RefreshRows.
     private readonly Dictionary<SettingsPage, (TextBlock Line, ContentControl Badge)> rowStates = [];
@@ -49,7 +49,7 @@ public sealed partial class SettingsWindow : EditorWindow, IPageBack
     private (UpdateKind Kind, string Title)? update;
     private Window? host;
 
-    public SettingsWindow(LinuxWorkspace workspace, Action? changeServer = null, INotificationSwitch? notifications = null, Action? signOut = null, SettingsPage[]? compactHidden = null) : base("設定", workspace.ConnectionToken)
+    public SettingsWindow(LinuxWorkspace workspace, Action? changeServer = null, INotificationSwitch? notifications = null, Action? signOut = null, SettingsPage[]? compactHidden = null) : base(LinuxStrings.FeatureEditor_InitializeAsync_5, workspace.ConnectionToken)
     {
         // compactHidden != null is the phone shape (see ApplyCompact): the pages in it are drawn by the app itself and left out of the list.
         if (compactHidden is not null) { Compact = true; foreach (var page in compactHidden) HiddenPages.Add(page); }
@@ -105,7 +105,7 @@ public sealed partial class SettingsWindow : EditorWindow, IPageBack
     public async Task SelectAsync(SettingsPage page)
     {
         if (page == selected && !inSubPage && pane.Content is not null) return;
-        if (embedded?.CanNavigateAway == false || updateContent?.Busy == true) { workspace.ReportActionError("操作が終わってから画面を切り替えてください。"); return; }
+        if (embedded?.CanNavigateAway == false || updateContent?.Busy == true) { workspace.ReportActionError(LinuxStrings.MainWindow_LeavePage_1); return; }
         lifetime?.Cancel(); lifetime?.Dispose(); embedded?.ClosePage(); embedded = null; updateContent?.Dispose(); updateContent = null; inSubPage = false;
         if (Compact && !initializing) { showingPane = true; ApplyCompact(); }
         // Leaving a page re-reads what it may have changed (the per-AI login reads wait for the AI page's own events).
@@ -130,7 +130,7 @@ public sealed partial class SettingsWindow : EditorWindow, IPageBack
         profileAvatar.Entry = OwnerEntry(null); profileAvatar.Workspace = workspace;
         var profile = new Grid { ColumnDefinitions = new ColumnDefinitions("36,*") };
         profile.Children.Add(profileAvatar);
-        var text = new StackPanel { Margin = new Thickness(14, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center }; text.Children.Add(profileName); var profileDetail = SettingsUi.Text("プロフィールとあなたの決まり", 12, SettingsUi.Secondary, null, new Thickness(0, 2, 0, 0)); text.Children.Add(profileDetail); Track(SettingsPage.Profile, profileName, profileDetail);
+        var text = new StackPanel { Margin = new Thickness(14, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center }; text.Children.Add(profileName); var profileDetail = SettingsUi.Text(LinuxStrings.SettingsEditors_BuildSidebar_1, 12, SettingsUi.Secondary, null, new Thickness(0, 2, 0, 0)); text.Children.Add(profileDetail); Track(SettingsPage.Profile, profileName, profileDetail);
         Grid.SetColumn(text, 1); profile.Children.Add(text);
         list.Children.Add(CategoryRow(SettingsPage.Profile, SettingsPageInfo.Title(SettingsPage.Profile) + " " + workspace.OwnerName, profile, new Thickness(0, 2, 0, 0)));
         list.Children.Add(attentionBand);
@@ -188,9 +188,9 @@ public sealed partial class SettingsWindow : EditorWindow, IPageBack
         SettingsPage.Stop => SettingsSummary.Stop(control, controlUnreadable),
         _ => Calm(page)
     };
-    private string ServerHost { get { var value = Uri.TryCreate(workspace.Server, UriKind.Absolute, out var uri) ? uri.Host : ""; return value.Length == 0 ? "未設定" : value; } }
+    private string ServerHost { get { var value = Uri.TryCreate(workspace.Server, UriKind.Absolute, out var uri) ? uri.Host : ""; return value.Length == 0 ? LinuxStrings.FeatureEditor_InitializeAsync_7 : value; } }
     private static string VersionText => typeof(SettingsWindow).Assembly.GetName().Version?.ToString(3) ?? "-";
-    private static string DisplayChoiceText { get { try { return new SettingsStore(SettingsStore.UserDirectory).Load().ConversationOpening == ConversationOpening.Fade ? "フェードインだけ" : "下から順に浮き上がる"; } catch (Exception) { return SettingsPageInfo.Detail(SettingsPage.Display); } } }
+    private static string DisplayChoiceText { get { try { return new SettingsStore(SettingsStore.UserDirectory).Load().ConversationOpening == ConversationOpening.Fade ? LinuxStrings.SettingsEditors_DisplayChoiceText_1 : LinuxStrings.SettingsEditors_DisplayChoiceText_2; } catch (Exception) { return SettingsPageInfo.Detail(SettingsPage.Display); } } }
 
     private void RefreshRows()
     {
@@ -204,18 +204,18 @@ public sealed partial class SettingsWindow : EditorWindow, IPageBack
         var items = new (string Title, SettingsPage Page, SettingsStatus Status)[]
         {
             (SettingsPageInfo.Title(SettingsPage.Ai), SettingsPage.Ai, ItemStatus(SettingsPage.Ai)),
-            ("仕事の要約を書くAI", SettingsPage.Ai, SettingsSummary.SummaryAgent(backgroundAgent, modelCatalog)),
+            (LinuxStrings.SettingsEditors_RefreshRows_1, SettingsPage.Ai, SettingsSummary.SummaryAgent(backgroundAgent, modelCatalog)),
             (SettingsPageInfo.Title(SettingsPage.Terminals), SettingsPage.Terminals, ItemStatus(SettingsPage.Terminals)),
             ("1Password", SettingsPage.Features, SettingsSummary.OnePassword(features?.FirstOrDefault(item => item.Id == OnePasswordItem.Id))),
             (SettingsPageInfo.Title(SettingsPage.Notifications), SettingsPage.Notifications, ItemStatus(SettingsPage.Notifications)),
             (SettingsPageInfo.Title(SettingsPage.Features), SettingsPage.Features, ItemStatus(SettingsPage.Features)),
-            ("チームの決まり", SettingsPage.Profile, SettingsSummary.Rules(rulesText, rulesUnreadable)),
+            (LinuxStrings.SettingsEditors_RefreshRows_2, SettingsPage.Profile, SettingsSummary.Rules(rulesText, rulesUnreadable)),
             (SettingsPageInfo.Title(SettingsPage.Update), SettingsPage.Update, ItemStatus(SettingsPage.Update)),
             (SettingsPageInfo.Title(SettingsPage.Stop), SettingsPage.Stop, ItemStatus(SettingsPage.Stop))
         };
         var attention = items.Where(item => item.Status.NeedsAttention && !HiddenPages.Contains(item.Page)).ToList();
         if (attention.Count == 0) return;
-        attentionBand.Children.Add(SettingsUi.Text("要対応", 12, SettingsUi.Secondary, FontWeight.SemiBold, new Thickness(20, 12, 0, 4)));
+        attentionBand.Children.Add(SettingsUi.Text(LinuxStrings.SettingsEditors_RefreshRows_3, 12, SettingsUi.Secondary, FontWeight.SemiBold, new Thickness(20, 12, 0, 4)));
         foreach (var (title, page, status) in attention)
         {
             var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("30,*,Auto") };
@@ -361,5 +361,5 @@ public sealed partial class SettingsWindow : EditorWindow, IPageBack
         SetToolbar(button, title, null); pane.Content = content;
     }
     private void Reopen() { var page = selected; inSubPage = true; _ = SelectAsync(page); }
-    private static string ErrorText(Exception error) => error is BellApiException { Status: not null } ? error.Message : "操作の結果を確認できませんでした。現在の状態を確認してください。\n" + error.Message;
+    private static string ErrorText(Exception error) => error is BellApiException { Status: not null } ? error.Message : LinuxStrings.EditorWindow_RunAsync_1(error.Message);
 }

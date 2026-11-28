@@ -116,9 +116,9 @@ public sealed class LatticeStopsTests
     });
 
     [Theory]
-    [InlineData("stops-empty", "Ready", LatticeStops.Empty)]
-    [InlineData("stops-old", "Old", LatticeStops.Old)]
-    [InlineData("stops-retry", "Retry", LatticeStops.Retry)]
+    [InlineData("stops-empty", "Ready", "ブロックされている工程はありません。")]
+    [InlineData("stops-old", "Old", "このサーバーではまだブロック一覧を使えません。")]
+    [InlineData("stops-retry", "Retry", "ブロック一覧を読み直しています…")]
     public void EmptyOldAndRetrySayWhatIsHappening(string scene, string phase, string text) => RunSta(() =>
     {
         var (workspace, window) = Open(scene);

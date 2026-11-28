@@ -18,7 +18,7 @@ public sealed record HarnessCliInstall
     // "install" when a press is possible; null while busy or checking.
     public string? Action { get; init; }
     public string? Label { get; init; }
-    public const string DefaultLabel = "最新版を入れる";
+    public static string DefaultLabel  => CoreStrings.HarnessCliInstall_DefaultLabel_1;
     [JsonIgnore] public bool CanPress => Action == "install";
     [JsonIgnore] public string ButtonLabel => string.IsNullOrEmpty(Label) ? DefaultLabel : Label;
     // 要対応 (Tronie ruling 2026-11-19): only an AI that is not there or whose install failed. installing moves by itself, checking and installed never count, even when the last update failed.

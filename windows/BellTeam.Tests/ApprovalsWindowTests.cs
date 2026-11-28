@@ -100,8 +100,8 @@ public sealed class ApprovalsWindowTests
     });
 
     [Theory]
-    [InlineData("parent_refused", ChildJoinText.Failed)]
-    [InlineData("other_account", ChildJoinText.OtherAccount)]
+    [InlineData("parent_refused", "つなげませんでした。もう一度つないでください。")]
+    [InlineData("other_account", "この端末と親の端末で、サインインしているアカウントが違います。親の端末と同じアカウント（AppleかGoogle）でこの端末にサインインして、もう一度QRコードを出してください。")]
     public void AFailedJoinSaysItsOwnSentenceNeverTheCodeAndOffersToConnectAgain(string code, string sentence) => RunSta(() =>
     {
         var join = new ApprovalsFixture.Join { Phase = ChildJoinPhase.Failed, FailedCode = code }; using var rig = Open(join: join); Until(() => rig.Page.Settled);

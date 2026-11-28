@@ -208,7 +208,8 @@ public sealed class AccountCard : StackPanel
     }
 
     // 「アカウントを削除」: the last item, under a divider (Rapi's Mac reference); only the subscription sentences name this platform's store.
-    private const string Subscription = "購読はGoogle Playのものなので、この操作では解約されません。解約はGoogle Playの「定期購入」から行ってください。", Cancel = "購読を止めるには、Google Playの定期購入の管理から解約してください。";
+    private static string Subscription  => AndroidStrings.AccountCard_Subscription_1;
+        private static string Cancel  => AndroidStrings.AccountCard_Cancel_1;
     private void RenderDelete()
     {
         if (AccountDeletion.Run is null) return;

@@ -18,22 +18,22 @@ public sealed class FeatureEditor : EditorWindow
     public void ClearSecrets() { foreach (var input in inputs) if (input.Password is { } box) box.Text = ""; }
     public async Task InitializeAsync()
     {
-        SaveButton.IsEnabled = false; ShowStatus("読み込んでいます…");
+        SaveButton.IsEnabled = false; ShowStatus(LinuxStrings.FeatureEditor_InitializeAsync_1);
         try
         {
             var original = (await workspace.Planning.FeaturesAsync(Token)).Single(setting => setting.Id == id); Token.ThrowIfCancellationRequested();
-            var enabled = SettingsUi.Violeted(new CheckBox { Content = "有効にする", IsChecked = original.Enabled, Margin = new Thickness(0, 10, 0, 14) }); Body.Children.Add(enabled);
+            var enabled = SettingsUi.Violeted(new CheckBox { Content = LinuxStrings.FeatureEditor_InitializeAsync_2, IsChecked = original.Enabled, Margin = new Thickness(0, 10, 0, 14) }); Body.Children.Add(enabled);
             // A feature with no fields (thinkingDisplay) is the switch alone: nothing to register, so no guide and no empty 設定 heading.
-            if (original.Fields.Length > 0) Body.Children.Add(new TextBlock { Text = "必要な項目を登録してから有効にしてください。秘密の値は会話へ送られません。", TextWrapping = TextWrapping.Wrap });
-            if (original.ApplyFailed) Body.Children.Add(new TextBlock { Text = "設定を保存しましたが、反映できませんでした。設定を確認して再度保存してください。", TextWrapping = TextWrapping.Wrap, Foreground = BellTheme.Red });
-            if (original.Fields.Length > 0) Heading("設定");
+            if (original.Fields.Length > 0) Body.Children.Add(new TextBlock { Text = LinuxStrings.FeatureEditor_InitializeAsync_3, TextWrapping = TextWrapping.Wrap });
+            if (original.ApplyFailed) Body.Children.Add(new TextBlock { Text = LinuxStrings.FeatureEditor_InitializeAsync_4, TextWrapping = TextWrapping.Wrap, Foreground = BellTheme.Red });
+            if (original.Fields.Length > 0) Heading(LinuxStrings.FeatureEditor_InitializeAsync_5);
             foreach (var field in original.Fields)
             {
                 if (!field.Secret) { inputs.Add((field, TextField(field.Label, field.Value), null, null)); continue; }
                 Body.Children.Add(new TextBlock { Text = field.Label, Margin = new Thickness(0, 10, 0, 5) });
-                Body.Children.Add(new TextBlock { Text = field.Configured ? "登録済み・変更するときだけ入力" : "未設定", FontSize = 14 });
+                Body.Children.Add(new TextBlock { Text = field.Configured ? LinuxStrings.FeatureEditor_InitializeAsync_6 : LinuxStrings.FeatureEditor_InitializeAsync_7, FontSize = 14 });
                 var password = new TextBox { PasswordChar = '•', Margin = new Thickness(0, 5), Padding = new Thickness(10, 8), FontSize = 16 }; Body.Children.Add(password);
-                var remove = SettingsUi.Violeted(new CheckBox { Content = "保存すると登録済みの値を消す", Margin = new Thickness(0, 4, 0, 8) });
+                var remove = SettingsUi.Violeted(new CheckBox { Content = LinuxStrings.FeatureEditor_InitializeAsync_8, Margin = new Thickness(0, 4, 0, 8) });
                 remove.IsCheckedChanged += (_, _) => { if (remove.IsChecked == true) password.Text = ""; password.IsEnabled = remove.IsChecked != true; };
                 Body.Children.Add(remove); inputs.Add((field, null, password, remove));
             }
@@ -45,7 +45,7 @@ public sealed class FeatureEditor : EditorWindow
                 try
                 {
                     var updated = await workspace.Planning.SaveFeatureAsync(id, changedEnabled, values, Token);
-                    if (updated.ApplyFailed) { Saved = true; ShowStatus("設定を保存しましたが、反映できませんでした。閉じて最新の状態を確認してください。"); return false; }
+                    if (updated.ApplyFailed) { Saved = true; ShowStatus(LinuxStrings.FeatureEditor_InitializeAsync_9); return false; }
                     return true;
                 }
                 finally { values.Clear(); }
@@ -53,7 +53,7 @@ public sealed class FeatureEditor : EditorWindow
             ShowStatus(""); SaveButton.IsEnabled = true;
         }
         catch (OperationCanceledException) when (Token.IsCancellationRequested) { }
-        catch (Exception) { ShowStatus("追加機能の設定を読み取れませんでした。接続と認証を確認してください。"); }
+        catch (Exception) { ShowStatus(LinuxStrings.FeatureEditor_InitializeAsync_10); }
     }
     public Dictionary<string, string> CollectChanges()
     {

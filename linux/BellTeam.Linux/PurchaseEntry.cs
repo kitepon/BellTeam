@@ -31,7 +31,7 @@ public sealed class PurchaseEntry : StackPanel
         busy = true; failure = null; Render();
         try { state = await api.GetAsync(token); }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
-        catch (Exception error) { failure = "購読の状態を確認できませんでした。再確認してください。" + error.Message; }
+        catch (Exception error) { failure = LinuxStrings.PurchaseEntry_LoadAsync_1(error.Message); }
         busy = false; Render();
     }
 

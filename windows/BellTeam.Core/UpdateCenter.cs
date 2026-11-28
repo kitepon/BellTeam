@@ -47,30 +47,30 @@ public sealed class UpdateCenter(BellApi api, SettingsStore store)
     public async Task<UpdateInventory> InventoryAsync(CancellationToken token = default)
     {
         var value = await api.GetAsync<UpdateInventory>("/api/updates", token);
-        if (value.Schema != "bellteam.updates.v1" || value.Notice is null || value.Notice.State is not ("ready" or "unavailable" or "updating" or "attention") || string.IsNullOrEmpty(value.Notice.Message) || value.Components is null || value.Plans is null || value.Components.Any(item => item is null || string.IsNullOrEmpty(item.Id) || string.IsNullOrEmpty(item.Name) || item.Comparison is null || item.Comparison.State is not ("up_to_date" or "update_available" or "unavailable" or "incompatible" or "unknown") || item.Changes is null || item.Capability is null || item.Availability is null)) throw new BellApiException("更新情報の応答形式を確認できません。");
+        if (value.Schema != "bellteam.updates.v1" || value.Notice is null || value.Notice.State is not ("ready" or "unavailable" or "updating" or "attention") || string.IsNullOrEmpty(value.Notice.Message) || value.Components is null || value.Plans is null || value.Components.Any(item => item is null || string.IsNullOrEmpty(item.Id) || string.IsNullOrEmpty(item.Name) || item.Comparison is null || item.Comparison.State is not ("up_to_date" or "update_available" or "unavailable" or "incompatible" or "unknown") || item.Changes is null || item.Capability is null || item.Availability is null)) throw new BellApiException(CoreStrings.UpdateCenter_InventoryAsync_1);
         return value;
     }
     public async Task<UpdatePlan> PlanAsync(string? componentId, CancellationToken token = default)
     {
         object request = componentId is null ? new { scope = "all" } : new { scope = "component", componentId };
         var response = await api.PostAsync<JsonElement>("/api/updates/plans", request, token);
-        if (!response.TryGetProperty("plan", out var json)) throw new BellApiException("更新計画の応答形式を確認できません。");
+        if (!response.TryGetProperty("plan", out var json)) throw new BellApiException(CoreStrings.UpdateCenter_PlanAsync_1);
         var plan = DecodePlan(json);
-        if (plan.Scope != (componentId is null ? "all" : "component") || plan.ComponentId != componentId || plan.Action is not (null or "update") || plan.Scope == "component" && (plan.Targets.Length != 1 || plan.Targets[0].ComponentId != componentId)) throw new BellApiException("更新計画の対象を確認できません。");
-        if (Requests.Any(item => item.PlanId == plan.PlanId && (item.Result is null && item.Rejection is null || item.Result?.Admission == "unknown" || item.Result?.Phase == "unknown"))) throw new BellApiException("結果が不明な要求と同じ計画は実行できません。元の要求を照会するか、新しい計画を取得してください。");
+        if (plan.Scope != (componentId is null ? "all" : "component") || plan.ComponentId != componentId || plan.Action is not (null or "update") || plan.Scope == "component" && (plan.Targets.Length != 1 || plan.Targets[0].ComponentId != componentId)) throw new BellApiException(CoreStrings.UpdateCenter_PlanAsync_2);
+        if (Requests.Any(item => item.PlanId == plan.PlanId && (item.Result is null && item.Rejection is null || item.Result?.Admission == "unknown" || item.Result?.Phase == "unknown"))) throw new BellApiException(CoreStrings.UpdateCenter_PlanAsync_3);
         return plan;
     }
     private static UpdatePlan DecodePlan(JsonElement json)
     {
         static bool BooleanField(JsonElement value, string key) => value.ValueKind == JsonValueKind.Object && value.TryGetProperty(key, out var field) && field.ValueKind is JsonValueKind.True or JsonValueKind.False;
-        if (json.ValueKind != JsonValueKind.Object || !json.TryGetProperty("impact", out var impact) || !BooleanField(impact, "containerRestart") || !json.TryGetProperty("compatibility", out var compatibility) || !BooleanField(compatibility, "compatible") || !json.TryGetProperty("capability", out var capability) || !BooleanField(capability, "supported")) throw new BellApiException("更新計画の応答形式を確認できません。");
+        if (json.ValueKind != JsonValueKind.Object || !json.TryGetProperty("impact", out var impact) || !BooleanField(impact, "containerRestart") || !json.TryGetProperty("compatibility", out var compatibility) || !BooleanField(compatibility, "compatible") || !json.TryGetProperty("capability", out var capability) || !BooleanField(capability, "supported")) throw new BellApiException(CoreStrings.UpdateCenter_PlanAsync_1);
         var plan = json.Deserialize<UpdatePlan>(BellApi.Json);
-        if (plan is null || plan.PlanId == Guid.Empty || plan.Targets is null || plan.Targets.Length == 0 || plan.Targets.Any(target => target is null || string.IsNullOrEmpty(target.ComponentId) || target.Published is null || string.IsNullOrEmpty(target.Published.Version)) || plan.Compatibility is null || plan.Impact is null || string.IsNullOrEmpty(plan.Impact.Description) || plan.Capability is null) throw new BellApiException("更新計画の応答形式を確認できません。");
+        if (plan is null || plan.PlanId == Guid.Empty || plan.Targets is null || plan.Targets.Length == 0 || plan.Targets.Any(target => target is null || string.IsNullOrEmpty(target.ComponentId) || target.Published is null || string.IsNullOrEmpty(target.Published.Version)) || plan.Compatibility is null || plan.Impact is null || string.IsNullOrEmpty(plan.Impact.Description) || plan.Capability is null) throw new BellApiException(CoreStrings.UpdateCenter_PlanAsync_1);
         return plan;
     }
     public async Task<UpdateOperation> StartAsync(UpdatePlan plan, bool confirmed, CancellationToken token = default)
     {
-        if (!plan.Capability.Supported || !plan.Compatibility.Compatible || plan.ExpiresAt <= DateTimeOffset.UtcNow || plan.Impact.ContainerRestart && !confirmed) throw new BellApiException("更新計画を確認し、必要な再起動への同意を行ってください。");
+        if (!plan.Capability.Supported || !plan.Compatibility.Compatible || plan.ExpiresAt <= DateTimeOffset.UtcNow || plan.Impact.ContainerRestart && !confirmed) throw new BellApiException(CoreStrings.UpdateCenter_StartAsync_1);
         var request = new UpdateRequest(Server, Guid.NewGuid(), plan.PlanId, null);
         Save(request);
         UpdateOperation result;
@@ -78,9 +78,9 @@ public sealed class UpdateCenter(BellApi api, SettingsStore store)
         catch (BellApiException error) when ((int?)error.Status is 400 or 401 or 403 or 404 or 409)
         {
             Save(request with { Rejection = error.Message });
-            throw new BellApiException("更新は受け付けられませんでした。" + error.Message, error.Status);
+            throw new BellApiException(CoreStrings.UpdateCenter_StartAsync_2(error.Message), error.Status);
         }
-        catch (Exception error) { throw new BellApiException($"受付を確認できません。要求ID {request.RequestId} の結果を照会してください。更新は自動で再送しません。{error.Message}"); }
+        catch (Exception error) { throw new BellApiException(CoreStrings.UpdateCenter_StartAsync_3(request.RequestId, error.Message)); }
         return SaveResult(request, result);
     }
     public async Task<UpdateOperation> ReadAsync(UpdateRequest request, CancellationToken token = default)
@@ -90,7 +90,7 @@ public sealed class UpdateCenter(BellApi api, SettingsStore store)
     }
     private UpdateOperation SaveResult(UpdateRequest request, UpdateOperation result)
     {
-        if (result is null || result.RequestId != request.RequestId || result.Plan is null || result.Plan.PlanId != request.PlanId || result.Admission is not ("accepted" or "rejected" or "unknown") || result.Phase is not ("preparing" or "applying" or "reconnecting" or "verifying" or "completed" or "failed" or "unknown") || result.Execution is not ("pending" or "succeeded" or "failed" or "unknown") || result.Verification is not ("pending" or "succeeded" or "failed" or "unknown") || result.Phase == "completed" && (result.Admission != "accepted" || result.Execution != "succeeded" || result.Verification != "succeeded")) throw new BellApiException("同じ更新要求の結果を確認できません。再送せずに照会してください。");
+        if (result is null || result.RequestId != request.RequestId || result.Plan is null || result.Plan.PlanId != request.PlanId || result.Admission is not ("accepted" or "rejected" or "unknown") || result.Phase is not ("preparing" or "applying" or "reconnecting" or "verifying" or "completed" or "failed" or "unknown") || result.Execution is not ("pending" or "succeeded" or "failed" or "unknown") || result.Verification is not ("pending" or "succeeded" or "failed" or "unknown") || result.Phase == "completed" && (result.Admission != "accepted" || result.Execution != "succeeded" || result.Verification != "succeeded")) throw new BellApiException(CoreStrings.UpdateCenter_SaveResult_1);
         var previous = Requests.FirstOrDefault(item => item.RequestId == request.RequestId)?.Result;
         if (previous is not null && Terminal(previous) && !Terminal(result)) return previous;
         Save(request with { Result = result });

@@ -22,29 +22,29 @@ public static class SettingsPages
     ];
     public static string Title(this SettingsPage page) => page switch
     {
-        SettingsPage.Profile => "プロフィール", SettingsPage.Ai => "AIの認証", SettingsPage.Summary => "仕事の要約を書くAI", SettingsPage.Terminals => "端末", SettingsPage.Exclusions => "稼働中に数えない処理",
-        SettingsPage.OnePassword => "1Password", SettingsPage.Notifications => "通知", SettingsPage.Rules => "チームの決まり", SettingsPage.Features => "追加機能",
-        SettingsPage.Connection => "接続", SettingsPage.Display => "表示", SettingsPage.Billing => "利用と課金", SettingsPage.Update => "アップデート",
-        SettingsPage.About => "このアプリについて", _ => "全体停止"
+        SettingsPage.Profile => CoreStrings.SettingsStatus_Title_1, SettingsPage.Ai => CoreStrings.SettingsStatus_Title_2, SettingsPage.Summary => CoreStrings.SettingsStatus_Title_3, SettingsPage.Terminals => CoreStrings.SettingsStatus_Title_4, SettingsPage.Exclusions => CoreStrings.SettingsStatus_Title_5,
+        SettingsPage.OnePassword => "1Password", SettingsPage.Notifications => CoreStrings.SettingsStatus_Title_6, SettingsPage.Rules => CoreStrings.SettingsStatus_Title_7, SettingsPage.Features => CoreStrings.SettingsStatus_Title_8,
+        SettingsPage.Connection => CoreStrings.SettingsStatus_Title_9, SettingsPage.Display => CoreStrings.SettingsStatus_Title_10, SettingsPage.Billing => CoreStrings.SettingsStatus_Title_11, SettingsPage.Update => CoreStrings.SettingsStatus_Title_12,
+        SettingsPage.About => CoreStrings.SettingsStatus_Title_13, _ => CoreStrings.SettingsStatus_Title_14
     };
     // The calm line: shown while the live state is not known yet, or when an older server does not return the item's data.
     public static string Detail(this SettingsPage page) => page switch
     {
-        SettingsPage.Profile => "名前・写真・紹介文",
-        SettingsPage.Ai => "AIのアカウントを認証し直す",
-        SettingsPage.Summary => "メンバー一覧の「今の仕事」を書くAI",
-        SettingsPage.Terminals => "メンバーの席を動かすMac・Windows・Linuxと、その鍵",
-        SettingsPage.Exclusions => "席で動いていても仕事中に数えない処理",
-        SettingsPage.OnePassword => "1Passwordの鍵をメンバーが使えるようにする",
-        SettingsPage.Notifications => "メンバーからの連絡をこの端末に届ける",
-        SettingsPage.Rules => "チームが守るあなたの決まり",
-        SettingsPage.Features => "通知の送信などを使うための設定",
-        SettingsPage.Connection => "つないでいるサーバーとログイン方法",
-        SettingsPage.Display => "会話を開く時の動き",
-        SettingsPage.Billing => "アプリでAIを使うための月額購読",
-        SettingsPage.Update => "サーバーの部品を最新にする",
-        SettingsPage.About => "アプリの版",
-        _ => "全員のAIの動作をまとめて止める"
+        SettingsPage.Profile => CoreStrings.SettingsStatus_Detail_1,
+        SettingsPage.Ai => CoreStrings.SettingsStatus_Detail_2,
+        SettingsPage.Summary => CoreStrings.SettingsStatus_Detail_3,
+        SettingsPage.Terminals => CoreStrings.SettingsStatus_Detail_4,
+        SettingsPage.Exclusions => CoreStrings.SettingsStatus_Detail_5,
+        SettingsPage.OnePassword => CoreStrings.SettingsStatus_Detail_6,
+        SettingsPage.Notifications => CoreStrings.SettingsStatus_Detail_7,
+        SettingsPage.Rules => CoreStrings.SettingsStatus_Detail_8,
+        SettingsPage.Features => CoreStrings.SettingsStatus_Detail_9,
+        SettingsPage.Connection => CoreStrings.SettingsStatus_Detail_10,
+        SettingsPage.Display => CoreStrings.SettingsStatus_Detail_11,
+        SettingsPage.Billing => CoreStrings.SettingsStatus_Detail_12,
+        SettingsPage.Update => CoreStrings.SettingsStatus_Detail_13,
+        SettingsPage.About => CoreStrings.SettingsStatus_Detail_14,
+        _ => CoreStrings.SettingsStatus_Detail_15
     };
 }
 
@@ -56,7 +56,7 @@ public sealed record SettingsStatus(string Line, string? Badge = null, SettingsT
 // The effort in plain words for the settings screens (an effort the app does not know is shown as sent).
 public static class EffortText
 {
-    public static string Label(string effort) => effort switch { "" => "CLIの既定", "low" => "低", "medium" => "中", "high" => "高", "xhigh" => "最高", _ => effort };
+    public static string Label(string effort) => effort switch { "" => CoreStrings.AvatarImages_DefaultValue_1, "low" => CoreStrings.SettingsStatus_Label_2, "medium" => CoreStrings.SettingsStatus_Label_3, "high" => CoreStrings.SettingsStatus_Label_4, "xhigh" => CoreStrings.SettingsStatus_Label_5, _ => effort };
 }
 
 // AIの認証の段階 (Mac AuthenticationProgress). The only finished look is Done; /api/accounts `loggedIn` is never used (an expired credential still said true).
@@ -94,13 +94,13 @@ public sealed record AuthenticationProgress(AuthenticationStage Stage, string? R
 
     public string Badge => Stage switch
     {
-        AuthenticationStage.Checking or AuthenticationStage.Confirming or AuthenticationStage.SendingCode => "確認中",
-        AuthenticationStage.Unknown => "確認できません",
-        AuthenticationStage.WaitingSite => "認証の途中",
-        AuthenticationStage.WaitingCode => "コード待ち",
-        AuthenticationStage.Done => "認証済み",
-        AuthenticationStage.Failed => "失敗",
-        _ => "ログインが必要"
+        AuthenticationStage.Checking or AuthenticationStage.Confirming or AuthenticationStage.SendingCode => CoreStrings.SettingsModels_Checking_1,
+        AuthenticationStage.Unknown => CoreStrings.SettingsModels_RowText_2,
+        AuthenticationStage.WaitingSite => CoreStrings.SettingsStatus_Badge_3,
+        AuthenticationStage.WaitingCode => CoreStrings.SettingsStatus_Badge_4,
+        AuthenticationStage.Done => CoreStrings.SettingsModels_From_1,
+        AuthenticationStage.Failed => CoreStrings.OnePassword_BadgeText_3,
+        _ => CoreStrings.SettingsStatus_Badge_7
     };
 
     public SettingsTone Tone => Stage switch
@@ -114,23 +114,23 @@ public sealed record AuthenticationProgress(AuthenticationStage Stage, string? R
     // The row main button: only for stages that need the user. Done, checking and unreadable show none (opening the row reads again).
     public string? Action => Stage switch
     {
-        AuthenticationStage.Failed => "認証し直す",
-        AuthenticationStage.NeedsLogin => "認証する",
-        AuthenticationStage.WaitingSite or AuthenticationStage.WaitingCode => "続ける",
+        AuthenticationStage.Failed => CoreStrings.SettingsModels_From_3,
+        AuthenticationStage.NeedsLogin => CoreStrings.SettingsModels_From_5,
+        AuthenticationStage.WaitingSite or AuthenticationStage.WaitingCode => CoreStrings.SettingsModels_From_7,
         _ => null
     };
 
     public string Detail => Stage switch
     {
-        AuthenticationStage.Checking => "公式の状態を確認しています。",
-        AuthenticationStage.Unknown => "状態を確認できませんでした。「状態を更新」で読み直してください。",
-        AuthenticationStage.WaitingSite => "まだ終わっていません。「公式サイトを開く」から公式サイトで認証してください。",
-        AuthenticationStage.WaitingCode => "まだ終わっていません。公式サイトに表示された認証コードを下に貼り付けて「認証コードを送る」を押してください。",
-        AuthenticationStage.SendingCode => "認証コードを送っています。",
-        AuthenticationStage.Confirming => "公式の応答を待っています。終わるまでこの画面で待ってください。",
-        AuthenticationStage.Done => "認証済みです。",
-        AuthenticationStage.Failed => "認証できませんでした。理由：" + (string.IsNullOrEmpty(Reason) ? "理由は返されませんでした。" : Reason),
-        _ => "ログインし直してください。「認証する」から公式サイトで認証します。"
+        AuthenticationStage.Checking => CoreStrings.SettingsStatus_Detail_16,
+        AuthenticationStage.Unknown => CoreStrings.SettingsStatus_Detail_17,
+        AuthenticationStage.WaitingSite => CoreStrings.SettingsStatus_Detail_18,
+        AuthenticationStage.WaitingCode => CoreStrings.SettingsStatus_Detail_19,
+        AuthenticationStage.SendingCode => CoreStrings.SettingsStatus_Detail_20,
+        AuthenticationStage.Confirming => CoreStrings.SettingsStatus_Detail_21,
+        AuthenticationStage.Done => CoreStrings.SettingsStatus_Detail_22,
+        AuthenticationStage.Failed => CoreStrings.SettingsStatus_Detail_24((string.IsNullOrEmpty(Reason) ? CoreStrings.SettingsStatus_Detail_23 : Reason)),
+        _ => CoreStrings.SettingsStatus_Detail_25
     };
 }
 
@@ -142,7 +142,7 @@ public static class ClaudeAccountsReads
 {
     public static ClaudeAccountsRead Failure(Exception error) => error is BellApiException { Status: HttpStatusCode.NotFound } ? ClaudeAccountsRead.OldServer : ClaudeAccountsRead.Unreadable;
     // The row the home adds when the account list could not be read; it opens the AIの認証 page.
-    public static readonly AIAuthEntry UnreadableEntry = new("claude", "Claudeのアカウント", null, AuthenticationProgress.Unknown);
+    public static readonly AIAuthEntry UnreadableEntry = new("claude", CoreStrings.SettingsStatus_UnreadableEntry_1, null, AuthenticationProgress.Unknown);
 }
 
 // One AI login the home reads: every harness, and Claude accounts when the server lists them. AccountLabel (Claude slots) shows only on its own login screen.
@@ -173,7 +173,7 @@ public static class SettingsSummary
 
     public static SettingsStatus Ai(IReadOnlyList<AIAuthEntry>? entries)
     {
-        if (entries is null || entries.Count == 0) return Attention("AIの認証の状態を確認できません", "確認できません", SettingsPage.Ai);
+        if (entries is null || entries.Count == 0) return Attention(CoreStrings.SettingsStatus_Ai_1, CoreStrings.SettingsModels_RowText_2, SettingsPage.Ai);
         // a451: an AI that is not installed (or whose install failed) outranks every login stage; installed with a failed update does not count.
         // An AI being installed or checked moves by itself: no login read, nothing to do, so it never counts. Claude counts once for both accounts.
         static bool Absent(AIAuthEntry entry) => entry.Install is { NeedsAttention: true };
@@ -184,23 +184,23 @@ public static class SettingsSummary
         var worst = entries[0];
         foreach (var entry in entries) if (Rank(worst) < Rank(entry)) worst = entry; // the first of equals wins
         var others = entries.Where(Pending).Select(entry => Absent(entry) ? "install:" + entry.HarnessId : "login:" + entry.HarnessId + "/" + entry.Slot).Distinct().Count() - (Pending(worst) ? 1 : 0);
-        var more = others > 0 ? $"（ほか{others}件）" : "";
+        var more = others > 0 ? CoreStrings.SettingsStatus_Ai_3(others) : "";
         if (worst.Install is { NeedsAttention: true } install)
         {
-            var (text, badge) = install.State == "failed" ? ($"{worst.Name}を入れられませんでした", "導入できません") : ($"{worst.Name}がまだ入っていません", "未導入");
+            var (text, badge) = install.State == "failed" ? (CoreStrings.SettingsStatus_Ai_4(worst.Name), CoreStrings.SettingsModels_FromInstall_3) : (CoreStrings.SettingsStatus_Ai_6(worst.Name), CoreStrings.SettingsModels_FromInstall_1);
             return new(text + more, badge, SettingsTone.Orange, true, new SettingsRoute(SettingsPage.Ai, worst.HarnessId, worst.Slot));
         }
         var shown = Shown(worst);
         var line = shown.Stage switch
         {
-            AuthenticationStage.Done => "すべて認証済み",
-            AuthenticationStage.Checking => "認証の状態を確認しています",
-            AuthenticationStage.Confirming or AuthenticationStage.SendingCode => $"{worst.Name}の認証を確認しています" + more,
-            AuthenticationStage.WaitingSite => $"{worst.Name}は公式サイトでの認証の途中です" + more,
-            AuthenticationStage.WaitingCode => $"{worst.Name}は認証コードの入力待ちです" + more,
-            AuthenticationStage.Unknown => $"{worst.Name}の状態を確認できません" + more,
-            AuthenticationStage.NeedsLogin => $"{worst.Name}のログインが必要です" + more,
-            _ => $"{worst.Name}の認証に失敗しました" + more
+            AuthenticationStage.Done => CoreStrings.SettingsStatus_Ai_8,
+            AuthenticationStage.Checking => CoreStrings.SettingsStatus_Ai_9,
+            AuthenticationStage.Confirming or AuthenticationStage.SendingCode => CoreStrings.SettingsStatus_Ai_10(worst.Name, more),
+            AuthenticationStage.WaitingSite => CoreStrings.SettingsStatus_Ai_11(worst.Name, more),
+            AuthenticationStage.WaitingCode => CoreStrings.SettingsStatus_Ai_12(worst.Name, more),
+            AuthenticationStage.Unknown => CoreStrings.SettingsStatus_Ai_13(worst.Name, more),
+            AuthenticationStage.NeedsLogin => CoreStrings.SettingsStatus_Ai_14(worst.Name, more),
+            _ => CoreStrings.SettingsStatus_Ai_15(worst.Name, more)
         };
         var attention = shown.Stage is AuthenticationStage.Unknown or AuthenticationStage.NeedsLogin or AuthenticationStage.Failed;
         var route = !attention ? null : worst == ClaudeAccountsReads.UnreadableEntry ? new SettingsRoute(SettingsPage.Ai) : new SettingsRoute(SettingsPage.Ai, worst.HarnessId, worst.Slot);
@@ -215,19 +215,19 @@ public static class SettingsSummary
         var badge = OnePasswordItem.BadgeText(state);
         return state switch
         {
-            OnePasswordState.Connected => new(setting.Connection is { } connection ? $"保管庫{connection.Vaults.Length}件・SSH鍵{connection.SshKeys}件" : "つながっています", badge, SettingsTone.Green),
-            OnePasswordState.Off => new("まだ連携していません", badge, SettingsTone.Gray),
-            _ => new(setting.ErrorMessage.Length == 0 ? "連携できませんでした" : setting.ErrorMessage, badge, SettingsTone.Orange, true, new SettingsRoute(SettingsPage.OnePassword))
+            OnePasswordState.Connected => new(setting.Connection is { } connection ? CoreStrings.SettingsStatus_OnePassword_1(connection.Vaults.Length, connection.SshKeys) : CoreStrings.SettingsStatus_OnePassword_2, badge, SettingsTone.Green),
+            OnePasswordState.Off => new(CoreStrings.SettingsStatus_OnePassword_3, badge, SettingsTone.Gray),
+            _ => new(setting.ErrorMessage.Length == 0 ? CoreStrings.SettingsStatus_OnePassword_4 : setting.ErrorMessage, badge, SettingsTone.Orange, true, new SettingsRoute(SettingsPage.OnePassword))
         };
     }
 
     public static SettingsStatus Notifications(NotificationState state, bool failed = false) => state switch
     {
-        NotificationState.ServerOff => new("サーバーで無効です", "サーバーで無効", SettingsTone.Gray),
-        NotificationState.OsOff => new("端末の通知がオフです", "OSでオフ", SettingsTone.Gray),
-        NotificationState.Unregistered when failed => new("登録できませんでした", "失敗", SettingsTone.Orange, true, new SettingsRoute(SettingsPage.Notifications)),
-        NotificationState.Unregistered => new("この端末に届きません", "未登録", SettingsTone.Violet),
-        _ => new("この端末に届きます", "届きます", SettingsTone.Green)
+        NotificationState.ServerOff => new(CoreStrings.SettingsStatus_Notifications_1, CoreStrings.SettingsStatus_Notifications_2, SettingsTone.Gray),
+        NotificationState.OsOff => new(CoreStrings.SettingsStatus_Notifications_3, CoreStrings.SettingsStatus_Notifications_4, SettingsTone.Gray),
+        NotificationState.Unregistered when failed => new(CoreStrings.SettingsStatus_Notifications_5, CoreStrings.OnePassword_BadgeText_3, SettingsTone.Orange, true, new SettingsRoute(SettingsPage.Notifications)),
+        NotificationState.Unregistered => new(CoreStrings.SettingsStatus_Notifications_7, CoreStrings.SettingsStatus_Notifications_8, SettingsTone.Violet),
+        _ => new(CoreStrings.SettingsStatus_Notifications_9, CoreStrings.SettingsStatus_Notifications_10, SettingsTone.Green)
     };
 
     // A key counts as missing when the server says so; an older body without key states falls back to its configured flag.
@@ -239,69 +239,69 @@ public static class SettingsSummary
     // shortcut: no reachability here until the server returns `lastCheck` per terminal; then add "つながらない端末" to the line and the band.
     public static SettingsStatus Terminals(TerminalListState state, IReadOnlyList<Terminal>? list)
     {
-        if (state == TerminalListState.Failed) return Attention("端末の一覧を確認できません", "確認できません", SettingsPage.Terminals);
+        if (state == TerminalListState.Failed) return Attention(CoreStrings.SettingsStatus_Terminals_1, CoreStrings.SettingsModels_RowText_2, SettingsPage.Terminals);
         if (state != TerminalListState.Supported || list is null) return new(SettingsPage.Terminals.Detail());
-        if (list.Count == 0) return new("まだ端末がありません", "未設定", SettingsTone.Gray);
+        if (list.Count == 0) return new(CoreStrings.SettingsStatus_Terminals_3, CoreStrings.PlanningModels_StatusText_4, SettingsTone.Gray);
         var missing = list.Count(SshKeyMissing);
-        var count = $"{list.Count}台";
-        return missing > 0 ? new(count + $"・鍵が未設定の端末が{missing}台", "未設定", SettingsTone.Gray) : new(count, "設定済み", SettingsTone.Green);
+        var count = CoreStrings.SettingsStatus_Terminals_5(list.Count);
+        return missing > 0 ? new(CoreStrings.SettingsStatus_Terminals_6(count, missing), CoreStrings.PlanningModels_StatusText_4, SettingsTone.Gray) : new(count, CoreStrings.SettingsStatus_Terminals_8, SettingsTone.Green);
     }
 
     // 稼働中に数えない処理 (a65). list null: not read yet, or an older server (calm line); unreadable: the last read failed, even with an earlier list kept.
     public static SettingsStatus Exclusions(RunningExclusionList? list, bool unreadable)
     {
-        if (unreadable) return new(list is null ? "一覧を読めませんでした" : $"最新の一覧を読めませんでした（前に読んだ時は{list.Entries.Length}件）", "確認できません", SettingsTone.Orange);
+        if (unreadable) return new(list is null ? CoreStrings.SettingsStatus_Exclusions_1 : CoreStrings.SettingsStatus_Exclusions_2(list.Entries.Length), CoreStrings.SettingsModels_RowText_2, SettingsTone.Orange);
         if (list is null) return new(SettingsPage.Exclusions.Detail());
         var count = list.Entries.Length; var waiting = list.Pending.Count(item => !item.Approved);
-        if (waiting > 0) return new($"{count}件・承認を待っている提案が{waiting}件", "承認待ち", SettingsTone.Violet);
-        return count > 0 ? new($"{count}件", "設定済み", SettingsTone.Green) : new("ありません");
+        if (waiting > 0) return new(CoreStrings.SettingsStatus_Exclusions_4(count, waiting), CoreStrings.SeatApprovals_Badge_1, SettingsTone.Violet);
+        return count > 0 ? new(CoreStrings.SettingsStatus_Exclusions_6(count), CoreStrings.SettingsStatus_Terminals_8, SettingsTone.Green) : new(CoreStrings.SettingsStatus_Exclusions_8);
     }
 
     // 仕事の要約を書くAI. catalog is the model list (GET /api/models) so the line says the display name of the model; an id not in it is shown as is.
     public static SettingsStatus SummaryAgent(BackgroundAgentRecord? record, Dictionary<string, HarnessModels>? catalog = null)
     {
         if (record is null) return new(SettingsPage.Summary.Detail());
-        if (record.Selection is not { } selection) return new("まだ選んでいません", "未設定", SettingsTone.Gray);
-        if (record.Notice is { } notice) return new(notice, "要対応", SettingsTone.Orange, true, new SettingsRoute(SettingsPage.Summary));
+        if (record.Selection is not { } selection) return new(CoreStrings.SettingsStatus_SummaryAgent_1, CoreStrings.PlanningModels_StatusText_4, SettingsTone.Gray);
+        if (record.Notice is { } notice) return new(notice, CoreStrings.SettingsStatus_SummaryAgent_3, SettingsTone.Orange, true, new SettingsRoute(SettingsPage.Summary));
         var name = BackgroundAgentChoices.Harnesses.FirstOrDefault(harness => harness.Id == selection.Harness).Label ?? selection.Harness;
         var model = catalog is null ? selection.Model : BackgroundAgentChoices.Models(catalog, selection.Harness).FirstOrDefault(choice => choice.Id == selection.Model)?.Label ?? selection.Model;
-        return new(string.Join(" · ", name, model, EffortText.Label(selection.ReasoningEffort)), "設定済み", SettingsTone.Green);
+        return new(string.Join(" · ", name, model, EffortText.Label(selection.ReasoningEffort)), CoreStrings.SettingsStatus_Terminals_8, SettingsTone.Green);
     }
 
     // アップデート. UpdateKind maps 1:1 to the Mac UpdateContent.Status cases.
     public static SettingsStatus Update(UpdateKind kind, string title) => kind switch
     {
-        UpdateKind.Loading or UpdateKind.Unconfirmed => new(title, "確認中", SettingsTone.Violet),
-        UpdateKind.Updating => new(title, "更新中", SettingsTone.Violet),
-        UpdateKind.Available => new(title, "更新あり", SettingsTone.Violet, true, new SettingsRoute(SettingsPage.Update)),
-        UpdateKind.Completed => new(title, "完了", SettingsTone.Green),
-        UpdateKind.UpToDate or UpdateKind.Waiting => new(title, "最新", SettingsTone.Green),
-        UpdateKind.Failed => new(title, "失敗", SettingsTone.Orange, true, new SettingsRoute(SettingsPage.Update)),
-        _ => new(title, "確認できません", SettingsTone.Orange, true, new SettingsRoute(SettingsPage.Update))
+        UpdateKind.Loading or UpdateKind.Unconfirmed => new(title, CoreStrings.SettingsModels_Checking_1, SettingsTone.Violet),
+        UpdateKind.Updating => new(title, CoreStrings.SettingsStatus_Update_2, SettingsTone.Violet),
+        UpdateKind.Available => new(title, CoreStrings.SettingsStatus_Update_3, SettingsTone.Violet, true, new SettingsRoute(SettingsPage.Update)),
+        UpdateKind.Completed => new(title, CoreStrings.GoalModels_StatusTitle_6, SettingsTone.Green),
+        UpdateKind.UpToDate or UpdateKind.Waiting => new(title, CoreStrings.SettingsStatus_Update_5, SettingsTone.Green),
+        UpdateKind.Failed => new(title, CoreStrings.OnePassword_BadgeText_3, SettingsTone.Orange, true, new SettingsRoute(SettingsPage.Update)),
+        _ => new(title, CoreStrings.SettingsModels_RowText_2, SettingsTone.Orange, true, new SettingsRoute(SettingsPage.Update))
     };
     public static string StopSentence(AiControlState state) => new AiControl { State = state }.StatusText;
 
     // 全体停止. A null control with unreadable false is still loading and keeps the calm line.
     public static SettingsStatus Stop(AiControl? control, bool unreadable)
     {
-        if (control is null) return unreadable ? Attention("全体停止の状態を読み込めませんでした", "確認できません", SettingsPage.Stop) : new(SettingsPage.Stop.Detail());
+        if (control is null) return unreadable ? Attention(CoreStrings.SettingsStatus_Stop_1, CoreStrings.SettingsModels_RowText_2, SettingsPage.Stop) : new(SettingsPage.Stop.Detail());
         var line = control.StatusText;
         return control.State switch
         {
-            AiControlState.Enabled => new(line, "動作中", SettingsTone.Green),
-            AiControlState.Stopping => new(line, "確認中", SettingsTone.Violet),
-            AiControlState.Stopped => Attention(line, "停止中", SettingsPage.Stop),
-            _ => Attention(line, "確認できません", SettingsPage.Stop)
+            AiControlState.Enabled => new(line, CoreStrings.SettingsModels_RowText_3, SettingsTone.Green),
+            AiControlState.Stopping => new(line, CoreStrings.SettingsModels_Checking_1, SettingsTone.Violet),
+            AiControlState.Stopped => Attention(line, CoreStrings.SettingsModels_RowText_1, SettingsPage.Stop),
+            _ => Attention(line, CoreStrings.SettingsModels_RowText_2, SettingsPage.Stop)
         };
     }
 
     // チームの決まり
     public static SettingsStatus Rules(string? text, bool unreadable)
     {
-        if (text is null) return unreadable ? Attention("決まりを読み込めませんでした", "確認できません", SettingsPage.Rules) : new(SettingsPage.Rules.Detail());
+        if (text is null) return unreadable ? Attention(CoreStrings.SettingsStatus_Rules_1, CoreStrings.SettingsModels_RowText_2, SettingsPage.Rules) : new(SettingsPage.Rules.Detail());
         var document = UserRulesDocument.Parse(text);
-        if (document.IsEmpty) return new("まだ決まりがありません", "未設定", SettingsTone.Gray);
-        return new(document.RuleCount > 0 ? $"{document.RuleCount}件の決まり" : $"{document.PlainLines.Count}行の決まり", "設定済み", SettingsTone.Green);
+        if (document.IsEmpty) return new(CoreStrings.SettingsStatus_Rules_3, CoreStrings.PlanningModels_StatusText_4, SettingsTone.Gray);
+        return new(document.RuleCount > 0 ? CoreStrings.SettingsStatus_Rules_5(document.RuleCount) : CoreStrings.SettingsStatus_Rules_6(document.PlainLines.Count), CoreStrings.SettingsStatus_Terminals_8, SettingsTone.Green);
     }
 
     // 追加機能: the feature list without 1Password (its own item).
@@ -310,11 +310,11 @@ public static class SettingsSummary
         var rest = settings.Where(setting => setting.Id != OnePasswordItem.Id).ToArray();
         if (rest.Length == 0) return new(SettingsPage.Features.Detail());
         var failed = rest.Count(setting => setting.ApplyFailed);
-        if (failed > 0) return new($"反映できていない機能が{failed}件あります", "失敗", SettingsTone.Orange, true, new SettingsRoute(SettingsPage.Features));
+        if (failed > 0) return new(CoreStrings.SettingsStatus_Features_1(failed), CoreStrings.OnePassword_BadgeText_3, SettingsTone.Orange, true, new SettingsRoute(SettingsPage.Features));
         var enabled = rest.Count(setting => setting.Status == "enabled");
         var off = rest.Count(setting => setting.Status == "disabled");
         var unset = rest.Length - enabled - off;
-        var line = string.Join("・", new[] { enabled > 0 ? $"{enabled}つ使用中" : null, unset > 0 ? $"{unset}つ未設定" : null, off > 0 ? $"{off}つオフ" : null }.OfType<string>());
-        return new(line.Length == 0 ? "使用中の機能はありません" : line, enabled > 0 ? "設定済み" : "未設定", enabled > 0 ? SettingsTone.Green : SettingsTone.Gray);
+        var line = string.Join(CoreStrings.HarnessAccounts_LimitLine_2, new[] { enabled > 0 ? CoreStrings.SettingsStatus_Features_4(enabled) : null, unset > 0 ? CoreStrings.SettingsStatus_Features_5(unset) : null, off > 0 ? CoreStrings.SettingsStatus_Features_6(off) : null }.OfType<string>());
+        return new(line.Length == 0 ? CoreStrings.SettingsStatus_Features_7 : line, enabled > 0 ? CoreStrings.SettingsStatus_Terminals_8 : CoreStrings.PlanningModels_StatusText_4, enabled > 0 ? SettingsTone.Green : SettingsTone.Gray);
     }
 }

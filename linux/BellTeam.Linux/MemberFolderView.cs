@@ -18,7 +18,7 @@ internal sealed class MemberTerminalSection : IDisposable
     private readonly bool memberFieldsAvailable;
     private readonly Func<string> memberName;
     private readonly Action edited;
-    private readonly ComboBox picker = Popup("動かす場所", [], "");
+    private readonly ComboBox picker = Popup(LinuxStrings.MemberFolderView_picker_1, [], "");
     private readonly TextBlock calmText, failure = Text("", 14, Red), missing = Text("", 12, Orange), problem = Text("", 12, Red), folderValue;
     private readonly TextBox otherBox, directBox;
     private readonly Border loadingRow, calmRow, failedRow, retryRow, pickerRow, missingRow, folderRow, chooseRow, otherRow, directRow, problemRow, manageRow;
@@ -39,21 +39,21 @@ internal sealed class MemberTerminalSection : IDisposable
     public MemberTerminalSection(TerminalsModel terminals, bool memberFieldsAvailable, string terminalId, string projectRoot, Func<string> memberName, Action edited, Action choose, Action manage)
     {
         this.terminals = terminals; this.memberFieldsAvailable = memberFieldsAvailable; this.memberName = memberName; this.edited = edited; TerminalId = terminalId; ProjectRoot = projectRoot;
-        loadingRow = Row(Text("端末の一覧を読み込んでいます…", 13, Secondary));
+        loadingRow = Row(Text(LinuxStrings.MemberFolderView_MemberTerminalSection_1, 13, Secondary));
         var calm = (Grid)Calm(""); calmText = (TextBlock)calm.Children[1]; calmRow = Row(calm);
-        failedRow = Row(failure); retryRow = Row(LinkButton("もう一度読み込む", () => _ = terminals.RefreshAsync()));
-        pickerRow = Labeled("動かす場所", picker);
+        failedRow = Row(failure); retryRow = Row(LinkButton(LinuxStrings.MemberFolderView_MemberTerminalSection_2, () => _ = terminals.RefreshAsync()));
+        pickerRow = Labeled(LinuxStrings.MemberFolderView_picker_1, picker);
         picker.SelectionChanged += (_, _) => Picked();
         missingRow = Row(missing);
-        var value = LabeledRow("フォルダ", ""); folderValue = (TextBlock)value.Children[1]; folderRow = Row(value);
-        AutomationProperties.SetName(folderValue, "フォルダ");
-        chooseRow = Row(IconRow(InspectorIcons.Folder, "フォルダを選ぶ", Violet, choose));
+        var value = LabeledRow(LinuxStrings.MemberFolderView_MemberTerminalSection_4, ""); folderValue = (TextBlock)value.Children[1]; folderRow = Row(value);
+        AutomationProperties.SetName(folderValue, LinuxStrings.MemberFolderView_MemberTerminalSection_4);
+        chooseRow = Row(IconRow(InspectorIcons.Folder, LinuxStrings.MemberFolderView_MemberTerminalSection_6, Violet, choose));
         // The typed path: inside 「ほかの方法」 once the picker exists, straight under the terminal on a BellTeam without the folders route.
-        var other = PathRow("パスを入力"); otherBox = other.Box;
-        OtherWays = new Disclosure("ほかの方法", other.Line, false); otherRow = Row(OtherWays);
-        var direct = PathRow("フォルダ"); directBox = direct.Box; directRow = Row(direct.Line);
+        var other = PathRow(LinuxStrings.MemberFolderView_MemberTerminalSection_7); otherBox = other.Box;
+        OtherWays = new Disclosure(LinuxStrings.MemberFolderView_MemberTerminalSection_8, other.Line, false); otherRow = Row(OtherWays);
+        var direct = PathRow(LinuxStrings.MemberFolderView_MemberTerminalSection_4); directBox = direct.Box; directRow = Row(direct.Line);
         problemRow = Row(problem);
-        manageRow = Row(IconRow(Icons.Gear, "端末を管理", Violet, manage));
+        manageRow = Row(IconRow(Icons.Gear, LinuxStrings.MemberFolderView_MemberTerminalSection_10, Violet, manage));
         foreach (var row in new[] { loadingRow, calmRow, failedRow, retryRow, pickerRow, missingRow, folderRow, chooseRow, otherRow, directRow, problemRow, manageRow }) Card.Add(row);
         otherBox.TextChanged += (_, _) => Typed(otherBox, directBox); directBox.TextChanged += (_, _) => Typed(directBox, otherBox);
         terminals.Changed += RenderOnUi; Render();
@@ -110,26 +110,26 @@ internal sealed class MemberTerminalSection : IDisposable
     {
         var state = terminals.State; var usable = BindingAvailable; var bound = usable && TerminalId.Length != 0; var typedOnly = terminals.FoldersUnsupported;
         Show(loadingRow, state == TerminalListState.NotLoaded);
-        calmText.Text = state == TerminalListState.Unsupported ? "このBellTeamはまだ端末の登録に対応していません" : "このBellTeamはまだメンバーの端末設定に対応していません";
+        calmText.Text = state == TerminalListState.Unsupported ? LinuxStrings.MemberFolderView_Render_1 : LinuxStrings.MemberFolderView_Render_2;
         Show(calmRow, state == TerminalListState.Unsupported || state == TerminalListState.Supported && !memberFieldsAvailable);
         failure.Text = terminals.FailedMessage ?? ""; Show(failedRow, state == TerminalListState.Failed); Show(retryRow, state == TerminalListState.Failed);
         Show(pickerRow, usable); RefreshPicker();
-        Show(missingRow, usable && SavedMissing); missing.Text = $"保存されている端末「{TerminalId}」は登録にありません。別の端末を選ぶか、端末を登録し直してください。";
+        Show(missingRow, usable && SavedMissing); missing.Text = LinuxStrings.MemberFolderView_Render_3(TerminalId);
         Show(folderRow, bound && !typedOnly); Show(chooseRow, bound && !typedOnly); Show(otherRow, bound && !typedOnly); Show(directRow, bound && typedOnly);
-        folderValue.Text = ProjectRoot.Length == 0 ? "未選択" : ProjectRoot; folderValue.Foreground = ProjectRoot.Length == 0 ? Secondary : Ink;
+        folderValue.Text = ProjectRoot.Length == 0 ? LinuxStrings.MemberFolderView_Render_4 : ProjectRoot; folderValue.Foreground = ProjectRoot.Length == 0 ? Secondary : Ink;
         var example = Os == TerminalOS.Windows ? @"C:\Users\kite\work\app" : "/Users/kite/work/app"; otherBox.PlaceholderText = example; directBox.PlaceholderText = example;
         var wrong = bound && ProjectRoot.Length != 0 ? MemberBinding.Problem(TerminalId, ProjectRoot, Os) : null;
         problem.Text = wrong ?? ""; Show(problemRow, wrong is not null); Show(manageRow, usable);
         Footer.IsVisible = usable;
-        Footer.Text = TerminalId.Length == 0 ? "このBellTeamの中で動きます（これまでどおり）。" : "選んだ端末の、このフォルダで席が起動します。フォルダは端末の上の絶対パスです。そこにBellTeamのファイルは作りません。";
+        Footer.Text = TerminalId.Length == 0 ? LinuxStrings.MemberFolderView_Render_5 : LinuxStrings.MemberFolderView_Render_6;
     }
 
     // The choices change only when the list does; the combo is never rebuilt under its own SelectionChanged.
     private void RefreshPicker()
     {
-        var options = new List<FormOption> { new("", "このBellTeam") };
-        options.AddRange(terminals.Terminals.Select(terminal => new FormOption(terminal.TerminalId, $"{terminal.TerminalId}（{terminal.Host}）")));
-        if (SavedMissing) options.Add(new(TerminalId, $"{TerminalId}（登録が見つかりません）"));
+        var options = new List<FormOption> { new("", LinuxStrings.MemberFolderView_RefreshPicker_1) };
+        options.AddRange(terminals.Terminals.Select(terminal => new FormOption(terminal.TerminalId, LinuxStrings.LatticeWindow_ShowDetail_5(terminal.TerminalId, terminal.Host))));
+        if (SavedMissing) options.Add(new(TerminalId, LinuxStrings.MemberFolderView_RefreshPicker_3(TerminalId)));
         var key = string.Join("|", options.Select(option => option.Id + option.Label));
         updating = true;
         if (key != pickerKey) { pickerKey = key; picker.SetOptions(options); }
@@ -150,8 +150,8 @@ internal sealed class FolderPickerView : Border
     {
         this.model = model; this.choose = choose;
         // The Mac sheet: a 閉じる pill at the left of the title.
-        CloseButton = SheetButtons.Pill("閉じる"); CloseButton.HorizontalAlignment = HorizontalAlignment.Left; CloseButton.Margin = new Thickness(12, 0, 0, 0); CloseButton.Click += (_, _) => close();
-        var title = Text("フォルダを選ぶ", 15, Ink, FontWeight.SemiBold); title.HorizontalAlignment = HorizontalAlignment.Center; title.VerticalAlignment = VerticalAlignment.Center;
+        CloseButton = SheetButtons.Pill(LinuxStrings.ApprovalsViews_NotUsable_1); CloseButton.HorizontalAlignment = HorizontalAlignment.Left; CloseButton.Margin = new Thickness(12, 0, 0, 0); CloseButton.Click += (_, _) => close();
+        var title = Text(LinuxStrings.MemberFolderView_MemberTerminalSection_6, 15, Ink, FontWeight.SemiBold); title.HorizontalAlignment = HorizontalAlignment.Center; title.VerticalAlignment = VerticalAlignment.Center;
         var header = new Grid { Height = 52, Background = FormCanvas }; header.Children.Add(CloseButton); header.Children.Add(title);
         var dock = new DockPanel();
         DockPanel.SetDock(header, Dock.Top); dock.Children.Add(header);
@@ -159,7 +159,7 @@ internal sealed class FolderPickerView : Border
         dock.Children.Add(new ScrollViewer { Content = body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
         Child = dock; Width = 560; MinHeight = 360; MaxHeight = 680; Margin = new Thickness(24); Background = FormCanvas; CornerRadius = new CornerRadius(14); ClipToBounds = true;
         HorizontalAlignment = HorizontalAlignment.Center; VerticalAlignment = VerticalAlignment.Center;
-        AutomationProperties.SetName(this, "フォルダを選ぶ");
+        AutomationProperties.SetName(this, LinuxStrings.MemberFolderView_MemberTerminalSection_6);
         model.Changed += RenderOnUi; Render();
     }
     public void Detach() => model.Changed -= RenderOnUi;
@@ -170,34 +170,34 @@ internal sealed class FolderPickerView : Border
         body.Children.Clear();
         switch (model.Content)
         {
-            case FolderContent.Loading: body.Children.Add(FormSection(null, new FormGroup(Row(Text("読み込んでいます…", 13, Secondary))))); break;
+            case FolderContent.Loading: body.Children.Add(FormSection(null, new FormGroup(Row(Text(LinuxStrings.FeatureEditor_InitializeAsync_1, 13, Secondary))))); break;
             case FolderContent.Unsupported: body.Children.Add(FormSection(null, new FormGroup(Row(Calm(TerminalFolderPicker.UnsupportedText))))); break;
             case FolderContent.Failed: body.Children.Add(FormSection(null, Retry(model.FailedText ?? TerminalFolderPicker.ReadFailedText))); break;
             default: Listed(model.Listed!); break;
         }
     }
 
-    private FormGroup Retry(string text) => new(Row(Text(text, 14, Red)), Row(LinkButton("もう一度", () => _ = model.ReloadAsync())));
+    private FormGroup Retry(string text) => new(Row(Text(text, 14, Red)), Row(LinkButton(LinuxStrings.ApprovalsDeviceStrip_DeviceStrip_3, () => _ = model.ReloadAsync())));
 
     private void Listed(TerminalFolders folders)
     {
         var path = folders.Path ?? model.Requested;
-        var here = new FormGroup(); var current = Text(path ?? "ホーム", 12); current.FontFamily = BellTheme.Mono; here.Add(Row(current));
-        if (folders.Parent is { } parent) here.Add(Row(IconRow(Icons.Send, "上へ", Violet, () => _ = model.OpenAsync(parent))));
-        body.Children.Add(FormSection("いまの場所", here));
+        var here = new FormGroup(); var current = Text(path ?? LinuxStrings.MemberFolderView_Listed_1, 12); current.FontFamily = BellTheme.Mono; here.Add(Row(current));
+        if (folders.Parent is { } parent) here.Add(Row(IconRow(Icons.Send, LinuxStrings.MemberFolderView_Listed_2, Violet, () => _ = model.OpenAsync(parent))));
+        body.Children.Add(FormSection(LinuxStrings.MemberFolderView_Listed_3, here));
         if (folders.Reason is { } reason) { body.Children.Add(FormSection(null, Retry(TerminalFolderPicker.Sentence(reason, folders.Action, model.Os)))); return; }
         if (path is null) return;
-        body.Children.Add(FormSection(null, new FormGroup(Row(IconRow(InspectorIcons.CheckCircle, "このフォルダにする", Violet, () => choose(path))))));
+        body.Children.Add(FormSection(null, new FormGroup(Row(IconRow(InspectorIcons.CheckCircle, LinuxStrings.MemberFolderView_Listed_4, Violet, () => choose(path))))));
         var list = new FormGroup();
         var entries = folders.Entries ?? [];
         if (entries.Length == 0) list.Add(Row(Text(TerminalFolderPicker.EmptyText, 13, Secondary)));
         foreach (var entry in entries) list.Add(EntryRow(entry));
         if (folders.Truncated == true) list.Add(Row(Text(TerminalFolderPicker.TruncatedText, 12, Secondary)));
-        body.Children.Add(FormSection("フォルダ", list));
-        var (field, box) = Field("フォルダ名", model.NewName); box.TextChanged += (_, _) => model.NewName = box.Text ?? "";
-        var form = new FormGroup(Row(field), Row(IconRow(InspectorIcons.FolderPlus, "作る", Violet, model.Creating ? null : () => _ = model.CreateFolderAsync())));
+        body.Children.Add(FormSection(LinuxStrings.MemberFolderView_MemberTerminalSection_4, list));
+        var (field, box) = Field(LinuxStrings.MemberFolderView_Listed_6, model.NewName); box.TextChanged += (_, _) => model.NewName = box.Text ?? "";
+        var form = new FormGroup(Row(field), Row(IconRow(InspectorIcons.FolderPlus, LinuxStrings.MemberFolderView_Listed_7, Violet, model.Creating ? null : () => _ = model.CreateFolderAsync())));
         if (model.CreateNote is { } note) form.Add(Row(Text(note, 12, Red)));
-        body.Children.Add(FormSection("新しいフォルダ", form));
+        body.Children.Add(FormSection(LinuxStrings.MemberFolderView_Listed_8, form));
     }
 
     private Control EntryRow(TerminalFolderEntry entry)

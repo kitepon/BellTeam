@@ -27,19 +27,19 @@ public static class OnePasswordItem
     public static OnePasswordConnection? ReadConnection(JsonElement item) => Lenient<OnePasswordConnection>(item, "connection", connection => connection.Vaults is not null && connection.Vaults.All(vault => vault is not null));
 
     public static OnePasswordState State(FeatureSetting setting) => setting.ApplyFailed ? OnePasswordState.Failed : setting.Status == "enabled" ? OnePasswordState.Connected : OnePasswordState.Off;
-    public static string BadgeText(OnePasswordState state) => state switch { OnePasswordState.Connected => "連携中", OnePasswordState.Off => "未連携", _ => "失敗" };
+    public static string BadgeText(OnePasswordState state) => state switch { OnePasswordState.Connected => CoreStrings.OnePassword_BadgeText_1, OnePasswordState.Off => CoreStrings.OnePassword_BadgeText_2, _ => CoreStrings.OnePassword_BadgeText_3 };
     // The line under a connected header (wording shared with the Web Settings). null when not connected.
     public static string? ConnectionLine(FeatureSetting setting)
     {
         if (State(setting) != OnePasswordState.Connected) return null;
-        if (setting.Connection is not { } connection) return "1Passwordにつながっています。";
-        var vaults = connection.Vaults.Length == 0 ? "なし" : string.Join("、", connection.Vaults);
+        if (setting.Connection is not { } connection) return CoreStrings.OnePassword_ConnectionLine_1;
+        var vaults = connection.Vaults.Length == 0 ? CoreStrings.OnePassword_ConnectionLine_2 : string.Join(CoreStrings.Approvals_CardRow_3, connection.Vaults);
         return connection.SshKeys > 0
-            ? $"読める保管庫：{vaults}　SSH鍵：{connection.SshKeys}件"
-            : $"読める保管庫：{vaults}　SSH鍵が見つかりません。読める保管庫にSSH鍵を入れるか、サービスアカウントに鍵のある保管庫を足してください。";
+            ? CoreStrings.OnePassword_ConnectionLine_4(vaults, connection.SshKeys)
+            : CoreStrings.OnePassword_ConnectionLine_5(vaults);
     }
     // Client check before saving; the server validates the token itself.
-    public static string? TokenProblem(string token) => token.Trim().StartsWith("ops_", StringComparison.Ordinal) ? null : "サービスアカウントのトークン（ops_で始まる文字）を貼ってください。";
+    public static string? TokenProblem(string token) => token.Trim().StartsWith("ops_", StringComparison.Ordinal) ? null : CoreStrings.OnePassword_TokenProblem_1;
     // Saving with an empty field is allowed only to toggle an already configured token.
     public static string? SaveProblem(bool enabled, string pasted, bool configured) => enabled && (pasted.Trim().Length != 0 || !configured) ? TokenProblem(pasted) : null;
 }
@@ -51,10 +51,10 @@ public sealed record OnePasswordResult(OnePasswordResultKind Kind, string Detail
     public static readonly OnePasswordResult None = new(OnePasswordResultKind.None), Checking = new(OnePasswordResultKind.Checking), Off = new(OnePasswordResultKind.Off);
     public string Text => Kind switch
     {
-        OnePasswordResultKind.Checking => "1Passwordにつないで確かめています…",
-        OnePasswordResultKind.Connected => "連携できました。" + Detail,
-        OnePasswordResultKind.Failed => "連携できませんでした。" + Detail,
-        OnePasswordResultKind.Off => "連携を解除しました。",
+        OnePasswordResultKind.Checking => CoreStrings.OnePassword_Text_1,
+        OnePasswordResultKind.Connected => CoreStrings.OnePassword_Text_2(Detail),
+        OnePasswordResultKind.Failed => CoreStrings.OnePassword_Text_3(Detail),
+        OnePasswordResultKind.Off => CoreStrings.OnePassword_Text_4,
         _ => ""
     };
     // The PATCH response's setting. Unlike the header line, no connection means no detail here (same as Web).

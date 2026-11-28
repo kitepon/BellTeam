@@ -22,7 +22,7 @@ public static class PushChannel
     public static void Ensure(Context context)
     {
         if (Build.VERSION.SdkInt < BuildVersionCodes.O) return;
-        var channel = new NotificationChannel(Id, "メッセージ", NotificationImportance.High) { Description = "メンバーの返信・秘密情報の入力・選んでほしいこと" };
+        var channel = new NotificationChannel(Id, AndroidStrings.PhoneShell_composer_1, NotificationImportance.High) { Description = AndroidStrings.PushNotifications_Ensure_2 };
         ((NotificationManager?)context.GetSystemService(Context.NotificationService))?.CreateNotificationChannel(channel);
     }
 }
@@ -64,7 +64,8 @@ public static class PushRouter
 // Registers this device's FCM token with the connected server and takes it back on logout / a changed server. Not configured (no google-services.json, or the server has no key) is a quiet state: nothing is expected.
 public static class PushRegistration
 {
-    private const string Prefs = "bellteam_push", TokenKey = "token";
+    private const string Prefs = "bellteam_push";
+    private const string TokenKey = "token";
     public static Func<LinuxWorkspace?>? Workspace { get; set; }
     public static bool Configured => FirebaseApp.GetApps(MainActivity.Current).Count > 0;
 

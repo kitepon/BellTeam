@@ -68,12 +68,12 @@ public sealed class ThisPcSystem : IThisPc
 public static class ThisPcFacts
 {
     public const string OptionalFeaturesUri = "ms-settings:optionalfeatures";
-    public const string OpenSshOffText = "OpenSSH サーバーがオンになっていません。";
+    public static string OpenSshOffText  => CoreStrings.ThisPc_OpenSshOffText_1;
     // The server's CONNECTION_REFUSED step for a Windows terminal: add the feature, start the service.
-    public const string OpenSshOffStep = "Windowsの「設定 > システム > オプション機能」でOpenSSH サーバーを追加し、サービスの「OpenSSH SSH Server」を開始してください。";
-    public const string OpenSshUnknownText = "OpenSSH サーバーがオンかどうかを確かめられませんでした。";
-    public const string AddressMissingText = "このPCのIPv4アドレスを読み取れませんでした。ホストを入れてください。";
-    public const string DomainUserText = "このPCはドメインのアカウントでログインしています。ユーザーは、SSHでログインする名前を入れてください。";
+    public static string OpenSshOffStep  => CoreStrings.ThisPc_OpenSshOffStep_1;
+    public static string OpenSshUnknownText  => CoreStrings.ThisPc_OpenSshUnknownText_1;
+    public static string AddressMissingText  => CoreStrings.ThisPc_AddressMissingText_1;
+    public static string DomainUserText  => CoreStrings.ThisPc_DomainUserText_1;
 
     // The first usable IPv4 address (not loopback, not link-local), the adapter that has a default gateway first: a Hyper-V or WSL adapter has none.
     public static string? PrimaryIPv4(IEnumerable<PcInterface> interfaces)
@@ -136,17 +136,17 @@ public sealed record TerminalTrustResponse { public required Terminal Terminal {
 
 public static class ThisPcTrust
 {
-    private const string Other = "「ほかの方法」で指紋を入れて確かめられます。";
+    private static string Other  => CoreStrings.ThisPc_Other_1;
 
     // This PC could not give its host key: no request goes to the server, and the manual fingerprint stays available.
     public static TrustNote Local(Exception error) => error switch
     {
-        FileNotFoundException or DirectoryNotFoundException => new($"このPCのホスト鍵のファイルがありません（{ThisPcSystem.HostKeyPath}）。OpenSSH サーバーを追加して、サービスの「OpenSSH SSH Server」を一度開始してから、もう一度確かめてください。{Other}", OffersOptionalFeatures: true, OffersOtherWays: true),
-        UnauthorizedAccessException => new($"このPCのホスト鍵のファイルを読めませんでした（読む権限がありません）。{Other}", OffersOtherWays: true),
-        IOException => new($"このPCのホスト鍵のファイルを読めませんでした（開けません）。{Other}", OffersOtherWays: true),
-        HostKeyFileException { Problem: HostKeyFileProblem.NotEd25519 } file => new($"このPCのホスト鍵のファイルはed25519の鍵ではありません（{file.KeyType}）。{Other}", OffersOtherWays: true),
-        HostKeyFileException => new($"このPCのホスト鍵のファイルの形を読み取れませんでした。信用は何も書いていません。{Other}", OffersOtherWays: true),
-        _ => new($"このPCのホスト鍵を読めませんでした。{Other}", OffersOtherWays: true)
+        FileNotFoundException or DirectoryNotFoundException => new(CoreStrings.ThisPc_Local_1(ThisPcSystem.HostKeyPath, Other), OffersOptionalFeatures: true, OffersOtherWays: true),
+        UnauthorizedAccessException => new(CoreStrings.ThisPc_Local_2(Other), OffersOtherWays: true),
+        IOException => new(CoreStrings.ThisPc_Local_3(Other), OffersOtherWays: true),
+        HostKeyFileException { Problem: HostKeyFileProblem.NotEd25519 } file => new(CoreStrings.ThisPc_Local_4(file.KeyType, Other), OffersOtherWays: true),
+        HostKeyFileException => new(CoreStrings.ThisPc_Local_5(Other), OffersOtherWays: true),
+        _ => new(CoreStrings.ThisPc_Local_6(Other), OffersOtherWays: true)
     };
 
     // The server's answer to POST …/trust; null for an older body (404 without TERMINAL_NOT_FOUND): no line at all.
@@ -157,9 +157,9 @@ public static class ThisPcTrust
             switch ((int)status, TerminalErrorText.Code(error))
             {
                 case (404, not "TERMINAL_NOT_FOUND"): return null;
-                case (409, "HOST_KEY_FINGERPRINT_MISMATCH"): return new("このアドレスで答えているのは、このPCではありません。ホストの入力を確かめてください。信用は何も書いていません。");
-                case (409, "TERMINAL_CHANGED"): return new("確かめている間に、端末の接続先が変わりました。もう一度「このPCを確かめる」を押してください。");
-                case (503, "TERMINAL_UNAVAILABLE"): return new("いまはBellTeamからこのPCを確かめられません。PCが起きていて同じネットワークにあるか確かめて、あとでもう一度押してください。");
+                case (409, "HOST_KEY_FINGERPRINT_MISMATCH"): return new(CoreStrings.ThisPc_Server_1);
+                case (409, "TERMINAL_CHANGED"): return new(CoreStrings.ThisPc_Server_2);
+                case (503, "TERMINAL_UNAVAILABLE"): return new(CoreStrings.ThisPc_Server_3);
             }
         }
         return new(TerminalErrorText.Message(error));

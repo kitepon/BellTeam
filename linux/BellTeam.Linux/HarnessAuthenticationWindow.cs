@@ -32,7 +32,7 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
         api = new(workspace.Management.Api); this.harness = harness; this.slot = slot; install = harness.Install;
         if (install is not null && !HarnessCliInstall.Ready(install)) { panel = new HarnessInstallPanel(api, harness.Id, harness.Name, install, Token); panel.Changed += InstallChanged; } title = slot is null ? harness.Name : harness.Name + " " + AccountText.SlotName(slot);
         this.confirm = confirm ?? (async warning => await new AuthenticationConfirmationWindow(warning).ShowDialog<bool?>(this) == true);
-        SaveButton.IsVisible = false; CloseButton.Content = "閉じる"; Body.MaxWidth = 650;
+        SaveButton.IsVisible = false; CloseButton.Content = LinuxStrings.ApprovalsViews_NotUsable_1; Body.MaxWidth = 650;
         Deactivated += (_, _) => { input.Text = ""; StopReading(); }; Closed += (_, _) => { input.Text = ""; StopReading(); };
         Activated += (_, _) => UpdatePolling(); timer.Tick += async (_, _) => await PollAsync(); Render();
     }
@@ -60,20 +60,20 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
         Body.Children.Add(new TextBlock { Text = harness.UsageText, Foreground = BellTheme.Muted, Margin = new Thickness(0, 0, 0, 20) });
         if (panel is not null)
         {
-            panel.MoveTo(Section("AIの導入"));
+            panel.MoveTo(Section(LinuxStrings.HarnessAuthenticationWindow_Render_1));
             return;
         }
-        var details = Section("認証の状態");
-        details.Children.Add(CardBody(Authentication?.Status switch { "waiting" => "公式サイトでの認証を待っています。", "authenticated" => "認証済みです。", "blocked" => "認証に必要な操作を確認してください。", "failed" => "認証できませんでした。", null => "公式の状態を確認しています。", _ => throw new BellApiException("認証の状態を読み取れませんでした。") }));
+        var details = Section(LinuxStrings.HarnessAuthenticationWindow_Render_2);
+        details.Children.Add(CardBody(Authentication?.Status switch { "waiting" => LinuxStrings.HarnessAuthenticationWindow_Render_3, "authenticated" => LinuxStrings.HarnessAuthenticationWindow_Render_4, "blocked" => LinuxStrings.HarnessAuthenticationWindow_Render_5, "failed" => LinuxStrings.HarnessAuthenticationWindow_Render_6, null => LinuxStrings.HarnessAuthenticationWindow_Render_7, _ => throw new BellApiException(LinuxStrings.HarnessAuthenticationWindow_Render_8) }));
         if (Authentication is { } auth)
         {
             if (!string.IsNullOrEmpty(auth.Message)) details.Children.Add(CardBody(auth.Message));
             if (Uri.TryCreate(auth.AuthUi?.Url ?? auth.Url, UriKind.Absolute, out var address) && address.Scheme == "https")
             {
-                var link = Pill("公式サイトで認証する", primary: true); link.HorizontalAlignment = HorizontalAlignment.Left; link.Margin = new Thickness(0, 14, 0, 10);
-                link.Click += (_, _) => SettingsUi.OpenExternal(address.AbsoluteUri, message => ShowStatus("公式サイトを開けませんでした。" + message)); details.Children.Add(link);
+                var link = Pill(LinuxStrings.HarnessAuthenticationWindow_Render_9, primary: true); link.HorizontalAlignment = HorizontalAlignment.Left; link.Margin = new Thickness(0, 14, 0, 10);
+                link.Click += (_, _) => SettingsUi.OpenExternal(address.AbsoluteUri, message => ShowStatus(LinuxStrings.HarnessAuthenticationWindow_Render_10(message))); details.Children.Add(link);
             }
-            if (!string.IsNullOrEmpty(auth.UserCode)) { details.Children.Add(new TextBlock { Text = "利用者コード", FontSize = 14, Margin = new Thickness(0, 10, 0, 4) }); details.Children.Add(CardBody(auth.UserCode)); }
+            if (!string.IsNullOrEmpty(auth.UserCode)) { details.Children.Add(new TextBlock { Text = LinuxStrings.HarnessAuthenticationWindow_Render_11, FontSize = 14, Margin = new Thickness(0, 10, 0, 4) }); details.Children.Add(CardBody(auth.UserCode)); }
             if (auth.AuthUi is { } ui)
             {
                 if (!string.IsNullOrEmpty(ui.Title)) details.Children.Add(CardBody(ui.Title));
@@ -86,16 +86,16 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
                     }
                 if (!pollingFailed && ui.CanRespond && ui.Stage == "paste_code" && ui.Input == "authorization_code")
                 {
-                    details.Children.Add(CardBody("公式ページに表示された認証コード")); details.Children.Add(input);
-                    var send = Pill("認証を完了する", enabled: !Busy); send.HorizontalAlignment = HorizontalAlignment.Left; details.Children.Add(send);
+                    details.Children.Add(CardBody(LinuxStrings.HarnessAuthenticationWindow_Render_12)); details.Children.Add(input);
+                    var send = Pill(LinuxStrings.HarnessAuthenticationWindow_Render_13, enabled: !Busy); send.HorizontalAlignment = HorizontalAlignment.Left; details.Children.Add(send);
                     send.Click += (_, _) => { if ((input.Text ?? "").Length == 0) return; var value = input.Text!; input.Text = ""; _ = PerformAsync(() => api.RespondAsync(harness.Id, ui, new { kind = "authorization_code", value }, Token, slot: slot)); };
                 }
                 else input.Text = "";
             }
             else if (auth.InputRequired && Started)
             {
-                var fields = Section("認証に必要な入力"); AutomationProperties.SetName(input, "認証に必要な入力"); fields.Children.Add(input);
-                var send = Pill("入力を送る"); send.HorizontalAlignment = HorizontalAlignment.Left; send.Margin = new Thickness(0, 12, 0, 8); fields.Children.Add(send);
+                var fields = Section(LinuxStrings.HarnessAuthenticationWindow_Render_14); AutomationProperties.SetName(input, LinuxStrings.HarnessAuthenticationWindow_Render_14); fields.Children.Add(input);
+                var send = Pill(LinuxStrings.HarnessAuthenticationWindow_Render_16); send.HorizontalAlignment = HorizontalAlignment.Left; send.Margin = new Thickness(0, 12, 0, 8); fields.Children.Add(send);
                 send.Click += (_, _) => { if ((input.Text ?? "").Length == 0) return; var text = input.Text!; input.Text = ""; _ = PerformAsync(() => api.InputAsync(harness.Id, text, null, Token, slot: slot)); };
                 var keys = new WrapPanel(); fields.Children.Add(keys);
                 foreach (var key in new[] { "Enter", "Up", "Down", "Tab" }) { var button = Pill(key); button.Click += (_, _) => _ = PerformAsync(() => api.InputAsync(harness.Id, null, key, Token, slot: slot)); keys.Children.Add(button); }
@@ -103,10 +103,10 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
             else input.Text = "";
         }
         var actions = new WrapPanel { Margin = new Thickness(0, 20, 0, 0) }; Body.Children.Add(actions);
-        if ((harness.ReloginSupported != false || Authentication is { Status: not "authenticated" }) && Authentication?.AuthUi is not { Binding: not null, Stage: not "complete" }) { var start = Pill(Authentication?.Status == "authenticated" ? "認証し直す" : "認証する"); actions.Children.Add(start); start.Click += async (_, _) => await StartAsync(); }
+        if ((harness.ReloginSupported != false || Authentication is { Status: not "authenticated" }) && Authentication?.AuthUi is not { Binding: not null, Stage: not "complete" }) { var start = Pill(Authentication?.Status == "authenticated" ? LinuxStrings.HarnessAuthenticationWindow_Render_17 : LinuxStrings.HarnessAuthenticationWindow_Render_18); actions.Children.Add(start); start.Click += async (_, _) => await StartAsync(); }
         else if (Authentication?.Status == "authenticated" && !string.IsNullOrEmpty(harness.StartWarning)) details.Children.Add(CardBody(harness.StartWarning));
-        var refresh = Pill("状態を更新"); actions.Children.Add(refresh); refresh.Click += async (_, _) => await InitializeAsync();
-        if (Started || Authentication?.AuthUi is { Binding: not null, Stage: not "complete" }) { var cancel = Pill("やめる"); actions.Children.Add(cancel); cancel.Click += async (_, _) => await PerformAsync(async () => { await api.CancelAsync(harness.Id, Token, slot: slot); Started = false; return await api.StatusAsync(harness.Id, Token, slot: slot); }); }
+        var refresh = Pill(LinuxStrings.GoalViews_Render_12); actions.Children.Add(refresh); refresh.Click += async (_, _) => await InitializeAsync();
+        if (Started || Authentication?.AuthUi is { Binding: not null, Stage: not "complete" }) { var cancel = Pill(LinuxStrings.ApprovalsDetail_Answering_5); actions.Children.Add(cancel); cancel.Click += async (_, _) => await PerformAsync(async () => { await api.CancelAsync(harness.Id, Token, slot: slot); Started = false; return await api.StatusAsync(harness.Id, Token, slot: slot); }); }
     }
     public async Task StartAsync()
     {
@@ -124,8 +124,8 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
     }
     private void Apply(HarnessAuthenticationResponse next)
     {
-        if (next.Harness != harness.Id) throw new BellApiException("別のAIの認証状態が返されました。");
-        if (next.Slot is { } answered && answered != (slot ?? "1st")) throw new BellApiException("別のアカウントの認証状態が返されました。");
+        if (next.Harness != harness.Id) throw new BellApiException(LinuxStrings.HarnessAuthenticationWindow_Apply_1);
+        if (next.Slot is { } answered && answered != (slot ?? "1st")) throw new BellApiException(LinuxStrings.HarnessAuthenticationWindow_Apply_2);
         var changed = Authentication != next.Auth; Authentication = next.Auth;
         if (Authentication?.Status == "authenticated") Started = false;
         if (Authentication?.Status != "waiting") timer.Stop();
@@ -151,11 +151,11 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
 }
 public sealed class AuthenticationConfirmationWindow : EditorWindow
 {
-    public AuthenticationConfirmationWindow(string warning) : base("AIの認証をやり直しますか？")
+    public AuthenticationConfirmationWindow(string warning) : base(LinuxStrings.HarnessAuthenticationWindow_AuthenticationConfirmationWindow_1)
     {
         Width = 700; Height = 330; MinHeight = 280;
-        Heading("AIの認証をやり直しますか？"); Body.Children.Add(new TextBlock { Text = warning, FontSize = 16, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4) });
-        CloseButton.Content = "始めない"; // the base close answers null, which the caller reads as no
-        SaveButton.Content = "今の認証を手放して始める"; SaveButton.Click += (_, _) => Close(true);
+        Heading(LinuxStrings.HarnessAuthenticationWindow_AuthenticationConfirmationWindow_1); Body.Children.Add(new TextBlock { Text = warning, FontSize = 16, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4) });
+        CloseButton.Content = LinuxStrings.HarnessAuthenticationWindow_AuthenticationConfirmationWindow_3; // the base close answers null, which the caller reads as no
+        SaveButton.Content = LinuxStrings.HarnessAuthenticationWindow_AuthenticationConfirmationWindow_4; SaveButton.Click += (_, _) => Close(true);
     }
 }
