@@ -50,6 +50,10 @@ test('a stream cut after the status frame destroys the body; abort() closes the 
   const cut = await module(t, connection => { connection.write(JSON.stringify({ outcome: 'granted' }) + '\n'); connection.write(frame(5, '{"status":200,"headers":{}}')); connection.write(frame(1, 'first')); setTimeout(() => connection.destroy(), 20) })
   const upstream = await authHttpStream({ socket: cut.socket, name: 'x' })({ method: 'GET', path: '/mcp' })
   await assert.rejects(read(upstream.body), { code: 'CALL_BRIDGE_UNREACHABLE' })
+  // the origin cuts after the status frame: the module sends the end frame with code "2" (cut midway), not a clean end
+  const midway = await module(t, connection => { connection.write(JSON.stringify({ outcome: 'granted' }) + '\n'); connection.write(frame(5, '{"status":200,"headers":{}}')); connection.write(frame(1, 'first')); connection.write(frame(3, '2')) })
+  const cutUp = await authHttpStream({ socket: midway.socket, name: 'x' })({ method: 'GET', path: '/mcp' })
+  await assert.rejects(read(cutUp.body), { code: 'CALL_BRIDGE_UNREACHABLE' })
   let closed
   const gone = new Promise(resolve => { closed = resolve })
   const open = await module(t, connection => { connection.write(JSON.stringify({ outcome: 'granted' }) + '\n'); connection.write(frame(5, '{"status":200,"headers":{}}')); connection.on('close', closed) })
