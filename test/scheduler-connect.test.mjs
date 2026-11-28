@@ -8,19 +8,23 @@ const schedule = { id: 's-1', name: 'ci check', kind: 'interval_hours', command:
   intervalHours: 1, startHour: 0, endHour: 23, minute: 0, lastRunAt: null, nextRunAt: '2026-11-15T00:00:00.000Z' }
 
 // facade answers: show -> the lane; resolve/remove -> `answer`.
-function harness({ outcome, answer = { exitCode: 0, result: { unchanged: false } }, lane = 'bot-lane', lattice = true, stored = schedule }) {
-  const sent = [], calls = [], saved = []
+function harness({ outcome, answer = { exitCode: 0, result: { unchanged: false } }, lane = 'bot-lane', lattice = true, stored = schedule, status = 'in-progress', showError }) {
+  const sent = [], calls = [], saved = [], shows = [], removed = []
   const facade = { run: async input => {
+    if (input.args[1] === 'show') {
+      shows.push(input)
+      return showError ?? { exitCode: 0, result: { task: { lane }, state: { status } } }
+    }
     calls.push(input)
-    if (input.args[1] === 'show') return { exitCode: 0, result: { task: { lane } } }
     if (answer instanceof Error) throw answer
     return answer
   } }
   const registry = { get: id => id === 'bot-lane' || id === bot.id ? { id } : undefined,
-    listSchedules: async () => [stored], setSchedule: async (id, input) => { saved.push([id, input]) } }
+    listSchedules: async () => [stored], setSchedule: async (id, input) => { saved.push([id, input]) },
+    removeSchedule: async (id, scheduleId) => { removed.push([id, scheduleId]) } }
   const scheduler = new BotScheduler({ registry, messenger: { sendmessage(input) { sent.push(input) } },
     runCommand: async () => outcome, lattice: () => lattice ? facade : null })
-  return { scheduler, sent, calls, saved }
+  return { scheduler, sent, calls, saved, shows, removed }
 }
 const done = { code: 0, signal: null, stdout: 'a\nb\nc\nd\ne\nf', stderr: '' }
 
@@ -58,9 +62,9 @@ test('exit 75 on a once schedule is a failure: it is never checked again', async
 
 test('failure notifies the lane Bot only, keeps the connection and disables the schedule', async () => {
   for (const outcome of [{ code: 1, signal: null, stdout: '', stderr: 'gh failed' }, { code: null, signal: 'SIGKILL', stdout: '', stderr: '' }]) {
-    const { scheduler, sent, calls, saved } = harness({ outcome })
+    const { scheduler, sent, calls, saved, shows } = harness({ outcome })
     await scheduler.runCommandSchedule(bot, schedule)
-    assert.deepEqual(calls.map(call => call.args.slice(0, 2)), [['todo', 'show']])
+    assert.deepEqual([calls, shows.length], [[], 2])
     assert.deepEqual(sent.map(({ from, target }) => ({ from, target })), [{ from: 'scheduler', target: 'bot-lane' }])
     assert.ok(sent[0].message.includes('[BellTeam schedule s-1]') && sent[0].message.includes('p1/t1') && sent[0].message.includes('接続'))
     assert.equal(saved.length, 1)
@@ -106,4 +110,27 @@ test('releaseConnection removes the connection as the owner Bot and notifies the
   const failed = harness({ outcome: done, answer: { exitCode: 1, result: { code: 'LATTICE_INVALID' } } })
   await failed.scheduler.releaseConnection(bot.id, schedule)
   assert.deepEqual(failed.sent.map(input => input.target), ['bot-lane'])
+})
+
+test('a done, retired or missing task: no run, no notice, the schedule is removed once', async () => {
+  for (const extra of [{ status: 'done' }, { status: 'retired' }, { showError: { exitCode: 1, result: { code: 'NOTE_TASK_NOT_FOUND' } } }]) {
+    let ran = 0
+    const { scheduler, sent, calls, saved, removed } = harness({ outcome: done, ...extra })
+    scheduler.runCommand = async () => { ran++; return done }
+    await scheduler.runCommandSchedule(bot, schedule)
+    assert.deepEqual([ran, sent, calls, saved, removed], [0, [], [], [], [[bot.id, 's-1']]])
+  }
+})
+
+test('an open task or an unreadable one runs the command; an edited schedule is not removed', async () => {
+  for (const extra of [{ status: 'in-progress' }, { status: 'pending' }, { showError: { exitCode: 1, result: { code: 'LATTICE_INVALID' } } }, { lattice: false }]) {
+    let ran = 0
+    const { scheduler, removed } = harness({ outcome: done, ...extra })
+    scheduler.runCommand = async () => { ran++; return { code: 75, signal: null, stdout: '', stderr: '' } }
+    await scheduler.runCommandSchedule(bot, schedule)
+    assert.deepEqual([ran, removed], [1, []])
+  }
+  const edited = harness({ outcome: done, status: 'done', stored: { ...schedule, revision: 4 } })
+  await edited.scheduler.runCommandSchedule(bot, schedule)
+  assert.deepEqual(edited.removed, [])
 })

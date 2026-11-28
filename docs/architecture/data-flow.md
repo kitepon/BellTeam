@@ -228,7 +228,7 @@ flowchart LR
   C -->|"LT12 turns.read and messages.send: enabled charts, one prompt per lane Bot not running"| F
   Apps -->|LT13 GET blockers; POST charts/:id/unblock stopId (Owner only)| P1
   F -->|LT14 root blockers / unblock| C
-  SCH[P4 body scheduler and registry removal hook] -->|LT15 facade.run: fixed 接続 verbs (condition add / resolve / remove, todo show) as the schedule owner Bot| F
+  SCH[P4 body scheduler and registry removal hook] -->|LT15 facade.run: fixed 接続 verbs (condition add / resolve / remove, todo show: also read before each connected run, a done or retired task removes the schedule) as the schedule owner Bot| F
   F -->|LT6 bots.listForClient| P4
   C <-->|LT7 Lattice CLI only: seat commands, charts list/source, display read --open (K3, v2 carries next_ready), display history (K10, on demand), todo status (readiness fallback for a Lattice before 0.114.0, K9), chart set, chart repo (K1-K9)| D11
   C -->|LT8 run result, chart list, snapshot with name/createdBy/degraded| F

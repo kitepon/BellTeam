@@ -207,6 +207,7 @@ export class BotScheduler {
   }
 
   async performCommandSchedule(bot, schedule, job) {
+    if (schedule.connect && await this.removeWhenTaskEnded(bot, schedule)) return { code: null, signal: null, stdout: '', stderr: 'task ended', taskEnded: true }
     let result
     try {
       result = await this.runCommand({ command: schedule.command, cwd: bot.project, signal: job.controller.signal })
@@ -255,6 +256,19 @@ export class BotScheduler {
     await this.disableSchedule(bot, schedule).catch(reportError)
     if (problem) await this.notifyLane(bot.id, schedule.connect, `[BellTeam schedule ${schedule.id}] ${problem}\n接続（${plan}/${task}）は開いたままで、この予定は止めた。`)
     return result
+  }
+
+  // A connected schedule ends with its task: done, retired or gone -> no run, no notice, removed (its removal closes the 接続). Any other read result is unknown: run as before.
+  async removeWhenTaskEnded(bot, schedule) {
+    const { project, plan, task } = schedule.connect
+    const shown = await this.runLattice(bot.id, project, ['todo', 'show', '--plan', plan, '--task', task])
+    if (!(['done', 'retired'].includes(shown.value?.result?.state?.status) || shown.reason === 'NOTE_TASK_NOT_FOUND')) return false
+    await this.withOperationContext(async options => {
+      const current = (await this.registry.listSchedules(bot.id, options)).find(item => item.id === schedule.id)
+      // A newer revision means an editor changed it meanwhile; the editor wins and the next run reads the task again.
+      if (current && scheduleRevision(current) === scheduleRevision(schedule)) await this.registry.removeSchedule(bot.id, schedule.id, options)
+    })
+    return true
   }
 
   // After the schedule is durably removed (BotRegistry.onScheduleRemoved): close its 接続; idempotent in Lattice.

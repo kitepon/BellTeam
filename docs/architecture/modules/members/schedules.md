@@ -222,7 +222,8 @@ flowchart LR
   Save[set_schedule connect / template] --> Expand[members: template expands once to command]
   Expand --> Store[members writer stores connect, template]
   Store --> Add[parent facade: condition add, Molly]
-  Run[body scheduler runs command] --> Settle[0 resolve+disable / 75 wait / else lane notice+disable]
+  Run[body scheduler: each run first reads the task, todo show] -->|task done, retired or gone| Gone
+  Run -->|task still open| Cmd[runs command] --> Settle[0 resolve+disable / 75 wait / else lane notice+disable]
   Remove[remove_schedule / HTTP DELETE / Bot deletion in the child] --> Gone[members writer: schedule durably gone]
   Gone -->|SC10 effect| Release[parent scheduler.releaseConnection: condition remove]
 ```
@@ -233,6 +234,7 @@ Members owns only the definition, storage and the removal report. Lattice calls 
 | --- | --- |
 | Fields | `connect` and `template` are optional on Bot command schedules; the hand-written `command` and a `template` cannot be given together. `normalizeSchedule` validates both (ids are `[a-z0-9-]` for the project, `[\w.-]` for plan/task) and is shared with the body validator, so the body ships first. |
 | Templates (`src/schedule-templates.mjs`) | kinds `ci` (repo, run), `pr-merged` (repo, number), `npm` (package, version), `url` (url). Params are exact keys, regex-validated, then shell-quoted. Expanded ONCE at save into the stored `command` (cap 8000). Exit 0 done, 75 not yet, 1 failed. `until` (ISO) is a hard deadline: after it the command exits 1 before any check. No `time` template: `kind=once` with the command `true` does it. shortcut: `url` has no body filter, 2xx = done, 404 = not yet; add a jq check when a caller needs it. |
+| Task ends (2026-11-28, task conn-sched-ends-with-task, Tronie/Owner) | Before each run of a connected command schedule (timer or run-now) the body scheduler reads its task with `todo show` as the owner Bot. Status `done` or `retired`, or `NOTE_TASK_NOT_FOUND`: the command is NOT run, no notice is sent (the task's end is the normal end), and the schedule is removed through the same `removeSchedule` as a Bot's `remove_schedule`, so SC10 and `condition remove` follow (Lattice accepts `remove` on a done or retired task, idempotent; checked on a scratch chart). Any other read result (open task, unreadable, no facade) runs the command as before: an unknown state never stops a check. A schedule whose revision changed since the run was claimed (an editor edit) is not removed; the next run reads the task again. State: enabled -> (exit 0 / failure) disabled; enabled -> (task ended at a run) removed. shortcut: a connected schedule already disabled (settled or failed) is never run again, so it is not removed by this rule; remove it with `remove_schedule`. Upgrade only if such rows pile up. |
 | Removal | One report per removed connected schedule (SC10), after the write. If the report fails the 接続 stays open without a schedule; accepted shortcut (parent down while the child runs is a stop anyway), upgrade only if it recurs. |
 | Disable after a run | The body disables through `setSchedule` with editable fields, after its own revision check (an editor change wins). No CAS on the members protocol; the read-to-save window is milliseconds. `connect`/`template` survive because an update that omits them keeps them. |
 
