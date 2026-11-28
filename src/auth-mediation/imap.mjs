@@ -111,6 +111,29 @@ export async function readFolder(client, folder, { search, order = 'newest', lim
   return order === 'oldest' ? messages.sort((a, b) => a.uid - b.uid) : messages.sort((a, b) => b.uid - a.uid)
 }
 
+// Sort (README F19): add keywords from the item's list and/or UID MOVE to the \\Archive folder, one message, after the server checks. Nothing else is ever written.
+const KEYWORD = /^\$?[A-Za-z0-9_]{1,40}$/u
+export async function sortMessage(client, { folder, uid, uidvalidity, add = [], archive = false, allowed = [] }) {
+  if (!Number.isInteger(uid) || uid < 1 || !Number.isInteger(uidvalidity) || !Array.isArray(add) || add.length > 8 || !add.every(k => typeof k === 'string' && KEYWORD.test(k) && allowed.includes(k))) throw fail(MAIL_REJECTED, 'keywords')
+  if (!add.length && !archive) throw fail(MAIL_REJECTED, 'nothing')
+  let destination
+  if (archive) {
+    destination = (await listFolders(client)).find(f => f.role === 'archive')?.name
+    if (!destination) throw fail(MAIL_REJECTED, 'no archive folder')
+    const caps = (await client.command('CAPABILITY')).untagged.map(r => r.text).join(' ')
+    if (!/\bMOVE\b/u.test(caps)) throw fail(MAIL_REJECTED, 'no MOVE')
+  }
+  const sel = await client.command(`SELECT ${quote(folder)}`)
+  const seen = sel.untagged.map(r => r.text).join('\n')
+  if (Number(/\[UIDVALIDITY (\d+)\]/u.exec(seen)?.[1]) !== uidvalidity) throw fail(MAIL_REJECTED, 'uidvalidity')
+  if (add.length && !/\[PERMANENTFLAGS \([^)]*\\\*[^)]*\)/u.test(seen)) throw fail(MAIL_REJECTED, 'keywords do not persist')
+  const exists = (await client.command(`UID FETCH ${uid} (UID)`)).untagged.some(r => /^\* \d+ FETCH /u.test(r.text))
+  if (!exists) throw fail(MAIL_REJECTED, 'no such message')
+  if (add.length) await client.command(`UID STORE ${uid} +FLAGS.SILENT (${add.join(' ')})`)
+  if (archive) await client.command(`UID MOVE ${uid} ${quote(destination)}`)
+  return { flagged: add, moved: archive }
+}
+
 function defaultConnect({ host, port }) {
   return new Promise((resolve, reject) => { const s = tlsConnect({ host, port, servername: host }); s.once('secureConnect', () => resolve(s)); s.once('error', reject); s.setTimeout(STEP_MS * 2, () => s.destroy(new Error('timeout'))) })
 }

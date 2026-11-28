@@ -8,7 +8,7 @@ import { useKey, signData, signDigest } from './keyuse.mjs'
 import { callHttp } from './http.mjs'
 import { sshIdentity, sshSign } from './sshkey.mjs'
 import { sendMail } from './mail.mjs'
-import { LIMITS, listFolders, openImap, readFolder } from './imap.mjs'
+import { LIMITS, listFolders, openImap, readFolder, sortMessage } from './imap.mjs'
 
 const NOT_REGISTERED = 'This command is not registered.'
 const ENTRY_ONLY = ['grant', 'revoke', 'import'], DECISION_KEYS = ['id', 'role', 'record', 'need', 'reason']
@@ -133,6 +133,24 @@ export function createAuthCore({ store, items, audit, roots, now = () => new Dat
     } finally { client.close() }
   }
 
+  // Mail sort (F19): keywords from the item's list and a move to the Archive folder, one message, the item's mailbox only.
+  async function sortMail(fields, request) {
+    const client = await openImap(fields, imapConnect ? { connect: imapConnect } : {})
+    try {
+      return await sortMessage(client, { folder: fields.mail_sort_mailbox ?? 'INBOX', uid: request.uid, uidvalidity: request.uidvalidity, add: request.add, archive: request.archive === true,
+        allowed: (fields.mail_sort_keywords ?? '').split(',').map(k => k.trim()).filter(Boolean) })
+    } finally { client.close() }
+  }
+
+  // Mail login check (F20): log in on one public port with normal verification and stop; nothing is sent or read.
+  async function checkMail(fields, request) {
+    if (request.protocol === 'imap993') { (await openImap({ ...fields, mail_imap_port: 993 }, imapConnect ? { connect: imapConnect } : {})).close(); return { tls_verified: !imapConnect } }
+    const mode = { smtp465: { mail_port: 465, mail_tls: 'implicit' }, 'smtp587-starttls': { mail_port: 587, mail_tls: 'starttls' } }[request.protocol]
+    if (!mode) throw Object.assign(new Error('MAIL_REJECTED'), { code: 'MAIL_REJECTED' })
+    const r = await sendMail({ ...fields, ...mode }, {}, { checkOnly: true, ...(mailConnect ? { connect: mailConnect } : {}) })
+    return { tls_verified: !mailConnect && r.tls_verified }
+  }
+
   // Mail send (F17): the module logs in to the item's SMTP server and sends. Grant command "mail <name> send"; item "mail <name>". The audit keeps counts and the message id, never addresses or text.
   async function mail(request) {
     const at = now(), policy = await store.read(), caller = await identify(request), item = `mail ${request.name}`, name = `${item} ${request.action}`
@@ -143,8 +161,8 @@ export function createAuthCore({ store, items, audit, roots, now = () => new Dat
     const found = await items.get(item, policy.vault, policy.cache_seconds)
     if (!found) { record(rec, 'not-registered'); return { outcome: 'not-registered', error: NOT_REGISTERED } }
     try {
-      const result = request.action === 'read' ? await readMail(found.fields, request) : await sendMail(found.fields, request, { now, ...(mailConnect ? { connect: mailConnect } : {}) })
-      record(rec, 'granted', { cache: found.hit ? 'hit' : 'miss', message_id: result.message_id, folders: result.folders?.length, messages: result.messages?.length })
+      const result = request.action === 'read' ? await readMail(found.fields, request) : request.action === 'sort' ? await sortMail(found.fields, request) : request.action === 'check' ? await checkMail(found.fields, request) : await sendMail(found.fields, request, { now, ...(mailConnect ? { connect: mailConnect } : {}) })
+      record(rec, 'granted', { cache: found.hit ? 'hit' : 'miss', message_id: result.message_id, folders: result.folders?.length, messages: result.messages?.length, flagged: result.flagged?.length, moved: result.moved, protocol: request.protocol })
       return { outcome: 'granted', ...result }
     } catch (error) { const code = error?.code?.startsWith?.('MAIL_') ? error.code : 'MAIL_NOT_SUBMITTED'; record(rec, 'error', { cache: found.hit ? 'hit' : 'miss', class: code, why: error?.why }); return { outcome: 'error', error: code } }
   }

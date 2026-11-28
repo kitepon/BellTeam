@@ -144,3 +144,14 @@ test('auth mail send: sends the text from stdin with the options, prints the mes
   const bad = await run(AUTH, ['mail', 'send', 'bad', '--to', 'a@b.cd', '--subject', 'x'], env, 't'); assert.equal(bad.code, 2); assert.match(bad.err, /MAIL_UNKNOWN/u)
   m.close()
 })
+
+test('auth mail sort and check: send exactly their fields and print the result line', async () => {
+  const m = await fakeModule(req => req.op === 'mail-sort' ? { outcome: 'granted', flagged: ['$A'], moved: true } : { outcome: 'granted', tls_verified: true })
+  const env = { AUTH_SOCK: m.path }
+  const s = await run(AUTH, ['mail', 'sort', 'box', '--uid', '9', '--uidvalidity', '777', '--add', '$A,$B', '--archive'], env)
+  assert.equal(s.code, 0); assert.deepEqual(JSON.parse(s.out), { flagged: ['$A'], moved: true })
+  assert.deepEqual(m.seen[0], { op: 'mail-sort', name: 'box', cwd: process.cwd(), uid: 9, uidvalidity: 777, add: ['$A', '$B'], archive: true })
+  const c = await run(AUTH, ['mail', 'check', 'box', '--protocol', 'smtp465'], env)
+  assert.equal(c.code, 0); assert.deepEqual(JSON.parse(c.out), { tls_verified: true }); assert.deepEqual(m.seen[1], { op: 'mail-check', name: 'box', cwd: process.cwd(), protocol: 'smtp465' })
+  m.close()
+})

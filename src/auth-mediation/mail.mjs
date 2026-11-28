@@ -23,15 +23,15 @@ export function buildMessage({ fromAddress, fromName, to, replyTo, subject, text
 }
 
 // One SMTP conversation. connect(options) returns a socket; production uses TLS with normal certificate and hostname checks (tests inject a plain socket).
-export async function sendMail(fields, request, { connect = defaultConnect, now = () => new Date() } = {}) {
+export async function sendMail(fields, request, { connect = defaultConnect, now = () => new Date(), checkOnly = false } = {}) {
   const host = fields?.mail_host, user = fields?.mail_user, password = fields?.mail_password, fromAddress = fields?.mail_from ?? user
   const mode = fields?.mail_tls ?? 'implicit', port = Number(fields?.mail_port ?? (mode === 'starttls' ? 587 : 465))
   if (!host || !password || !ADDRESS.test(user ?? '') || !ADDRESS.test(fromAddress) || !['implicit', 'starttls'].includes(mode) || !Number.isInteger(port)) throw fail(MAIL_REJECTED, 'item')
   const { to, subject, text, html, from_name: fromName, reply_to: replyTo } = request
-  if (!Array.isArray(to) || to.length < 1 || to.length > 10 || !to.every(a => clean(a, 254) && ADDRESS.test(a)) || !clean(subject, 256) || typeof text !== 'string' || Buffer.byteLength(text) > 32768
-    || (html !== undefined && (typeof html !== 'string' || Buffer.byteLength(html) > 32768)) || (fromName !== undefined && !clean(fromName, 100)) || (replyTo !== undefined && !(clean(replyTo, 254) && ADDRESS.test(replyTo)))) throw fail(MAIL_REJECTED, 'request')
+  if (!checkOnly && (!Array.isArray(to) || to.length < 1 || to.length > 10 || !to.every(a => clean(a, 254) && ADDRESS.test(a)) || !clean(subject, 256) || typeof text !== 'string' || Buffer.byteLength(text) > 32768
+    || (html !== undefined && (typeof html !== 'string' || Buffer.byteLength(html) > 32768)) || (fromName !== undefined && !clean(fromName, 100)) || (replyTo !== undefined && !(clean(replyTo, 254) && ADDRESS.test(replyTo))))) throw fail(MAIL_REJECTED, 'request')
   const messageId = `<${randomUUID()}@${fromAddress.split('@')[1]}>`
-  const body = buildMessage({ fromAddress, fromName, to, replyTo, subject, text, html, messageId, date: now() })
+  const body = checkOnly ? '' : buildMessage({ fromAddress, fromName, to, replyTo, subject, text, html, messageId, date: now() })
   let socket, buffer = '', waiter = null, ended = false, sent = false
   const deadline = Date.now() + TOTAL_MS
   const wake = () => { const w = waiter; waiter = null; w?.() }
@@ -64,6 +64,7 @@ export async function sendMail(fields, request, { connect = defaultConnect, now 
     }
     if (!hello.lines.some(l => /AUTH[ =].*PLAIN/iu.test(l))) throw fail(MAIL_REJECTED, 'no AUTH PLAIN')
     await expect(235, 'AUTH PLAIN ' + Buffer.from(`\0${user}\0${password}`).toString('base64'))
+    if (checkOnly) { try { socket.write('QUIT\r\n') } catch { /* done */ } return { tls_verified: true } } // login only: nothing is sent
     await expect(250, `MAIL FROM:<${fromAddress}>`)
     for (const a of to) await expect([250, 251], `RCPT TO:<${a}>`)
     await expect(354, 'DATA')

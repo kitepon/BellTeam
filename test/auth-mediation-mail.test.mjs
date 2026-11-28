@@ -78,6 +78,12 @@ test('mail: STARTTLS mode upgrades before AUTH; an item or a request that could 
   assert.equal(connects, 0)
 })
 
+test('mail check: a login-only probe on 465 or 587 stops after AUTH: no MAIL FROM, no DATA, nothing sent; a wrong password is MAIL_REJECTED', async () => {
+  const s = await fakeSmtp(); const ok = await sendMail(ITEM, {}, { connect: s.connect, checkOnly: true }); s.close()
+  assert.deepEqual(ok, { tls_verified: true }); assert.deepEqual(s.seen.commands.map(c => c.split(' ')[0]), ['EHLO', 'AUTH', 'QUIT'])
+  const bad = await send({ AUTH: '535 bad credentials' }, ITEM, {}); assert.equal(bad.result.code, MAIL_REJECTED)
+})
+
 test('mail: buildMessage keeps html as an alternative and dot-stuffs nothing it does not need', () => {
   const m = buildMessage({ fromAddress: 'a@b.cd', to: ['c@d.ef'], subject: 'plain', text: 't', html: '<b>h</b>', messageId: '<1@b.cd>', date: new Date(0) })
   assert.match(m, /multipart\/alternative/u); assert.match(m, /^Date: Thu, 01 Jan 1970 00:00:00 GMT$/mu); assert.match(m, /text\/html; charset=utf-8/u); assert.ok(m.endsWith('\r\n'))
