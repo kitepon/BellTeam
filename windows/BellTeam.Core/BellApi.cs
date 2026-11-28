@@ -197,7 +197,7 @@ public sealed class BellApi : IDisposable
         if (status == 403 && response.Content.Headers.ContentType?.MediaType == "application/json")
         {
             body = await response.Content.ReadAsStringAsync(token);
-            if (ErrorCode(body) is { } refusal) throw new BellApiException("BellTeam: " + refusal, response.StatusCode, refusal);
+            if (ErrorCode(body) is { } refusal && refusal != "UNAUTHORIZED") throw new BellApiException("BellTeam: " + refusal, response.StatusCode, refusal);
         }
         if (status is >= 300 and < 400 || status is 401 or 403)
         {
@@ -226,15 +226,38 @@ public sealed class BellApi : IDisposable
     }
     private static string? ErrorCode(string body)
     {
-        try { using var document = JsonDocument.Parse(body); return document.RootElement.ValueKind == JsonValueKind.Object && document.RootElement.TryGetProperty("error", out var code) && code.ValueKind == JsonValueKind.String && code.GetString() is { Length: > 0 } value ? value : null; }
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            if (document.RootElement.ValueKind != JsonValueKind.Object || !document.RootElement.TryGetProperty("error", out var error)) return null;
+            if (error.ValueKind == JsonValueKind.String) return error.GetString() is { Length: > 0 } value ? value : null;
+            if (error.ValueKind == JsonValueKind.Object && error.TryGetProperty("code", out var code) && code.ValueKind == JsonValueKind.String)
+                return code.GetString() is { Length: > 0 } nested ? nested : null;
+            return null;
+        }
         catch (JsonException) { return null; }
     }
+
+    private static readonly TimeSpan EventSilenceTimeout = TimeSpan.FromSeconds(60);
 
     public async IAsyncEnumerable<JsonElement> EventsAsync([EnumeratorCancellation] CancellationToken token = default)
     {
         using var response = await OpenEventStreamAsync("/api/events", token);
         await using var stream = await response.Content.ReadAsStreamAsync(token);
-        await foreach (var item in SseReader.ReadAsync(stream, token)) yield return item;
+        using var silence = CancellationTokenSource.CreateLinkedTokenSource(token);
+        silence.CancelAfter(EventSilenceTimeout);
+        await using var enumerator = SseReader.ReadAsync(stream, () => silence.CancelAfter(EventSilenceTimeout), silence.Token).GetAsyncEnumerator(silence.Token);
+        while (true)
+        {
+            bool moved;
+            try { moved = await enumerator.MoveNextAsync(); }
+            catch (OperationCanceledException) when (!token.IsCancellationRequested)
+            {
+                throw new BellApiException(BellApiException.StreamEndedMessage, code: BellApiException.StreamEndedCode);
+            }
+            if (!moved) break;
+            yield return enumerator.Current;
+        }
         throw new BellApiException(BellApiException.StreamEndedMessage, code: BellApiException.StreamEndedCode);
     }
 

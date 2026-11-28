@@ -92,13 +92,19 @@ public sealed class DeviceSession : IAsyncDisposable
     {
         socket = await SignalSocket.OpenAsync(server, ct);
         var opened = socket;
-        opened.Closed += () => { if (opened.CloseCode == SignalSocket.PassEnded) Post(() => Error?.Invoke("pass_ended")); End(opened.CloseCode == SignalSocket.PassEnded ? "pass_ended" : "socket_closed"); };
+        opened.Closed += () =>
+        {
+            Post(() => { foreach (var w in signalWaiters) w.TrySetException(new InvalidOperationException("socket_closed")); signalWaiters.Clear(); });
+            if (opened.CloseCode == SignalSocket.PassEnded) Post(() => Error?.Invoke("pass_ended"));
+            End(opened.CloseCode == SignalSocket.PassEnded ? "pass_ended" : "socket_closed");
+        };
         socket.Message += doc => Post(() =>
         {
             var type = doc.RootElement.GetProperty("type").GetString();
             if (type == "signal" && !doc.RootElement.TryGetProperty("verify_id", out _)) { _ = OnSignal(doc); return; }
             if (signalWaiters.Count > 0) { var w = signalWaiters[0]; signalWaiters.RemoveAt(0); w.SetResult(doc); } else signals.Enqueue(doc);
         });
+        socket.Start();
     }
 
     private Task<JsonDocument> NextSignal()

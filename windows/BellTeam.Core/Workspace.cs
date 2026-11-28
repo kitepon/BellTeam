@@ -682,7 +682,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
     public Task RefreshForImageAsync() => api is null || connection is null ? Task.CompletedTask : RefreshAsync(api, connection.Token);
     public Task<TImage> AvatarAsync(string url)
     {
-        if (avatars.TryGetValue(url, out var existing)) return existing;
+        if (avatars.TryGetValue(url, out var existing) && !existing.IsFaulted && !existing.IsCanceled) return existing;
         async Task<TImage> Load() => await codec.DecodeAsync(await (api ?? throw new BellApiException(CoreStrings.Workspace_connectionStatus_1)).ImageAsync(url, ConnectionToken));
         var task = Load(); avatars[url] = task; return task;
     }

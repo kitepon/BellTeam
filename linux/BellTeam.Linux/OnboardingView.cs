@@ -182,7 +182,7 @@ internal sealed class OnboardingView : StartupBackdrop, IDisposable
     }, authReply: true);
 
     // Every three seconds while the official authentication is pending or the server is installing the AI.
-    private bool Pending => state.Auth?.Status == "waiting" || state.Install is { Busy: true } || state.Install?.State == "installing";
+    private bool Pending => state.Auth?.Status == "waiting" || state.Install is { Busy: true } || state.Install?.State is "installing" or "checking";
     private void UpdatePolling()
     {
         if (!disposed && Pending) { if (!timer.IsEnabled) timer.Start(); }
@@ -201,6 +201,7 @@ internal sealed class OnboardingView : StartupBackdrop, IDisposable
             readError = null; Accept(next); if (changed) Render();
         }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
+        catch (BellApiException error) when (error.RequiresLogin) { if (seen == revision) { readError = error.Message; Render(); } timer.Stop(); return; }
         catch (Exception error) { if (seen == revision) { readError = error.Message; Render(); } }
         finally { reading = false; UpdatePolling(); }
     }

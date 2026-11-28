@@ -524,7 +524,9 @@ public sealed class PhoneShell : UserControl, IMessageHost
     }
     private async void ConnectToAddress(string text)
     {
-        var origin = ServerOrigin.Parse(text);
+        Uri origin;
+        try { origin = ServerOrigin.Parse(text); }
+        catch (ArgumentException error) { ShowStartup(StartupPhase.Failure, error.Message); return; }
         settings.Save(settings.Load() with { ServerUrl = origin.AbsoluteUri });
         await PushRegistration.UnregisterAsync(model); // the old server's connection is still open here
         model.SignOut();

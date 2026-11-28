@@ -6,9 +6,11 @@ namespace BellTeam.Core;
 
 public static class SseReader
 {
-    public static async IAsyncEnumerable<JsonElement> ReadAsync(Stream stream, [EnumeratorCancellation] CancellationToken token = default)
+    public static IAsyncEnumerable<JsonElement> ReadAsync(Stream stream, CancellationToken token = default) => ReadAsync(stream, null, token);
+
+    public static async IAsyncEnumerable<JsonElement> ReadAsync(Stream stream, Action? onActivity, [EnumeratorCancellation] CancellationToken token = default)
     {
-        await foreach (var item in ReadRawAsync(stream, null, token))
+        await foreach (var item in ReadRawAsync(stream, onActivity, token))
         {
             JsonElement payload;
             try
