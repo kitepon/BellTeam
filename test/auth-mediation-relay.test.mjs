@@ -90,6 +90,21 @@ test('run: the relay joins the caller to the module child\'s stream socket and t
   } finally { relay.kill('SIGTERM'); body.close() }
 })
 
+test('run: a caller that vanishes while the command is silent is noticed by the next heartbeat write: the relay closes the module\'s stream', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'relay-')), bodyPath = join(dir, 'body.sock'); let closed, timer; const gone = new Promise(resolve => { closed = resolve })
+  const body = createServer(c => { let buf = ''; c.on('data', d => { buf += d; if (!buf.includes('\n')) return
+    const frame = JSON.parse(buf); c.end(JSON.stringify({ outcome: 'granted' }) + '\n')
+    const s = connect({ path: frame.stream, allowHalfOpen: true }); s.on('error', () => {}); s.on('close', () => { clearInterval(timer); closed(true) }); timer = setInterval(() => s.write(Buffer.from([4, 0, 0, 0, 0])), 100) }) })
+  await new Promise(r => body.listen(bodyPath, r))
+  const relay = spawn(RELAY, [], { env: { ...process.env, AUTH_RELAY_DIR: join(dir, 'share'), AUTH_RELAY_BODY: bodyPath, AUTH_RELAY_SEAT_UID: String(process.getuid()) } })
+  try {
+    await new Promise(resolve => relay.stdout.once('data', resolve))
+    const c = connect(join(dir, 'share', 'container.sock')); await new Promise(r => c.on('connect', r)); c.write(line({ op: 'run', name: 'x' }))
+    await new Promise(r => c.once('data', r)); c.destroy() // the supervisor died
+    assert.equal(await Promise.race([gone, new Promise(r => setTimeout(() => r(false), 4000))]), true)
+  } finally { clearInterval(timer); relay.kill('SIGTERM'); body.close() }
+})
+
 test('caller sockets: an ordinary caller is 0666 in a 0755 folder; a restricted caller (bellteam-push) is 0660 and its prepared folder is left as the host made it; the unit is the socket path', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'relay-')), bodyPath = join(dir, 'body.sock'), frames = []
   const body = createServer(c => { let buf = ''; c.on('data', d => { buf += d; if (buf.includes('\n')) { frames.push(JSON.parse(buf)); c.end(JSON.stringify({ outcome: 'granted', data: 'sig' }) + '\n') } }) })

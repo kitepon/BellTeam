@@ -109,7 +109,7 @@ flowchart LR
   m_usage -->|"lifecycle"| m_runtime
   m_usage -->|"seat-process"| m_runtime
   m_usage -->|"accounts"| m_execution
-  m_usage -->|"auth-exec (MCP auth_exec; container socket; main-server host socket)"| m_auth_mediation
+  m_usage -->|"sign (a signature or MAC made inside the module; the key never leaves)"| m_auth_mediation
   m_web -->|"HTTP/SSE"| m_integration
   m_work_graph -->|"observation"| m_execution
   m_work_graph -->|"registry"| m_members
@@ -189,7 +189,7 @@ flowchart LR
 | [Appleアプリ](modules/apple/README.md) | ベル |  |
 | [Approval Box](modules/approval-box/README.md) | ナユタ | connection export (approval-box connection export --json) / version --json (capabilities) / harness-entries (approval-box) / connector /v1 (HTTP) / bellteam client (client session on /v1: decisions, attachments GET, events, /me; connector /v1 pairing) |
 | [決裁箱拡張](modules/approval-box-extension/README.md) | デルタ | approvals-app-contract (/api/approvals/*) / decision-task-link / approval-box-port (P1 approvals.decisions: file / read / cancel; decision-port.md) |
-| [認証仲介](modules/auth-mediation/README.md) | ライ | auth-exec (MCP auth_exec; container socket; main-server host socket) / auth-admin (stop, resume, show, flush, audit, token, entry-set) / grant entry (grant, revoke only from the registered entry program, with the decision record) |
+| [認証仲介](modules/auth-mediation/README.md) | ライ | auth-exec (MCP auth_exec; container socket; main-server host socket) / auth-admin (stop, resume, show, flush, audit, token, entry-set) / grant entry (grant, revoke only from the registered entry program, with the decision record) / key use (wrap, unwrap inside the module on a caller socket per container product; the key is never returned) / http (the module makes the request with the credential added; only the response leaves) / sign (a signature or MAC made inside the module; the key never leaves) / ssh agent (the module signs for ssh; the client forwards agent requests; the key never leaves) / mail send (the module logs in to the SMTP server and sends; only the result leaves) / gmail (the module holds the OAuth refresh token and makes fixed Gmail API calls; only Google's answer leaves) |
 | [call-bridge/grokbot-bridge](modules/bridge/README.md) | リター | connection export (call-bridge.connection.v1) / MCP /mcp |
 | [BugHub](modules/bughub/README.md) | フラジャイル | public |
 | [Caveat](modules/caveat/README.md) | ノア | public |

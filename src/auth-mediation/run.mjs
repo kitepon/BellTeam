@@ -7,7 +7,7 @@ import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 export const RUN_ROOT = '/run/bellteam-server/auth-run'
-const MAX_RUNS = 4, STDERR_MAX = 65536, DEFAULT_SECONDS = 3600, MAX_SECONDS = 86400, DEFAULT_IN = 4 * 2 ** 30
+const HEARTBEAT_MS = 15000, MAX_RUNS = 4, STDERR_MAX = 65536, DEFAULT_SECONDS = 3600, MAX_SECONDS = 86400, DEFAULT_IN = 4 * 2 ** 30
 const PATH_ENV = '/srv/bellteam/shared/tools/age/bin:/srv/bellteam/shared/tools/cloudflared/bin:/usr/local/bin:/usr/bin:/bin'
 const refuse = message => Object.assign(new Error(message), { code: 'RUN_REFUSED' })
 const live = new Map() // run id -> { item, kill, done }
@@ -75,6 +75,8 @@ export async function startRun(plan, { item, stream, onEnd, spawn = nodeSpawn, c
     const started = Date.now(); let bytesIn = 0, bytesOut = 0, ended = false, killed = null
     const kill = reason => { if (ended) return; killed ??= reason ?? 'stopped'; try { process.kill(-child.pid, 'SIGKILL') } catch { try { child.kill('SIGKILL') } catch {} } }
     live.set(id, { item, kill, done }); await record(child.pid)
+    // A heartbeat frame (tag 4, empty) every 15 s: when the caller is gone, the relay's write fails and it closes the stream, so a silent long-lived command (cloudflared) still ends with its caller.
+    const beat = setInterval(() => { try { socket.write(frame(4, Buffer.alloc(0))) } catch {} }, HEARTBEAT_MS)
     const timer = plan.seconds ? setTimeout(() => kill('time'), plan.seconds * 1000) : null
     if (child.stdin) {
       child.stdin.on('error', () => {})
@@ -89,7 +91,7 @@ export async function startRun(plan, { item, stream, onEnd, spawn = nodeSpawn, c
     child.stderr.on('data', chunk => { if (errSize >= STDERR_MAX) return; let text = chunk.subarray(0, STDERR_MAX - errSize); errSize += text.length; text = Buffer.from(plan.secrets.reduce((out, s) => out.split(s).join('[redacted]'), text.toString('latin1')), 'latin1'); socket.write(frame(2, text)) })
     socket.on('close', () => kill('hangup')); socket.on('error', () => kill('hangup'))
     child.once('close', async (code, signal) => {
-      if (ended) return; ended = true; clearTimeout(timer); live.delete(id)
+      if (ended) return; ended = true; clearTimeout(timer); clearInterval(beat); live.delete(id)
       const exit = killed ? 124 + (killed === 'hangup' ? 0 : 1) : code ?? 128, summary = { exit, reason: killed ?? (signal ? 'signal' : 'exit'), bytes_in: bytesIn, bytes_out: bytesOut, seconds: Math.round((Date.now() - started) / 1000) }
       try { socket.write(frame(3, Buffer.from(String(exit)))); socket.end() } catch {}
       await cleanup(); finish()

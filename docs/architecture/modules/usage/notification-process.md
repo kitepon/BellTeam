@@ -237,7 +237,7 @@ flowchart LR
 | 鍵 | サーバーの通知子は鍵を扱わない。`onePasswordKeyReader`・`loadDirect`・`directProvider`・`keyError`・`APNS_KEY_*` は無い |
 | 旧い設定 | `shared/tools/apns/`・`shared/tools/fcm/` と、`settings.json` の `onePassword` は読まない。残っていても無視し、落ちない。旧い `onePassword` の保存値は読み込み時に捨てる（`src/usage/state-compatibility.mjs` の互換） |
 | 初回の移行 | 旧「APNs設定がある個人環境は、初回だけ通知ONへ移行する」は無い。通知のON/OFFと `relayUrl` は保存された設定だけで決まる |
-| 外部relayの鍵 | `services/notifications/index.mjs` の鍵は `{keyId, file}` だけ（`reference` は無い）。`.p8` は運営の起動前の手順がtmpfsへ置く（[relay README](../../../../services/notifications/README.md)「本番の鍵の渡り方」）。relayはsettings.jsonも1Passwordも触らない |
+| 外部relayの鍵 | `services/notifications/index.mjs` は鍵を持たない（2026-11-28）。`keys.<env>` は `{keyId, sign}` で、署名の入力（JWTのheader.claims）を認証仲介の呼び出し元ソケット（`callers/bellteam-push`）へ `sign <項目名>` で渡し、64 byteの署名だけを受けてJWTを組む。鍵のfile・tmpfs・起動前の鍵手順は無い（[relay README](../../../../services/notifications/README.md)「本番の鍵の渡り方」）。署名が断られる・失敗すると、起動時は起動しない、起動後はその送信が `APNS_SIGN_REFUSED` / `APNS_SIGN_FAILED` で失敗して次の送信がもう一度署名する。relayはsettings.jsonも1Passwordも触らない |
 | 自力の出口 | relayに届かない時は、relayが戻れば次の `configure`（通知設定の保存し直し・子の再起動）で provider 有りに戻る。relayUrlが空の時は、設定にURLを入れれば戻る |
 | 秘密の扱い | 通知子には秘密が渡らない。端末tokenと通知の文面だけがrelayへ行く。診断・statusへ鍵や参照は出さない（持たない） |
 | 配布 | 通知子：変更fileは `src/push-notifications.mjs`・`src/fcm-notifications.mjs`（notifications module archive、全src）。IPC・state・parentProtocolは不変。設定側（usage module）は `onePassword` 機能を外す。通知moduleとusage moduleを1回のリリースで入れる。外部relayの `services/notifications/index.mjs` は `readKeys` を外すだけで、運営が再配置した時に入れ替わる（急がない） |

@@ -8,7 +8,7 @@ import { createNotificationRelay } from './relay.mjs'
 
 const directory = process.env.BELLTEAM_APNS_DIRECTORY
 if (!directory) throw new Error('APNS_DIRECTORY_REQUIRED')
-const provider = await APNsProvider.create(JSON.parse(await readFile(join(directory, 'config.json'), 'utf8')), directory)
+const provider = await APNsProvider.create(JSON.parse(await readFile(join(directory, 'config.json'), 'utf8')))
 // Optional: the operator's Firebase credential (same config.json format as shared/tools/fcm). Without it the relay answers android:false.
 const fcmDirectory = process.env.BELLTEAM_FCM_DIRECTORY
 const fcmProvider = fcmDirectory ? await loadFcmProvider(fcmDirectory) : null

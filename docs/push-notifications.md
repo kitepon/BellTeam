@@ -12,20 +12,20 @@ BellTeamはメンバーの返信（直接会話・ルーム）、秘密情報の
 
 Apple DeveloperのApp IDでPush Notificationsを有効にし、そのアプリのTopicと環境に対応したAPNs署名キーを発行する。TestFlightとApp Storeはproduction、Debugはdevelopmentを使う。App Store Connectのアップロード用APIキーとは別のキーである。
 
-2026-11-27：利用者のサーバーはAPNsの秘密鍵を持たず、`shared/tools/apns/` も読まない（残っていても無視する）。通知は設定の「通知中継URL」の運営relay（`bellteam-push`）だけを通して送る。以下の `config.json` と鍵の置き方は、運営が動かす中継（`services/notifications`、`BELLTEAM_APNS_DIRECTORY`）の話で、鍵は `{keyId, file}` の `.p8` だけ（1Password参照は無い）。設定例の値はすべて運営のものに置き換える。
+2026-11-27：利用者のサーバーはAPNsの秘密鍵を持たず、`shared/tools/apns/` も読まない（残っていても無視する）。通知は設定の「通知中継URL」の運営relay（`bellteam-push`）だけを通して送る。以下の `config.json` と鍵の置き方は、運営が動かす中継（`services/notifications`、`BELLTEAM_APNS_DIRECTORY`）の話で、鍵は持たず、`{keyId, sign}`（認証仲介の項目名）だけを書く。署名は認証仲介モジュールが、呼び出し元ソケット経由の sign でする（2026-11-28、詳細は中継の README「本番の鍵の渡り方」）。`.p8` のfileも1Password参照も無い。設定例の値はすべて運営のものに置き換える。
 
 ```json
 {
   "teamId": "自分のTeam ID",
   "topic": "自分のBundle ID",
   "keys": {
-    "production": { "keyId": "APNsのKey ID", "file": "AuthKey_production.p8" },
-    "development": { "keyId": "APNsのKey ID", "file": "AuthKey_development.p8" }
+    "production": { "keyId": "APNsのKey ID", "sign": "認証仲介の項目名（signkey の名前）" },
+    "development": { "keyId": "APNsのKey ID", "sign": "認証仲介の項目名（signkey の名前）" }
   }
 }
 ```
 
-使わない環境の項目は省略できる。秘密鍵と設定はコンテナの実行ユーザーが読める権限にし、ファイルを0600にする。Gitやコンテナイメージには含めない。設定後は通常のデプロイで読み込ませる。設定がないコンテナでは通知送信は無効で、iPhoneの設定画面に未設定と表示する。
+使わない環境の項目は省略できる。秘密鍵は認証仲介の項目の中だけにあり、中継のプロセス・ホスト・設定・Git・イメージのどこにも置かない。設定後は中継を再起動して読み込ませる（起動時に各環境の署名を1回試す）。
 
 アプリの署名時には`BELLTEAM_APP_BUNDLE_IDENTIFIER`・`DEVELOPMENT_TEAM`を対応する値へ指定する。`PRODUCT_BUNDLE_IDENTIFIER`をビルド引数で上書きしない。アプリ、通知拡張、App Group が次の ID で揃う。
 
