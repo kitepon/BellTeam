@@ -154,7 +154,7 @@ async function bearerFor(fields, fetchImpl, fresh) {
   if (seconds > 0) tokens.set(key, entry)
   return { token: entry.token, secrets: entry.secrets, drop: () => tokens.delete(key) }
 }
-export const forgetTokens = () => { tokens.clear(); accessTokens.clear() } // every flush, stop, revoke or token change: both kinds of kept access tokens go
+export const forgetTokens = () => { tokens.clear(); accessTokens.clear(); qtsSessions.clear() } // every flush, stop, revoke or token change: both kinds of kept access tokens go
 
 // OAuth2 refresh-token style (Google: Search Console, Gmail-like APIs): the item holds client id/secret and the refresh token; the module gets the access token from the token URL,
 // keeps it in memory, adds it as a bearer, and keeps a NEWER refresh token (one the provider returned, or one captured from a code exchange) in the state file; the item's own value wins when
@@ -206,6 +206,51 @@ async function captureRefresh(fields, bodyBuffer, state) {
   parsed.refresh_token = '[stored]'
   return Buffer.from(JSON.stringify(parsed))
 }
+
+// TLS to an origin whose certificate is self-signed and known: the item pins the certificate's SHA-256 fingerprint (colon hex), nothing else is trusted (QNAP NAS on the LAN).
+export function pinnedFetch(pin, extra = {}) {
+  const want = String(pin).replace(/:/gu, '').toLowerCase()
+  return (url, options) => new Promise((resolve, reject) => {
+    url = new URL(url)
+    // The certificate is checked on the finished handshake and only then does the request use the socket: nothing is sent to a host that is not the pinned one.
+    const secure = tlsConnect({ host: url.hostname, port: Number(url.port) || 443, ...(isIP(url.hostname) ? {} : { servername: url.hostname }), rejectUnauthorized: false, ...extra })
+    const fail = error => { secure.destroy(); reject(error instanceof Error ? error : new Error('pin')) }
+    options.signal?.addEventListener('abort', () => fail(new Error('aborted')), { once: true })
+    secure.once('error', fail)
+    secure.once('secureConnect', () => {
+      if ((secure.getPeerCertificate()?.fingerprint256 ?? '').replace(/:/gu, '').toLowerCase() !== want) return fail(new Error('The certificate is not the pinned one.'))
+      secure.removeListener('error', fail)
+      const agent = new HttpsAgent({ keepAlive: false }); agent.createConnection = () => secure
+      const request = httpsRequest({ method: options.method, path: url.pathname + url.search, headers: { host: url.host, ...options.headers }, agent, signal: options.signal })
+      request.on('response', response => resolve(new Response([204, 205, 304].includes(response.statusCode) ? null : Readable.toWeb(response), { status: response.statusCode, headers: response.headers })))
+      request.on('error', reject); request.end(options.body)
+    })
+  })
+}
+
+// QNAP QTS session (README F24): the item holds the NAS login; the module logs in at /cgi-bin/authLogin.cgi (password base64, as QTS wants), takes <authSid> when <authPassed> is 1,
+// adds it as the form field sid (POST) or the query field sid (GET), and logs in again once when an answer says <authPassed>0</authPassed> (QTS answers 200 for an expired session).
+// Item fields: http_qts_user, http_secret = the password. The session is kept in memory for http_qts_session_seconds (default 300).
+const qtsSessions = new Map()
+const qtsKey = (item, fields) => createHash('sha256').update(JSON.stringify([item, fields.http_base, fields.http_qts_user, createHash('sha256').update(fields.http_secret ?? '').digest('hex')])).digest('hex')
+async function qtsSession(fields, item, fetchImpl, fresh) {
+  if (!fields.http_qts_user || !fields.http_secret) throw refuse('The key item has no credential.')
+  const key = qtsKey(item, fields), kept = qtsSessions.get(key), secrets = [fields.http_secret, Buffer.from(fields.http_secret).toString('base64')]
+  if (!fresh && kept && kept.until > Date.now()) return { sid: kept.sid, secrets: [...secrets, kept.sid], drop: () => qtsSessions.delete(key) }
+  const base = new URL(fields.http_base)
+  const form = new URLSearchParams({ user: fields.http_qts_user, pwd: Buffer.from(fields.http_secret).toString('base64'), remme: '0' })
+  let text
+  try {
+    const response = await fetchImpl(new URL('/cgi-bin/authLogin.cgi', base.origin), { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: form.toString(), redirect: 'manual', signal: AbortSignal.timeout(20000) })
+    text = (await response.text()).slice(0, TOKEN_BODY_MAX)
+  } catch { throw Object.assign(new Error('The login failed.'), { code: 'HTTP_FAILED' }) }
+  const passed = /<authPassed>\s*(?:<!\[CDATA\[)?\s*1\s*(?:\]\]>)?\s*<\/authPassed>/u.test(text), sid = /<authSid>\s*(?:<!\[CDATA\[)?\s*([A-Za-z0-9]{6,64})\s*(?:\]\]>)?\s*<\/authSid>/u.exec(text)?.[1]
+  if (!passed || !sid) throw Object.assign(new Error('The login failed.'), { code: 'HTTP_FAILED' })
+  const seconds = Math.min(Math.max(Number(fields.http_qts_session_seconds) || 300, 0), 3600)
+  if (seconds > 0) qtsSessions.set(key, { sid, until: Date.now() + seconds * 1000 })
+  return { sid, secrets: [...secrets, sid], drop: () => qtsSessions.delete(key) }
+}
+const qtsExpired = buffer => /<authPassed>\s*(?:<!\[CDATA\[)?\s*0\s*(?:\]\]>)?\s*<\/authPassed>/u.test(buffer.toString('latin1').slice(0, 4096))
 
 // A long-lived token the provider lets you refresh (Threads: GET /refresh_access_token?grant_type=th_refresh_token&access_token=...): the module refreshes it itself and keeps the
 // newest one in a state file (0600, body-owned, same folder as policy.json). The item's own value wins as soon as someone changes it (the state records which item value it came from).
@@ -260,11 +305,13 @@ export async function callHttp(fields, request, fetchImpl = fetch, rotation = nu
     const proxy = await proxyChoice(fields, fetchImpl); proxySecrets = [fields.http_proxy_password, fields.http_proxy_user]
     fetchImpl = proxiedFetch(proxy, proxyDeps.tls, proxyDeps.proxyTls)
   }
+  if (fields.http_pin_sha256) { if (fields.http_proxy_host || fields.http_proxy_discover) throw refuse('A pinned origin cannot go through a proxy.'); if (!/^[0-9A-Fa-f:]{64,95}$/u.test(fields.http_pin_sha256)) throw refuse('The key item has no usable pin.'); fetchImpl = pinnedFetch(fields.http_pin_sha256, proxyDeps.pinTls) }
   const headers = {}
   const allowed = (fields.http_allow_headers ?? '').split(',').map(h => h.trim().toLowerCase()).filter(h => /^[a-z0-9-]{1,64}$/u.test(h) && h !== 'authorization' && h !== 'host' && h !== 'content-length') // item-listed extra caller headers
   for (const [name, value] of Object.entries(request.headers ?? {})) if ((SAFE_REQUEST_HEADER.test(name.toLowerCase()) || allowed.includes(name.toLowerCase())) && typeof value === 'string') headers[name.toLowerCase()] = value
   let body = request.body === undefined ? undefined : Buffer.from(request.body, 'base64')
-  let secrets = [], oauth = null
+  let secrets = [], oauth = null, qts = null
+  const qtsDirect = fetchImpl
   const getBearer = fresh => fields.http_auth === 'oauth2-refresh' ? oauthRefreshBearer(fields, rotation?.item ?? 'default', rotation?.state ?? null, directFetch, fresh) : bearerFor(fields, directFetch, fresh)
   if (passthrough(fields, url)) {
     // the caller's own short-lived token, only on the listed paths; the module adds nothing
@@ -275,6 +322,10 @@ export async function callHttp(fields, request, fetchImpl = fetch, rotation = nu
     if (/^query:/u.test(fields.http_auth ?? '')) url.searchParams.delete(fields.http_auth.slice(6))
     let added
     if (fields.http_auth === 'oauth2-password' || fields.http_auth === 'oauth2-refresh') { oauth = await getBearer(false); headers.authorization = 'Bearer ' + oauth.token; added = { secrets: oauth.secrets } }
+    else if (fields.http_auth === 'qts-session') {
+      qts = await qtsSession(fields, rotation?.item ?? 'default', qtsDirect, false); added = { secrets: qts.secrets }
+      applyQts(qts.sid)
+    }
     else added = addCredential(fields, url, headers, request) // after the caller's headers, so it always wins
     secrets = [...added.secrets, ...proxySecrets]
     if (request.path === '/') { const b = new URL(fields.http_base); if (b.pathname !== '/') secrets = [...secrets, ...b.pathname.split('/').filter(p => p.length >= 16)] } // an exact-base answer must not echo the secret part of the URL
@@ -294,6 +345,10 @@ export async function callHttp(fields, request, fetchImpl = fetch, rotation = nu
     }
   }
   if (body && (body.length > REQUEST_BODY_MAX || ['GET', 'HEAD'].includes(request.method))) throw refuse('The body is not allowed.')
+  function applyQts(sid) { // the module's session id: a form field for a body, a query field for a GET; the caller cannot set it
+    if (['GET', 'HEAD'].includes(request.method)) { url.searchParams.set('sid', sid); return }
+    const own = new URLSearchParams(body?.toString('utf8') ?? ''); own.set('sid', sid); body = Buffer.from(own.toString()); headers['content-type'] = 'application/x-www-form-urlencoded'
+  }
   if (fields.http_auth === 'aws-sigv4' && !passthrough(fields, url)) { // after every header and the body are final: the signature covers them
     const region = fields.http_aws_region ?? 'auto', service = fields.http_aws_service ?? 's3'
     if (!/^[a-z0-9-]{1,32}$/u.test(region) || !/^[a-z0-9-]{1,32}$/u.test(service)) throw refuse('The key item has no usable region.')
@@ -319,6 +374,7 @@ export async function callHttp(fields, request, fetchImpl = fetch, rotation = nu
     return { status: response.status, headers: showHeaders(response, secrets), response, secrets }
   }
   let response = await send(), got = await read(response)
+  if (qts && !got.truncated && qtsExpired(got.buffer)) { qts.drop(); qts = await qtsSession(fields, rotation?.item ?? 'default', qtsDirect, true); secrets = [...qts.secrets, ...proxySecrets]; applyQts(qts.sid); response = await send(); got = await read(response) } // QTS answers 200 for an expired session
   // The token is invalid when the server says 401, or 200 with result.statusCode 210 (JPO): fetch a new one and repeat the request once; the second answer is returned as it is.
   if (oauth && (response.status === 401 || (response.status === 200 && !got.truncated && /json/iu.test(response.headers.get('content-type') ?? '') && invalidTokenBody(got.buffer)))) {
     oauth.drop(); oauth = await getBearer(true); headers.authorization = 'Bearer ' + oauth.token; secrets = [...oauth.secrets, ...proxySecrets]
