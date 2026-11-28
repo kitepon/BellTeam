@@ -366,3 +366,15 @@ test('http qts-session + pin: the module logs in to QTS (base64 password), adds 
     assert.equal(g.status, 200)
   } finally { nas.closeAllConnections(); nas.close() }
 })
+
+test('http method paths: a method listed in http_method_paths may only be used under its paths (relative to the base path); unlisted methods follow http_methods only', async () => {
+  const hook = 'https://discord.example.com/api/webhooks/123456789/AbCdEfGhIjKlMnOpQrStUvWxYz0123'
+  const t = setup({ item: { http_base: hook, http_auth: 'none', http_methods: 'GET POST', http_method_paths: 'GET:/messages/' }, answer: () => new Response('{"id":"1"}') })
+  const base = hook.slice(hook.indexOf('/api'))
+  assert.equal((await ask(t, { method: 'GET', path: base + '/messages/777' })).outcome, 'granted')
+  assert.equal((await ask(t, { method: 'GET', path: base + '/messages/' })).outcome, 'granted')
+  assert.equal((await ask(t, { method: 'GET', path: base })).outcome, 'error') // the webhook object itself
+  assert.equal((await ask(t, { method: 'GET', path: base + '/messagesX' })).outcome, 'error'); assert.equal((await ask(t, { method: 'GET', path: base + '/other' })).outcome, 'error')
+  assert.equal((await ask(t, { method: 'POST', path: base, body: Buffer.from('{}').toString('base64') })).outcome, 'granted') // POST is not listed: free
+  assert.equal(t.seen.length, 3)
+})
