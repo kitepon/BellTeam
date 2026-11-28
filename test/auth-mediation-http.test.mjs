@@ -244,3 +244,13 @@ test('http aws-sigv4: object keys with ! \' ( ) * are signed in their re-encoded
   const raw = sigv4({ ...base, url: new URL('https://h.example/b/a!b(c)*d\'e') }).authorization, enc = sigv4({ ...base, url: new URL('https://h.example/b/a%21b%28c%29%2Ad%27e') }).authorization
   assert.equal(raw, enc) // AWS canonical form is the same whichever way the caller wrote the key
 })
+
+test('http exact base: path "/" on a base with a path sends exactly the stored URL WITH the item credential (bearer or header), and nothing else is added', async () => {
+  const hook = 'https://hooks.example.com/switchboard/AbCdEfGhIjKlMnOpQrSt0123'
+  const bearer = setup({ item: { http_base: hook, http_auth: 'bearer', http_secret: 'key-secret-abcdef', http_methods: 'POST' }, answer: () => new Response('ok AbCdEfGhIjKlMnOpQrSt0123') })
+  const r = await ask(bearer, { method: 'POST', path: '/', headers: { 'content-type': 'application/json' }, body: Buffer.from('{"a":1}').toString('base64') })
+  assert.equal(bearer.seen[0].url, hook); assert.equal(bearer.seen[0].headers.authorization, 'Bearer key-secret-abcdef'); assert.equal(text(r), 'ok [redacted]')
+  const header = setup({ item: { http_base: hook, http_auth: 'header:Authorization', http_secret: 'Bearer stored-value-123', http_methods: 'POST' } })
+  await ask(header, { method: 'POST', path: '/', body: Buffer.from('{}').toString('base64') }); assert.equal(header.seen[0].url, hook); assert.equal(header.seen[0].headers.authorization, 'Bearer stored-value-123')
+  assert.equal((await ask(setup({ item: { http_base: 'https://api.example.com/v1', http_auth: 'bearer', http_secret: 'sk_live_abcdef123456' } }), { path: '/' })).outcome, 'granted') // a plain API base: '/' is its own prefix URL, as before
+})
