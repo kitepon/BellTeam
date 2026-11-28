@@ -1,6 +1,6 @@
 # AI認証画面の配布と実認証の確認
 
-目的は、AIの認証が切れてメンバーが止まった時に、オーナーがAppleアプリから公式認証へ入り直せること。実装・試験・両プラットフォームのTestFlight内部配布、端末の導入と、本番の本人操作を含む確認まで完了した。状態・配布物・検証結果は[準備状況の正本](subscription-setup.json)の`integration.appHarnessAuthentication`、実装と試験の説明は[検証記録](evidence/2026-10-06-app-harness-auth.md)を参照する。
+目的は、AIの認証が切れてメンバーが止まった時に、オーナーがAppleアプリから公式認証へ入り直せること。実装・試験・両プラットフォームのTestFlight内部配布、端末の導入と、本番の本人操作を含む確認まで完了した。状態・配布物・検証結果は[準備状況の正本](../../subscription-setup.json)の`integration.appHarnessAuthentication`、実装と試験の説明は[検証記録](../../evidence/2026-10-06-app-harness-auth.md)を参照する。
 
 ## 完了した作業
 

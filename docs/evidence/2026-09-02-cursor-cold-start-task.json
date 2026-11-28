@@ -8,7 +8,7 @@
     "title": "Cursor冷間起動と配送状態を実結果に一致させる",
     "classification": "F",
     "effect": "write",
-    "doc_ref": "docs/plan_cursor-cold-start-delivery-20260902.md",
+    "doc_ref": "docs/archive/plans/plan_cursor-cold-start-delivery-20260902.md",
     "role": "implementer",
     "lane": "behavior-change",
     "depends_on": [],

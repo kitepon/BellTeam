@@ -8,7 +8,7 @@
     "title": "不達時にBotセッションを起動して一度だけ再送する",
     "classification": "F",
     "effect": "write",
-    "doc_ref": "docs/plan_session-redelivery-20260902.md",
+    "doc_ref": "docs/archive/plans/plan_session-redelivery-20260902.md",
     "role": "implementer",
     "lane": "behavior-change",
     "depends_on": [],

@@ -1,6 +1,6 @@
 # 受入済み商用イメージを内部へ反映する
 
-BellTeam更新前は、内部本番を含め必ず配布担当センチへ対象SHA・image・差分を渡し、必要な事前試験と結果を受け取る。可能な限り商用コンテナを内部で先に利用し、内部受入の結果を外部への同じdigestの昇格へ返す。
+BellTeam 更新前は、内部本番を含め必ず製品試験担当センチへ対象 SHA・image・差分を渡し、必要な事前試験と受入結果を受け取る（配布・image 実装担当はモリー、本番実行判断はトロニー）。可能な限り商用コンテナを内部で先に利用し、内部受入の結果を外部への同じ digest の昇格へ返す。
 
 正規入口は引き続き`scripts/deploy.sh`一回。imageを指定しない従来のbuild経路も残る。内部の停止・再作成の個別許可とメンバーの稼働条件は維持し、試験合格だけを本番実行許可とはしない。
 
@@ -30,8 +30,8 @@ sh scripts/deploy.sh
 入口はcommitをGitHub mainへpushし、本番checkoutをff-onlyで取り込んで処理待ち一覧を控える。指定image経路は本番側で切り離した`scripts/deploy-image.sh`へ進み、次の順で一度反映する。
 
 1. 公開compose＋内部overlayをrepo絶対pathで指定する。projectはbellteam、内部profileは同checkoutのsrc/distribution-profile.mjs。
-2. 指定digestを取得し、そのimageからCursor更新scriptとupdater用composeを読み出す。本体を停止しない。
-3. 既存quiet①→抽出したCursor updater→既存quiet②→同digestのcompose up。再buildせず、up時も別imageをpullしない。
+2. 指定 digest を取得し、その image から互換の Cursor 更新 script と updater 用 compose を読み出す（a451 以降 `bellteam-update-cursor` は空の互換入口）。本体を停止しない。
+3. 既存 quiet① → 互換 updater 段 → 既存 quiet② → 同 digest の compose up。再 build せず、up 時も別 image を pull しない。
 4. 既存のdeployログ/exit、health、実CLI版とBot状態を返す。反映担当は実image/source/profile/永続状態も照合する。
 
 抽出updaterは同じrepo cwd/COMPOSE_FILE/project/image/profile環境を引き継ぐ。共有update-cursor.shは書き換えず、内部adapterで既存2地点のquietを維持する。public installerのstop→Cursor→upと同じ停止順だとは説明しない。

@@ -1,38 +1,46 @@
 # BellTeam
 
-アプリをダウンロードして初めて使う方は、[サーバーの導入ガイド](docs/server-installation.md)から始めてください。PCの準備、公開コンテナの起動、アプリに入力する接続先URLまで案内します。
+アプリをダウンロードして初めて使う方は、[サーバーの導入ガイド](docs/server-installation.md)から始めてください。PC の準備、公開コンテナの起動、アプリに入力する接続先 URL まで案内します。
 
-一般配布サーバーは[設置案内](distribution/server/README.md)を参照。追加機能を設定せずにコンテナを起動し、Webで最初に使うAIを選んで公式認証を完了すると、案内役との会話を始められる。初回設定の仕様は[初回設定と追加機能](docs/onboarding.md)に置く。Macから同じマシンへ、iPhone・iPadから同じLANのマシンへ直接接続できる。
+一般配布サーバーの詳細は [設置案内](distribution/server/README.md)、初回設定と追加機能の仕様は [初回設定と追加機能](docs/onboarding.md)、ドキュメント全体の構成は [docs/README.md](docs/README.md) を参照してください。
 
-ソースから一般利用者向けのコンテナを作る場合も、設置案内の[ソースから構築する](distribution/server/README.md#ソースから構築する)に従ってpublic構成を生成し、ローカルイメージをinstallerへ渡す。リポジトリ直下のComposeは開発者の運用向けである。
+ソースから一般利用者向けのコンテナを作る場合も、設置案内の [ソースから構築する](distribution/server/README.md#ソースから構築する) に従って public 構成を生成し、ローカルイメージを installer へ渡します。リポジトリ直下の Compose は開発者の運用向けです。
+
+## 概要とクライアント
+
+BellTeam は、同一コンテナ内（および接続したリモート端末上）で常駐する AI CLI（Claude Code・Codex・Grok・Cursor）の Bot を定義し、ユーザーとの会話、Bot 同士の直接メッセージ、複数 Bot のルーム会話を Aiterm へ配達する自己ホスト型の AI チーム運用基盤です。アプリから Bot とルームを追加し、プロフィール、メンバー、目的、代表、アバター、自動実行予定、Lattice 工程表、相関図、決裁連携を管理できます。
+
+ルームでは発言を全メンバーへ届け、TypeSafe を設定すると Jev が返信者を選びます。入力欄の左で返信者を手動指定することもできます（TypeSafe の API キーは設定画面で登録。未設定時は手動指定。発言履歴は Throughline の公開 `room-context --json` で直近 3 ターンを取得し、API キーはリポジトリや Bot へ渡しません）。
+
+> **ブラウザ版について**：ブラウザ版 Web UI は 2026-11-22 に終了しました（[web-gateway 正本](docs/architecture/modules/web/README.md)）。サーバーの HTTP 入口はネイティブアプリ向け API/SSE ゲートウェイとして稼働し、ブラウザで直接開くと終了案内（410）を返します。
+
+対応ネイティブアプリ（LAN 直接接続または Cloudflare Access 経由）：
+- **iPhone・iPad**：[BellBot](ios/BellBot/README.md)（SwiftUI）。iPad 版は [BellTeam for iPad](docs/ipad-app.md)（Mac 版と同じ画面ファイルで広さに応じて 3 ペイン配置）。
+- **Mac**：[BellTeam for Mac](docs/mac-app.md)（Mac Catalyst）。一覧・会話・詳細の 3 ペイン、キーボード操作・画像添付対応。
+- **Windows**：[BellTeam for Windows](docs/windows-app.md)（WPF / .NET 10 `BellTeam.Core`）。
+- **Linux**：[Linux アーキテクチャ](docs/linux-architecture.md)（Avalonia / `BellTeam.Core` 共有）。
+- **Android**：[Android アーキテクチャ](docs/android-architecture.md)（Avalonia / `BellTeam.Core`・Linux UI 共有）。
+
+現行設計の正本は [docs/current-design.md](docs/current-design.md)、機能図と所有権は [docs/architecture/feature-map.md](docs/architecture/feature-map.md)・[docs/architecture/module-ownership.md](docs/architecture/module-ownership.md)、最後に実測した運用状況の案内は [docs/current-status.md](docs/current-status.md) に置きます。
 
 ## 通話ブリッジの接続
 
-通話を設定すると、BellTeamはClaude、Codex、Grok、Cursorの全Botへ`call-bridge` MCPを登録する。各CLIはBellTeam本体の内部入口（コンテナ内のloopback）へHTTPで接続し、本体がメインサーバーのHTTP MCPへ中継する。Bearer認証値と接続先はCLI設定に書かず、本体が`/srv/bellteam/shared/tools/call-bridge/headers`（権限600）から読んで付ける。接続先と合言葉は設定画面または案内役との会話で登録する。既存の`BELLTEAM_CALL_BRIDGE_MCP_URL`と認証ファイルは初回に移行する。未設定の通話は無効になり、Webと基本の管理操作を使える。
+通話を設定すると、BellTeam は Claude・Codex・Grok・Cursor の全 Bot へ `call-bridge` MCP を登録します。各 CLI は BellTeam 本体の内部入口（コンテナ内の loopback）へ HTTP で接続し、本体がメインサーバーの HTTP MCP へ中継します。Bearer 認証値と接続先は CLI 設定に書かず、本体が `/srv/bellteam/shared/tools/call-bridge/headers`（権限 600）から読んで付けます。接続先と合言葉は設定画面または案内役との会話で登録し、未設定時は無効になります。
 
-着信口は`BELLTEAM_CALL_BRIDGE_SOCKET`のUNIXソケットで、既定は`/srv/bellteam/shared/tools/call-bridge/bellteam.sock`。BellTeamが作り、ブリッジ側は親ディレクトリを`/run/bellteam`へマウントして`CALL_BRIDGE_BELLTEAM_UNIX=/run/bellteam/bellteam.sock`で接続する。通話の公開操作はgrokbot-bridge MCPに置き、BellTeam MCPへ通話ツールを追加しない。外部の通話相手は通話ブリッジ経由の送信者として表示し、ユーザーやBellTeam BotのIDに置き換えない。
+着信口は `BELLTEAM_CALL_BRIDGE_SOCKET` の UNIX ソケット（既定 `/srv/bellteam/shared/tools/call-bridge/bellteam.sock`）で、BellTeam が作成し、ブリッジ側は親ディレクトリを `/run/bellteam` へマウントして `CALL_BRIDGE_BELLTEAM_UNIX=/run/bellteam/bellteam.sock` で接続します。通話の公開操作は `grokbot-bridge` MCP に置き、BellTeam MCP へ通話ツールを追加しません。外部の通話相手は通話ブリッジ経由の送信者として表示し、ユーザーや BellTeam Bot の ID に置き換えません。
 
-メインサーバーでは、通話ブリッジが自分の公開export（`call-bridge.connection.v1`）でBellTeamへの接続先とトークンを出し、動いているBellTeamがそれを自分の設定（機能設定の`callBridge`）に取り込む。kiteで`cd /home/kite/call-bridge && python3 scripts/export_connection.py --json | docker exec -i bellteam node /app/scripts/import-call-bridge.mjs`を実行する。取込み口はstdinを64 KiBまで読み、値を表示せず、コンテナ内のloopbackから`PATCH /api/settings/callBridge`で動いている本体へ渡す。認証ファイル（header）・ソケット・各CLIの通話MCP登録は、設定の適用（onChange）が作り直す。両`.env`は書き換えない。再起動もしない。ソケットは本体がコンテナ内の`/srv/bellteam/shared/tools/call-bridge/bellteam.sock`に作り、ブリッジはそのホスト側（本番の`/srv/bellteam`マウント元）を`/run/bellteam`へマウントする。通話MCPはBotのプロジェクトから決めたIDを`X-Call-Bridge-Caller-Id`で付ける（`src/call-bridge-mcp.mjs`）。反映後は4つのCLIの通常のMCP入口で`call_directory`、BellTeam宛ての`call_open`→`call_send`→同じ`session_id`での返信を実測する。
+メインサーバーでの取り込み：
+- `cd /home/kite/call-bridge && python3 scripts/export_connection.py --json | docker exec -i bellteam node /app/scripts/import-call-bridge.mjs`
+- 取り込み口は stdin を 64 KiB まで読み、値を表示せず、コンテナ内 loopback から `PATCH /api/settings/callBridge` で稼働中の本体へ渡します（`.env` 書換・再起動なし）。認証ファイル・ソケット・各 CLI の通話 MCP 登録は設定反映で再構築され、通話 MCP は Bot プロジェクトから決めた ID を `X-Call-Bridge-Caller-Id` で付与します（`src/call-bridge-mcp.mjs`）。
 
-BellTeam は、同一コンテナ内で常駐する AI CLI の Bot を定義し、ユーザーとのWeb会話、Bot同士の直接メッセージ、複数Botのルーム会話をAitermへ配達する。Web UIからBotとルームを追加し、プロフィール、メンバー、目的、代表、アバター、自動実行予定を管理できる。ルームでは発言を全メンバーへ届け、TypeSafeを設定するとJevが返信者を選ぶ。入力欄の左で返信者を手動指定することもできる。
+## 自動実行予定と Bot 環境
 
-ルームの自動判定には設定画面でTypeSafeのAPIキーを登録する。未設定では返信者を手動指定する。既存の`TYPESAFE_API_KEY`は初回に移行する。発言履歴はThroughlineの公開`room-context --json`で直近3ターンを取得し、Jevへ一度の要求で会話継続と返信者の両方を尋ねる。APIキーはリポジトリやBotへ渡さない。
+- **自動実行**：一回・毎時・毎日・曜日指定・○日おき・○時間おき・cron 式に対応。実行済みで次回のない単発予定は一覧に表示せず、実行記録のみ保持します。予定の内容は `prompt`（AI への指示）または `command`（AI を起こさず Bot フォルダで `sh -c` 実行）のどちらか一方とし、AI を起こす必要のない機械作業は `command` にします（`command` は失敗時のみユーザー会話へ 1 件残し、成功時は何も出しません）。予定は Bot・ルームごとに 1 ファイル（`schedule.json`）で、BellTeam 内の scheduler が解釈します（ホストの crontab は使いません）。
+- **Bot 開発環境**：各 Bot はコンテナ内のパスワード不要 sudo と標準の Python・Node・Corepack・ビルド道具を使って独自環境を構築できます。`environment/setup.sh` はコンテナ起動時に AI を起こさず再実行し、`environment/env.sh` は会話用 CLI とコマンド予定へ適用します。詳細は [docs/bot-environment.md](docs/bot-environment.md) を参照。
 
-iPhone・iPad用のSwiftUIアプリは [BellBot](ios/BellBot/README.md) に置く。LANへの直接接続、または設定済みのCloudflare Accessでログインし、BellTeamの会話と主要な管理操作をiPhone・iPadから使える。
+## BellTeam MCP
 
-iPad版は [BellTeam for iPad](docs/ipad-app.md)。Mac版と同じ画面ファイルを使い、画面の広さに応じて一覧・会話・詳細を配置する。
-
-Mac版は [BellTeam for Mac](docs/mac-app.md)。一覧・会話・詳細を並べ、キーボード操作と画像ファイルの添付に対応する。
-
-Windows版は [BellTeam for Windows](docs/windows-app.md)。Mac版を基準にしたWPFアプリで、LANへの接続、一覧・会話・プロフィール、送信と新着の受信に対応する。
-
-現行設計の正本は [docs/current-design.md](docs/current-design.md)、最後に実測した運用状況は [docs/current-status.md](docs/current-status.md) に置く。
-
-自動実行は一回・毎時・毎日・曜日指定・○日おき・○時間おき・cron式から選べる。日おきは開始日と時刻を設定し、2日おきなら開始日・2日後・4日後に実行する。時間おきは毎日の開始時・終了時・間隔・実行する分を設定し、9時〜18時の3時間おきなら9・12・15・18時に実行する。Bot・ルームとも、実行済みで次回のない単発予定は自動実行一覧に表示しない。保存済みの実行記録は保持する。
-
-各Botはコンテナ内のパスワード不要sudoと標準のPython・Node・Corepack・ビルド道具を使って、自分の開発環境を構築できる。`environment/setup.sh` はコンテナ起動時にAIを起こさず再実行し、`environment/env.sh` は会話用CLIとコマンド予定へ適用する。導入・復元の手順は [docs/bot-environment.md](docs/bot-environment.md) を参照。
-
-各BotにはBellTeam MCPが見える。
+BellTeam MCP はコンテナ内の Claude・Codex・Grok・Cursor へ登録されます（通話 MCP は通話設定時に登録）。
 
 ```text
 sendmessage(target, message, image?)
@@ -67,34 +75,19 @@ list_room_schedules(roomId)
 remove_room_schedule(roomId, id)
 ```
 
-BellTeam MCPはコンテナ内のClaude、Codex、Grok、Cursorへ登録される。通話MCPは通話を設定したときに登録される。全Botの一覧・取得・作成・編集、画像ファイルからのアバター設定、任意Botの予定管理、会話履歴の取得、ユーザーとしてのメッセージ送信はBellTeam MCPから行える。
-
-予定の実行内容は`prompt`（AIへの指示）か`command`（AIを起こさずBotのフォルダで`sh -c`として実行するコマンド）のどちらか一方で、スクリプト実行やサイトの書き出しなどAIを起こす必要のない作業は`command`にする。commandの失敗はそのBotからユーザーへの会話に1件残り、成功は何も出さない。
-
-ツールが宛先Botを定義から探し、全メッセージをAitermの`pty_send`へ直ちに渡す。セッションが無ければBotを起動して渡す。実行中のターンへの差し込みと新しいターンの開始はAitermが判断する。処理中のメッセージはWeb UIとMCPから確認できる。確定回答はターン完了後にWeb UIへ追加する。
-
-オーナーのプロフィールは`/srv/bellteam/owner/profile.json`を唯一の正本とし、左上のアバターから名前、プロフィール、X、GitHub、その他の情報源を編集する。BellTeamはアバター本体を除く最新値をセッション起動と全メッセージ配送へ自動で添付し、Botは`get_owner_profile`でも同じ正本を取得できる。更新のためにBotを再起動する必要はない。
-
-Botのプロフィールは`/srv/bellteam/bots/<bot-id>/bot.json`、予定は同じフォルダの`schedule.json`へ保存する。`list_bots`はこの正本からID・名前・CLI・プロフィール・性格（考え方）・口調・役職・役割だけを返し、別の索引は持たない。ルームは`/srv/bellteam/rooms/<room-id>/`に設定、会話、予定を持つ。予定はBot・ルームごとに一ファイルで、BellTeam内のschedulerが一回日時・cron式・日おき・時間おきを解釈する。hostのcrontabは使わない。
-
-Bot固有のリポジトリ、成果物、ツール利用設定は`/srv/bellteam/bots/<bot-id>/`、共通化を明示したツールとMCPの実装本体は`/srv/bellteam/shared/tools/<tool-id>/`を永続保存の正本とする。それ以外のコンテナ内パスは基盤更新で消失または上書きされる前提とし、唯一の正本にしない。共有ツールを使うかどうかと利用設定はBotごとに管理する。
-
-Web UIでは画像をアップロードし、位置と拡大率を調整してアバターを作る。外部画像URLは使わない。Botを作成すると、専用プロジェクトを作った直後にCLIを起動する。名前、プロフィール、性格（考え方）、口調、役職、役割を初回指示としてAitermへ渡し、確定した挨拶だけをユーザーとの会話へ表示する。画面上のBot名は`名前 役職`とし、役職が未設定なら名前だけを表示する。
-
-チャットでは画像を選択または貼り付けて、本文と一緒に対象Botへ渡せる。画像はAitermの`image`引数で渡し、Claude・Codex・Grok・Cursorのどれでも届く。画像本体はBellTeamへ保存せず、会話ログには画像が付いていた事実だけを残す。
-
-開発機で実行する場合もCLI設定は本リポジトリの`runtime/home`へ生成し、開発者のホームへ書き込まない。専用ホームを変える時は`BELLTEAM_HOME`に絶対パスを指定する。コンテナでは既存の`/home/bell`を使う。
-
-## メインサーバーでの起動
-
-新規の設置は[一般配布サーバーのinstaller](distribution/server/README.md)を使う。追加機能の設定は不要で、起動後にWebからハーネス選択・公式認証・案内役との会話を行う。リポジトリから起動する場合も、Cloudflare Access・TypeSafe・通話・診断連携の環境変数は未設定のまま使える。接続先は同じマシンなら`http://localhost:18891`、LAN上の端末なら`http://このマシンのLANアドレス:18891`になる。既存の本番設定は初回に永続領域へ移行する。
-
-本番反映はcommitしてから`scripts/deploy.sh`一回で行う。コンテナの再起動でBot全員が停止するため、実行前に必ず一度止まり、オーナーの許可を取る。GitHubの`main`へのpush、本番のfast-forward取り込み、公式の現行版を使うキャッシュなしの再ビルド、healthz、CLIの実際の版、Bot数と稼働数の確認までを返す。ビルド失敗時はコンテナを入れ替えない。本番側ではcommitを作らないため、本番とGitHubの履歴は常に一致する。
-
-初回のAI認証はWeb画面からAitermの公開認証入口を使い、利用者が公式サイトで完了する。初期設定の後は、設定の「AIの認証」から同じ入口で認証をやり直せる。BellTeamはハーネスごとの認証コマンドや資格情報を所有しない。Node.js、Corepack、Claude、Codex、Grok、Aiterm、Throughline、GitHub CLIは反映のたびに公式の現行版を導入する。Cursorの公式導入先`~/.local`は専用volumeで保持し、反映前に鍵の無い使い捨てコンテナで`cursor-agent update`を実行する。`scripts/deploy.sh`と一般配布のinstallerがこの段を実行し、失敗時は本体を入れ替えない。本体の起動命令はsupervisorだけを実行する。Throughlineは起動時に公式`throughline install`で4ハーネスのhookを更新する。
-
-直接接続ではWeb UIとアプリからLANの接続先を使う。Cloudflare Accessを有効にしたときは、設置先の公開URLと許可対象を使い、BellTeamがAccess JWTの署名・発行元・audience・期限を検証する。Bot間メッセージは会話本文へ複製せず、タップで展開できる送受信履歴として表示する。
+- メッセージ配送は宛先 Bot を定義から探し、Aiterm の `pty_send` へ直ちに渡します（セッションが無ければ起動）。実行中ターンへの差し込みと新ターン開始は Aiterm が判断し、確定回答はターン完了後に会話へ追加します。
+- オーナープロフィールは `/srv/bellteam/owner/profile.json` を唯一の正本とし、アバター本体を除く最新値をセッション起動と全メッセージ配送へ自動添付します（再起動不要）。
+- Bot プロフィールは `/srv/bellteam/bots/<bot-id>/bot.json`、予定は同フォルダの `schedule.json`、ルームは `/srv/bellteam/rooms/<room-id>/` に保存します。
+- 永続保存の正本は Bot 固有資産 `/srv/bellteam/bots/<bot-id>/` と共有ツール `/srv/bellteam/shared/tools/<tool-id>/` の二系統のみとし、それ以外のコンテナ内パスは基盤更新で消失・上書きされる前提とします。
+- チャット画像は Aiterm の `image` 引数で全ハーネスへ渡し、会話表示用の画像資産として保存します。画面上の Bot 名は `名前 役職`（役職未設定時は名前のみ）で表示します。
+- 開発機で実行する場合も CLI 設定はリポジトリ内の `runtime/home`（または `BELLTEAM_HOME` の絶対パス）へ生成し、開発者のホームへ書き込みません。
 
 ## トークン・パスワードの受取
 
-Botは共通MCPの `request_secret` で、iPhone・Webの会話へ専用の入力カードを出せる。要らなくなった依頼は、依頼したBotが `cancel_secret_request` で取り下げる（入力済みなら保存した値も消える）。値はチャットへ送らず、利用者の永続領域に保存する。使い方・保存場所・通知・失敗時の扱いは [秘密情報の入力](docs/secret-input.md) を参照。
+Bot は共通 MCP の `request_secret` でアプリの会話へ専用の入力カードを出せます。不要になった依頼は `cancel_secret_request` で取り下げます（入力済みなら保存値も削除）。値はチャット本文へ送らず永続領域へ保存します。詳細は [秘密情報の入力](docs/secret-input.md) を参照。
+
+## 起動・AI CLI 導入・本番反映
+
+- **新規設置**：[一般配布サーバーの installer](distribution/server/README.md) を使います。追加機能の設定は不要で、起動後にアプリから接続し、ハーネス選択・CLI 導入・公式認証・案内役との会話を行います。接続先は同一マシンなら `http://localhost:18891`、LAN 上なら `http://<LANアドレス>:18891` です。Cloudflare Access を有効にした公開ドメインでは Access JWT の署名・発行元・audience・期限を検証し、LAN 直接接続も維持します。
+- **AI CLI と認証**：サーバー image には AI CLI（Claude Code・Codex・Grok・Cursor）を同梱しません（a451）。利用者がアプリの「AI の認証」から各 CLI の最新版を `/home/bell/.local` へ導入し、Aiterm の公開認証入口経由で公式サイトにて認証します。BellTeam はハーネスごとの認証コマンドや資格情報を所有しません。Node.js・Corepack・Aiterm・Throughline・GitHub CLI・1Password CLI・mcp-lazy 等の基盤はコンテナ image 構築時に公式現行版を導入します（`Dockerfile` 参照）。
+- **本番反映**：commit してから `scripts/deploy.sh` 一回で行います。コンテナ再起動で Bot 全員が停止するため、**実行前に必ずオーナーの許可を取ります**。GitHub `main` への push、本番での `git merge --ff-only`、ビルドまたは受入済み digest の反映、`healthz`・CLI 版・Bot 稼働数の確認までを行い、失敗時はコンテナを入れ替えません。

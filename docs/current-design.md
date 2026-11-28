@@ -1,323 +1,211 @@
 # BellTeam 現行設計
 
-本書をBellTeamの現行設計の正本とする。本書は成立させる製品契約を記録し、未実装の項目は実装済みとして扱わない。
+本書を BellTeam の現行設計の正本とする。本書は**現在成立させている製品契約**のみを記録し、未実装の項目は実装済みとして扱わない。すでに退役・方針転換された過去の経緯や移行ログは [archive/current-design-history-202611.md](archive/current-design-history-202611.md) に退避している。
 
-機能の関係とデータ所有、処理段階から実関数へ辿る入口は[機能図](architecture/feature-map.md)。現状図と未実装の接続整理案を分けて記録する。
+- 機能の関係・データ所有・実関数への入口：[全体機能図](architecture/feature-map.md)、[全体データフロー](architecture/data-flow.md)、[担当と変更手順](architecture/module-ownership.md)
+- ドキュメント全体の索引：[docs/README.md](README.md)
+
+---
 
 ## 製品とHTTPの責務
 
-プロセス入口`src/supervisor.mjs`は設置のbootstrapを読み、runtimeの構築・開始・signal待ち・終了を接続する。`application-services.mjs`はBot/会話/予定/記憶などの公開factoryを既存順で接続する。会話固有のwriter・回答表示callback・部屋/自主回答の組立ては`conversation-services.mjs`に置き、直接会話の構築と初期案内後の観測初期化を分ける。`usage/application-features.mjs`は任意機能の設定反映と診断server/Bridge socket/CLI登録への接続を所有し、既存の`application-features.mjs`は互換exportを持つ。設定保存の応答と現在ターン後の反映を区別する。`application-runtime.mjs`はこれらと公開/内部HTTP・MCPを接続し、startで機能反映・通信口と監視を開始、closeで予定・監視・HTTP・任意機能・transport・通知を順に閉じる。factoryのimportや構築だけで通信口や背景監視を開始せず、既存の本番root/HOME/portと、プロセス入口からの初期化・反映・終了順を保つ。
+### プロセス構成とライフサイクル
+- プロセス入口 `src/supervisor.mjs` は設置の bootstrap を読み、runtime の構築・開始・signal 待ち・終了を接続する。
+- `application-services.mjs` は Bot / 会話 / 予定 / 記憶などの公開 factory を既存順で接続し、会話固有の writer・回答表示 callback・部屋/自主回答の組立ては `conversation-services.mjs` に置く。
+- `usage/application-features.mjs` は任意機能の設定反映と診断 server / Bridge socket / CLI 登録への接続を所有する（既存の `application-features.mjs` は互換 export を持つ）。設定保存の応答と現在ターン後の反映を区別する。
+- `application-runtime.mjs` はこれらと公開/内部 HTTP・MCP を接続し、`start` で機能反映・通信口と監視を開始、`close` で予定・監視・HTTP・任意機能・transport・通知を順に閉じる。factory の import や構築だけで通信口や背景監視を開始しない。
 
-BellTeamは各OSSの公開CLI/MCP/APIを使うアプリケーションであり、Aiterm・Steer・Throughline・mcp-lazy・RTK・call-bridgeの実行判断や製品状態を所有しない。Bot・配送・ルームとの対応付けはBellTeamの接続処理に置く。各OSSはBellTeamの台帳や内部パスがない環境でも単独で導入・起動・操作・更新できることを保つ。商用コンテナへの同梱は配布構成であり、製品本体へBellTeam固有の依存を追加する理由にしない。
+### 外部 OSS との境界
+BellTeam は各 OSS の公開 CLI / MCP / API を使うアプリケーションであり、Aiterm・Steer・Throughline・mcp-lazy・RTK・testgate・call-bridge・Approval Box・Lattice の実行判断や製品状態を所有しない。各 OSS は BellTeam の台帳や内部パスがない環境でも単独で導入・起動・操作・更新できることを保つ（接続契約の正本は [data-flow.md](architecture/data-flow.md)）。
 
-HTTPの公開入口は`src/http-server.mjs`の`createBellTeamServer`であり、認証・要求ログ・共通の失敗応答・静的配信・接続終了を所有する。機能の受付は`http-application-api.mjs`（設定・初期設定・認証・利用契約・オーナー・共通イベント）、`http-bot-api.mjs`、`http-room-api.mjs`、`http-delivery-api.mjs`、`http-schedule-api.mjs`、`http-conversation-api.mjs`へ分ける。利用設定・通知のHTTPは`usage/http-api.mjs`の`createUsageApi`へ、MCP説明/schema/実行は`usage/mcp-tools.mjs`へ委譲する。共有入口はその公開登録/呼出を持つ。制御系の早期返却の後に台帳をrefreshする位置を保ち、機能handlerは未一致の時だけfalseを返す。公開route/status/JSONと既存サービスの同一実体を保ち、HTTPとMCPへ業務判断や保存処理を二重実装しない。Botの設定変更（保存の先行と稼働中の席への適用、ファストモードを当てられなかった時の保存戻し）・停止結果の確認と失敗報告は`bot-administration.mjs`の`BotAdministration`が持つ。削除は`members/deletion.mjs`のHTTP/MCP入口と削除業務へ委譲する。activeは席終了→部屋参照整理→台帳退役/専用cleanup、既pendingはnativeを起動・停止せず同じ削除を再開する。CLI設定同期はcleanup試行後に一回行い、同期失敗を削除完了と別に記録する。受付202はcleanup完了を意味しない。席MCPの`update_self`/`update_bot`/`delete_bot`はHTTP経由で同じ判断に届く。 稼働中への設定適用は保存した希望値と区別し、`configurationApplication`の`pending`・`failed`・`accepted`をHTTPのBot一覧/詳細/更新結果とMCPの`get_self`/`get_bot`へ公開する。`accepted`はCLIによる変更受付で、実際のターンのモデルを測定した証明ではない。状態は本体プロセス内だけで保持し、起動前や本体再起動後に状態が無い時も希望値を適用済みと表示しない。失敗時は希望モデルを保持し、同じ値を明示して送ると既存の通常適用経路で再適用する。プロフィールだけの変更では再適用せず、以前の適用失敗は新しい要求の状態やファスト設定を上書きしない。 Aiterm0.61.22の当該sessionに束縛した失敗outcome/effectも保持する。not_applied/not_startedは今回の変更開始前の拒否だけを表し、既設定の一致や先行unknownの解消を意味しない。outcome_unknown/possibleと不正なtyped返却は結果不明として、保存したファスト希望を無条件に戻さず自動再送しない。Webの編集画面は希望設定と受付/失敗/未確認を表示する。
+### HTTP / MCP 入口と責務分離
+- 公開入口は `web-gateway`（[modules/web/README.md](architecture/modules/web/README.md)。ブラウザ版 Web UI は 2026-11-22 に終了済みで、ネイティブアプリ向け `/api/*` と `/healthz` を本体へ転送し、それ以外は 410 を返す）と、`src/http-server.mjs` の `createBellTeamServer`（認証・要求ログ・共通失敗応答・接続終了）。
+- 機能受付は `http-application-api.mjs`（設定・初期設定・認証・利用契約・オーナー・共通イベント）、`http-bot-api.mjs`、`http-room-api.mjs`、`http-delivery-api.mjs`、`http-schedule-api.mjs`、`http-conversation-api.mjs`、および `usage/http-api.mjs`（`createUsageApi`）・`usage/mcp-tools.mjs` へ分ける。HTTP と MCP へ業務判断や保存処理を二重実装しない。
+- 入出力表現は `http-response.mjs`、要求ログは `http-request-log.mjs`、画像配信は `http-assets.mjs`、失敗写像は `http-errors.mjs`、会話統合・ページ・画像 URL 表現は `http-messages.mjs`、SSE 接続・通知集約・監視解除は `http-events.mjs` が持つ。
 
-入出力の表現は`http-response.mjs`、要求ログは`http-request-log.mjs`、画像と静的ファイルの配信は`http-assets.mjs`、既存の失敗をHTTPと診断へ写す処理は`http-errors.mjs`、会話の統合・ページ・画像URL表現は`http-messages.mjs`、SSEの接続・通知集約・監視解除は`http-events.mjs`が持つ。既存の関数・定数のexport、ログ形式、接続と監視の終了順を維持する。
+### Bot 設定適用・削除・実行状態
+- **設定変更と停止**：`bot-administration.mjs` の `BotAdministration` が持つ。稼働中への設定適用は保存した希望値と区別し、`configurationApplication`（`pending` / `failed` / `accepted`）を HTTP と MCP（`get_self` / `get_bot`）へ公開する。`accepted` は CLI による変更受付であり実ターンの測定証明ではない。本体再起動後に状態が無い時も希望値を適用済みと表示しない。`not_applied` / `not_started` は開始前拒否のみを表し、`outcome_unknown` / `possible` は結果不明として保存したファスト希望を無条件に戻さず自動再送しない。
+- **削除**：`members/deletion.mjs` へ委譲する。active は席終了 → 部屋参照整理 → 台帳退役/専用 cleanup、既 pending は native を起動・停止せず同じ削除を再開する。CLI 設定同期は cleanup 試行後に一回行い、同期失敗を削除完了と別に記録する。受付 202 は cleanup 完了を意味しない。
+- **Aiterm 接続**：`src/aiterm-transport.mjs`（MCP 接続寿命・失敗は `aiterm-client.mjs`、待機プロセス実行は `aiterm-wait-process.mjs`、Throughline 文脈読取は `throughline-context.mjs`）。通常の `createManagedTransport` は Aiterm へ直接配送し、記録の取得や保存のために通常配送・停止を止めない。個別停止と全体停止は `agent_stop` へ直接渡し、送信受付は `stop_sent` として返す。
+- **席状態・配送ジョブ・活動正本**：
+  - 同じ Bot の席操作状態（現在 session 対応、停止時点 version、発行待ち席変更、不明返却、停止待ち）は `bot-session-state.mjs` の `BotSessionState` が所有する。
+  - 一回の配送事実と停止結論は `delivery-job.mjs` の `DeliveryJob` だけが決める。受理済み送信を停止で成功へ丸めず、未送信の実行登録だけを `not_sent` で閉じる。
+  - 席で起きていることの正本は `seat-activity.mjs` の `SeatActivity`（配送 job、受付済み配送と `SeatTurnWatch`、追い終えたターン、進行中操作）。
+  - 停止の二経路（一括停止と実行登録ごとの中断）は `execution-transport.mjs` の共通骨格を使う。
+- **セッション結果ログ**：`agent_launch` と `pty_close` の返却後に `BellTeam session result:` を stderr へ記録する（Bot/session/launch ID、返却有無、isError、既知 schema・状態のみ。本文・認証情報・env 値・任意エラー文は含めない）。このログは観測であり、席状態の正本や配送許可・再試行条件にはしない。
 
-`src/aiterm-transport.mjs`は、Aitermの返却をBotの実行・配送へ対応付けるBellTeam側の接続である。MCP接続の寿命・環境変数の渡し方・返却済みの失敗は`aiterm-client.mjs`、Aitermから返った待機用プロセスの実行は`aiterm-wait-process.mjs`、Throughlineの公開CLIによる会話数と継続文脈の読取りは`throughline-context.mjs`へ分ける。Throughline接続はAitermのBot実行管理やMCP clientへ依存しない。従来の`aiterm-transport.mjs`からのexportは維持し、各製品の公開入出力と返却された状態の意味を変えない。
-
-通常の`createManagedTransport`はAitermへ直接配送し、登録・共有追跡graphを入力の受付条件にしない。記録の取得や保存のために通常配送・停止を止めない。個別停止と全体停止は既存の`agent_stop`へ直接渡し、Aitermが通常の親子関係から末端へ停止キーを送る。送信受付と停止完了の証明は区別し、キー送信結果は`stop_sent`として返す。Aiterm 0.61.17のnative互換MCP入口（標準18tool＋直接停止1tool）と組み合わせ、旧graph/unknownを新送信の先行条件として読み書きしない。旧ExecutionBridge接続は、本番で使われておらず、a532b2 stage 1で削除した。
-
-同じBotの席に対する操作は`bot-session-state.mjs`の`BotSessionState`が所有する。現在のsession対応、停止時点の既存version、発行待ちの席変更、不明な返却とその更新位置、停止待ちを一つの実体に保持する。起動照合/元起動のcloseは通常経路（再配送とpty_close）で扱い、native世代や作用の判定はAitermに残す。配送側は処理中・設定反映中・起動中などの事実を関数で渡し、席状態の部品へ配送jobや本文を渡さない。既存内部参照は同じMapへの参照を維持し、別の状態正本を作らない。AitermTransportは配送/ターンの受理・進行・完了を管理し、席変更の発行と照合をこの部品へ委譲する。停止・不明・未送信の既存判定と発行順は変えず、再試行や新しいIDを加えない。
-
-一回の配送の事実と停止の結論は`delivery-job.mjs`の`DeliveryJob`だけが決める。停止経路は停止要求・Aitermの停止結果・操作の終了を伝え、送信処理は節目（checkpoint）で続けてよいかを聞き、失敗時の最終エラーもjobが停止の結論から決める。受理済みの送信を停止で成功へ丸めず、未送信の実行登録だけをnot_sentで閉じる。席で今起きていることの正本は`seat-activity.mjs`の`SeatActivity`で、受付前も含む配送job、「処理中」として見せる活動（受付済みの配送と席が自分で始めたターンの見張り`SeatTurnWatch`）、追い終えたターン、席ごとの進行中操作（設定変更・送信の順番・起動）を一つで持ち、空いているか・誰がターンを追っているか・停止の対象を答える。停止の二経路（停止ボタンの一括停止と実行登録ごとの中断）は`execution-transport.mjs`の共通の骨格（根の停止世代を進める→配送jobへ停止要求→進行中の停止として公開→終了時に止まらなかったjobを解放）を使い、停止世代の更新は`BotSessionState`だけが行う。`execution-transport.mjs`はtransport全体ではなく、席の窓口（session/observe/wake/画像/実行橋/席状態/活動）だけを受け取る。
-
-席の通常起動・終了は、発行済みの`agent_launch`と`pty_close`の返却後に`BellTeam session result:`を既存stderrへ記録する。Bot/session/launchのID、返却の有無、isError、既知のschema・終了結果・起動状態・本文投入状態だけを残す。本文・認証情報・env値・任意のエラー文は記録しない。不正または欠測の項目はnullで、成功へ補わない。通信断は返却済み拒否と区別する。このログは観測であり、席状態の正本・配送の許可・再試行条件にはしない。ログ保存の失敗も通常操作の結果を変更しない。
+---
 
 ## 公開認証
 
-APIの通信診断では、POST・PUT・PATCH・DELETEの既存の `BellTeam write:` ログを保ち、GET・HEADには `BellTeam read:` を残す。読み取りは受付時の `started` と、接続終了時のHTTP状態または `aborted`・所要時間を記録する。両行の時刻は同じ受付時刻で、追加の要求IDは作らない。本文・問い合わせ文字列・Cookie・認証ヘッダーは記録しない。`/healthz`、静的ファイル、MCPは対象外。SSEは接続の受付と閉鎖だけを記録する。正常終了はNodeが応答をOSへ渡した事を示し、端末が受け取った証明にはしない。同じ時刻・経路の要求が重なる場合、ログだけで一意に対応付けたとは扱わない。
+- **API 通信診断ログ**：POST・PUT・PATCH・DELETE は `BellTeam write:`、GET・HEAD は `BellTeam read:`（受付時 `started` と終了時 HTTP 状態または `aborted`・所要時間）を残す。本文・クエリ・Cookie・認証ヘッダーは記録しない。`/healthz`・静的ファイル・MCP は対象外。SSE は接続受付と閉鎖のみ記録する。
+- **アクセス制御**：未設定のコンテナでは同一マシン・LAN からの HTTP 接続を許可する（直接接続の Owner は同一ネットワーク内のみ、SEC-049）。Cloudflare Access を有効にした公開ドメインでは `Cf-Access-Jwt-Assertion` の署名・発行元・audience・期限を検証し、未認証を拒否する（LAN 直接接続は維持）。`/healthz` は監視用、`/api/session` は接続確認用に未認証でも状態を返す。
+- **コンテナ内 MCP の内部 HTTP 入口**：BellTeam MCP（`/mcp`）と通話 MCP（`/mcp/call-bridge`）は loopback 専用 HTTP 入口へ直結し、席ごとのプロセスを起こさない（経緯：[plan_mcp-http-consolidation-20261004.md](archive/plans/plan_mcp-http-consolidation-20261004.md)）。
+  - 席の識別は各 CLI が持つ `AITERM_SESSION_ID` を `X-Bellteam-Seat` ヘッダーへ写して伝える。アカウント切替席 `<botId>-<1st|2nd>-<base36>`（[harness-accounts.md](architecture/modules/execution/harness-accounts.md)）は後ろ 2 区切りを外して Bot ID へ対応付ける（実行記録には元のセッション名を残す）。
+  - 台帳に無い名札（席が起こした子等）には `BELLTEAM_SEAT_UNRESOLVED`（**400**）を返す（Claude Code が 403 を認証要と誤認して共有キャッシュ `~/.claude/mcp-needs-auth-cache.json` に書くため 403 にしない）。通話ブリッジも名札なしでは中継しない。
+- 追加機能の設定は永続領域へ保存し、初回設定・公式認証・案内 bot・追加機能の仕様は [onboarding.md](onboarding.md) に従う。
 
-未設定のコンテナではWeb UIと管理APIを直接使える。同じマシン・LANからのHTTP接続を許可する。Cloudflare Accessを設定して有効にした公開ドメインの接続では、`Cf-Access-Jwt-Assertion`の署名・発行元・audience・期限を検証し、未認証なら拒否する。LANの直接接続は維持する。ブラウザにBellTeam独自のアクセスキーを保存しない。`/healthz`は監視用、`/api/session`は接続確認用に未認証でも状態を返す。
-
-コンテナ内のMCP連携はloopback専用の内部HTTP入口を使う。BellTeam MCPと通話MCPは席ごとのプロセスを起こさず、各CLIがこの入口の`/mcp`と`/mcp/call-bridge`へHTTPで直結する。どの席かは、席のCLIが持つ`AITERM_SESSION_ID`（Aitermが席をBot IDと同じ名前のセッションで起こして付ける）を各CLIの設定でヘッダー`X-Bellteam-Seat`へ写して伝える。アカウントを切り替えた席の名前は`<botId>-<1st|2nd>-<base36>`（[harness-accounts](architecture/modules/execution/harness-accounts.md)）で、名前そのものが台帳に無ければ後ろの2区切りを外したBot IDの席として読む。slotが1st/2ndでない後ろ付きの名前は、これまでどおり台帳に無い名札として扱う。実行の記録（`seatExecutionSource`の`sourceSession`・`launch.session_id`）には後ろを外さない本物のセッション名を残す。名札がBot台帳に無い要求（席が起こした子など）には、どちらの入口も`BELLTEAM_SEAT_UNRESOLVED`（400）を返す。403にしないのは、Claude Codeが403を「認証が要る」と判定して全席共有の`~/.claude/mcp-needs-auth-cache.json`へサーバー名で記録し、その後しばらく本物のClaudeの席まで接続を飛ばすため（400・404・409・421・422・503は記録されない事を実測）。通話ブリッジは名札の無いBellTeamの合言葉を所属全体として扱うため、名札なしでは中継しない。実測と経緯は [席ごとのMCPをHTTPへ寄せる](plan_mcp-http-consolidation-20261004.md)。追加機能の設定は永続領域へ保存し、環境変数は初回移行に使う。初回のハーネス選択、公式認証、案内botとの会話、追加機能の設定と反映は [初期設定](onboarding.md) に従う。
+---
 
 ## iPhoneアプリ
 
-全体停止の正本・受付抑止・予定制御は本体が持ち、WebとAppleアプリの設定画面は`GET/PATCH /api/ai-control`でON/OFFを操作する。停止処理中・確認済み・一部未確認を分け、通信断では変更を再送せず正本を読み直す。通常の全体停止はAitermの`agent_stop`へ接続し、`pause_goals=true`とOwner由来のmetadataを渡す。Goalの停止結果が不足する場合は未確認を保持する。詳細は[全体停止](ai-control.md)と[制御の機能図](architecture/control-and-state.md)。
+SwiftUI 製アプリを `ios/BellBot/` に置く。App Store で公開・配布し、公開 API と同じ経路を使う（独自アクセスキーや iPhone 専用認証情報は持たない）。
 
-メンバーが処理中の個別会話には入力欄の横に■の停止ボタンを表示し、確認ダイアログ無しで`POST /api/bots/:id/stop`を呼ぶ。ルームでは処理中のメンバー行から個別に止める。本体の通常経路は`BotAdministration.stop → transport.interrupt → agent_stop`で現在処理の中断を依頼し、202 `{botId,status:"stop_sent"}`を返す。これは停止操作の送信受付であり、native処理の終了や席の消失の証明ではない。互換adapterで中断とsession保持を確認した結果は200 `{botId,status:"interrupted",sessionPreserved:true}`となる。失敗や不正な結果は502 `BOT_STOP_UNCONFIRMED`、端末の通信断も未確認としてPOSTを自動再送しない。メンバー・会話・予定と下書きは残す。配送の停止結論はDeliveryJobが受理済み事実と停止結果を照合して決め、受付と正常完了を一律に失敗へ変えない。既に行った外部操作の取消を保証するものではない。
+### 全体停止と個別停止
+- **全体停止**：`GET/PATCH /api/ai-control` で ON/OFF を操作。本体が正本・受付抑止・予定制御を持ち、Aiterm の `agent_stop`（`pause_goals=true`）へ接続する。停止処理中・確認済み・一部未確認を分け、通信断では再送せず正本を読み直す（詳細：[ai-control.md](ai-control.md)、[control-and-state.md](architecture/control-and-state.md)）。
+- **個別停止**：処理中のメンバーへ確認ダイアログ無しで `POST /api/bots/:id/stop` を呼ぶ。通常経路は `202 {botId, status: "stop_sent"}`（送信受付であり終了証明ではない）、互換 adapter で中断・session 保持確認時は `200`、失敗や不正結果は `502 BOT_STOP_UNCONFIRMED`。通信断でも POST を自動再送せず、メンバー・会話・予定・下書きを残す。
 
-停止未確認でも、受理済みの送信/完了結果は保持し、通常の観測を続ける。発行済み変更のRPCが通信断で結果不明になった場合は、単にPromiseがrejectした事や席が今は消えた事で旧変更の作用確定とせず、そのサーバープロセスの間は当該の同名席の自動再利用を止め、後続の送信へも未確認を返す。正常なtool応答として返却済みの拒否とは区別する。
+### 初回導線・アバター・表示仕様
+- **初回画面**：未接続時は「はじめて使う」と URL 入力を表示し、[server-installation.md](server-installation.md) をアプリ内同梱で閲覧可能にする（GitHub URL と依頼文のコピー・共有対応）。
+- **アバター**：正方形切り抜き（1〜3 倍拡大）。大画像は正方形切り抜き、iPhone の左上小画像は 88pt。既存メンバーの大小画像はプロフィール詳細の各表示領域から個別に変更・調整する。一覧は `?avatar=omit` と `avatarVersion`（16 桁）で差分取得し、`/api/{bots|rooms|owner}/<id>/avatar?v=<version>` は `immutable` / `If-None-Match` 304 に対応。
+- **会話同期とスクロール**：正本はサーバー保存済みメッセージ。前面中は SSE（25 秒ごとのコメント行で維持、50ms 集約、Node keep-alive 125 秒）で更新し、再接続時は未取得差分を補完。初回 GET 失敗時は空表示にせず読込失敗＋手動再読込を出す。下端閲覧時と自己送信時のみ追従スクロールし、過去ログ閲覧中は新着ボタンを出す。
+- **Markdown とテキスト表示**：共通 `MessageText`（EnrichedMarkdown、範囲選択・コピー・表列コピー対応、公開 theme のみ使用）と `SelectableText`（プロフィール等、再表示時も選択範囲維持）。
+- **稼働状態・ファストモード・配送表示**：メンバー一覧は待機中＝緑、仕事中＝赤点滅（`GET /api/queue` の `running`）、オフライン＝灰。ファストモード（⚡ ファスト）は `GET /api/models` で対応確認し、変更時のみ送信。配送状態は同じ Bot・同じ状態を 1 行集約。
+- **削除と通知**：メンバー削除は `DELETE /api/bots/:id` の 202 を受付表示し、一覧再取得で消えてから選択会話と下書きを片付ける。返信・ルーム投稿・秘密入力要求は APNs で通知（本文・秘密値を含めず、開いている会話は前面表示抑止、タップで対象会話・秘密入力を開く。詳細：[push-notifications.md](push-notifications.md)）。
 
-未接続の初回画面は「はじめて使う」と、サーバーを用意済みの人のURL入力を表示する。導入ガイドは接続前からアプリ内で読めるものとし、`docs/server-installation.md`をiPhone・iPad・Mac共通で同梱する。PCとDockerの準備、公開の設置用ファイルの取得、既存installerでの起動、同じマシン・LANからの接続先URL、公式AI認証まで案内する。AIへ任せる場合は、GitHubのURLと「これセットアップしたい」をまとめてコピー・共有できる。同じ手順を公開GitHubで開き、PCへ共有できる。ガイドの開閉で入力したURLを消さない。
+### 診断送信（`POST /api/diagnostics`）
+- MetricKit のハング・クラッシュ診断と共通通信処理の失敗（時間切れ・接続失敗・サーバーエラー・応答形式異常）を匿名化 `diagnostic_log` 付きで `POST /api/diagnostics` へ送り、本体は `runtime/data/logs/diagnostics.json` へ保存する（本文・URL・認証情報は含めない）。
+- 通信失敗の重大度はアプリが利用者影響と復帰可否から付けた `severity`（`fatal` / `high` / `warn` / `info`）を使い、`info` は `user_impact=none` と `app_handling=...` がある時のみ参考記録（`resolved`）とする。圏外・通信制限・通話中・中断は報告しない。SSE 切断は 5 回連続失敗時のみ 1 件報告。前面復帰時は接続プールを破棄して読み直す。GET の `-1005` は 1 回のみ再取得し、POST は再送しない。失敗要求には `URLSessionTaskMetrics` を添付する。
 
-BellTeamのiPhoneアプリはSwiftUIで`ios/BellBot/`に置く。利用者が初回起動時に自分のBellTeamのHTTPS URLまたはLAN・同じマシンのHTTP URLを入力し、公開Web UIと同じAPIを使う。公開ドメインでは設定したCloudflare Accessの本人認証後にAPIへ接続し、ローカルでは直接接続する。BellTeam独自のアクセスキーとiPhone専用の認証情報は持たない。Bot・ルームの会話、画像添付、送信先指定、配送待ち表示、Bot画面、Bot・ルーム設定、自動実行予定、オーナープロフィールとユーザー規範を扱う。オーナー・Bot・ルームのアバターは写真選択後にドラッグと1〜3倍の拡大で正方形に切り抜き、確定してから各設定へ保存する。Botプロフィールの大画像はMac・iPhone・iPadで正方形に切り抜いて表示し、iPhoneで左上に重ねる小画像は88ptとする。既存メンバーの大小画像はプロフィール詳細の各表示領域を押して「画像変更」「画像調整」を選び、選んだ画像のrender・source・cropだけを保存する。操作シートには対象の現在画像を即時表示し、完全なsource・cropは変更・調整の操作時に取得する。取得中も画像と操作ボタンの位置を保つ。メンバー編集フォームから既存画像の入口を外し、新規メンバー作成時の画像選択は残す。Macのアバター調整は画像と拡大率を横に並べ、画像・調整・確定をスクロールなしで表示する。画面確認用の固定データはDebugビルドにだけ含め、Releaseの通信には使わない。
-
-アプリはMetricKitのハング・クラッシュ診断と共通通信処理の時間切れ・接続失敗・サーバーエラー・応答形式異常を`POST /api/diagnostics`へ送る。固定コード、画面区分、アプリ版に加え、ハング・クラッシュの呼び出しスタック、通信の数値コード・応答種別を匿名化した`diagnostic_log`として送る。会話本文・URL・認証情報は含めない。BellTeamは発生回数・状態・最新の診断ログを`runtime/data/logs/diagnostics.json`へ保存する。通信の失敗（時間切れ・接続失敗・サーバーエラー・応答形式異常・通知登録の失敗）は、エラーの種類や回数だけで重大度を決めない（ServerManagerの`bughub/NETWORK_REPORTING.md`）。アプリが利用者への影響と復帰の可否から付けた`severity`（`fatal`・`high`・`warn`・`info`）を使い、根拠は`diagnostic_log`の行に書く。`severity`付きの報告は重大度ごとに別の行（署名）にする。`info`は適切に処理した参考記録で、その報告の`diagnostic_log`に`user_impact=none`と`app_handling=<アプリがした事>`の行がある時だけ参考として扱う。行は`resolved`で作り、回数・時刻・診断だけを進めて、修理の対象にしない。`severity`の無い版の報告と、根拠の行の無い`info`は未評価として扱う。確認できないだけでは下げず、今までの重大度（時間切れ・サーバーエラー・応答形式異常は`high`、接続失敗・通知登録の失敗は`warn`）と署名のまま`open`で登録し、文面に暫定と出す。BugHubへ返す項目は変えない。サーバーの通知は、1件を届けられなかった時を`SERVER_PUSH_SEND_FAILED`（`warn`。再送しない。原因は未確定）、通知の機能を開始できなかった時を`SERVER_PUSH_UNAVAILABLE`（`high`）に分ける。分ける前の`SERVER_PUSH_FAILED`は保存済みの行のために残し、新しくは記録しない。診断の送信が失敗した場合、アプリはOSLogへ失敗を記録する。圏外・通信制限・通話中・中断（端末の状態）は報告しない。更新（`/api/events`）の切断は再接続で吸収し、再接続が5回連続で失敗した時だけ1件報告する。アプリが前面へ戻る時は通信の接続プールを捨ててから読み直す。復帰TaskはAppStoreが保持し、背景移行・次の復帰・ログイン終了で取り消す。取消後は次の処理へ進まず、完了した古い取得結果も反映しない。`IOS_PUSH_FAILED`の診断ログには失敗した段（`stage`）を含める。 通知APIの失敗はstage付きの通知診断だけへ記録し、通信診断と二重計上しない。通信診断には端末種別、公開/LANの接続先区分、エラー時の画面状態、要求の経過ミリ秒を加える。GETの接続切断（-1005）は1回だけ再取得し、その後も失敗した時に記録する。POSTは再送しない。
-
-失敗した通常のGET/POSTとSSEには要求単位でURLSessionTaskMetricsを集め、`diagnostic_log`へqueryを除いた経路、メソッド、端末での開始・失敗時刻、開始時の画面状態、試行回数、取得できた通信段の時刻と接続再利用を記録する。経路のうち製品が生成する既存のBot・ルームIDだけはサーバーログとの照合のため残し、任意の識別子は`:id`へ置き換える。TaskMetricsを取得できなければ無いと記録する。端末とサーバーの時計差を無視して通信停止区間を断定しない。
-
-アプリは一覧を`?avatar=omit`で取得し、内容の更新情報が変わったアバターだけ別URLから取得する。Botの通知用画像は更新情報とともにApp Groupへ保存する。読み直し中に重なったSSEの知らせは、次の1回の読み直しへまとめる。
-
-会話と予定の初回GETが失敗し表示行が無い時は、空の会話・予定と案内せず、読込失敗と手動の再読込を表示する。既に表示した会話・予定と送信前の入力は保持する。
-
-一覧（`GET /api/bots`・`/api/rooms`・`/api/owner`）は各項目に`avatarVersion`（アバターの中身から決めた16桁）を返す。`?avatar=omit`を付けると`avatar`を空にして返し、画像は`GET /api/bots/<id>/avatar`・`/api/rooms/<id>/avatar`・`/api/owner/avatar`から取る。`?v=<avatarVersion>`が現在の版と一致する取得は`immutable`で返し、`If-None-Match`が一致すれば304を返す。指定の無い取得は今までどおり`avatar`へdata URLを入れる（ビルド35以前のアプリとWeb UIのため）。会話の知らせ（`/api/events`の`messages`）は、一つの変更で複数の監視が鳴っても50msの間は1件にまとめる。待機中の接続は125秒保つ（Nodeの既定5秒は再利用の瞬間に閉じてアプリ側の`-1005`になるため。cloudflaredの既定90秒より長くする）。
-
-会話の正本はサーバーの保存済みメッセージとする。アプリが前面にある間はSSEの変更通知で画面を更新し（サーバーは知らせが無い間も25秒おきにSSEのコメント行を流し、アプリのURLSession既定の60秒や途中の中継が黙った接続を時間切れにしないようにする）、接続・再接続時には最後に表示したメッセージより後を取得して取りこぼしを埋める。SSE切断・一時的な接続失敗の時だけ間隔を広げながら再接続し、認証・設定・応答形式の異常は表示して止める。新着時は下端を見ている場合と自分の送信時だけスクロールを追従させ、過去ログの閲覧中は位置を保って新着ボタンを出す。
-
-iPhone・iPad・Macの会話本文は共通の`MessageText`で[EnrichedMarkdown](https://github.com/software-mansion-labs/enriched-markdown-ios)を使い、見出し・表・箇条書き・引用・コード・リンクを標準スタイルで表示する。範囲選択とコピーを有効にし、表の列もコピーできる。本文の文字サイズ・色・行間とリンクの色をアプリに合わせる。プロフィール、ルームの目的、Bot画面、入力要求の説明は共通の`SelectableText`で原文のまま表示する。同じ本文を再表示する時は選択範囲を保つ。
-
-会話の吹き出しでは、文書末尾の描画用の段落区切りと外余白を省く。段落間隔とコード枠の内側の余白は保持し、保存された本文を表示のために切り詰めない。描画ライブラリへの指定は公開themeインターフェースだけを使う。
-
-アプリのメンバー一覧は、オンラインで待機中なら緑、仕事中なら赤の点滅、オフラインなら灰色の丸をアバターに添える。仕事中は`GET /api/queue`の`running`項目の`botId`で判定し、既存のSSE通知と一覧の再取得で更新する。 メンバーの追加・設定変更・削除（Botが自分でファストモードなどの設定を替えた時を含む）でも同じSSE通知を1件流し、アプリは一覧を読み直す。Appleアプリのメンバー編集画面は、セッション停止とプロジェクト・会話・予定・記憶の削除、ルームからの除外を確認してから既存の`DELETE /api/bots/:id`を呼ぶ。202は受付として表示し、成功した一覧の再取得で対象が消えてから選択中の会話と下書きを片付ける。応答を失った時も結果を推定せず、再操作前に一覧を確認する。
-
-iPhone・iPad・Macのメンバー編集では、AIのエフォートの下にファストモードのスイッチを置く。入れる操作は選択したモデルとCLIの対応を`GET /api/models`で確認し、既定モデルは`defaultModel`で判定する。候補に無い手入力モデルはサーバーの判定に任せる。既に入っているファストは候補取得の失敗や非対応への変更後も切れる。保存時はファストの値が変わった場合だけ送る。オンでは利用枠を多く使うことを示し、ファスト中だけメンバー一覧と会話上部の名前に「⚡ ファスト」を表示する。表示は`GET /api/bots`の再取得で更新する。
-
-会話上部の配送状態は`GET /api/queue`の項目を読み、同じBot・同じ状態の表示を1行にまとめる。ルームではBotごとに表示し、送信待ちと処理中は別の行として残す。配送項目そのものと表示を消す条件は変えない。
-
-メンバーの返信・ルーム投稿と秘密情報の入力要求はAPNsでiPhoneへ通知する。保存直後に送信し、通知には本文・秘密の値を含めない。開いている会話の通知は前面表示を抑え、タップ時は会話または未完了の秘密入力画面を開く。端末登録は認証済みの通知APIで管理する。鍵・対応環境・診断は [iPhoneへの通知](push-notifications.md) に従う。
-
-通知をタップした時は共通の`AppStore`が会話の宛先を変え、同じ会話の通知でもログの更新を要求する。共通の`ConversationView`が宛先ごとの本文状態を所有し、別の会話へ切り替えた時は以前の本文を引き継がない。未送信の文章は会話ごとの下書きとして保持する。
-
-AppleアプリはApp Storeで公開し、Apple Developerの署名とApp Store Connectで配布する。
+---
 
 ## iPadアプリ
 
-iPadはiPhoneと同じアプリに含め、別のコードやApp IDを持たない。`BellBotApp`が端末を見て、iPadではMacと同じ`DesktopWorkspaceView.swift`を開く。通信・認証・通知・購読・会話・下書き・編集・ルーム削除も同じファイルを参照する。
+iPad は iPhone と同じアプリ（同一 App ID・コードベース）に含み、`BellBotApp` が端末に応じて Mac と同じ `DesktopWorkspaceView.swift` を開く。`NavigationSplitView`＋SwiftUI `inspector` で幅に応じた 3 ペイン配置を行い、縦横 4 方向・ウィンドウリサイズ・外付けキーボード（Return 送信、Shift/Option+Return 改行）に対応する。画面確認状況は [ipad-app.md](ipad-app.md)。
 
-一覧と会話は`NavigationSplitView`、詳細はSwiftUIの`inspector`で配置する。幅のある画面では一覧・会話・詳細を並べ、狭いウィンドウでは一覧から会話へ進み、詳細をシートで開く。メンバーとルームの編集はiPhoneと同じシートを使う。縦横4方向とウィンドウのサイズ変更を許可し、全画面を要求しない。画像の写真選択・貼り付け・ファイルのドロップは共通処理を使う。iPadの外付けキーボードはMacと同じReturn送信、Shift+Return・Option+Return改行とする。
-
-画面試験と実機確認の状況は [iPad版](ipad-app.md) に記録する。
+---
 
 ## Macアプリ
 
-Mac CatalystでiPhone版と機能・通信を共有し、Macの画面は一覧・会話・詳細の3ペインとする。Macのメンバープロフィールは右の詳細ペインだけに表示し、会話の右上にはペインの開閉と書き出しのボタンを置く。メンバー編集は独立した編集ウィンドウを使い、保存成功とキャンセルで閉じる。プロフィールの初期値は最初の描画から持ち、モデル候補の通信を保存の開始条件にしない。検索、キーボード送信、画像ファイルの選択・ドロップ・貼り付け、会話ごとの下書き保持を備える。接続先と認証情報は利用するMacへ保存する。構成・ビルド・導入は [Macアプリ](mac-app.md) に従う。
+Mac Catalyst で iPhone 版と機能・通信を共有し、一覧・会話・詳細の 3 ペインと独立したメンバー編集ウィンドウを持つ。検索・キーボード送信・画像ドロップ/貼り付け・会話ごとの下書き保持に対応。構成・ビルド・導入は [mac-app.md](mac-app.md)。
+
+> Windows（WPF / `BellTeam.Core`）、Linux（Avalonia / `BellTeam.Core`）、Android（Avalonia / `BellTeam.Core`＋Linux UI 共有）のクライアント設計は [windows-architecture.md](windows-architecture.md)・[linux-architecture.md](linux-architecture.md)・[android-architecture.md](android-architecture.md) を正本とする。
+
+---
 
 ## 公開版の購読
 
-Webとサーバーは無料で、会話・Bot間の配送・予定実行に購読を求めない。iPhoneとMacは同じAppleの商品を購入・復元し、本人のStoreKit利用権でアプリからの通常の会話と予定操作を判定する。初期設定の案内役との会話、閲覧・書き出し・管理は無料。期限切れでもWebと設定済みの予定は継続する。通知は端末ごとの購入情報を運営で検証する。責務・照会間隔・環境の選択・実装と公開の状況は [購読仕様](subscription.md) と、その構造化した準備状況を参照。
+サーバー本体は無料で、Bot 間配送・予定実行・初期設定（案内役との会話）・閲覧・書き出し・管理に購読を求めない（ブラウザ版 Web UI は 2026-11-22 終了）。各ネイティブアプリからの通常会話と予定操作は共通の月額購読（月 980 円・税込、初回 1 か月無料）を利用する。ログイン・課金確認に運営の自前サーバー（Worker）は持たない方針へ移行済み（2026-11-24）。詳細・準備状況は [subscription.md](subscription.md)・[billing-client-contract.md](billing-client-contract.md) を参照。
+
+---
 
 ## 共通処理とハーネス固有処理
 
-UI、MCP、メッセージ、Bot管理が扱う操作とデータ形式は、すべてのCLIで共通にする。
+- UI・MCP・メッセージ・Bot 管理の操作とデータ形式は全 CLI 共通とし、CLI 固有の起動引数・入力方法・完了検出・確定回答取得は Aiterm のハーネスアダプタへ委ねる。
+- **対応ハーネス**：Claude Code・Codex・Grok・Cursor の 4 種（新 CLI 追加時も共通側へ条件分岐を足さずアダプタ追加で対応）。
+- **Antigravity の取り外し（a353、2026-11-17）**：規約リスクのため新規選択・認証・モデル一覧・起動から除外済み。保存済みデータに `antigravity` が残る環境でも本体は起動継続し、`src/retired-harness.mjs` を正本として読み取り側のみ許容しつつ、HTTP 境界で読み取り専用 `harnessNotice`（および `backgroundAgentNotice`）を返して利用者が 4 ハーネスへ変更できるようにする。起動試行時は `HARNESS_RETIRED`（`effect: not_started`）を返す。移行・新旧 IPC 互換の詳細経緯は [current-design-history-202611.md](archive/current-design-history-202611.md) を参照。
+- **AI の認証と再ログイン**：初期設定後も設定の「AI の認証」から `/api/harness-auth`・`/api/harness-auth/<AI>`（`start` / `input` / `cancel`）経由で Aiterm の `agent_auth`（`relogin` 対応）を使い公式認証をやり直せる（購読不要）。開始時点で既存資格情報が消える AI（Codex 等）は `startWarning` で事前警告する。席の起動失敗時は Aiterm に残った端末を閉じ、自動再起動・再送はせず 500 に「認証が切れている可能性」を添える。
 
-CLIごとの起動引数、入力方法、ターン完了の検出、確定回答の取得などの差はハーネスアダプタだけが扱う。共通処理はBot一覧などから得た`harness`をアダプタ選択へ渡すだけとし、CLI固有の操作を持たない。現行の選択肢はClaude、Codex、Grok、Cursorの四つである（Antigravityは2026-11-17のオーナー指示で外した。下の「Antigravityの取り外し」）。新しいCLIへの対応も、共通側へ条件分岐を足さず、ハーネスアダプタを追加して行う。
-
-**Antigravityの取り外し（a353、オーナー2026-11-17）。** BellTeamがAntigravityを包む使い方は規約に反し、アカウントが止められうるため、利用者が選べるハーネスから外した。コードはGitHubの`archive/antigravity-harness-20261117`（main f17aa773）に残す。サーバーは次の入口でAntigravityを出さず、起動しない。
-- 公開契約: `/api/harness-auth`の一覧と`/api/harness-auth/<AI>`（開始・入力・取消・状態）、初期設定の`select`、`/api/models`と`/api/models?harness=`、Botの作成・更新の`harness`、MCPの`update_bot`・`update_self`・`create_bot`・`list_models`・`propose_running_exclusion`のenumから`antigravity`（および`antigravity-cli`）を外す。`antigravity`を指定した要求は、それぞれの既存の不正値の断り（`HARNESS_AUTH_HARNESS_INVALID`・`SETUP_HARNESS_INVALID`・`MODEL_HARNESS_INVALID`・Botの検証エラー）で断り、Aitermへは問い合わせない。
-- 残す公開項目: 一覧の`reloginSupported`は残し、全種類でtrueを返す。既に公開した版は、このフィールドとハーネス一覧に従って画面を出す。`/api/models`は`antigravity`の項目を返さない。既に公開した版が固定の選択肢に`antigravity`を持っていても、選んだ時にサーバーが上の断りを返すだけで、他の操作は変わらない。クライアントは断りを表示して選択肢を外す（a354〜a357）。
-- 起動・設定・配布: Aitermへの起動の対応表、`~/.gemini`のMCP登録と共通規範の書き出し（24,000バイト分割を含む）、stdio中継`run-seat-mcp.mjs`、利用者道具の`.gemini/config/mcp_config.json`読み取り、背景要約とcapacity continuationの候補、端末接続のCLI名、サーバー画像へのCLI導入、CIのモデル候補確認を外す。
-- 保存データ（a365）: Antigravityを選んでいた利用者の保存領域でも本体は起動する。`src/retired-harness.mjs`が「外したAI」を一か所で持ち、読む側（Bot名簿の`bots.json`・`bot.json`、membersの投影検証、usageの`members.read`結果検査（`channel-protocol.mjs`）と受け口（`registry-ports.mjs`）、初期設定`onboarding.json`、背景agentの保存、実行中の除外、認証状態、設定適用の結果）は保存済みの`antigravity`を受け入れる。選ぶ側（Bot作成、別のAIからAntigravityへの更新、初期設定の選択、背景agentの新しい選択、除外の新しい申請、認証・モデル一覧）は上の断りのままで、保存した値は消さず書き換えない（Bot名簿の`update`は、保存済みと同じ`harness: antigravity`を送り直す編集は通し、別のAIへの変更も通す）。
-- 利用者への知らせ: Antigravityを持つBotは公開のBot項目に読み取り専用の`harnessNotice`（文字列）が付く（他のBotには付かない。更新に送り返さない）。文は本体のHTTPの境（`profiles-http.mjs`の一覧・取得・更新）で`harness`から付け、membersの部品のIPCの記録（投影・結果）には載せない。部品を一つずつ入れ替える間、古い本体は知らない項目を断るため（a368）。同じ文が、初期設定の状態（`/api/setup`の応答。開始前は選択へ戻し、開始済みなら`harnessNotice`付きの`ready`。文は本体のHTTPの境`usage/http-api.mjs`が`harness`から付け、usageの部品の記録には載せない。a374）、`GET /api/settings`の`backgroundAgentNotice`（保存済みの背景agentの選択がAntigravityの時）に付く。席を起こす時は起動せず、`HARNESS_RETIRED`（`effect: not_started`、同じ文）で返す。クライアントはBotの設定にこの文を出し、AI欄でClaude・Codex・Grok・Cursorへ変更できるようにする（a354〜a357）。
-- 入れ替えの順（a368・a374）: 本体と部品は一つずつ入れ替わり、利用者はどちらを先に更新してもよい。新旧どの組み合わせでも、Antigravityが残る保存領域で起動する。本体と部品の間のIPCは、両側が別々に配られる検査で形を厳密に見る。だから次の二つを守る。
-  - 値を外す時: 相手の古い版や保存データが送ってくる値は、読む側の検査が受け入れ続ける（選ぶ側だけ断る）。新しい本体は、古いusageの`members.read`結果・`onboarding.ensureGuide`結果のAntigravityのメンバー（a368）と、古いusageが初期設定の開始前に出す`auth.call`（`harness: antigravity-cli`）を受け入れる。この`auth.call`はAitermへ渡さず、本体が`status: failed`と上の文（`auth_ui.stage: failed`）の受領で答える。古いusageはこれを認証の失敗として表示し、利用者は別のAIを選び直せる（a374）。新しいusageは、古い本体の一覧にあるAntigravityのメンバーで初期化できる（a368）。
-  - 項目を足す時（a399で改めた）: 正本は`docs/architecture/modules/runtime/module-ipc.md`の「Records between halves that ship apart」。データの記録（部品の結果、投影の行、本体が返すeffectの結果）は、読む側が使う項目の有無と型だけを見て、知らない項目を断らない。頼みごと（request、effectの依頼、control）は閉じたままで、知らないものはその1件だけ断る。usageの`subscription`・`onboarding`・`auth`・`event`・`credentialRecovery`の行と、`members.read`・`onboarding.ensureGuide`・`rooms.read`の結果は、この読み方にした。`secret`・`question`・`settings`・`credential`の行は、秘密の近くへ余分な値を通さないため、一覧を閉じたままにする。a399より前の本体は知らない項目を断るので、その本体が残る間は、本体を先に入れ替える。形の合わない結果は、その呼び出しだけを失敗にし、通信路は切らない（`module-ipc.mjs`）。
-  - 任意の項目で足す時（a394f）: 購読の記録の`billingSources`・`canPurchase`は、読む側の検査が有っても無くても受け入れる任意の項目にした。古い本体は知らない項目を断るので、本体を先に入れ替え、次にusage、最後にweb-gatewayの順で配る。`test/usage-process.test.mjs`が古い形・新しい形・型違い・知らない項目を実物の検査に通す。
-  - 確かめ方: `test/retired-harness-existing-data.test.mjs`が、実物のusageの部品を本体の組み立て（`usage-assembly`と`usage-parent-effects`）で起動し、Antigravityが残る保存領域（開始前・開始済み、背景agent）で初期化と最初の読み取りが通ることを見る。古い版が送る形は、同じ試験が検査へ直接渡して確かめる。 `test/mixed-version-start.test.mjs`は、直近の配布済みのusageの部品（カタログの行のcommitから取り出した実物のソース）を、今の本体の組み立てで起動する。本番の順（本体が先）そのもので、Z89・Z91の形はここで落ちる。
-- `native_launch`（a366）: Antigravityの起動結果`vendor_action_required`を失敗行へ残す書き手（`agent-launch-error.mjs`の`unpromptedLaunchActionRequired`・`launchFailureDetails`、Aitermクライアントの409分類、配送失敗・診断の写し）と、その中身を調べる受信検証を外した（入れ替えが落ち着いたのはZ92、トロニー確認）。失敗の記録と受け口の`native_launch`は、古い実行の部品が送る値と、利用者の保存済みの配送記録に残る値を断たないため、項目として受け入れ、中身は見ずに捨てる。Aitermの`antigravity-cli`とLatticeの席登録の`gemini`項目は、それぞれエレグとLatticeの所有で、このサーバーの契約の外である。
-
-ハーネス固有処理はAitermへ委ねる。BellTeamはAitermの継続セッションへターンを渡し、Aitermが返す完了と確定回答だけを共通形式で扱う。BellTeam独自のtmux操作と`src/harnesses.mjs`はAiterm移行までの既存実装であり、CLI固有処理を追加する場所にはしない。
-
-Webの「AIの認証」一覧は全AIの公式状態を開いた時に一度確認し、認証済み・未認証・認証中・確認失敗を利用人数と区別して、認証操作とともに折り畳まず表示する。確認失敗を未認証と扱わず、認証の開始は明示操作だけで行う。AIの公式認証は、初期設定の後も設定の「AIの認証」からやり直せる（2026-10-05 オーナー裁定、Approval Box K-UTA3UC）。AIの認証が切れると、そのAIを使うメンバーは全員起動できず、入り直しを頼める席も無くなるので、設置した人が自分で戻せる入口を本体に置く。`/api/harness-auth`はAIの種類と使用メンバー数、`/api/harness-auth/<AI>`は公式の状態、`start`・`input`・`cancel`は公式認証の進行を返す。応答の`auth`は初期設定と同じ形にする。`start`はAitermの`agent_auth`へ`relogin`を渡し、認証済みに見えるAIでも公式のログイン画面を起こす。`relogin`を知らないAitermが何も始めなかった時は、認証済みと取り違えずに409で断る。Codexの公式ログインは始めた時点で今の資格情報を消すので、今の認証が消えうるAIには一覧の`startWarning`で知らせの文を渡し、画面は認証が無い・切れていると分かっている時を除いて、始める前に知らせてもう一度押してもらう。状態を見ただけの時の`message`は利用者向けの文に置き換え、公式認証が進行中の時はAitermの案内をそのまま返す。認証の画面の出し方と資格情報はAitermと公式CLIが持ち、BellTeamは進行を中継するだけにする。購読は求めない。
-
-一覧の`reloginSupported`がfalseの種類では、設定画面は開始操作を出さず、`startWarning`の公式CLI案内と状態更新を残す。未提供の旧サーバーでは従来の表示を保つ。初期設定の通常認証とは別の可否であり、Antigravityを外した今（a353）は全種類でtrueを返す。
-
-席を起こせなかった時（認証が切れたAIが起動時の画面で止まった時など）は、Aitermに残った端末をBellTeamが閉じる。残すと席が動いている扱いになり、次の送信から起こし直せず、入力も受け付けない。閉じた後の起こし直しと送り直しはしない。失敗は500として記録し、応答に「認証が切れている可能性」の文を添える。
+---
 
 ## 実装資産の永続化境界
 
-SEC-014の先行段（2026-10-15の段階実装承認）として、Cursor更新は本体のCMDから外す。本体は`node src/supervisor.mjs`だけで起動する。`scripts/deploy.sh`はimageのビルド後に`scripts/update-cursor.sh`を実行し、成功した時だけ本体を入れ替える。一般配布installerは公開の`compose.yaml`と`install.sh`だけで導入できる。pullしたimageから更新用のcomposeと既存scriptを一時領域へ取り出し、本体を停止してから同じ更新段を実行する。成功後だけ起動し、失敗時は停止したことを表示する。
+### コンテナ・イメージ構成と更新
+- 本体は `read_only: true` のコンテナで `node src/supervisor.mjs`（固定 C 入口 `/usr/local/libexec/bellteam-server-start` 経由、UID 1001）を起動する。書込可能領域は割り当てた外部保存先（`/home/bell`、`/home/bell/.local`、`/srv/bellteam`）と tmpfs（`/tmp`、`/run`）のみ。
+- **AI CLI 非同梱（a451、2026-11-19）**：Claude Code・Codex・Grok・Cursor の CLI 本体はサーバー image に同梱せず、利用者がアプリの「AI の認証」から `/home/bell/.local`（`cursor-cli` volume）へ最新版を導入・更新する。`bellteam-update-cursor` は互換のため空入口として残る（SEC-014 先行段の旧 Cursor 更新履歴は [archive/current-design-history-202611.md](archive/current-design-history-202611.md)）。
+- 一般配布 image は amd64 / arm64 ネイティブ CI で installer・初期設定・モデル候補・公式認証入口・個人設定非包含を検証後、`latest` / `preview` を公開する。installer は初回 pull 後 `--pull never` を維持する。
+- 本番反映前の quiet 確認（`check-deploy-quiet`）は、ターン途中の席（`seatTurns` running / `observe` / Linux `/proc` による CLI 子孫プロセス・配送キュー確認）を保留対象（exit 2）とし、入力待ちの待機席自体は除外する。
 
-一般配布imageはmainの配布対象source変更と手動実行で作成する。amd64/arm64のネイティブCIで2fileからの実installer、導入中のregistryタグ変更、初期設定、モデル候補、公式認証入口、個人設定非包含を確認し、両方の成功後だけcommit tag・`latest`・互換の`preview`を公開する。installerは最初のpull後の抽出・準備・起動を`--pull never`にし、導入中の公開タグ変更で別imageを取り直さない。旧公開版は検査失敗時には更新しない。
+### 永続保存の二系統と Bot 環境
+- 永続的な実装資産の正本は次の二系統のみとする：
+  1. Bot 固有資産：`/srv/bellteam/bots/<bot-id>/`（リポジトリ・成果物・`integrations/<tool-id>/`・`environment/`）
+  2. 共有ツール本体（オーナー明示分のみ）：`/srv/bellteam/shared/tools/<tool-id>/`（有効化・利用設定は各 Bot が所有）
+- `/app`、`/usr/local`、`/tmp`、`/root`、`/home/bell` と各 CLI グローバル設定は基盤更新で消失・上書きされる派生物扱いとする。
+- 各 Bot の `environment/setup.sh` はコンテナ起動時に会話受付・予定開始前に順番に一度実行（結果を `setup.log` に残し、1 席の失敗で全体起動を止めない）。`environment/env.sh` は会話用 CLI 起動とコマンド予定の都度読み込む。手順の正本は [bot-environment.md](bot-environment.md)。
 
-（a451の第2列車以後、`bellteam-update-cursor`は何もしない空の入口で、Cursor自体はimageに無い。段の形だけinstallerに残る。）更新用の`compose.cursor-update.yaml`は本体のcomposeへmergeしない。新しくビルド/取得した本体imageから、root所有の固定入口`/usr/local/bin/bellteam-update-cursor`だけを起こす。渡すのはCursorのnamed volumeだけで、本体のenvironment/env_file、runtime/home、runtime/data、SSH鍵、Docker socket、host PIDは渡さない。HOMEは一時的なtmpfs、root filesystemはread-only、UID/GID1000。固定入口は環境をHOME/PATHだけに組み立て、公式`cursor-agent update`を実行して終了する。volumeは本体composeの正規化された名前を使い、別のCursorコピーは作らない。通常の再起動では更新を実行しない。更新失敗時は本体の入れ替えへ進まないが、公式updaterがvolumeを変更した可能性はあるため、旧processのまま無条件に安全と断定しない。
-
-この段は更新への鍵持込みを閉じるためのもの。本体/席のUID分離、鍵file、状態の置き場、稼働中のmoduleの分離は次段に残る。SEC-014全体の完了とはしない。本番反映は試験成功後、動いている席が反映担当だけの時に行い、セシルへ事前に実時刻を伝えてホスト側の同時監査を合わせる。
-
-この「動いている」はターン途中の席を指し、入力待ちのCLIが起きているだけなら除く（2026-10-16 セシルのstaged_a条件確認）。`check-deploy-quiet`はargvを読まずexe/cwdで候補processを見つけ、PID/親/開始tickを保持して席とsessionを対応づける。既存`AitermTransport.seatTurns`のrunningを保留し、idleまたは未対応の席は同じtransportの構造化`observe`で確認する。2026-10-17のB案に従い、入力待ち・子配送待ち0を前後で確認し、CLI本体の全子孫をLinux `/proc`から調べる。Aitermの起動後process集計値は使わない。固定nodeで動く既知Aiterm/Approval Box0.1.26 MCPと固定mcp-lazyの直接親子、Claude CLI直接子のApproval Box0.1.26待受hookだけを許容し、その下の別作業も含めて全行を確認する。Codexのnode入口と唯一の固定native CLIを区別して親を照合し、固定code-mode-hostの直接子・引数無しというCLI補助も確認する。その下の仕事は許容しない。同じBot配下の候補PIDが登録rootのtreeへ対応しない時は保留し、最後に候補探索も再実行する。開始tick/親/exe/argvの前後変化・未知process・読取失敗・別版/別root/余分引数は保留。席探索を含めてCLI本体のargvやenviron/認証fileは読まない。対応を確認できないCLI構成は保留する。配送queueは状態読取の前後に確認し、他席の配送・途中ターン・欠測/未対応/読取失敗はexit2で保留。更新直前と本体up直前の両方で判定し、端末の起動/送信/終了、画面本文の取得、鍵の取得はしない。複数の読取りを原子的な観測とは扱わず、観測の間だけで発生・終了した仕事まで検出できるとは保証しない。
-
-コンテナの中は変更しない（2026-10-05 オーナー裁定：初期コンテナと、この設置の物を場所で区切る。コンテナの中は変更せず、利用者の永続データはコンテナの外に置く。名簿では区切らない）。本番と一般配布のcomposeはコンテナを読み取り専用（`read_only: true`）で起こし、書けるのは割り当てた外の置き場（`/home/bell`、`/home/bell/.local`、`/srv/bellteam`）と、tmpfsの`/tmp`・`/run`だけにする。決まりの文だけでなく、作りで守る。Pythonのpip・venv、Node/npm・Corepack、基本ビルド道具はイメージに含める。Botが足すパッケージとランタイムは自分のプロジェクトの下へ入れ、複数のBotが使う物は`/srv/bellteam/shared/tools/`へ一つだけ置く。OSパッケージが要る時は、`.deb`をrootなしで外の置き場へ展開する（手順は[bot-environment.md](bot-environment.md)）。
-
-各Botの `environment/setup.sh` はコンテナ起動時、会話受付・予定開始前に順番に一度実行する。実行結果は同じ場所のsetup.logに残し、一席の失敗では全体の起動を止めない。`environment/env.sh` は会話用CLI起動とコマンド予定の都度読み込む。Aitermには起動専用の短命MCP接続から環境変数名を渡し、Bot間で値を共有しない。手順の正本は [bot-environment.md](bot-environment.md)。Bot台帳、CLI認証、MCP登録先は変えない。
-
-Bot固有の開発リポジトリ、成果物、利用設定は`/srv/bellteam/bots/<bot-id>/`を正本とする。ツールやMCPのBot固有設定は同プロジェクトの`integrations/<tool-id>/`へ置く。
-
-オーナーが共通化を明示したツールやMCPだけ、実装本体、依存関係、起動スクリプトを`/srv/bellteam/shared/tools/<tool-id>/`へ置く。共有実装の存在と全Botへの有効化を同一視せず、どのBotがどの設定で使うかは各Botのプロジェクトが所有する。BellTeamは起動時に共有ツールの保存領域を作成する。
-
-この二系統以外は永続的な実装資産の正本にしない。`/app`、`/usr/local`、`/tmp`、`/root`、`/home/bell`と各CLIのグローバル設定は、基盤更新で消失または上書きされるものとして扱う。OSパッケージ導入と必要なグローバル登録は利用できるが、永続保存先の構築手順から再生成できる派生物に限定する。
+---
 
 ## Botプロフィールと送信者の人格
 
-Botプロフィールは、自動生成Bot ID、最後に確認されたAitermセッションID、キャラクター名、プロフィール、性格（考え方）、口調、役職、役割を別の値として持つ。Bot IDはBellTeam内部で同一人物を識別する固定値であり、同じ文字列をそのBot専用のAitermセッションIDにも使う。最後に確認されたセッションIDはAitermの起動receiptから保存するが、配送時は古い自動採番IDを使わず固定Bot IDへ正規化する。役職は画面上で名前に添える短い職位、役割はBotが担当する仕事の定義である。役割欄には担当範囲と責任境界を100文字以内で明記し、詳細は各Botの`docs/`に置く。全Botはセッション起動時に役割と関連手順を読み、他人から依頼を受けるたびに自らの責任範囲を確認する。範囲外ならまず依頼主が自力で解決できるか確認し、協力が不可欠な場合は実行前にオーナーへ問い合わせ、その判断に従う。境界が不明な場合は関係者と定義し、当事者間の合意だけで範囲外の協力を始めない。この規則は`config/common-agents.md`を通じて全CLIへ渡し、既存のオーナー裁定や承認条件は維持する。
+- プロフィールの正本は各 Bot プロジェクトの `bot.json` のみ（SQL や別索引へ複製しない）。保持項目は固定 Bot ID（Aiterm セッション ID にも使用）、最後に確認されたセッション ID、名前、CLI（`harness`）、モデル、エフォート、ファストモード、`profileText`、`personality`、`speechStyle`、`position`（役職）、`role`（役割・100 文字以内）。詳細手順は各 Bot の `docs/` に置く。
+- 画面表示名は `名前 役職`（役職未設定時は名前のみ）。チャット上部の副表示は稼働状態のみ、ルーム上部は人数のみとし役割・目的本文は出さない。ルーム発言には左にアバターと代表色の枠を付ける。
+- CLI・モデル・エフォートは作成後も設定画面および MCP `update_bot`（`PATCH /api/bots/<id>` と同一経路）で変更できる。保存は即時返却し、稼働中への適用は現在ターン後に裏で行う。モデル・エフォート候補は毎回 `GET /api/models`（Aiterm `agent_models`）からライブ取得し永続化・固定代用しない。`node scripts/update-models.mjs [harness]` は診断用。
+- 直接メッセージには ID だけでなく送信者の名前・役職・役割・本文・画像有無を含め、会話ログにも送信時点の属性を確定記録する。送信者は MCP 呼出元から本体が確定し、ツール引数で指定させない。
 
-```text
-id: bot-a1b2c3d4
-session: grok-4f8912ab
-name: あかり
-profileText: 同じチームのメンバー
-personality: 率直で好奇心旺盛
-speechStyle: 一人称は私。柔らかい口調で話す
-position: 秘書
-role: 調査担当
-```
-
-人格はプロフィール（`profileText`）、性格（考え方）（`personality`）、口調（`speechStyle`）に分け、Bot用の`AGENTS.md`にはその現在値を記載する。各項目の読み方に関する利用者固有の指示はユーザー規範へ置く。旧形式は本文を`personality`へ保持し、追加2欄は空で移行する。既存の混在した文章は、内容を読んで3欄へ仕分けして保存する。
-
-プロフィールの正本は各プロジェクトの`bot.json`だけとする。役割はそのBot自身が責任を持って進める担当の仕事であり、他の席にも分かる短い説明として保持する。担当の課題を必要な調査・修理・検証・配布・結果確認まで進める責任と、承認や実行条件の遵守を共通起動指示へ明記する（オーナー指示 2026-10-18）。作業手順はBotのプロジェクトの`docs/`に置く（オーナー裁定 2026-09-03）。生成するBot側`AGENTS.md`はその置き場を案内する。`list_bots`は全`bot.json`を読み、ID、最後に確認されたセッションID、名前、CLI、モデル、エフォート、プロフィール、性格（考え方）、口調、役職、役割を返す。SQLや別のBot索引へ複製しない。画面上の表示名は`名前 役職`とし、役職が未設定なら名前だけを表示する。チャット上部の副表示はBotの稼働状態だけとし、役割本文は表示しない。ルームも同じ考えで、一覧と上部に部屋の目的を表示せず、上部は人数だけにする（オーナー裁定 2026-09-03）。ルームの発言は左に発言者のアバターを出し、アバター画像から導いた代表色を吹き出しの枠に付ける。旧`title`は廃止して起動時に破棄し、役職へ自動移植しない。CLI、モデル、エフォートはBot作成後も設定画面とMCPの`update_bot`から変更できる。MCPは`PATCH /api/bots/<id>`と同じ経路で保存と稼働中への適用を行い、誰がいつ変えて戻すかは運用側の責任で、BellTeamは部屋の出入りに連動した自動切替を持たない（オーナー裁定 2026-09-03）。保存はプロフィールを書いた時点で即時に返し、稼働中Botへの適用は現在の作業の後に裏で行う。モデル未指定とエフォート未指定は、そのCLIの既定値を使う。モデルとエフォートの候補は、メンバー編集画面を開くたびに`GET /api/models`から取得する。BellTeamはAitermの`agent_models`を呼び、実行環境に入っているClaude・Codex・Grok・Cursor自身の一覧を読む。ハーネス固有の取得手順・モデルID・エフォートの変換はAitermが所有し、BellTeamは候補を永続化・再試行しない。MCPの`list_models`も同じAPIを使い、harness指定時はそのCLIだけを取得する。取得失敗はCLIごとにerrorとして表示し、他の一覧や固定一覧で代用しない。モデルを選ぶとそのモデルのエフォート、CLIの既定と手入力ではCLI全体の範囲を表示する。保存時のエフォート確認も、指定CLIの現在の一覧で行う。保存済みのプロフィールの読込やAI設定を変えない編集は、一覧取得を要求せず値を保持する。一覧に無いIDは「その他（手入力）」で入力する。CursorのモデルIDとエフォートの分離、ClaudeのultracodeなどのCLI固有の対応はAitermから返る候補をそのまま使う。`node scripts/update-models.mjs [harness]`は一覧を表示する診断コマンドとする。
-
-IDだけを受信Botへ渡してはならない。直接メッセージには、送信者のID、キャラクター名、役職、役割、本文、画像の有無を含める。受信Botは名前、役職、役割で相手を理解し、IDを`sendmessage`の返信先に使う。
-
-会話ログは送信時点の送信者と宛先のID、名前、役職、役割を記録する。プロフィールを後から変更しても、過去のメッセージを誰が送ったかは変えない。送信者はMCPの呼出元プロジェクトからBellTeamが確定し、ツール引数では指定させない。
+---
 
 ## ユーザー規範
 
-規範は二層に分ける。製品規範は`config/common-agents.md`で、BellTeamという製品が全Botに課すもの。ユーザー規範は`/srv/bellteam/owner/user-rules.md`で、オーナーがBellTeamの利用者として自分の全Botに課すもの（オーナー裁定 2026-09-03）。ユーザー規範の初期値は空とし、実際の本文はruntimeのファイルだけに保存する。オーナー情報の編集画面の下で編集し、起動時指示は「オーナー情報 → ユーザー規範 → 製品規範 → Bot固有」の順に生成する。ユーザー規範は製品の更新で変わらない。共通MCP（bellteam）の`get_user_rules`は誰でも読める。書き換えはOwnerの画面と別のMCPサーバー`bellteam-owner`（`src/mcp-owner-server.mjs`）の`update_user_rules`に加え、どのBotも共通MCPの`update_user_rules`で行える。Botの呼出しはすぐ保存する（承認の手順は2026-11-15のオーナー命令で撤去）。保存ごとに差分付きの自動記録がそのBotとの会話に届く。変更は`owner/user-rules-history.jsonl`と`GET /api/user-rules/history`に残り、そのBotの会話にも自動記録が届く（オーナー指示 2026-11-10）。どちらもWebの`/api/user-rules`と同じ`UserRules`を読み書きし、書き換え後は`src/global-instructions.mjs`で起動時指示を作り直す。Botの再起動は不要で、次の配送から新しい指示が使われる。Cursor CLIはグローバルの`~/.cursor/AGENTS.md`を読まず、作業フォルダの`AGENTS.md`だけを読む（実測 2026-10-03、cursor-agent 2026.10.01）。そのためBellTeamは起動時に`~/.cursor/hooks.json`の`sessionStart`へ`integrations/cursor/instructions-hook.mjs`を登録し（`src/cursor-instructions.mjs`）、このhookがセッション開始のたびに`~/.cursor/AGENTS.md`の全文を`additional_context`として渡す（オーナー許可 2026-10-03 K-768ZYG）。足すのは自分の項目だけで、ThroughlineやApproval Boxなど他のhookは残す。登録できなくてもBotは起動し、理由をログへ出す。
+- 規範は二層とする：製品規範（`config/common-agents.md`）と、利用者固有のユーザー規範（`/srv/bellteam/owner/user-rules.md`、製品更新で上書きしない）。起動時指示は「オーナー情報 → ユーザー規範 → 製品規範 → Bot 固有」の順で生成する。
+- `get_user_rules` は全 Bot が参照可能。書き換えはアプリ画面・`bellteam-owner` MCP（`src/mcp-owner-server.mjs`）・共通 MCP `update_user_rules` から即時保存でき、履歴が `owner/user-rules-history.jsonl`（`GET /api/user-rules/history`）と該当 Bot の会話へ差分付きで自動記録される。書き換え後は `src/global-instructions.mjs` で起動時指示を再生成し、再起動不要で次の配送から反映する。
+- Cursor CLI はグローバル `~/.cursor/AGENTS.md` を読まないため、起動時に `~/.cursor/hooks.json` の `sessionStart` へ `integrations/cursor/instructions-hook.mjs` を登録し（`src/cursor-instructions.mjs`）、セッション開始ごとに全文を `additional_context` として渡す。
+
+---
 
 ## キャラクターシート（設定画）
 
-Botが自分を描く時の正本は、オーナーが決めた設定画（キャラクターシート）で、Botプロジェクトの`assets/character-sheet/`直下に置く（製品規範。ユーザー規範から格上げ、オーナー裁定 2026-09-03）。BellTeamはBot作成時にこのフォルダを作り、ファイルはBotが自分で置く。Web APIの`/api/bots/<id>/character-sheet`が直下の画像だけを一覧し（`drafts/`などのサブフォルダは見せない）、`/api/bots/<id>/character-sheet/<file>`が画像本体を返す。ホームのBot編集画面の「画像を選ぶ」の右にある「キャラクターシート」で閲覧する。アバターとは別の資産で、混ぜない。シートを正本にするのはオーナーだけで、Botの候補は`drafts/`に置く。作る向きは固定せず、アバターや渡された画像からシートを作ることも、シートからアバターを切り出すこともある（オーナー裁定 2026-09-03）。設定画の形式と作り方は利用者のユーザー規範またはBot固有の手順で決める。実装は`src/character-sheets.mjs`。
+Bot が自分を描く時の正本は、オーナーが決定した設定画（`/srv/bellteam/bots/<bot-id>/assets/character-sheet/` 直下）とする。候補は `drafts/` に置き、オーナー決定後に直下へ移す。アバターとは別資産として管理する。API は `/api/bots/<id>/character-sheet`（直下画像のみ一覧）と `/api/bots/<id>/character-sheet/<file>`（実装：`src/character-sheets.mjs`）。
+
+---
 
 ## オーナープロフィール
 
-オーナープロフィールはアバター、名前、プロフィール、XプロフィールURL、GitHubプロフィールURL、名称付きのその他URLを持つ。GitHubはアカウント名でなく公開プロフィールURLを正本とする。保存の正本は`/srv/bellteam/owner/profile.json`だけとし、共通規範やBotの長期記憶へ現在値を複製しない。
+正本は `/srv/bellteam/owner/profile.json` のみ（アバター、名前、プロフィール、X URL、GitHub 公開プロフィール URL、名称付きその他 URL）。共通規範や長期記憶へ複製しない。API は `GET/PATCH /api/owner`、MCP は `get_owner_profile`。新規・復元セッション起動時および全配送直前に最新値（アバター本体除く）を自動添付し、再起動なしで反映する。
 
-Web UIは左上のオーナーアバターから設定画面を開く。アバターはBotと同じ画像選択と正方形切り抜きを使う。Web APIの`GET /api/owner`と`PATCH /api/owner`、MCPの`get_owner_profile`は同じ保存サービスを読む。
-
-BellTeamは新規・復元セッションの起動時と、ユーザー会話、Bot間直接連絡、ルーム発言、予定実行、ユーザー追加指示の配送直前に、現在のオーナープロフィールを読み直して文脈へ添付する。画像本体は添付しない。プロフィール更新時にBotを再起動せず、稼働中のBotも次の配送から新しい値を受け取る。
+---
 
 ## ユーザーとBotの会話
 
-WebとiPhoneの入力欄ではEnterは改行だけを入力し、送信は送信ボタンだけで行う（オーナー裁定 2026-09-03）。Macアプリの入力欄ではEnterで送信し、Shift+EnterとOption+Enterで改行する（オーナー裁定 2026-09-27）。会話の読み出しは最新から行う。APIは`limit`（最新から件数）・`before`（そのIDより前）・`after`（そのIDより後の差分）を持ち、画面は開幕に最新10件だけを即描画し、上へ遡ったら前の20件を先頭に足して見ている位置を動かさず、新着は末尾に足すだけにする。画像は描画を止めずに後から差し替え、末尾に貼り付いている間は高さが変わっても最新を追う（オーナー裁定 2026-09-03）。チャット上部の「Botの画面」を開くと、そのBotのCLI画面の末尾（Aitermの画面読み取りそのまま）を2秒ごとに表示し、動いているか止まっているかを人が見て判断できる。構造化した出来事の表示は遅延するため採らない（オーナー裁定 2026-09-03）。
+- **入力とページング**：iPhone は Enter 改行・ボタン送信、Mac / iPad 外付けキーボードは Return 送信・Shift/Option+Return 改行。履歴 API は `limit`・`before`・`after` を持ち、最新から取得する。チャット上部の「Bot の画面」は Aiterm の画面読取そのままを 2 秒ごとに表示する。
+- **送信と拒否分類**：送信は Aiterm `pty_send` へ直ちに渡し、UI は API 応答を待たず入力欄から外す（拒否時のみ理由コード表示＋入力復元）。Aiterm の入力未準備（`BOT_INPUT_NOT_READY`）や送信競合（`AGENT_SEND_BUSY` → `BOT_SEND_BUSY`）は HTTP 409 とし、500 診断へ入れず再送もしない。
+- **合間の言葉と途中エラー表示**：ターン途中の出力（`aiterm/interim_words`）は 3 秒おきの `pty_observe` とターン完了後に取得し、`bellteam.interim-word.v1` として該当 Bot の会話画面に吹き出し表示する（他者への配送や Push 通知の対象外。思考テキストは非表示）。API エラーや利用上限（`rate_limited`）も可視化する。Bot 間 DM・通話・ルーム由来の最終回答も完了後に `pty_read(agent_transcript: true)` で `kind: "answer"` として会話画面へ表示する。`src/self-turns.mjs` が Throughline 記録から出す回答で、冒頭に合間の言葉と完全一致する重複がある場合は除去する。
+- **明示送信**：`sendmessage(target="user", ...)` は通常ターン外の自発連絡や画像付き回答に使い、明示送信を確定回答として採用して通常出力を重ねない。空回答ターンは吹き出しを追加しない。
 
-ユーザーからBotへの送信はAitermの`pty_send`へ直ちに渡す。Aitermが送信時点の状態を見て、実行中のターンへの差し込みと新しいターンの開始を決める。Web UIはAitermへの送信中・Botの処理中を表示し、ユーザーが続けてメッセージを送れる状態を保つ。Web・iPhone・Macとも、送信した本文と添付画像はAPIの返事を待たずに入力欄から外す。APIはAitermの受付（止まっているBotの起動を含む）まで返事をしないため、待ってから外すと送れていないように見える（オーナーの指摘 2026-09-30）。送信がAPIに拒否された時は、入力欄の上に「送信できませんでした（理由コード）」を一行表示し、本文と添付画像を入力欄へ戻す。拒否を黙って飲まない（実被弾 2026-09-04: 秘書室で発言が消えた）。新しいターンではAitermが完了を検出した後、確定回答を会話へ追加する。差し込みは元のターンの回答に含め、別の回答を追加しない。前のターンが終わった後で新しいターンになった差し込み（Aitermの待ちが`steer.placement: "next_turn"`で返った時）は、その文が始めたターンなので、同じく確定回答を会話へ追加する（「配送」参照）。文章だけの通常返信に`sendmessage(target="user")`を要求しない。
-
-Aitermが入力受付状態に入れず「文字列は送信していない」と明示した送信拒否は、HTTP 409と`BOT_INPUT_NOT_READY`を返す。画面では未送信とBotの状態確認を案内し、元のAitermの理由はサーバーログへ残す。配送記録は`failed`とし、強制送信や繰り返し再送はしない。この拒否をサーバーの500診断には記録せず、それ以外の判定できないAiterm障害は従来の500診断を維持する。同じBotへの先の送信が終わるのを待ち切れず、Aitermが打つ前に断った時（`AGENT_SEND_BUSY`、Aiterm 0.52.1以降、待ちは60秒）も同じ扱いにし、HTTP 409と`BOT_SEND_BUSY`を返す。画面では未送信と、少し待ってからの送り直しを案内する。Botが道具（`sendmessage`など）で送って断られた時は、符号に続けて同じ案内文を返す。符号だけでは、文が打たれたかどうかがBotに伝わらないためである。
-
-（a366で書き手と受信検証を外した。以下は外す前の動作の記録。）Antigravityの起動結果が同じharness/sessionに結び付く`aiterm.agent-launch-result.v1`で、`vendor_action_required`によるblocked・初手未要求・turn未開始・cursor/residue無しを返した場合も、本文を渡していない`agent_launch`だけを同じ409へ分類する。作成された端末は既存規則どおり一度閉じ、本文の再送・再起動はしない。個別とルームの既存失敗行へ`native_launch`としてharness、session作成済みの事実、startup/initial_promptの安全なenumだけを残す。これは当時の作成事実であり、現在の端末生存・認証原因・実起動の成功を意味しない。本文・argv・環境・画面・session名はその診断へ含めない。旧認証preflight、他の起動失敗、送信後の受理不明は従来の分類を保つ。
-
-Botがターンの途中で書き、そのあと道具を使った言葉（合間の言葉）は、そのBotとユーザーの会話画面に、Botの発言と同じ吹き出しで時刻順に表示する。ラベルは付けない。対象はユーザー会話、Bot間の直接メッセージ、通話、ルーム、予定実行でBellTeamが始めたターンとする（ルームはオーナー裁定 2026-09-28 で一度棚上げし、同日に揃えた）。ルームがきっかけのターンでは、返信者も黙る指示を受けたメンバーも、それぞれのBotの会話画面に出し、ルームには出さない。BellTeamはターンの完了を待つ間、3秒おきとターン完了後に一度、Aitermの`pty_observe`を`_meta`の`"aiterm/caller": "BellTeam"`付きで呼び、結果の`_meta["aiterm/interim_words"]`から、送信receiptと`event_cursor`が一致するターンの言葉だけを受け取る（Aiterm ADR 0071）。この指定はAitermの説明と引数に出ない。BellTeamが始めていないターンの合間の言葉も、BellTeamがそのターンを追っている間は同じ画面に出す。追うのは、待つ手がかりの付いた差し込みを取ったターンと、Aitermの「席の今のターン」で見つけたターンで、どちらも`_meta`の`"aiterm/interim_from"`にAitermが返した読み始めの位置を渡し、その位置より後の言葉を受け取る（Aiterm ADR 0122。「配送」参照）。見つけたターンでは、言葉に付いた`turn_id`が別のターンの物は出さない。見つけたターンの最後の回答は`src/self-turns.mjs`がThroughlineの記録から出す。Throughlineはターンの文を全部つなげて返すので、そのターンで合間の言葉として出した文が回答の頭に順番どおり全部並んでいる時は、その分を外して出す（2026-10-14、Codexの席で同じ文が2回出た）。1つでも合わない時、追い終えた時刻と記録の終わりが60秒より離れている時、外すと何も残らない時は、回答をそのまま出す。合間の言葉は会話ログへ`bellteam.interim-word.v1`として残す表示だけの記録で、誰にも配送せず、確定回答の候補にもiPhoneへの通知にもならない。依頼したBotやルームへは届かない。思考は表示しない。Claude CodeのAPIエラーとsession limitの知らせ、Codexがターンをエラーで終えた時の本文（利用上限の知らせを含む。Aiterm 0.42.2以降）も合間の言葉として表示し、エラーの本文を記録に書かないハーネスでは、Aitermが返したエラー終了・利用上限の理由を代わりに表示する（オーナー裁定 2026-09-28: 見えていれば直そうと思える）。Cursorは道具が終わってから記録を書くため、道具の前の言葉は道具の終了まで届かないが、そのままとする（同日）。Bot間の直接メッセージ、通話、ルームで始まったターンの最後の回答は誰にも配送されないため、BellTeamはターンの完了後に`pty_read(agent_transcript: true)`で読み、合間の言葉と同じ記録（`kind: "answer"`）としてそのBotの会話画面へ表示する。空の回答は出さず、読めない時も配送は`delivered`とする（オーナー指摘 2026-09-28: エレグの端末にある回答が画面に出ていなかった）。前節の「Botの画面」で採らなかった構造化した出来事の表示（2026-09-03）とは別の決定である。
-
-`sendmessage(target="user", ...)`は、Botが通常のチャットターン外からユーザーへ自発的に連絡する場合と、通常チャットの回答で画像を提示する場合に使う。画像付き回答は本文と画像パスを一回の呼出しへまとめる。BellTeamは明示送信をそのターンの確定回答として採用し、通常出力を会話へ重ねない。Botが回答を空で終え、明示送信も無いターンでは、Botの発言を会話へ足さない（空の吹き出しを出さない）。
+---
 
 ## Bot間の会話
 
-Bot間通信の共通入口は次のMCPツールとする。
+- **共通入口**：`sendmessage(target, message, image?)`。非同期直接メッセージであり、Aiterm の継続セッション受理をもって送信完了とする（返答待ちしない）。通常最終回答は自動転送せず、返信したい Bot が自分で `sendmessage` を呼ぶ。
+- **通話ブリッジ（GrokBot 等）**：全 4 CLI へ `call-bridge` MCP を標準登録し、内部入口 `/mcp/call-bridge` から認証ヘッダー（権限 600 ファイル）と `X-Call-Bridge-Caller-Id` を付与して中継する（上流 401 / 鍵欠落は 502 `CALL_BRIDGE_AUTH_FAILED` / `CALL_BRIDGE_AUTH_UNAVAILABLE`）。着信は UNIX ソケット経由で受け、外部送信者の所属と ID を保ったまま通常配送する。
+- **BugHub セキュリティ所見 MCP**：全 Bot が使える 6 ツール（`bughub_{list,get,create,update,resolve,reopen}_security_finding`）を提供。`/srv/bellteam/state/bughub/{headers,endpoint}`（親 UID/GID 1001 0711、ファイル 0600）を呼び出しごとに読み、`x-bughub-security-token` と `x-bughub-actor` を付けて `/api/security/v1`（担当フラジャイル）へ中継する（未設定時は `BUGHUB_SECURITY_NOT_CONFIGURED`）。
+- **一覧表示と未読**：Bot 間メッセージは会話本文へ複製せず 1 行の活動記録（タップ展開）として表示。メンバー欄とルーム欄は混ぜず、最後のアクション日時降順（状態変化・既読で並べ替えない）。未読は Bot からユーザーへの返答のみを対象とし、Bot 間活動や自己送信では未読にしない。
 
-```text
-sendmessage(target, message, image?)
-```
-
-これは非同期の直接メッセージである。Aitermが相手Botの継続セッションへ受理した時点で送信操作を完了し、相手Botのターン完了や返答を待たない。
-
-受信Botの通常の最終回答は送信元へ自動転送しない。返事をしたいBotが、自分の意思で`sendmessage`を呼んで送り返す。繰り返し届くメッセージには毎回送信者の名前、役職、役割、IDを付け、相手を認識した会話として同じ継続セッションへ積み重ねる。
-
-GrokBotとの通話は外部のgrokbot-bridge MCPで行う。BellTeamは全Botの4つのCLIへ`call-bridge`を標準登録する。CLIは本体の内部入口の`/mcp/call-bridge`へ接続し、本体が認証ヘッダーと発信者の名札（`X-Call-Bridge-Caller-Id`）を付け直して通話ブリッジへ中継する。要求と応答はためずに流し、応答の待ち時間に上限を置かない。本体を止める時は開いている中継の流れを終える。上流が応答の途中で切れた時は席側の流れも切る。上流の401と合言葉ファイルの欠落は、席では直せないので502（`CALL_BRIDGE_AUTH_FAILED`・`CALL_BRIDGE_AUTH_UNAVAILABLE`）で返す。認証ヘッダーは共有永続領域の権限600のファイルから読み、接続先と値をCLI設定へ書かない。BellTeamは共有永続領域のUNIXソケット上に通話専用のBot一覧と着信配送を開く。ブリッジからの着信は通話相手の所属とIDを付けて記録し、ユーザーやBellTeam Botに成り代わらせず、通常のAiterm配送で宛先Botへ渡す。BellTeam MCPに通話ツールは置かない。GrokBot宛てのマリアン中継はブリッジが担当する。
-
-セキュリティの問題（SEC番号の所見）は、BugHubの記録口へ記録する（2026-10-12 オーナー指示）。BellTeam MCPに道具を6つ持つ（`bughub_list_security_findings`・`bughub_get_security_finding`・`bughub_create_security_finding`・`bughub_update_security_finding`・`bughub_resolve_security_finding`・`bughub_reopen_security_finding`）。全Botが使える。項目・検証・履歴・公開する範囲はBugHubの契約（`/api/security/v1`、担当フラジャイル）が持ち、BellTeamは鍵（`x-bughub-security-token`）と、席の名札から決めた呼出Bot ID（`x-bughub-actor`）を付けて送り、応答をそのまま返す。鍵と行き先は`/srv/bellteam/state/bughub/`の`headers`と`endpoint`から道具が呼ばれるたびに読む。親はUID/GID1001の0711、両ファイルは0600とする。席はstatで存在を確認できるが、ファイルの読取と親への書込はできない（BugHubの担当が置く。本体を起こし直さずに替えられる）。置かれていない間は`BUGHUB_SECURITY_NOT_CONFIGURED`で断る。鍵と呼出Botは道具の引数に無く、応答とエラーにも出さない。エラーにはBugHubの符号と`request_id`だけを載せ、入力を写さない。送り直しはしない。書き込みには`request_id`（省略時は本体が作る）を付けて結果へ返し、結果が分からない時は呼んだBotが同じ`request_id`で送り直す。
-
-UIではBot間メッセージを会話本文へ複製しない。送信側と受信側の個別チャットに、相手の名前とアバターを含む一行の活動記録として表示し、タップした時だけ時刻、本文、画像の有無を開く。
-
-トップページのメンバー欄とルーム欄は混ぜず、それぞれの中で最後のアクション日時が新しいものから上へ並べる。アクションはユーザーの送信、Botの返答、Bot間活動、ルーム投稿とし、処理中・待機中・オンライン状態の変化は並べ替えに使わない。最後のアクションがない項目は各欄の末尾へ置き、同時刻は元の安定順を保つ。
-
-会話を開いたことはアクションではないため、既読にしても並び順を変えない。未読は端末ごとに最後に読んだアクションIDを保持し、一覧の印だけで示す。開いている会話へ新しいアクションが届いた場合はその場で既読とし、一覧へ戻っている間に届いたBotからユーザーへの返答だけを未読にする。Bot同士のやりとり（peer）とユーザー自身の送信には未読を付けない（オーナー裁定 2026-09-03: Bot間の受信で既読が戻る挙動をなくす）。
+---
 
 ## 配送と追加指示
 
-ユーザー会話、Bot間の直接メッセージ、ルーム発言、予定実行は、すべてBellTeam内で待機させず、宛先BotのAitermセッションへ`pty_send`で直ちに渡す。Aitermが実行中なら現在のターンへ差し込み（`mode=agent_steer`）、それ以外は新しいターンを開始する（`mode=agent_dispatch`）。BellTeamはこの判断をしない。送信エラーは`failed`として記録し、別の配送方法へ切り替えない。画面とMCPに手動の割り込み選択は置かない。
+- 全配送（ユーザー会話・Bot 間・ルーム・予定）は BellTeam 内で待機させず `pty_send` へ即渡し、差し込み（`agent_steer`）か新ターン開始（`agent_dispatch`）かの判定は Aiterm に委ねる。
+- 配送状態は `running` → `delivered` / `failed`（`AITERM_TURN_ERROR` / `AITERM_TURN_RATE_LIMITED` 含む）。Aiterm 0.60.0+ の差し込み（`aiterm/caller: "BellTeam"`）では返却された `event_cursor` / `wait_process` / `steer.placement`（`same_turn` / `next_turn` / `not_taken` / `unknown`）に従い完了・失敗・回答読取を判定する。
+- `/queue` API と `list_queued_messages` は処理中項目を返す（互換名維持）。BellTeam 外から始まったターン（子結果による開始など）も 5 秒おきの `pty_list`（`_meta["aiterm/seat_turns"]`）で検知し `context: "self"` として稼働表示する（`src/seat-turns.mjs`）。
 
-メッセージの配送状態は、BellTeamがAitermへ送信を始めた時点を`running`、新しいターンの完了を確認した時点を`delivered`、起動・送信・完了待ちのいずれかが失敗した時点を`failed`とする。差し込みでは新しい完了通知を作らないため、BellTeamが元のターンを追跡している場合はその完了後に`delivered`とする。BellTeamは`pty_send`の`_meta`に`"aiterm/caller": "BellTeam"`を付ける。Aiterm（0.60.0以降、ADR 0122）は、この印のある差し込みの返りに、その文を取ったターンの終わりを待つ手がかり（`event_cursor`、`wait_process`、`_meta["aiterm/steer"]`の`interim_from`）を入れる。手がかりが在る差し込みは、その待ちが返った時に`delivered`とし、待ちが`not_taken`（文が会話の記録に入っていない）で返った時は`failed`とする。動いていたターンが取り込んだ差し込み（`same_turn`）と見分けられなかった差し込み（`unknown`）は回答を読まず、新しいターンになった差し込み（`next_turn`）は新しいターンと同じく回答を読む。同じ席のターンを追っている配送が在る間は、合間の言葉をその配送に任せる。手がかりの無い差し込み（0.59.1まで、Aitermが控えを取れなかった時）で、BellTeamが元のターンを追跡していないものは、Aitermの受理をもって`delivered`とする。Aitermがharnessの記録でターンのエラー終了（Claude Codeの529等のAPIエラー、Grokの`turn_ended outcome=error`）を検知して`error`を返した時も`failed`とし、`AITERM_TURN_ERROR: <エラー本文>`を理由として残す。harnessの利用上限で止まった時（`rate_limited`）も`failed`とし、Aitermが返した上限の知らせがあれば`AITERM_TURN_RATE_LIMITED: <知らせ>`を理由として残す。DMとルームの会話ログへ状態遷移を追記し、最終状態をWeb UIへ表示する。DMでは、エラーと利用上限の知らせを合間の言葉としてBotの会話画面へ出す（「ユーザーとBotの会話」参照）。
-
-処理中のメッセージはWeb UIとMCPから取得できる。既存の`/queue` APIと`list_queued_messages`は互換名として残し、待機メッセージは返さない。BellTeamが始めていないターン（Aitermが子の結果を親の席へ渡して始めたターンなど）も、動いている間は`context: "self"`の項目として`/queue`へ出し、ランプと「処理中」に出す（`src/seat-turns.mjs`。2026-10-13、子の結果で始まったターンの間、ランプも「処理中」も出なかった）。BellTeamは5秒おきにAitermの`pty_list`を`"aiterm/caller": "BellTeam"`付きで呼び、結果の`_meta["aiterm/seat_turns"]`（席の今のターン。Aiterm 0.60.0以降、ADR 0122。まずCodexの席だけで、ほかのハーネスは`null`）から、配送の無い席で動いているターンを見つける。見つけたターンは、Aitermが返した`wait_process`が返るか、席の今のターンが別のターン・入力待ちに替わるまで追う（止められたターンではAitermの待ちが返らない）。回答は運ばず、Throughlineの記録から出す。席の今のターンを返さない版のAitermには、起動後に1回聞いてやめる。複数のルーム発言が同じBotのターンへ入った場合、`respond_to_room`は受信文に含めたメッセージIDを指定して返信先を確定する。BellTeamが元のターンを追跡していない差し込みでも、メッセージIDから返信先を取得できる。Aitermが受け付けた後のTUI操作とターン完了判定はAitermに任せる。
+---
 
 ## オーナーへの報告漏れの確認と選択肢カード
 
-Botのターンが終わると、BellTeamはオーナーへの報告が漏れていないかを確かめる（オーナー裁定 2026-10-01、`src/turn-reports.mjs`）。対象は、新しく始まったターン（オーナー・メンバー・予定・通話・ルームから）で、実行中のターンへの差し込みは元のターンに含める。ターンの時間の幅に、そのBotの会話画面へ出た合間の言葉・最後の回答・オーナー宛てのメッセージ（オーナー向けの言葉）と、メンバー宛ての直接メッセージを集める。
+- **報告漏れ確認（`src/turn-reports.mjs`）**：新規ターン完了時、オーナー向けの言葉が 0 件の「処理漏れ」（ルーム除く）をコードで検出し、メンバー宛て送信がある場合のみ TypeSafe Jev（`jev-latest`）へ `outcome`（< 0.35）と `substance`（< 0.5）の 2 軸で「中身の漏れ」を照会する。漏れ検出時は対象 Bot へ報告依頼を送る（再帰確認なし、Jev 失敗時はログのみ）。
+- **選択肢カード（`src/owner-questions.mjs`）**：`ask_owner(question, options, allowOther)` で会話画面へ 1 回限りの回答カードを表示する（作成は内部 MCP API、回答は公開 API）。Bot は回答を待たずターンを終え、回答はユーザーメッセージとして届く。オーナー判断・承認が必要な場合は `request_decision`（Approval Box）の併用を規範で推奨する。
 
-1. 処理漏れ：オーナー向けの言葉が1つも無い。コードで判定する。ルームのターンは、オーナーがルームで読めるので除く。
-2. 中身の漏れ：メンバー宛てのメッセージがある時だけ、TypeSafeのJev（`jev-latest`）へ1回聞く。問いは2つのNoulで、`outcome`は「メンバーとのやりとりの答え・結果・結論・決めたこと・頼んだことが、オーナー向けの言葉で伝わっているか」、`substance`は「最後の言葉そのものに具体的な中身があるか」。Jevの主な学習言語が英語のため問いは英語で書き、会話は原文のまま渡す。`outcome`が0.35未満か`substance`が0.5未満なら漏れとする。基準は2026-09-28〜30の実際の44ターンで決めた（ドリリー・ハランの漏れを拾い、誤判定は1件）。
-
-漏れていれば、BellTeamがそのBotへ「直前のターンの内容を、オーナーへ自分の言葉で伝えて」と頼む。返事はそのBotの会話画面に出る。この依頼で始まったターンは確かめない。Jevが失敗した時は頼まず、理由をログへ出す。
-
-Botはオーナーに裁定や選択を求める時、MCPの`ask_owner(question, options, allowOther)`で選択肢のカードをオーナーとの会話画面へ出せる（`src/owner-questions.mjs`）。Web・iPhone・Macで選択肢を押すか、`allowOther`なら文章で答える。答えは「あなたが選択肢で尋ねた「…」への回答です。」としてオーナーからのメッセージでBotへ届く。Botは答えを待たずにターンを終える。答えたカードには二度と答えられない。カードの作成はMCPからの内部APIだけ、回答は公開APIだけで受ける。オーナーの判断・承認・操作が必要な時は、`ask_owner`やチャットに加えて、Approval Boxの`request_decision`でも申請するよう製品規範とMCPの説明文で勧める（禁止の形にはしない。オーナー裁定 K-9KK8NL・K-D3RVZD）。
+---
 
 ## チャット画像
 
-Web・iPhone・iPad・Macでユーザーが選択、ドロップ、または貼り付けた画像は、本文と同じ送信で対象Botへ渡す。1回の送信に何枚でも付けられ、Web APIは`images`（配列）で受ける。1枚の`image`だけを送る古いアプリの送信も受ける。本文を含む送信の上限は96 MiB（Cloudflareが受ける本文の上限100MBに収める）。iPhone・iPad・Macの入力欄は共通の`UITextView`で、コピーした画像はその画像を、コピーした画像ファイル（Finderなど）はファイル本体を添付にする。画像以外のファイルは添付しない。会話ログには画像の有無、枚数（`image_count`）、保存した会話資産の参照（`image_assets`）を残す。BellTeamは画像を一時ファイルへ置き、そのパスの並びをAitermの`image`引数へ渡すだけにする。CLIごとの添付手順（入力欄へのパスの先打鍵等）はAitermが吸収し、BellTeamはharness別の画像手順を持たない。会話表示用の画像本体は、Botへ渡す一時ファイルとは別に会話資産として保存する。一時ファイルは送信元Botのターン中だけ維持し、そのBotが`sendmessage`で別のメンバーへ画像を転送できるようにする。送信元ターンの完了後に削除する。
+- 1 回の送信で複数枚（`images` 配列、旧単一 `image` 互換、本文込み上限 96 MiB）に対応。対応形式は PNG / JPEG / WebP / GIF（非画像・symlink・25 MiB 超はエラー）。
+- 送信時は一時ファイル経由で Aiterm の `image` 引数へ渡す（ハーネス固有手順は持たない）。会話表示用の実体は Bot 側 `/srv/bellteam/bots/<bot-id>/messages/assets/` またはオーナー側 `/srv/bellteam/owner/messages/assets/` へ永続保存し、API は `image_urls`（および旧互換 `image_url`）を返す。
+- MCP `image` の相対パスはまず Bot プロジェクトから解決し、Grok の `images/<name>` のみ `src/bot-image-path.mjs` 1 か所限定で `~/.grok/sessions/` を参照する非公式依存を閉じ込める（[conversation/flow.md](architecture/modules/conversation/flow.md#第三者grok-cliへの非公式な依存)）。
 
-MCPの`image`はコンテナ内の画像ファイルパスを受け取る。Botがユーザーまたはルームへ提示した画像は、実体を`/srv/bellteam/bots/<bot-id>/messages/assets/`へ複製し、会話ログには公開元の一時パスを残さず資産IDだけを保存する。Web APIは認証後にその画像を配信し、Web UIは会話内へ実画像として表示する。オーナーが直接会話やルームへ送った画像は、全部を`/srv/bellteam/owner/messages/assets/<送信ID>-<番号>.<拡張子>`へ残し、ログの`image_assets`に並べる（Botへ渡す一時ファイルはターン後に消えるため）。APIは発言ごとに全画像の`image_urls`と、1枚しか読まない古いアプリ向けに1枚目の`image_url`を返す。Web・Mac・iPhone・iPadの吹き出しは、2枚以上の画像を本文の吹き出しの外へ置き、先頭1枚と、横と下へ傾けてずらした奥の最大2枚で扇状のカード束にし、下へ「画像N枚」と表示する。押すと黒い全画面で画像を大きく表示し、下のサムネイル、左右スワイプ、左右ボタンで切り替え、上の枚数表示と閉じるボタンを使う。1枚は単独表示から同じ全画面を開き、サムネイルを出さない。Mac・iPhone・iPadは共通の画面で`image_urls`を読み、全画像を認証付きで取得する。その項目が無い発言は従来の`image_url`を使う。保存されていない過去の画像は有無と枚数の表示を保つ。PNG、JPEG、WebP、GIFを受け付け、画像でないファイル、symlink、25 MiBを超えるファイルは明示エラーにする。
-
-相対パスは最初にBotプロジェクトから解決する。Grokが`images/<name>`を返し、Botプロジェクトに実体がない場合は、そのBotプロジェクトに対応する最新のGrok session保存先からBellTeamが解決する。CLI固有の保存場所をBotへ推測させない。このGrok session保存先（`~/.grok/sessions/`）の読取りは、契約した窓口を持てない第三者製品への非公式な依存である（オーナー裁定 2026-11-14）。BellTeam内では`src/bot-image-path.mjs`の1か所だけに閉じ込め、[会話・履歴の機能図とDFD](architecture/modules/conversation/flow.md#第三者grok-cliへの非公式な依存)に描く。Grokの画像ツールは保存した絶対パスも返すため、MCPの`image`説明は絶対パスをそのまま渡すよう勧め、この依存を通る場面を減らす。
+---
 
 ## Botとプロジェクト
 
-一つのBotは一つのプロジェクトフォルダ、ユーザーへ見せない固定Bot ID、最後に配送確認できたAitermセッションIDを持つ。一つのプロジェクトへ複数Botを置かず、Botごとの記憶と人格を同じ会話履歴へ積み重ねる。
+### セッション管理・休止・夜間再起動
+- 1 Bot ＝ 1 プロジェクトフォルダ＋固定 Bot ID。配送時は `bot.json` の最後確認済みセッション ID へ直接送り、不達時のみ新規起動して 1 回だけ再送する。作成時はセッションを起動せず初回実メッセージで起動する。
+- **アイドル休止**：2 分おきに `pty_observe` で観測し、入力待ち（`idle/composer_ready`）かつ起動後プロセス数＝0・子配送待ち＝0・配送なしが 10 分以上続いた Claude Code 席を `pty_close {hibernate: true}` で休止する（`AGENT_BUSY` 時はスキップ、`AGENT_HIBERNATE_UNAVAILABLE` 時は通常 `pty_close`。a478）。Codex / Grok / Cursor は未決承認確認が揃うまで対象外。
+- **夜間再起動**：毎日 03:00（Asia/Tokyo）に、動作中・処理待ちなし・Throughline 完了ターン 20 件以上の Bot のみ再起動する。
+- **設定変更とファストモード**：同一 CLI の明示モデル/エフォート変更は配送列末尾で `agent_configure` を実行しセッション文脈を維持。ファストモード（`bot.json` の `fastMode`、既定 false）は `set_fast_mode` / `PATCH /api/bots/<id>` で Bot 自身が切替可能とし、`agent_launch` へ常に真偽を渡す。未対応・利用枠不可は 400 で拒否。起動返却 `fast=false` 時は保存を無効へ合わせる（ただし `startup.reason=turn_running`＋`FAST_MODE_UNCONFIRMED` 時は保存を保持しターン後に `agent_configure` で再適用、a469g）。
 
-直接メッセージ、ルーム配送、ユーザー会話、予定実行は、`bot.json`にある最後に確認されたセッションIDへ最初に直接送る。Aitermが不達を返した時だけ、同じBotプロジェクトで新しいセッションを起動する。Aitermが返した実際のセッションIDを`bot.json`へ保存してから、同じメッセージを一度だけ再送する。二度目も不達ならそのエラーを返し、追加の起動や再送を行わない。通常配送の前にセッション一覧を確認せず、Botのセッションを常時起動しない。
+### ホーム・環境変数・同梱基盤と CLI 登録
+- ホーム決定は `src/runtime-home.mjs`（`BELLTEAM_HOME` 優先、未指定の開発実行時は `runtime/home`、コンテナは `/home/bell`）。`CLAUDE_CONFIG_DIR` と `BELLTEAM_BUGHUB_KEY` は席環境へ継承しない。
+- **CLI・hook 登録の一元化（bd14）**：RTK（担当ドリリー）・testgate（担当シラツル）・Throughline（担当リヴァリン）・Aiterm（担当エレグ）・Approval Box（担当ナユタ）・Lattice（担当スノーホワイト）の MCP・hook 登録は、各製品の公開契約 E1（`harness-entries` / `hook-entries`）を BellTeam の単一 writer（`src/harness-entries.mjs` 等）が適用する（正本：[cli-registration.md](architecture/modules/runtime/cli-registration.md)）。
+- **Throughline**：コンテナ初期搭載（`throughline@latest`、`THROUGHLINE_HOME=/srv/bellteam/shared/throughline`）。起動時短期記憶（`--sessions recent`）、ルーム文脈、夜間再起動ターン数、自主ターン観測（`observer-read` / `observer-check`）に使用。長期記憶は Bot 自身が `remember` で保存する。
+- **mcp-lazy（担当レオナ）**：コンテナ初期搭載（公開リポジトリ最新 `main` からビルド、`/usr/local/bin/mcp-lazy`）。Aiterm MCP を中継越しに起動し待機メモリを削減（`MCP_LAZY_IDLE_STOP=0`、30 秒おき `aiterm-delivery-wake`）。`bellteam` と `call-bridge` は本体へ HTTP 直結のため中継しない。
+- **起動時指示と削除**：各 CLI グローバル `AGENTS.md`（Claude 用 `CLAUDE.md` は `@AGENTS.md`）へ共通指示を生成し、Bot プロジェクト `AGENTS.md` へ人格・役割・直近短期記憶を生成する。Bot 削除時はセッション終了・ルーム/予定から除外・プロジェクト削除を行い、ルーム削除時はルーム設定・履歴・予定を削除する（参加 Bot と個人記憶は保持）。
 
-BellTeamは2分おきにAitermの`pty_observe`で席を観測し、画面が変わらず入力待ち（`idle/composer_ready`）で、起動後のプロセス（`activity.post_startup_process_count`）と子の配送待ち（`pending_child_deliveries`）がともに0、BellTeamの配送も無い状態が10分以上続いたClaude Codeの席を休止する（`pty_close {hibernate:true}`。プロセスは無くなり、会話と1時間のプロンプトキャッシュは残り、次の配送が起こす。オーナー許可 2026-10-03 K-HSQQEX、10分と休止はオーナー裁定 2026-11-21 a478）。Aitermが`AGENT_BUSY`で断る席（処理・子・配送が動いている）は休止せず次のtickで再確認し、`AGENT_HIBERNATE_UNAVAILABLE`で断る席（再開の記録が無い。モデル・エフォート未指定の機械席など）は従来どおり`pty_close`で閉じる。Approval Boxの答えを待つClaude Codeのhookも起動後のプロセスに含まれる。どちらかの数がnull・未提供の席は閉じない。旧版Aitermで起きた席は起動完了の控えが無いので、0.49.0へ更新しただけでは対象にならない。Codex・Grok・Cursorは席ごとの未決・保留申請を確認できるまで対象にしない。CLI内部のタイマー（Claude Codeの`/loop`など）は観測できず、停止対象になるので、定期の仕事はBellTeamの予定を使う。閉じている途中の配送は閉じ終わるまで待ち、通常の不達復旧で起き直す。観測履歴はメモリだけに保持し、BellTeam再起動後は10分を数え直す。
-
-Botのセッション再起動は、現在の処理が終わった後に専用Aitermセッションを閉じ、設定済みのCLI、モデル、エフォート、同じプロジェクトで起動し直し、Aitermが返したセッションIDを保存する。CLI変更とモデル・エフォートを既定へ戻す変更は、稼働中なら配送列の末尾で再起動し、停止中なら次のメッセージで新しい設定を使う。設定、会話ログ、長期記憶、RAGは永続領域へ保持する。ただし起動時に読み込ませるのは前セッションの短期記憶だけで、長期記憶とRAGは必要な時にMCPから検索する。
-
-Codexの作業別モデル選択とファストの見直しは`config/common-agents.md`の「作業設定の見直し」を正本とする。起動時の4CLI共通指示に加え、BellTeamからの各配送・差し込みでも同節の短い本文をAI入力へ添える。既に動いている席にも届き、画面・会話保存の元の発言は変更しない。セットアップ接続テストには配送時の追記をしない。モデル変更は現在のターン後に反映されるため、変更が必要な工程は既存の継続予定で次ターンへつなぐ。Botが選択し、BellTeamが仕事を別のAIで分類したり全Botの設定を一律変更する機構は追加しない。
-
-同じCLIで明示モデルまたはエフォートへ変更する時は、Aitermの`agent_configure`を配送列の末尾で実行し、同じセッションと会話文脈を保つ。モデルIDは変動する各CLIのlive catalogをAitermが検証し、別モデルへのフォールバックは行わない。
-
-ファストモード（各CLIの、応答を速くする設定）はBotごとに`bot.json`の`fastMode`へ保存し、既定は使わない（オーナー裁定 2026-10-12）。切り替えはMCPの`set_fast_mode(enabled, botId?)`と`PATCH /api/bots/<id>`の`fastMode`で行い、モデル・エフォートと同じ経路で保存と稼働中への適用をする。Botが仕事の重なった時に自分で有効にし、落ち着いたら自分で戻す運用で、BellTeamは自動で戻さない。CLIごとの切り替え方（Claude Codeの`/fast`、Codexのservice tier、GrokとCursorのfast版モデル）はAitermが所有し、BellTeamは`agent_launch`へ`fast`を必ず真偽で渡し、`agent_configure`へ`fast`を渡すだけにする。必ず渡すのは、共有の設定に残った値で席がファストのまま起きないようにするため。保存の前に`agent_models`の一覧を読み、どのモデルにも`fast`が無い時（Aitermが未対応）は`BOT_FAST_MODE_UNAVAILABLE`、一覧の`fast_unavailable`に理由がある時（そのCLIのアカウントで使えない。Claudeの別払いが無効など）は`BOT_FAST_MODE_ACCOUNT_UNAVAILABLE`、そのBotのモデルの`fast`がfalseの時は`BOT_FAST_MODE_UNSUPPORTED`で保存しない。断る時は400で、訳の文とAitermの理由を返す。有効のBotのCLIやモデルだけを、切り替えられない物へ替えた時は、Claude Codeの動きと同じく無効へ戻して保存する。一覧に無いモデルIDはAitermの判定に任せる。稼働中への適用が開始前に拒否されたことを確認できた時だけ保存を元の値へ戻す。RPC timeout・通信断・未対応や不正な応答形式で結果が不明なら、希望値を保持して`configurationApplication.outcome=outcome_unknown/effect=possible`を表示し、自動再送しない。また、起動の返りの`fast`がfalseの時（利用枠が無くて通常の速度で起きた時など）は保存を無効へ合わせる。記録が有効のまま実際は通常の速度、という食い違いを残さない。ただし、すでに番が動いている席を再開した時（Aiterm 0.70.81以降、起動の返りが`startup.reason=turn_running`・`fast=false`・`fast_error.code=FAST_MODE_UNCONFIRMED`）は、Aitermが保存の`fast`を保ったまま通常の速度で再開しただけなので、保存を無効へ変えない。番が終わってから`agent_configure`で`fast=true`を渡し直す（a469g、[configuration-delivery](architecture/modules/execution/configuration-delivery.md)）。
-
-BellTeamは毎日03:00（Asia/Tokyo）に全Botを確認する。現在のAitermセッションが動作中で、処理中と待機中のメッセージがなく、Throughlineの完了ターンが20件以上あるBotだけを再起動する。処理中、待機中、停止中のBotはその夜の自動再起動を行わない。通常メッセージの送信時にはターン数を確認しない。手動再起動と、停止したセッションを次のメッセージで復元する処理は維持する。
-
-設定生成とBot起動のホームは`src/runtime-home.mjs`で決める。`BELLTEAM_HOME`があればその絶対パス、未指定の開発実行ではリポジトリの`runtime/home`を使う。Dockerは`BELLTEAM_HOME=/home/bell`を指定して既存volumeを使う。実行ユーザーのHOMEを暗黙の書込先にしない。設定更新・MCP・Throughline・Aiterm・Botの復元と起動に同じHOMEとCLI設定先、XDGの設定・状態保存先を渡し、Botのenv.shもこれらの場所を変更しない。Aitermへは親環境と同値でもホーム関連変数を明示して渡す。
-
-`CLAUDE_CONFIG_DIR`は継承せず、ClaudeはHOMEから既定の設定場所を読む。明示指定するとuser MCP設定の場所も変わるため、既存の`/home/bell/.claude.json`を維持する。設定場所を変えた環境でtmuxを起動していた場合は、そのtmuxを終了してからBellTeamを起動する。
-
-本体だけが使う合鍵`BELLTEAM_BUGHUB_KEY`（診断の管理口の鍵）も継承しない。`runtimeEnvironment`が名前ごと外すので、Aiterm・tmux・席のCLI・setup.sh・コマンド予定・Throughlineのどの子にも入らない。Botのenv.shが同じ名前を入れても、席の環境には出さない。本体は自分の環境から読む。診断の管理口を席から使う時は、鍵を持つコンテナの側（`ssh main-server`の`docker exec`）で呼ぶ。
-
-RTK（コマンド出力を短くしてAIへ渡すCLI。担当ドリリー）はBellTeamコンテナに標準搭載する（2026-09-27 オーナー指示、インフラ整備の部屋）。本体はDockerfileで本家の`install.sh`（sha256照合つき）を使って`/usr/local/bin/rtk`へ入れる。`~/.local`はcursor-cliのvolumeに隠れるため使わない。版は固定しない。利用統計の送信は`RTK_TELEMETRY_DISABLED=1`で止める。hookは`src/rtk-hooks.mjs`が`throughline install`の後に登録し、起動時とBotの変更時に繰り返しても項目を増やさない。Claudeは`~/.claude/settings.json`の`PreToolUse`へ`rtk hook claude`（matcher `Bash`）を足し、Codexは`~/.codex/hooks.json`の`PreToolUse`末尾へ`rtk hook codex`（matcher `Bash`）を足し、公式App Serverの`hooks/list`が示す鍵とhashで、そのhandlerだけを`config/batchWrite`で信頼する。Cursorは`~/.cursor/hooks.json`の`preToolUse`へ`rtk hook cursor`（matcher `Shell`）、Grokは`~/.grok/hooks/rtk.json`から同梱の`integrations/rtk/grok-hook.mjs`を呼ぶ。本家の`rtk init`は使わない。Codex・Cursorではグローバル`AGENTS.md`へ追記してBellTeamが生成し直すファイルとぶつかり、Claudeでは関所の項目だけがある設定へRTKを直接呼ぶ項目を足すため（RTK 0.51.0で実測）。登録できなかった時もBotは起動し、理由をログへ出す。登録の仕様と保守はドリリーの`docs/rtk-bellteam-registration.md`が正本で、Grokのhookスクリプトはドリリーから受け取って更新する。（2026-11-14 bd14: hookの登録はRTKのE1が運び、`src/harness-entries.mjs`が一つの書き手として適用する。BellTeam自身のRTK writerと、関所の実体の有無による`rtk hook`への切替は退役した。[cli-registration.md](architecture/modules/runtime/cli-registration.md)）
-
-テストの関所（testgate。テスト実行を記録し、先々は変更に関わる分だけに絞る道具。担当マクスウェル）は、共通の置き場`/srv/bellteam/shared/tools/testgate/`に版ごとのフォルダと`current`で置く（2026-10-13 オーナー承認 K-X4DGPJ）。入口`current/bin/testgate.mjs`の実体がある設置では、`src/rtk-hooks.mjs`がRTKの項目を増やさず、同じ位置でcommandだけを`node <入口> hook <claude|codex|cursor|grok>`へ替える。関所が中で`rtk hook X`（Grokは`rtk rewrite`）を呼び、出力と終了コードを中継する。別の項目にしないのは、同じ道具の前のhookが並んで走り、書き換えが2つ返った時の合わせ方が決まっていないため。実体が無い設置（配布物など）ではRTKを直接呼ぶ形で登録し、関所の項目が残っていれば同じ位置で戻す。Codexの信頼の鍵は位置で決まるので、commandを替えた時は同じ鍵のhashを書き直す。直接呼ぶ項目と関所ごしの項目が両方ある設定は、どちらも消さずに登録の失敗として記録する。RTKは、自分を直接呼ぶ項目がClaudeの設定に無いと1日1回`rtk init -g`を促す警告を出すので、`RTK_SUPPRESS_HOOK_WARNING=1`（Dockerfile）で止める。版の差し替えはマクスウェルが`current`の付け替えで行い、反映は要らない。関所を外す時は、先に登録をRTKへ戻して席を起こし直してから実体を外す。動いている席は起きた時の設定を持ったままで、実体だけを先に外すと、その席のBashのたびにhookの失敗が出る（Bashは通る。Claude CodeとCodexの実物で確認）。
-
-Aiterm（担当エレグ）の親配送hookは`src/aiterm-hooks.mjs`がRTKの後に登録する。AitermのMCPをBellTeamが登録するので、hookも同じ起動処理で登録する。hookが無いと、Claude Code・Cursorの席からの`agent_launch`・`pty_send`が`CLAUDE_PARENT_HOOK_UNAVAILABLE`で拒まれる。同梱の`aiterm-mcp`が持つ`mergeClaudeParentHooks`・`mergeCursorParentHooks`を呼び、`~/.claude/settings.json`と`~/.cursor/hooks.json`のAitermの項目だけを足す。登録済みなら何も書かない。本家の`aiterm-setup`は起こさない（`aiterm-setup --hooks-only`と同じ登録になる）。登録できなかった時もBotは起動し、理由をログへ出す。
-
-Codexの席が親の時の配送hookは、Aiterm 0.56.0 から同じ起動処理で登録する。同梱の`ensureCodexParentSteer`へ共有HOMEとコンテナのCodex（`/usr/local/bin/codex`）を渡す（`aiterm-setup --codex-steer enable`と同じ登録になる）。Aitermは`~/.codex/hooks.json`の`PostToolUse`・`Stop`の末尾へ自分の項目を足し、一時的に起こしたCodexの公式App Serverで承認を書き、`~/.config/aiterm-mcp/codex-parent-hooks/config.json`を置く。このhookが無いと、Codexの席が起こした子の回答と、Aitermの配送に乗る製品（Approval Box）の回答が、番の終わりまで届かない。BellTeamの文（`pty_send`）の届き方は変わらない。登録済みなら何も書かない。入口の無い古いAitermでは登録しない。結果が`ready`以外の時（`failed`、席が動いている間に初めて登録した時の`restart_required`）もBotは起動し、状態と理由をログへ出す。
-
-AitermのMCP登録は、`aiterm-setup`が書くものと同じ形（nodeの絶対pathと同梱の`dist/index.js`）にする。`aiterm-setup`は、起動先が違う登録をCodex・Grokの公式CLIで作り直し、その時にBellTeamが書いた`startup_timeout_sec`・`tool_timeout_sec`が消える。Aiterm 0.47.0からは引数なしの`aiterm-setup`がBotの環境でも通るので、席が流しても登録が変わらないようにする。同梱の`aiterm-mcp`を読めない環境では、PATH上の`aiterm-mcp`を起動先にする。
-
-Throughline（会話の記録と引き継ぎ。担当ナユタ）はBellTeamコンテナに初期搭載する基盤である（2026-10-01 オーナー裁定）。本体はDockerfileで`throughline@latest`をnpmのglobalへ入れ、起動時とBotの変更時に`throughline install --own-files`でThroughline自身のファイルを置き、4ハーネス（Claude・Codex・Grok・Cursor）のhookはThroughlineの公開E1（`throughline harness-entries`）からBellTeamのCLI登録が書く（bd14、[CLI登録](architecture/modules/runtime/cli-registration.md)）。登録に失敗した時はBellTeamを起動しない。短期記憶、ルーム文脈、夜間再起動のターン数に加え、Botのターンをオーナーの会話画面へ出す道にも使う。完了ターンを長期記憶の候補として各Botの`memory.db`へ溜める道は、2026-10-14にやめた（オーナー裁定）。長期記憶は、Botがターンの終わりに`remember`で残す。Claude Code・Grok・Cursorは、裏で動かした作業が終わると、BellTeamを通らずに自分から次のターンを始める。BellTeamは自分が配送したターンしか見ていなかったため、そのターンの報告がオーナーへ届かなかった（2026-10-01 ラプンツェル）。Stop hookが記録元のThroughlineは、どう始まったターンも記録するので、BellTeamはThroughlineの`observer-wait`・`observer-read`で各Botの終わったターンを順に受け取り、BellTeamが配送していないターンの最後の回答をそのBotの会話画面へ出す（実装中。Throughlineの始まり方の表示・本文を削らない読み出し・`host`の修正を待つ）。
-
-mcp-lazy（MCPを使う時だけ本体を起こす中継。担当レオナ）はBellTeamコンテナに初期搭載する（2026-10-05 オーナー裁定）。本体はDockerfileで公開リポジトリ`kitepon/mcp-lazy`の受入済みコミットからビルドし、`/usr/local/bin/mcp-lazy`へ置く。npmの`mcp-lazy`は別の製品なので使わない。版は受入した物へ固定する（0.3.2、`ba0f443`）。BellTeamが書くMCP登録のうち、Aitermは中継ごしにする（中継の実体がある環境だけ。無い環境では直結）。席がAitermの道具を呼ぶまで本体を起こさず、待機中の実占有を約45MBから約4MBにする。本体は一度起きたら席が終わるまで保つ（`MCP_LAZY_IDLE_STOP=0`）。本体が眠っている間の親配送の引き取りは、Aitermの判定（`aiterm-delivery-wake`、親がClaude・Codex・Cursorの時）を中継が30秒おきに回して起こす。記録（初期化と道具の一覧の控え）は`~/.cache/mcp-lazy/aiterm-<CLI>`に置く。bellteamとcall-bridgeは本体へHTTPで直結しているので中継を通さない。BellTeamが書かない登録を中継ごしにするかは、その道具を入れた設置が自分で決める。
-
-Throughlineの会話の記録のDB（`~/.throughline`）は、この設置の物としてデータ側に置く（2026-10-05 オーナー裁定）。本番の`compose.yaml`が`./runtime/data/shared/throughline`をコンテナの`/home/bell/.throughline`へ割り当てる。コンテナの中の道は変わらないので、Throughlineの設定とCLIのhookは変えない。割り当ては`create_host_path: false`で、元のフォルダが無い時は起動が止まる。割り当ての行が無い設定で起こした時は止まらず、会話が記録されないまま動く。そのため`runtime/home/.throughline`にはBotの利用者が書けない空のフォルダを残し、反映の後は`mount`に`/home/bell/.throughline`の1行がある事とDBの大きさを確かめる。割り当てより前のcommitへ本番を戻す時は、先にフォルダを`runtime/home/.throughline`へ戻す。配布物の`distribution/server/compose.yaml`は割り当てを持たず、DBは`/home/bell`側に置かれる。
-
-起動前に、共通のオーナー情報と共通規範を各CLIのグローバル指示へ生成する。正本は各CLIのグローバル`AGENTS.md`だけとし、Claude用のグローバル`CLAUDE.md`は`@AGENTS.md`だけを記載する。BellTeamはThroughlineへBotのproject・`silent`・`--sessions recent`を渡す一回の呼び出しで、会話本文を持つ直近の複数sessionから作った短期記憶を取得する（オーナー裁定 2026-10-05。Throughline 0.15.0以上が要り、それより前の版では起動が止まる）。該当する会話がなければ空として起動する。Botの名前、プロフィール、性格（考え方）、口調、役職、役割と取得した短期記憶をBotプロジェクトの`AGENTS.md`へ生成する。Claude用の`CLAUDE.md`は`@AGENTS.md`だけを記載する。起動時には会話プロンプトを渡さない。各CLIは通常のプロジェクト指示としてこれらを読み、その後に実際のメッセージだけを受け取る。
-
-Bot削除はAitermセッションを閉じ、参加中のルームと予定宛先から外して、Botのプロジェクトフォルダを削除する。Web UIでは削除前に確認を求める。ルーム削除は設定画面から確認後に行い、ルームの設定、会話履歴、予定を保存領域ごと削除する。参加BotとBotの個別記憶は削除しない。iPhone・Macでは共通のルーム編集画面に削除操作を置き、成功後はルーム一覧、開いている会話、そのルームの下書きから外す。削除に失敗した時は理由を表示し、ルームと下書きを残す。
-
-Bot作成時はユーザーがIDを指定しない。BellTeamがIDを自動生成し、プロジェクトフォルダ（`docs/`・`environment/`・`assets/character-sheet/`）、プロフィール、`AGENTS.md`、Claude用の`CLAUDE.md`、個人記憶領域を作る。作成だけではセッションを起動せず、初回挨拶などの偽の会話も作らない。最初の実メッセージが届いた時に通常の不達復旧経路で起動する。
+---
 
 ## グループチャットルーム
 
-Botの返信（`respond_to_room` の reply）も新たなルーム発言として全員へ届く。返信先の自動選択が必要なら、その発言を含む直近3ターンを使って改めて判定する。
-
-ルームは自動生成ID、ルーム名、目的、代表Bot、メンバー、予定、アバターを持つ。アバターはBotと同じ画像選択と正方形切り抜きで設定し、一覧とチャット上部に表示する（オーナー裁定 2026-09-04）。代表Botはルーム設定をMCPから変更でき、ユーザーはWeb UIから常に変更できる。既存Botの招待と退出は全BotがMCPから行え、対象Botを省略すると自分を対象にする。代表Botはメンバーだけを指定でき、代表が退室した時は未設定にする。
-
-ルームへの通常メッセージは次のMCPツールを共通入口とする。
-
-```text
-invite_to_room(roomId, botId?)
-leave_room(roomId, botId?)
-sendroommessage(room, message, image?, targets?)
-respond_to_room(action, messageId?, message?, image?, targets?)
-```
-
-誰が発言しても、BellTeamはThroughlineのルーム文脈APIへ発言を記録し、余計な情報を除いた直近3ターンを得る。TypeSafeを設定して有効にし、手動指定がない時は、現在の発言とその前の発言を分け、部屋の名前と目的、メンバーの名前・役職・役割を添えてJevへ渡す。一度の要求で「直近3ターンの会話に対して次の発言が必要か」と「必要なら次に誰が発言するべきか」を判定させる。話題が続いているだけでは返信を要しない。メンバーへの呼びかけや挨拶、様子を尋ねる問いかけは返信を要する（2026-09-28 オーナー裁定。「テスト」「みんな元気？」に誰も返さなかったため）。受領・引き受け・お礼など次の返答を求めない発言は返信不要とし、継続確率が0.6以上の時だけ選ばれた一人を返信者にする。それ以外は返信者なしとする。Web UIとiPhoneアプリでメンバーを選んだ時やMCP・予定の`targets`指定時は、その全員が返信者となり、Jevの会話継続判定より優先する。選択はルームごとに画面内だけで保持し、「@名前」の記法は使わない。
-
-判定後、最新の発言を返信者か否かの情報とともに部屋の全メンバーへ届ける。返信者には通常のメッセージを渡し、ほかのメンバーには発言を把握してサイレントに処理を終える指示を渡す。Bot送信者自身も部屋の流れを同じように処理する。判定や配送が失敗した時はエラーとして記録・表示し、別の返信者へ切り替えない。各メンバーの配送状態は発言単位で記録する。
-
-配送の対応付けに必要なルームID、発言ID、宛先IDはBellTeamが保持する。AIへ渡すルーム文脈は、参加者、ルーム名、目的、発言者、返信対象を確定するメッセージID、改変しない実メッセージ本文とする。直接メッセージには自然な宛名と実本文を渡す。
-
-受信Botの通常の最終回答は内部で破棄し、ルームへ自動転送しない。返信者は`respond_to_room(action="reply")`を呼び、返信者以外は内容を把握して`respond_to_room(action="silent")`を呼ぶ。同じBotが複数のルーム発言を処理中なら、受信文に含まれるメッセージIDを`messageId`に指定して返信先を確定する。同じ返信者が同じ発言に再送した場合は投稿済みの発言IDを返し、重複投稿しない。投稿後に一部のメンバーへの配送が失敗した時は、投稿済みであることと失敗した宛先を返し、配送状態にも失敗を残す。`silent`は制御結果としてBellTeam内部だけで消費し、履歴へ残さない。特定の一人だけに必要な連絡は`sendmessage`で個別配送する。
-
-Botの予定は実行内容として`prompt`（AIへの指示）か`command`（AIを起こさないコマンド）のどちらか一方を持つ。`command`はBotのプロジェクトフォルダで`sh -c`として実行し、schedulerは完了を待たない。終了コードが0でない時だけ、そのBotからユーザーへの会話に失敗と出力の末尾を1件残す。成功は何も出さない。AIを起こす必要のない作業（スクリプト実行、サイトの書き出し、到達確認）はAIへの指示にせずコマンド予定にする（オーナー裁定 2026-09-04）。ルーム予定はAIへの指示だけを持つ。
-
-ルーム予定は`/srv/bellteam/rooms/<room-id>/schedule.json`一ファイルへ保存し、返信者を自動選択するか特定メンバーを手動指定できる。予定実行は、代表Botがその時に発言したようには扱わず、代表Botが設定したルーム予定であることを明示する。設定済みの予定は一覧で指示本文まで表示し、「編集」で同じIDのまま名前・頻度・日時・指示を更新できる（`PUT /api/{bots|rooms}/<id>/schedules/<scheduleId>`）。「今すぐ実行」は同じ配達経路で予定を一回だけ送り、次回時刻と有効状態は動かさない（`POST .../schedules/<scheduleId>/run`）。
-
-予定の頻度は一回・毎時・毎日・曜日指定・○日おき・○時間おき・cron式を持つ。Botとルームは同じ頻度設定と次回日時計算を使う。日おきは`kind=interval_days`、`intervalDays`（正の整数）、`startDate`（YYYY-MM-DD）、`time`（HH:mm）、`timezone`を保存する。開始日から暦の日数で数え、月末・年末・夏時間をまたいでも指定時刻と周期を保つ。2日おきなら開始日・2日後・4日後に実行し、保存時点より後の最初の該当日時を次回にする。
-
-時間おきは`kind=interval_hours`、`intervalHours`（1〜24）、`startHour`・`endHour`（0〜23）、`minute`（0〜59、既定0）、`timezone`を保存する。毎日の開始時刻から間隔を足し、終了時刻以内の時刻に実行する。9時〜18時の3時間おきなら9・12・15・18時となる。終了時が開始時より小さい場合は翌日までとし、同じならその時刻に一回実行する。実行後は現在時刻より後の次回へ進め、編集時は保存済みの間隔・開始日・時間帯・タイムゾーンを引き継ぐ。Web APIとMCPも同じ保存形式を使う。
-
-詳細な履歴や設定はMCPから必要な時に取得できる。
-
-会話を開いた時は最新位置を表示し、上端へのスクロールで過去のページを取得する。初回と追加の取得件数は従来どおりとし、追加した本文の描画で高さが変わる間は取得前の読み位置を保つ。取得の失敗は表示し、上端を離れて再び戻るまで自動で取り直さない。
-
-Bot・ルームのmessages一覧は、最新ページと`before`ページに`remaining_before`を返す。今回の先頭より古い表示対象行の件数で、秘密入力依頼・質問カードも含み、最古のページでは0になる。`after`の差分応答には付けない。既存の`items`と`has_more`は維持し、件数は同じ時刻順索引から計算する。
+- ルームは自動生成 ID、ルーム名、目的、代表 Bot、メンバー、予定、アバターを持つ。公開 MCP は `invite_to_room`・`leave_room`・`sendroommessage`・`respond_to_room`。
+- **返信者判定と配送**：発言は Throughline のルーム文脈 API で直近 3 ターンを取得し、手動指定（`targets`）が無ければ TypeSafe Jev へ 1 回の要求で「継続必要か（確率 ≥ 0.6）」と「返信者 1 名」を判定させる（手動指定優先、「@名前」記法は使わない）。判定後、最新発言を返信者フラグ付きで全メンバーへ配送する。
+- **応答契約**：受信 Bot の通常最終回答はルームへ自動転送せず、返信者は `respond_to_room(action="reply", messageId?)`、それ以外は `respond_to_room(action="silent", messageId)` を呼ぶ（重複返信防止、`silent` は履歴非保存）。Bot の `reply` も新たなルーム発言として全員へ配送される。
+- **自動実行予定**：Bot 予定は `prompt` または `command`（Bot フォルダで `sh -c` 実行、非 0 終了時のみユーザー会話へ失敗記録）、ルーム予定は `prompt` のみ。頻度は一回・毎時・毎日・曜日指定・日おき（`interval_days`）・時間おき（`interval_hours`）・cron 式を共通処理で計算し、編集（`PUT`）と手動実行（`POST .../run`）に対応する。
+- **履歴ページング**：最新位置から開き、上端スクロールで過去ページを取得（高さ変化時も読み位置保持）。最新ページと `before` ページは `remaining_before`（秘密入力・質問カード含む残件数）を返す（`after` には付けない）。

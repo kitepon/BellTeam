@@ -222,6 +222,10 @@ SECTION diagrams
     DO: draw every product-to-product connection in both products' function and data-flow diagrams.
     NEVER: read or write another product's internal modules, files or storage directly.
     WHY: a direct reference breaks silently when the other product changes.
+  RULE diagrams.current-state-only
+    DO: keep canonical design, rule and ownership documents describing only the current state; update obsolete statements in place rather than appending "this section overrides above".
+    DO: move retired procedures, superseded rulings and migration logs to docs/archive/ or docs/adr/ and link from the canonical doc when needed.
+    WHY: keeping superseded text inline causes cross-document contradictions and wastes context (2026-11-27).
 
 SECTION guards
   # Stopping is a cost. A guard must name what it protects and how the system leaves it.
