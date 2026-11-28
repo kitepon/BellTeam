@@ -105,3 +105,15 @@ test('grant entry program: refuses a grant without role/record/need/reason befor
   assert.deepEqual(m.seen[1].args.decision.reason, 'retired'); assert.equal(m.seen[1].verb, 'revoke'); assert.equal(m.seen[1].args.unit, '/home/kite/x')
   m.close()
 })
+
+test('auth http: sends the request with the folder, prints only the response body, exit 22 for status >= 400, 1 and 2 for refusals', async () => {
+  const m = await fakeModule(req => req.path === '/missing' ? { outcome: 'granted', status: 404, body: Buffer.from('nope').toString('base64') } : req.path === '/denied' ? { outcome: 'denied', error: 'no' }
+    : req.path === '/bad' ? { outcome: 'error', error: 'The request failed.' } : { outcome: 'granted', status: 200, body: Buffer.from('{"a":1}').toString('base64') })
+  const env = { AUTH_SOCK: m.path }
+  const ok = await run(AUTH, ['http', 'stripe', 'post', '/v1/x', '-H', 'Accept: application/json', '--data', 'a=1'], env)
+  assert.equal(ok.code, 0); assert.equal(ok.out, '{"a":1}')
+  assert.deepEqual(m.seen[0], { op: 'http', name: 'stripe', method: 'POST', path: '/v1/x', cwd: process.cwd(), headers: { Accept: 'application/json' }, body: Buffer.from('a=1').toString('base64') })
+  const missing = await run(AUTH, ['http', 'stripe', 'GET', '/missing'], env); assert.equal(missing.code, 22); assert.equal(missing.out, 'nope'); assert.match(missing.err, /HTTP 404/u)
+  assert.equal((await run(AUTH, ['http', 'stripe', 'GET', '/denied'], env)).code, 1); assert.equal((await run(AUTH, ['http', 'stripe', 'GET', '/bad'], env)).code, 2)
+  m.close()
+})

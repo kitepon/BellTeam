@@ -45,7 +45,47 @@ def hand_over(fields, d, agents):
     return env
 
 
+def http_main(argv):
+    """auth http NAME METHOD PATH [-H 'Name: value']... [--data TEXT | --data-file FILE|-]: the module makes the request with the credential
+    added and answers with the response only; the body goes to stdout. Exit: 0 for status < 400, 22 for >= 400 (status on stderr), 1 refused, 2 error."""
+    import argparse, base64
+    p = argparse.ArgumentParser(prog="auth http")
+    p.add_argument("name")
+    p.add_argument("method")
+    p.add_argument("path")
+    p.add_argument("-H", "--header", action="append", default=[])
+    p.add_argument("--data")
+    p.add_argument("--data-file")
+    p.add_argument("--timeout", type=int)
+    a = p.parse_args(argv)
+    request = {"op": "http", "name": a.name, "method": a.method.upper(), "path": a.path, "cwd": os.getcwd()}
+    if a.header:
+        request["headers"] = {k.strip(): v.strip() for k, v in (h.split(":", 1) for h in a.header)}
+    data = a.data.encode() if a.data is not None else (sys.stdin.buffer.read() if a.data_file == "-" else open(a.data_file, "rb").read() if a.data_file else None)
+    if data is not None:
+        request["body"] = base64.b64encode(data).decode()
+    if a.timeout:
+        request["timeout_sec"] = a.timeout
+    try:
+        resp = ask(request)
+    except (OSError, ValueError):
+        sys.exit("The authentication module is not running.")
+    if resp.get("outcome") != "granted":
+        print(resp.get("error", "Refused."), file=sys.stderr)
+        return 2 if resp.get("outcome") == "error" else 1
+    sys.stdout.buffer.write(base64.b64decode(resp.get("body", "")))
+    sys.stdout.buffer.flush()
+    if resp.get("truncated"):
+        print("(response cut at the module's limit)", file=sys.stderr)
+    if resp["status"] >= 400:
+        print(f"HTTP {resp['status']}", file=sys.stderr)
+        return 22
+    return 0
+
+
 def main():
+    if len(sys.argv) >= 2 and sys.argv[1] == "http":
+        return http_main(sys.argv[2:])
     if len(sys.argv) < 3 or sys.argv[1] != "exec":
         sys.exit("usage: auth exec COMMAND... [-- ARGS...]")
     command, args = sys.argv[2:], []

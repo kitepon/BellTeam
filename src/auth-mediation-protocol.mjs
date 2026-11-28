@@ -1,6 +1,6 @@
 export const AUTH_MEDIATION_PROTOCOL_VERSION = 1
 export const AUTH_MEDIATION_STATE_COMPATIBILITY = Object.freeze({ state: 'policy-v2' })
-export const AUTH_MEDIATION_METHODS = Object.freeze(['resolve', 'admin', 'keyuse', 'status'])
+export const AUTH_MEDIATION_METHODS = Object.freeze(['resolve', 'admin', 'keyuse', 'http', 'status'])
 export const AUTH_MEDIATION_EFFECTS = Object.freeze(['members.roots', 'secret.get', 'secret.put', 'secret.erase', 'seat.run'])
 export const authMediationError = (code, status = 400) => Object.assign(new Error(code), { code, status, outcome: 'not_accepted' })
 export const authMediationObject = (value, required, optional = []) => value && typeof value === 'object' && !Array.isArray(value)
@@ -34,6 +34,14 @@ export function validateAuthMediationRequest(method, params, context) {
   else if (method === 'keyuse') check(authMediationObject(params, ['action', 'name', 'data', 'unit'], ['aad']) && ['wrap', 'unwrap'].includes(params.action)
     && text(params.name, 128) && /^[A-Za-z0-9][A-Za-z0-9._-]*$/u.test(params.name) && text(params.data, 4096) && /^[A-Za-z0-9+/]+={0,2}$/u.test(params.data)
     && path(params.unit) && (params.aad === undefined || text(params.aad, 256)))
+  else if (method === 'http') check(authMediationObject(params, ['name', 'method', 'path', 'via'], ['headers', 'body', 'timeoutSec', 'cwd', 'unit', 'botId'])
+    && text(params.name, 128) && /^[A-Za-z0-9][A-Za-z0-9._-]*$/u.test(params.name) && ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(params.method)
+    && text(params.path, 2048) && params.path.startsWith('/') && ['container-socket', 'host-socket', 'caller-socket'].includes(params.via)
+    && (params.via === 'caller-socket' ? params.unit !== undefined : params.cwd !== undefined) && (params.cwd === undefined || path(params.cwd)) && (params.unit === undefined || path(params.unit))
+    && (params.botId === undefined || botId(params.botId)) && (params.timeoutSec === undefined || Number.isInteger(params.timeoutSec) && params.timeoutSec >= 1 && params.timeoutSec <= 60)
+    && (params.body === undefined || text(params.body, 44000) && /^[A-Za-z0-9+/]*={0,2}$/u.test(params.body))
+    && (params.headers === undefined || params.headers && typeof params.headers === 'object' && !Array.isArray(params.headers) && Object.keys(params.headers).length <= 16
+      && Object.entries(params.headers).every(([name, value]) => text(name, 64) && text(value, 1024))))
   else check(authMediationObject(params, []))
 }
 
@@ -98,6 +106,10 @@ export function validateAuthMediationResult(method, value) {
     && (value.lines === undefined || list(value.lines, str)))
   else if (method === 'keyuse') need(authMediationObject(value, ['outcome'], ['error', 'data']) && OUTCOMES.includes(value.outcome) && (value.error === undefined || str(value.error))
     && (value.data === undefined || str(value.data) && value.data.length <= 4096))
+  else if (method === 'http') need(authMediationObject(value, ['outcome'], ['error', 'status', 'headers', 'body', 'truncated']) && OUTCOMES.includes(value.outcome) && (value.error === undefined || str(value.error))
+    && (value.status === undefined || Number.isInteger(value.status) && value.status >= 100 && value.status <= 599) && (value.truncated === undefined || typeof value.truncated === 'boolean')
+    && (value.body === undefined || str(value.body) && value.body.length <= 400000)
+    && (value.headers === undefined || value.headers && typeof value.headers === 'object' && Object.values(value.headers).every(str)))
   else if (method === 'status') need(authMediationObject(value, ['state']) && ['ready', 'no-token'].includes(value.state))
   else invalid()
 }
