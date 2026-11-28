@@ -5,7 +5,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 const METHODS = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE']
 const SAFE_REQUEST_HEADER = /^(?:accept|accept-language|content-type|idempotency-key|if-match|if-none-match|if-modified-since|user-agent|stripe-version|x-request-id|x-correlation-id)$/u
-const SHOWN_RESPONSE_HEADERS = ['content-type', 'content-length', 'etag', 'location', 'retry-after', 'last-modified', 'cache-control', 'x-request-id', 'request-id']
+const SHOWN_RESPONSE_HEADERS = ['content-type', 'content-length', 'etag', 'location', 'retry-after', 'last-modified', 'cache-control', 'x-request-id', 'request-id', 'content-range', 'accept-ranges']
 const SHOWN_RATE_HEADER = /^(?:x-)?ratelimit-[a-z-]{1,40}$/u // quota headers the caller needs for its own backoff
 // 9 MiB in, 11 MiB out (raw): base64 of either stays under the 16 MiB module payload limit.
 export const REQUEST_BODY_MAX = 9 << 20, RESPONSE_BODY_MAX = 11 << 20
@@ -24,7 +24,8 @@ function target(fields, request) {
   if (!METHODS.includes(request.method) || !methods.includes(request.method)) throw refuse('This method is not allowed for this key.')
   // An encoded slash, backslash, NUL or dot could be read as a separator by the server but not by the URL check below: a path that hides a separator is refused outright.
   if (!/^\/[^\s#\\]*$/u.test(request.path) || /%(?:2f|5c|00|2e|3f|23)/iu.test(request.path.split('?')[0])) throw refuse('The path is not usable.')
-  const url = fields.http_auth === 'none' && request.path === '/' ? new URL(base) : new URL(request.path, base) // none: the secret is in the base URL, path '/' means exactly that URL
+  const exact = request.path === '/' && base.pathname !== '/' // the base URL carries a path (a webhook): '/' means exactly that URL, so the caller never learns the path
+  const url = exact ? new URL(base) : new URL(request.path, base)
   const prefix = base.pathname.replace(/\/$/u, '')
   if (url.origin !== base.origin || (url.pathname + '/').slice(0, prefix.length + 1) !== prefix + '/') throw refuse('The path leaves the key\'s API.')
   return url
@@ -174,6 +175,7 @@ export async function callHttp(fields, request, fetchImpl = fetch, rotation = nu
     if (fields.http_auth === 'oauth2-password') { oauth = await bearerFor(fields, fetchImpl, false); headers.authorization = 'Bearer ' + oauth.token; added = { secrets: oauth.secrets } }
     else added = addCredential(fields, url, headers, request) // after the caller's headers, so it always wins
     secrets = added.secrets
+    if (request.path === '/') { const b = new URL(fields.http_base); if (b.pathname !== '/') secrets = [...secrets, ...b.pathname.split('/').filter(p => p.length >= 16)] } // an exact-base answer must not echo the secret part of the URL
     if (added.form) {
       // OAuth-style token exchange: the module appends its fields to the caller's urlencoded body (never to another content type)
       const type = (headers['content-type'] ?? 'application/x-www-form-urlencoded').split(';')[0].trim().toLowerCase()
