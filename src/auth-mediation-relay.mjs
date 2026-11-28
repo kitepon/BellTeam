@@ -178,7 +178,6 @@ export function createAuthMediationRelay({ root, facade, relayScript = RELAY_SCR
       await mkdir(dirname(path), { recursive: true })
       await rm(path, { force: true })
       const next = createServer(serve)
-      next.maxConnections = 64
       await new Promise((resolve, reject) => { next.once('error', reject); next.listen(path, resolve) })
       // The relay is the seat uid and must write to this socket; the body's 0711 state folder keeps the rest of the folder closed.
       await chmod(path, 0o666)

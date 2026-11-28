@@ -155,7 +155,14 @@ def handle(conn, via, unit=None):
         try:
             body = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             body.settimeout(BODY_SECONDS)
-            body.connect(BODY)
+            for wait in range(50):  # a full queue on the body socket answers EAGAIN at once on a socket with a timeout (same as the client's ask()); wait up to 5 s
+                try:
+                    body.connect(BODY)
+                    break
+                except BlockingIOError:
+                    if wait == 49:
+                        raise
+                    time.sleep(0.1)
             with body:
                 frame = {"via": via, "peer": peer, "request": request}
                 if unit:
@@ -178,8 +185,8 @@ def handle(conn, via, unit=None):
                 up.start()
                 pump(other, conn)  # until the module ends the run
                 other.close()
-        except (OSError, ValueError):
-            reply(conn, {"outcome": "error", "error": "The authentication module is not running."})
+        except (OSError, ValueError) as e:
+            reply(conn, {"outcome": "error", "error": f"The authentication module is not running ({type(e).__name__}: {e})."})  # the reason (closed, timed out, refused) shows in the caller's log
         finally:
             if held_stream:
                 streams.release()
