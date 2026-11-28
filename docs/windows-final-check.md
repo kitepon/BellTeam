@@ -457,3 +457,13 @@ Deltaの図の改め（seat-link-qr-in-chat）で廃止した区画（QR・コ�
 - 確認（利用者の道）: 公開のURLから`install-windows.ps1`を取って実行し（-NoLaunch）、終了コード0。導入したexeの版は`0.9.9+bfb748451236ce8cdc68427c6e556be256d82d26`、登録の表示は0.9.9、`--smoke-test`は成功（認証済み、SSE接続あり）。
 - 公開の途中で見つけた欠陥: `publish-windows-app.ps1`の`"$taskSha:windows/..."`が変数`$taskSha:windows`と読まれてcsprojの版を読めず、`gh`の前で止まった（何も公開されていない）。波括弧で直した（PR は別）。
 - 確認できていない: arm64の導入と起動、SmartScreenの警告の実際の出方（未署名）、本物の親のスマホでの通し。
+
+## Windows 0.9.10 の公開（決裁箱クライアント0.8.0、端末の持ち込み、2026-11-28 10:2x JST、アニス）
+
+トロニーの指示（2026-11-28）：決裁箱クライアント.NET 0.8.0（端末の持ち込み、QRなし）が出たので、Windowsを上げて公開する。PR #2798（エピネルが#2799として取り込み）、main `bc2b8261`。エピネルがfoxに配布物を作り、アニスが`publish-windows-app.ps1`で上げた。
+
+- 公開: https://github.com/kitepon/BellTeam/releases/tag/windows-app（題名「BellTeam Windows app 0.9.10」、タグは`bc2b8261`）。
+- 確認（配布物）: x64のzipの`BellTeam.dll`は0.9.10、`Kitepon.ApprovalBox.Client.dll`は0.8.0、`GoogleDesktopSecret`は35文字（値は表示していない）。
+- 確認（利用者の道）: 公開のinstallerでfoxへ導入。exeの版は`0.9.10+bc2b826108ee77c7ad47ed0b49f16434742456d6`、`--smoke-test`は成功（認証済み、SSE接続あり）。
+- 確認（持ち込み）: approval-boxの開発サーバー（peer_channel true）で、鍵穴の子の端末が`device.offer`を送り、検証用の親の署名でQRも参加コードも使わずにLiveになった。続けて画像つきの依頼・保留・保留を戻す・答え・親からの取り外しまで成功。QRで入る従来の道（AbxPeerProofTests）と、決裁箱・子参加の80件の試験も0.8.0で成功。
+- 確認できていない: 本番の決裁箱（peer_channelはまだfalse）で、fox の窓が持ち込みで入ること。本番の登録に、この持ち込みに署名できる親の端末が要る（ナユタのh08）。
