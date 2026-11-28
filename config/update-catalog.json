@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-28T13:13:03Z",
-  "expiresAt": "2026-12-05T13:13:03Z",
+  "publishedAt": "2026-11-28T13:47:47Z",
+  "expiresAt": "2026-12-05T13:47:47Z",
   "releases": [
     {
       "componentId": "usage",
@@ -489,8 +489,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "781a2e7ff8ba86b6cddf9d1b959d25ea0bc956be",
-      "versionId": "5fffd673626dfb78eade1df527ee329a69bf659a8417c1ad345d0b72d7ac4697",
+      "sourceCommit": "87a554c6fd182f55f0fe4f88e649ba1a26c8f916",
+      "versionId": "73138f6f17e00edead866ee8e09670b7c3fff298250022b6b0a39e4c8be6c1c5",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -498,16 +498,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T122511Z/execution-781a2e7ff8ba86b6cddf9d1b959d25ea0bc956be-linux-amd64.tar.gz",
-          "bytes": 3880952,
-          "sha256": "5fffd673626dfb78eade1df527ee329a69bf659a8417c1ad345d0b72d7ac4697"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T133410Z/execution-87a554c6fd182f55f0fe4f88e649ba1a26c8f916-linux-amd64.tar.gz",
+          "bytes": 3881183,
+          "sha256": "73138f6f17e00edead866ee8e09670b7c3fff298250022b6b0a39e4c8be6c1c5"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T122511Z/execution-781a2e7ff8ba86b6cddf9d1b959d25ea0bc956be-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11224,
-          "sha256": "38aef9387f4d2df1cbc64096ad4f31ffdec19105981ed5318c3a759277599ec9"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T133410Z/execution-87a554c6fd182f55f0fe4f88e649ba1a26c8f916-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10895,
+          "sha256": "3390a1e727267143379df9824e93f41349848d5fb97ace18b3dc646efaad43e6"
         },
-        "signerCommit": "781a2e7ff8ba86b6cddf9d1b959d25ea0bc956be"
+        "signerCommit": "87a554c6fd182f55f0fe4f88e649ba1a26c8f916"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -517,13 +517,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "長く休んでいた Claude の席を起こす時に、キャッシュが切れていれば新しく始め直す判断を、実行モジュールで行えるようになります。"
+        "席が生きているかの見分けと、Bot の管理の判断を、実行モジュールで行えるようになります（監査の指摘の直し）。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "781a2e7ff8ba86b6cddf9d1b959d25ea0bc956be",
-      "versionId": "a683b67971b6c662a3432b71f24c818c8b22180842acb57d63e1d01fbce3802f",
+      "sourceCommit": "87a554c6fd182f55f0fe4f88e649ba1a26c8f916",
+      "versionId": "d0b731896672694adc47b10428f7aef5953e3c500c2a7630d7b9b457a1bd390d",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -531,16 +531,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T122511Z/execution-781a2e7ff8ba86b6cddf9d1b959d25ea0bc956be-linux-arm64.tar.gz",
-          "bytes": 3880952,
-          "sha256": "a683b67971b6c662a3432b71f24c818c8b22180842acb57d63e1d01fbce3802f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T133410Z/execution-87a554c6fd182f55f0fe4f88e649ba1a26c8f916-linux-arm64.tar.gz",
+          "bytes": 3881183,
+          "sha256": "d0b731896672694adc47b10428f7aef5953e3c500c2a7630d7b9b457a1bd390d"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T122511Z/execution-781a2e7ff8ba86b6cddf9d1b959d25ea0bc956be-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11255,
-          "sha256": "80d51d9ae04a8e82b56bf43549d0767847f5e7584b095b47dc014970bb2d8c74"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T133410Z/execution-87a554c6fd182f55f0fe4f88e649ba1a26c8f916-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10989,
+          "sha256": "54ef4ec437e5ad30d022da20b99753848b02199af5ce2cc46008f68433e9ab5e"
         },
-        "signerCommit": "781a2e7ff8ba86b6cddf9d1b959d25ea0bc956be"
+        "signerCommit": "87a554c6fd182f55f0fe4f88e649ba1a26c8f916"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -550,7 +550,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "長く休んでいた Claude の席を起こす時に、キャッシュが切れていれば新しく始め直す判断を、実行モジュールで行えるようになります。"
+        "席が生きているかの見分けと、Bot の管理の判断を、実行モジュールで行えるようになります（監査の指摘の直し）。"
       ]
     },
     {
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "961af99f0ea41c3cafb266cbed61c50c7a32481b",
-      "versionId": "sha256:8a5084c26060406ceca1eb33fa5421dd654c24d771cfd9887fbe45b07db520ff",
+      "sourceCommit": "d12f0da1c529bb5454eaccc4a6ea8d0637ba192e",
+      "versionId": "sha256:b01f375a8ffe4862489ee9ac753ab5bf0f18074328e0a230d21991f2c25fcfb6",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:8a5084c26060406ceca1eb33fa5421dd654c24d771cfd9887fbe45b07db520ff"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b01f375a8ffe4862489ee9ac753ab5bf0f18074328e0a230d21991f2c25fcfb6"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -722,20 +722,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "認証仲介の中継で、SSH エージェントへの接続が詰まっても、短く待ち直すようになります。工程表（Lattice）が 0.116.0 になり、大きな工程表の読み出しが速くなります。"
+        "認証仲介の中継が、混み合った時に接続を断ることが減り、止まっている時の返事に理由が付きます。端末の鍵を持つ部品の起動と停止、席の生死の見分け、長く動く席の再起動などの監査での指摘が直ります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "961af99f0ea41c3cafb266cbed61c50c7a32481b",
-      "versionId": "sha256:8a5084c26060406ceca1eb33fa5421dd654c24d771cfd9887fbe45b07db520ff",
+      "sourceCommit": "d12f0da1c529bb5454eaccc4a6ea8d0637ba192e",
+      "versionId": "sha256:b01f375a8ffe4862489ee9ac753ab5bf0f18074328e0a230d21991f2c25fcfb6",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:8a5084c26060406ceca1eb33fa5421dd654c24d771cfd9887fbe45b07db520ff"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b01f375a8ffe4862489ee9ac753ab5bf0f18074328e0a230d21991f2c25fcfb6"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -744,7 +744,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "認証仲介の中継で、SSH エージェントへの接続が詰まっても、短く待ち直すようになります。工程表（Lattice）が 0.116.0 になり、大きな工程表の読み出しが速くなります。"
+        "認証仲介の中継が、混み合った時に接続を断ることが減り、止まっている時の返事に理由が付きます。端末の鍵を持つ部品の起動と停止、席の生死の見分け、長く動く席の再起動などの監査での指摘が直ります。"
       ]
     },
     {
