@@ -213,6 +213,7 @@ BUSINESS_FILES = {
         'src/approval-box-extension/entitlement.mjs',
         'src/approval-box-extension/link-plan.mjs',
         'src/approval-box-extension/origin-view.mjs',
+        'src/approval-box-extension/owner-lane.mjs',
         'src/module-ipc.mjs',
         'src/module-locks.mjs',
         'src/module-streams.mjs',
