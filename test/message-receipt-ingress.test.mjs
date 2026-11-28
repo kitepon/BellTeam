@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { callBellTeamTool } from '../src/mcp-tools.mjs'
+import { openSendGate } from '../src/conversation/send-gate.mjs'
 
 test('direct send tools reach the receiver despite unavailable Room reads and still validate the sender', async () => {
   let refreshes = 0, roomReads = 0
@@ -9,7 +10,7 @@ test('direct send tools reach the receiver despite unavailable Room reads and st
   ]), { async refresh() { refreshes++ } })
   const calls = []
   const receipt = { delivery: 'received', delivery_id: 'same-id' }
-  const context = { from: 'bot-a', registry,
+  const context = { from: 'bot-a', registry, sendGate: openSendGate,
     rooms: { async refresh() { roomReads++; throw Object.assign(new Error('unavailable'), { code: 'CONVERSATION_NOT_ACCEPTED' }) } },
     deliverMessage: async input => { calls.push(input); return receipt },
   }

@@ -7,6 +7,7 @@ import test from 'node:test'
 import { MessageAssets } from '../src/message-assets.mjs'
 import { AitermTransport } from '../src/aiterm-transport.mjs'
 import { BellTeamMessenger, userEnvelope } from '../src/messenger.mjs'
+import { RECEIVER_LINE } from '../src/conversation/send-gate.mjs'
 
 test('internal continuation guard rejects a changed target after fresh read without sending', async t => {
   const root = await mkdtemp(join(tmpdir(), 'continuation-guard-')); t.after(() => rm(root, { recursive: true, force: true }))
@@ -63,7 +64,7 @@ test('sendmessageは自然な宛名と本文だけを配達し、識別情報は
 
   assert.equal(calls[0][0], 'notify')
   assert.equal(calls[0][1], 'bell-grok-b')
-  assert.equal(calls[0][2], '「あかり」からあなたへ次のメッセージが届いています。\n\n応答してくれ')
+  assert.equal(calls[0][2], `「あかり」からあなたへ次のメッセージが届いています。\n\n${RECEIVER_LINE}\n\n応答してくれ`)
   assert.doesNotMatch(calls[0][2], /bell-grok-a|delivery-1|調査主任|調査担当/u)
   const { onStatus, onInterim, onAnswer, onTurnEnd, ...options } = calls[0][3]
   onTurnEnd({ startedAt: 's', endedAt: 'e' })

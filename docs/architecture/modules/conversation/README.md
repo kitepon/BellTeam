@@ -18,7 +18,7 @@
 - [自主回答と報告](observation.md)
 - [通話の本体受付](calls.md)
 - [機械席のstream-jsonをチャットの記録にする machine-stream](machine-stream.md)（契約と図。a471。AskUserQuestionのカードと答えを含む）
-- [sendmessageの二段構えと受け手への一行](send-gate.md)（設計。Owner 2026-11-28。裁定待ち）
+- [sendmessageの二段構えと受け手への一行](send-gate.md)（Owner 2026-11-28。トロニー裁定済み・実装済み）
 - [読み取り専用の分身への問い合わせ ask_readonly](fork-inquiry.md)
 - [選んだ発言への返信 reply_to](reply.md)（契約と図。実装はa265）
 - [会話画像の原寸取得・保存・共有 image-original](image-original.md)（契約と図。実装は`Content-Disposition`の追加だけ）

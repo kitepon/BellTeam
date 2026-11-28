@@ -1,11 +1,12 @@
 import { objectSchema } from './mcp-schema.mjs'
 import { resolveBotImagePath } from './bot-image-path.mjs'
 import { requireRoom, requireRoomMember, requireRepresentative } from './room-access.mjs'
+import { sendGate as defaultSendGate } from './conversation/send-gate.mjs'
 
 export const conversationTools = Object.freeze([
   {
     name: 'sendmessage',
-    description: '指定したBellTeam Botまたはuserへ直接メッセージを送る。user宛てで画像を提示する時は、回答全文と画像ファイルパスを一度に渡す。Bot宛てはAitermへ直ちに渡し、Aitermが実行中なら現在のターンへ差し込む。runningまたはsteeredは受付済みなので再送しない。',
+    description: '指定したBellTeam Botまたはuserへ直接メッセージを送る。user宛てで画像を提示する時は、回答全文と画像ファイルパスを一度に渡す。Bot宛てはAitermへ直ちに渡し、Aitermが実行中なら現在のターンへ差し込む。runningまたはsteeredは受付済みなので再送しない。Bot宛ては二段構えで、各宛先への最初の呼び出しは送らず、スキル assign-owner で宛先が正しいか判定する案内（SENDMESSAGE_OWNER_CHECK_REQUIRED）を返す。判定のあと同じ宛先でもう一度呼ぶと送る（一通ごとに二回）。user宛ては一度で送る。',
     inputSchema: objectSchema({
       target: { type: 'string', minLength: 1, description: '宛先Botの名前、Bot ID、またはuser' },
       message: { type: 'string', minLength: 1, description: '送るメッセージ' },
@@ -119,14 +120,18 @@ export const conversationTools = Object.freeze([
 const imagePath = (bot, image) => bot?.terminalId && bot?.projectRoot ? image : resolveBotImagePath(bot, image)
 
 // 呼出元のidentity・引数キー・台帳refreshは共通MCP入口で確認する。
-export async function callConversationTool({ name, args, from, registry, messenger, store, rooms, roomMessenger, deliverMessage, deliverForkInquiry, deliverRoomMessage, listQueued }) {
+export async function callConversationTool({ name, args, from, registry, messenger, store, rooms, roomMessenger, deliverMessage, deliverForkInquiry, deliverRoomMessage, listQueued, sendGate = defaultSendGate }) {
   if (name === 'sendmessage') {
     const { image, ...message } = args
-    return (deliverMessage ?? (value => messenger.sendmessage(value)))({
-      from, ...message,
-      target: args.target === 'user' ? 'user' : resolveBotTarget(registry, args.target),
+    const target = args.target === 'user' ? 'user' : resolveBotTarget(registry, args.target)
+    // send-gate.md: the first call to a Bot is not sent; the pair is settled only after the delivery is accepted.
+    const settle = target === 'user' ? null : sendGate.admit(from, registry.get(target))
+    const receipt = await (deliverMessage ?? (value => messenger.sendmessage(value)))({
+      from, ...message, target,
       image: image ? { path: await imagePath(registry.get(from), image) } : null,
     })
+    settle?.()
+    return receipt
   }
   if (name === 'ask_readonly') {
     if (args.target === 'user') throw new Error('FORK_TARGET_USER')

@@ -2,7 +2,7 @@
 
 Owner of this page: N102 (conversation). [Module contract](README.md) / [function map](../../feature-map.md). Task: `bellteam-dev-added/sendmessage-two-step-owner-check` (request from Tronie, Owner design 2026-11-28 17:0x JST).
 
-Status: **design for ruling, no code yet.** The open points are in [Open points](#open-points-for-the-ruling); the proposal below assumes the answers marked "proposed". Base read: `main` b08af044 — `src/mcp-conversation-tools.mjs` (`callConversationTool`), `src/mcp-tools.mjs` (`runBellTeamTool`), `src/seat-mcp.mjs` (`createSeatMcp`, `internalApi`), `src/messenger.mjs` (`directEnvelope`, `prepareDirect`, `notifyDirect`), `src/direct-receipt-assembly.mjs`, `src/member-identity.mjs`.
+Status: **ruled by Tronie 2026-11-28 17:1x JST (all nine points as proposed) and implemented.** The table [Rulings](#rulings) keeps the points and the answers. Code: `src/conversation/send-gate.mjs` (state, texts), the `sendmessage` branch of `callConversationTool`, `directEnvelope`; test `test/send-gate.test.mjs`. Base read: `main` b08af044 — `src/mcp-conversation-tools.mjs` (`callConversationTool`), `src/mcp-tools.mjs` (`runBellTeamTool`), `src/seat-mcp.mjs` (`createSeatMcp`, `internalApi`), `src/messenger.mjs` (`directEnvelope`, `prepareDirect`, `notifyDirect`), `src/direct-receipt-assembly.mjs`, `src/member-identity.mjs`.
 
 ## Contract (the Owner's words)
 
@@ -110,9 +110,9 @@ Line added for the receiver, between the existing preface and the body:
 
 The skill is named `assign-owner` in both, exactly as its frontmatter `name:`. The path is carried because a remote seat or a harness without a skill list can still open the file; the name is what a seat calls. Both strings live in one constant file (`send-gate.mjs`), so a rename of the skill changes one place.
 
-## Open points for the ruling
+## Rulings
 
-| # | Point | Proposed | Why / what else |
+| # | Point | Ruled (as proposed) | Why / what else |
 | --- | --- | --- | --- |
 | 1 | What "the next call" is keyed on | sender + resolved target Bot id | The judgment is about the target. Sender-only would let one refusal pass any wrong target. Including the message text would refuse a re-worded retry after the judgment. A fork seat resolves to its parent Bot (same sender id), so a fork shares its parent's pair. |
 | 2 | How long a pass lasts | one message: the key is deleted when the delivery is accepted, so the next message to the same target is refused again | Literal reading of the Owner's words and the strongest. Cost: two calls for every message, replies included. Alternative if that is too heavy: the pass stays open for the pair for N minutes (say 10) after the refusal; the state diagram gains one timer-free "judged at t" field and the self-exit is unchanged. |
@@ -120,15 +120,15 @@ The skill is named `assign-owner` in both, exactly as its frontmatter `name:`. T
 | 4 | How the first call answers | an MCP error (isError) with the code and text above, nothing stored | A normal result could be read as delivered ("running" / "steered" mean accepted). An error is what every harness shows to the model as "not done". |
 | 5 | Expiry of an armed pair | none; memory only, a body restart re-arms | Self-exit is the next call, so no timer is needed. A stale pass lets at most one unjudged message through, to a pair the sender already judged once. |
 | 6 | Calls made in parallel | known limit: two parallel first calls to one new target — the first is refused and arms, the second passes | The gate cannot tell a sibling from a call made after reading the refusal without a token the Owner's design does not have. |
-| 7 | Receiver line scope | every direct envelope whose sender is a Bot (id is not `user` or `scheduler`) | Covers sendmessage from seats and forks and Bot-sent lattice-facade messages. Not the Owner's messages, not scheduler / approval-box / capacity notices, not the `ask_readonly` envelope (it has its own text), not call-bridge calls. The stored message is not changed. |
-| 8 | The skill's own text | Tronie decides | SKILL.md says "For coordinators" and "never hand whose-is-this back to members". A receiver who runs it needs a short "receiver check" step (read the owner map for the request, decline if it is outside your scope per `roles.boundaries`). The line only works if SKILL.md says what a receiver does. |
+| 7 | Receiver line scope | every direct envelope whose sender is a Bot (id is not `user` or `scheduler`) | Covers sendmessage from seats and forks and Bot-sent lattice-facade messages. Not the Owner's messages, not scheduler / approval-box / capacity notices, not the `ask_readonly` envelope (it has its own text), not call-bridge calls. Implementation detail: **not a fork's answer relay** (`relayForkAnswer`, the record has `in_reply_to`): it answers a question and is not a request to accept, so `directEnvelope` takes `answer: true` there and at the two replay sites. The stored message is not changed. |
+| 8 | The skill's own text | Tronie wrote it (SKILL.md: "When you receive a request" / "Before you send a request") | SKILL.md says "For coordinators" and "never hand whose-is-this back to members". A receiver who runs it needs a short "receiver check" step (read the owner map for the request, decline if it is outside your scope per `roles.boundaries`). The line only works if SKILL.md says what a receiver does. |
 | 9 | Tool description | the `sendmessage` description gains one sentence on the two-step | The seat tool list digest (`SEAT_TOOLS_DIGEST`) changes, so connected seats re-list once. |
 
 ## Clients that call sendmessage today (no message may be lost)
 
 - Every Bot seat on the four harnesses reads the error and calls again: no loss.
 - **Machine callers that script the MCP tool** and would lose their request on the first error. Found by search (not a complete list): `/srv/bellteam/shared/tools/bughub-registration/registration.mjs` (to Mast, via `integrations/bellteam-mcp.mjs`), Mast's `workflow-watch.mjs` and `sec013-supplement-watch/watch.mjs`, and `bot-29f8f415/monitoring/notify.mjs`. Their target is fixed and already known to be right.
-- Proposed order so nothing is lost: (1) each owner's script retries **once** on the code `SENDMESSAGE_OWNER_CHECK_REQUIRED` (harmless before the gate exists); (2) then the gate goes live. I tell the script owners after the ruling, in their lanes.
+- Ruled order so nothing is lost: (1) each owner's script retries **once** on the code `SENDMESSAGE_OWNER_CHECK_REQUIRED` (harmless before the gate exists); (2) then the gate goes live. Chart: rows `sendmessage-two-step-retry-<owner>` (Emma bot-29f8f415, Mast bot-8d7c7d32, Helm bot-7bc9d11b, Elegg bot-c2adbe04, Nayuta bot-4366a50b, Rapunzel bot-2cb22a38) are the predecessors of `sendmessage-two-step-gate-adopt` (Epinel), which also follows the code task. Each owner was told directly on 2026-11-28.
 - Remote seats: the text names the skill and carries the path; a remote seat that cannot read the container path still calls the skill by name.
 
 ## Failure handling
@@ -142,6 +142,6 @@ The skill is named `assign-owner` in both, exactly as its frontmatter `name:`. T
 | Body restart | all keys gone; the first call re-arms |
 | target = user | as today |
 
-## Verification plan (small, after the ruling)
+## Verification
 
-`test/send-gate.test.mjs`: first call refused with the code and not stored; next call delivered and key deleted; another target is refused separately; a failed delivery keeps the key; `user` is not gated; `directEnvelope` adds the line for a Bot sender and not for `user` / `scheduler`; the replayed envelope from a stored record has the same line; both texts contain the exact string `assign-owner`. Existing `mcp-tools` / `seat-mcp` tests that call `sendmessage` get the second call or an unarmed gate in their setup.
+`test/send-gate.test.mjs`: the first call is refused with the code and nothing is delivered; the next call is delivered and the pass is spent; another target is refused separately; `user` and an unknown target are not gated; a delivery that fails after the pass keeps the pass; `directEnvelope` adds the line for a Bot sender (fork too) and not for `user`, `scheduler` or an answer relay; both texts contain the exact string `assign-owner`. The gate is injected as `sendGate` (default: the process-wide gate); tests that are not about the gate pass `openSendGate`. The replay sites (`messenger.mjs` resume, `direct-receipt-assembly.mjs`) call the same `directEnvelope` with the stored record, so they carry the same line; no separate test.
