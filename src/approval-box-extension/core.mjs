@@ -7,7 +7,7 @@ import { toViewDecision, summarize } from './origin-view.mjs'
 import { entitlementFrom, cacheMillis } from './entitlement.mjs'
 import { nextConnect } from './connect-state.mjs'
 import { planLink, targetChart, DECISION_PLAN, DECISION_LANE } from './link-plan.mjs'
-import { WITHDRAW_REASON } from './owner-lane.mjs'
+import { WITHDRAW_REASON, isOwnerLane, cardsToTell, adderOf, tellMessage, keyOf, TELL_PER_SCAN } from './owner-lane.mjs'
 import { planRelay, relayAccepted, RELAY_ROW_KEEP_MS, RELAY_FEATURE_START } from './answer-relay.mjs'
 import { approvalsError } from '../approval-box-extension-protocol.mjs'
 
@@ -268,16 +268,41 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
     caughtUp = true; lastCatchUp = now()
   }
 
-  // F9 withdrawal (README section 5b): the module never writes a card itself (Owner 2026-11-28, 「機械が出すんじゃなくて工程作ったやつが真面目に俺にお願いしろ」).
-  // A row it filed earlier (filed: true, machine-written text the Owner cannot read) is cancelled and dropped, once. Unavailable keeps the row for the next scan; a refusal (already answered) drops it.
+  // F9 (README section 5b). Two jobs, each scan: (O4) withdraw the machine-written requests of the first version; (O1) tell the Bot that added a startable Owner-lane task, hourly, until a request is linked.
+  // Nothing is written for the Owner by this module. P1 / messenger unavailable ends the scan quietly (O5).
+  let told = null
+  const toldPath = join(stateDir, 'owner-told.json')
+  const loadTold = async () => (told ??= JSON.parse((await files.read(toldPath)) ?? '{"items":{}}').items ?? {})
+  const saveTold = () => files.write(toldPath, `${JSON.stringify({ version: 1, items: told })}\n`)
   const ownerScan = async effect => {
     if (now() - lastOwnerScan < OWNER_SCAN_MS) return
     lastOwnerScan = now()
-    for (const row of (await loadRows()).filter(item => item.filed).slice(0, 10)) {
+    for (const row of (await loadRows()).filter(item => item.filed).slice(0, 10)) { // O4
       try { await effect('decisions.cancel', { decisionId: row.decisionId, reason: WITHDRAW_REASON }) } catch (error) { if (error?.code !== 'APPROVALS_EFFECT_REFUSED') return }
       rows = (await loadRows()).filter(item => item !== row)
       await saveRows()
     }
+    const record = await loadTold(), roster = new Set((await members(effect)).map(member => member.id)), seen = new Set()
+    let sent = 0
+    for (const chart of await effect('lattice.charts', {})) { // O1
+      const cards = (await effect('lattice.chart', { projectId: chart.projectId }).catch(() => ({ cards: [] }))).cards
+      for (const card of cards) if (isOwnerLane(card.lane) && (card.state === 'ready' || card.state === 'in-progress')) seen.add(keyOf(chart.projectId, card))
+      for (const card of cardsToTell({ projectId: chart.projectId, cards, rows: await loadRows(), told: record, now: now() })) {
+        if (sent >= TELL_PER_SCAN) break
+        const target = adderOf({ card, chart, roster })
+        if (!target) continue
+        const key = keyOf(chart.projectId, card), count = record[key]?.count ?? 0
+        if (count === 0) await effect('lattice.link', { projectId: chart.projectId, plan: card.plan, taskId: card.taskId }) // L18 then leaves the card to this telling
+        const answer = await effect('seat.message', { target, message: tellMessage({ projectId: chart.projectId, chartName: chart.name, card, count }) })
+        if (!relayAccepted(answer.delivery) && answer.delivery !== 'refused') continue // not taken: the next scan tries again
+        record[key] = { toldAt: new Date(now()).toISOString(), count: count + 1, to: target }
+        sent++
+        await saveTold()
+      }
+    }
+    // O2/O3: a told record whose card is no longer an open startable Owner card, or that has a link row, is dropped
+    const keep = Object.fromEntries(Object.entries(record).filter(([key]) => seen.has(key) && !rows.some(row => `${row.projectId}/${row.plan}/${row.taskId}` === key && (row.state === 'linked' || row.state === 'deferred' || row.state === 'diverged'))))
+    if (Object.keys(keep).length !== Object.keys(record).length) { told = keep; await saveTold() }
   }
 
   const connection = async effect => {

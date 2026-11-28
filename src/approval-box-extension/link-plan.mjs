@@ -1,6 +1,7 @@
 // Approval Box extension F3: the decision -> chart-task link rules L1-L10 (README) as a pure planner. It decides; an executor calls the Lattice
 // facade (ownerTask / link / chart) and writes the link row. Nothing here reads or writes a store.
 import { CHART_LABEL } from './origin-view.mjs'
+import { isOwnerLane } from './owner-lane.mjs'
 
 export const DECISION_PLAN = 'approval-box'
 export const DECISION_LANE = 'approval-box' // the extension is the worker of a wait on the Owner; lane `owner` is no longer used (a188)
@@ -31,7 +32,7 @@ export function planLink({ d, row, rows = [], chart }) {
     const base = { decisionId: d.id, projectId: chart.projectId, sessionLabel: d.origin.sessionLabel, handledVersion: d.version }
     if (named) { // L8/L10: attach to the existing approval-box-lane task
       const card = chart.cards.find(c => c.id === `${named.plan}/${named.taskId}`)
-      if (!card || card.lane !== DECISION_LANE) return { actions: [], row: null }
+      if (!card || !isOwnerLane(card.lane)) return { actions: [], row: null }
       return { actions: [{ op: 'link', projectId: chart.projectId, plan: named.plan, taskId: named.taskId }], row: { ...base, plan: named.plan, taskId: named.taskId, state: 'linked', attached: true } }
     }
     const taskId = taskIdOf(d.id)
