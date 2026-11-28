@@ -387,3 +387,12 @@ test('http method paths: an entry that cannot be read refuses every request of t
     const r = await ask(t, { method: 'POST', path: '/api/hook/AbCdEfGhIjKlMnOpQrSt', body: Buffer.from('{}').toString('base64') }); assert.equal(r.outcome, 'error', bad); assert.equal(t.seen.length, 0, bad)
   }
 })
+
+test('http exact base with a query: "/?wait=true" sends the stored URL with that query; the base path is still not learnable; other paths with the base unchanged', async () => {
+  const hook = 'https://discord.example.com/api/webhooks/123456789/AbCdEfGhIjKlMnOpQrStUvWxYz0123'
+  const t = setup({ item: { http_base: hook, http_auth: 'none', http_methods: 'POST' }, answer: () => new Response('{"id":"msg1"}') })
+  const r = await ask(t, { method: 'POST', path: '/?wait=true', body: Buffer.from('{"content":"x"}').toString('base64') })
+  assert.equal(r.outcome, 'granted'); assert.equal(t.seen[0].url, hook + '?wait=true')
+  assert.equal((await ask(t, { method: 'POST', path: '/', body: Buffer.from('{}').toString('base64') })).outcome, 'granted'); assert.equal(t.seen[1].url, hook)
+  assert.equal((await ask(t, { method: 'POST', path: '/other?wait=true' })).outcome, 'error')
+})
