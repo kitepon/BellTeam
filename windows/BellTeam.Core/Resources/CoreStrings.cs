@@ -315,6 +315,7 @@ internal static class CoreStrings
     public static string LatticeChart_DegradedPills_2 => Get("LatticeChart_DegradedPills_2");
     public static string LatticeChart_Detail_1(object? a0) => string.Format(CultureInfo.CurrentCulture, Get("LatticeChart_Detail_1"), a0);
     public static string LatticeChart_Detail_2 => Get("LatticeChart_Detail_2");
+    public static string LatticeChart_Detail_3(object? a0, object? a1, object? a2) => string.Format(CultureInfo.CurrentCulture, Get("LatticeChart_Detail_3"), a0, a1, a2);
     public static string LatticeChart_EdgeChip_1(object? a0) => string.Format(CultureInfo.CurrentCulture, Get("LatticeChart_EdgeChip_1"), a0);
     public static string LatticeChart_ExternalChart_1 => Get("LatticeChart_ExternalChart_1");
     public static string LatticeChart_ExternalTitle_1 => Get("LatticeChart_ExternalTitle_1");

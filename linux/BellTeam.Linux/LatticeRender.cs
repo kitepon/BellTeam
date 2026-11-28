@@ -6,7 +6,7 @@ namespace BellTeam.Linux;
 // The render modes of the two separate windows (windows/BellTeam.App/App.xaml.cs --render-lattice and --render-workgraph): the real reads and drawing in a headless window.
 internal static class LatticeRender
 {
-    public static readonly string[] Scenes = ["list", "list-many", "list-back", "list-empty", "old-server", "single", "chart", "authored", "tree", "tree-detail", "history", "owner", "owner-lanes", "detail", "highlight", "unverified", "last-verified", "unknown", "degraded", "reconnecting", "unavailable", "not-found", "narrow", "connections", "connections-end"];
+    public static readonly string[] Scenes = ["list", "list-many", "list-back", "list-empty", "old-server", "single", "chart", "authored", "tree", "tree-detail", "history", "owner", "owner-lanes", "detail", "detail-waiters", "highlight", "unverified", "last-verified", "unknown", "degraded", "reconnecting", "unavailable", "not-found", "narrow", "connections", "connections-end"];
 
     private static async Task Until(Func<bool> done, string what)
     {
@@ -43,6 +43,7 @@ internal static class LatticeRender
             await Until(() => scene switch { "not-found" => chart.Feed.Connection == LatticeConnection.NotFound, "reconnecting" => chart.Feed.Connection == LatticeConnection.Reconnecting, _ => chart.Feed.Snapshot is not null }, "工程表のsnapshotを受け取れませんでした。");
             Dispatcher.UIThread.RunJobs(); lattice.UpdateLayout();
             if (scene is "detail" or "tree-detail") chart.OpenDetail("p1/t04", morph: false);
+            else if (scene == "detail-waiters") chart.OpenDetail("p1/t08", morph: false);
             if (scene == "owner") chart.OpenDetail("p1/t11", morph: false);
             if (scene == "owner-lanes") { chart.ScrollBoard(chart.Board.CardRect("p1/t09")!.Value.X, chart.Board.CardRect("p1/t11")!.Value.Y - 120); chart.ScrollWaitsToEnd(); }
             if (scene == "highlight") chart.Highlight("bot-flora");

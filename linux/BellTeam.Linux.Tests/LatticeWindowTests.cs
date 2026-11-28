@@ -99,6 +99,33 @@ public sealed class LatticeWindowTests
         window.Close();
     });
 
+    // Tasks of other charts that wait on a card (screen-spec 詳細: 次の工程 and the waiters): after the successors, oldest first, a retired one never, missing = none.
+    [Fact]
+    public void TheDetailListsWaitersOfOtherChartsOldestFirst()
+    {
+        var snapshot = System.Text.Json.JsonSerializer.Deserialize<LatticeSnapshot>("""
+            {"projectId":"proj","members":[{"botId":"bot-k","name":"キロ"}],
+             "cards":[{"id":"p1/t01","title":"出す","state":"in-progress","producer":"bot-k","waiters":[
+                        {"ref":"b:p/new","reason":"新しい方","since":"2026-11-28T03:00:00Z"},
+                        {"ref":"a:p/old","reason":"","since":"2026-11-28T01:00:00Z"},
+                        {"ref":"c:p/gone","since":"2026-11-28T02:00:00Z"},
+                        {"ref":"d:p/unread","since":"2026-11-28T02:30:00Z"}]},
+                      {"id":"p1/t02","title":"次","state":"pending"}],
+             "edges":[{"from":"p1/t01","to":"p1/t02","waiting":true}],
+             "externals":[{"id":"b:p/new","projectId":"b","cardId":"p/new","chartName":"B","title":"待つ工程","state":"pending","finished":false,"producer":"bot-k"},
+                          {"id":"a:p/old","projectId":"a","cardId":"p/old","chartName":"A","title":"先に待った工程","state":"done","finished":true},
+                          {"id":"c:p/gone","projectId":"c","cardId":"p/gone","title":"外れた工程","state":"retired","finished":true}]}
+            """, BellApi.Json)!;
+        var detail = LatticeChart.Detail(snapshot, "p1/t01", DateTimeOffset.Parse("2026-11-28T04:00:00Z"))!;
+        Assert.Equal(["先に待った工程", "ほかの工程表の工程", "待つ工程"], detail.Waiting!.Select(waiter => waiter.Title));
+        Assert.Equal(new LatticeCardRef("a", "p/old"), detail.Waiting![0].External);
+        Assert.Equal(("Aの工程表", LatticeChart.ExternalUnread, "新しい方"), (detail.Waiting[0].Chart, detail.Waiting[1].StateText, detail.Waiting[2].Reason));
+        Assert.Equal("次の工程：「待つ工程」（Bの工程表）、" + detail.Waiting[2].StateText, detail.Waiting[2].Label);
+        Assert.Equal(["次"], detail.Next.Select(link => link.Title));
+        Assert.Empty(LatticeChart.Detail(snapshot, "p1/t02", DateTimeOffset.UtcNow)!.Waiting!);
+        Assert.Equal(0, LatticeChart.Counts(snapshot).Connections);   // a waiter is no 接続 of this card
+    }
+
     // The 接続 panel starts folded to the right-edge handle (count red: a row's producer is in ブロック); the handle opens it, its close folds it, and the choice outlives the chart.
     [Fact]
     public Task TheConnectionPanelStartsFoldedAndRemembersItsState() => Ui.Run(async () =>

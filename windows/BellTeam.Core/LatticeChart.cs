@@ -81,7 +81,11 @@ public sealed record LatticeCard
     public bool IsCounted => Counted ?? !Archived;
     /// <summary>Open 接続 (a161, Lattice 0.104.0; missing = none, an older server): a task of another chart, a schedule or a 優先接続. Never an edge; read through LatticeChart.OpenConnections.</summary>
     public LatticeConnectionEntry[] Connections { get; init; } = [];
+    /// <summary>The tasks of OTHER charts whose open 接続 points at this card (2026-11-28, Lattice K11 (b); missing = none, an older server): listed under 次の工程 in 詳細, never an edge or a count. Read through LatticeChart.Detail.</summary>
+    public LatticeWaiterEntry[] Waiters { get; init; } = [];
 }
+/// <summary>One waiter of a card: Ref = its externals[] id.</summary>
+public sealed record LatticeWaiterEntry(string? Ref, string? Reason, DateTimeOffset? Since);
 /// <summary>One 接続 of a card. Kind task (Ref = the externals[] id) | schedule (Ref = its id) | priority (Agent = the Bot that asked); State open or null = open, only those count and draw.</summary>
 public sealed record LatticeConnectionEntry(string? Kind, string? Ref, string? Agent, string? Reason, DateTimeOffset? Since, string? State = "open");
 public sealed record LatticePhase(string Id, string? Title);
@@ -108,7 +112,9 @@ public sealed record LatticeLayout(IReadOnlyList<LatticeLane> Lanes, IReadOnlyDi
 public sealed record LatticeConnectionRow(string Key, string Kind, string CardId, LatticePerson? Owner, string Headline, string OwnerText, string Length, string Reason, string Mark, LatticePerson? Agent, string Title, string? Chart, LatticePerson? Producer, string StateText, LatticeStateInfo Info, bool Emphasized, bool CanChat, LatticeCardRef? External, string Label);
 public sealed record LatticeRailItem(string BotId, LatticePerson Member, bool Working, bool Blocked, int Connections);
 public sealed record LatticeLink(string Id, string Title, string State, LatticePerson? Producer, string StateText);
-public sealed record LatticeDetail(LatticeCard Card, LatticePerson? Producer, LatticeStateInfo Info, string StateText, IReadOnlyList<LatticeLink> Previous, IReadOnlyList<LatticeLink> Next, string StartedText);
+/// <summary>A waiter row of 詳細 (a task of another chart): tapping it opens that chart at that card.</summary>
+public sealed record LatticeWaiter(LatticeCardRef External, string Title, string Chart, LatticePerson? Producer, string State, string StateText, LatticeStateInfo Info, string Reason, string Label);
+public sealed record LatticeDetail(LatticeCard Card, LatticePerson? Producer, LatticeStateInfo Info, string StateText, IReadOnlyList<LatticeLink> Previous, IReadOnlyList<LatticeLink> Next, string StartedText, IReadOnlyList<LatticeWaiter>? Waiting = null);
 public sealed record LatticeBanner(string Tone, string Text, string Next, bool Dim);
 /// <summary>A tree box: Kind root / phase / card. Root and phase carry done/total and the phase tone (blocked, in-progress, done, pending).</summary>
 public sealed record LatticeTreeNode(string Key, string Kind, string Label, LatticeCard? Card, double X, double Y, double Width, double Height, int Done, int Total, string Tone);
@@ -435,7 +441,19 @@ public static class LatticeChart
         return new(card, ownerOf(card), StateInfo(card.State), ProducerStateText(card, card.State, ownerOf(card), now),
             snapshot.Edges.Where(edge => edge.To == cardId).Select(edge => Link(edge.From)).OfType<LatticeLink>().ToList(),
             snapshot.Edges.Where(edge => edge.From == cardId).Select(edge => Link(edge.To)).OfType<LatticeLink>().Where(link => link.State != "retired").ToList(),   // a retired card is no live successor (a185, as Web)
-            card.StartedAt is { } started ? CoreStrings.LatticeChart_Detail_1(FormatJst(started)) : CoreStrings.LatticeChart_Detail_2);
+            card.StartedAt is { } started ? CoreStrings.LatticeChart_Detail_1(FormatJst(started)) : CoreStrings.LatticeChart_Detail_2, Waiters(snapshot, card, now));
+    }
+    // After the same-chart successors, oldest since first; a retired waiter is no next step. The waiter's facts come from externals[] as for a 接続 (unread = 読めていません).
+    private static List<LatticeWaiter> Waiters(LatticeSnapshot snapshot, LatticeCard card, DateTimeOffset now)
+    {
+        var lookup = Lookup(snapshot); var externals = Externals(snapshot);
+        return (card.Waiters ?? []).Where(waiter => waiter.Ref is { Length: > 0 }).OrderBy(waiter => waiter.Since ?? DateTimeOffset.MaxValue).Select(waiter =>
+        {
+            var id = waiter.Ref!; var colon = id.IndexOf(':');
+            var ext = externals.GetValueOrDefault(id) ?? new LatticeExternal(id, colon < 0 ? id : id[..colon], colon < 0 ? "" : id[(colon + 1)..], null, null, null, false, null);
+            var producer = ext.Producer is { Length: > 0 } maker ? lookup(maker) : null; var title = ExternalTitle(ext); var chart = ExternalChart(ext); var state = ExternalState(ext, producer, now);
+            return (Ext: ext, Waiter: new LatticeWaiter(new(ext.ProjectId, ext.CardId), title, chart, producer, ext.State ?? "pending", state, StateInfo(ext.State), waiter.Reason ?? "", CoreStrings.LatticeChart_Detail_3(title, chart, state)));
+        }).Where(item => item.Ext.State != "retired").Select(item => item.Waiter).ToList();
     }
 
     public static LatticeBanner? Banner(LatticeSnapshot snapshot) => snapshot.State switch
