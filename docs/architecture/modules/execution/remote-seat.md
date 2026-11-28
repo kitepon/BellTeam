@@ -72,19 +72,21 @@ ports.ingress.seatCredential.loadTerminalKey({terminalId, memberId: botId, ref: 
   -> aiterm.credential-load.v1 {accepted: true, ref, handle, revision}
 ```
 
-- Terminal key loader (Owner ruling B 2026-11-27, no service account in the parent): for a terminal whose key is mediated, `loadTerminalKey` does not resolve the handle. It asks the 認証仲介 module to run `/app/scripts/terminal-key-load <terminalId> --ref R --handle H --revision N` as the registered operator Bot (grants by Sakura; item title = those command words, field SSH_KEY). The module runs the loader as the seat uid with SSH_KEY in the loader's own environment; the loader pipes it to `credential-load` stdin and to the terminal's ssh-agent. The parent gets only the exit code and the Aiterm DTO json; `KEY_NOT_MEDIATED` (no item) falls back to the usage path above.
+- Terminal keys through the 認証仲介 module's ssh agent (Owner ruling 2026-11-28;): for the three terminals `fox-windows`, `macbook`, `rabbit-linux` no key is loaded anywhere. `createTerminalKeyHolder` (`src/terminal-key-holder.mjs`) runs ONE long-lived `auth ssh fox,macbook,rabbit -- /bin/sh -c <holder script> terminal-key-holder /tmp/bellteam-terminals/agent/module.sock` as the seat user from the operator Bot's folder (grants "sshkey fox|macbook|rabbit sign", Sakura; standing, no TTL). The module serves an agent on `/dev/shm/auth-XXXX/agent.sock` while the command runs; the script repoints the one stable symlink at it and removes it on exit while it is still its own. The port the terminals core reads is `{owns(terminalId), available(terminalId), agentSocket(terminalId)}`: `owns` is true for those three only (anything else stays on usage), `available` = the agent lists that terminal's key (`ssh-add -l` on the stable path, shared by concurrent callers, cached 15 s, 3 s while empty; never throws), `agentSocket` = the stable path (the `identity_agent` of every pinned remote call and of the forward keeper, which never re-reads a path). `loadTerminalKey` for an owned terminal loads nothing: it answers an accepted receipt (`source: 'module-agent'`) when the agent lists the key, else `CREDENTIAL_UNAVAILABLE`.
 
 ```mermaid
 flowchart LR
-  LTK["parent loadTerminalKey / terminals loadKey"] -->|"facade.exec {botId: operator, command: [loader, T], args}"| Mod["認証仲介 module (grant, audit)"]
-  Mod -->|"seat runner, uid 1000, SSH_KEY in loader env"| Loader["/app/scripts/terminal-key-load"]
-  Loader -->|"stdin"| CL["aiterm-remote-terminal credential-load"]
-  Loader -->|"stdin"| AG["ssh-add: per-terminal agent"]
-  Loader -->|"exit code + DTO json (no key)"| Mod
-  Mod -->|"exit_code, stdout"| LTK
-  LTK -.->|"KEY_NOT_MEDIATED"| Usage["usage withResolved (stored keys)"]
+  Body["body start: createApplicationServices"] -->|"start(), supervise"| Holder["auth ssh fox,macbook,rabbit -- holder script&lt;br/&gt;(seat uid, operator Bot folder)"]
+  Holder --> Mod["認証仲介 module (grant, audit)"]
+  Mod -->|"agent.sock on /dev/shm"| Holder
+  Holder -->|"ln -sf, atomic"| Link["/tmp/bellteam-terminals/agent/module.sock"]
+  Terminals["terminals core"] -->|"available / agentSocket (per call)"| Port["terminal key holder port"]
+  Port -.->|"ssh-add -l on the link"| Link
+  Terminals -->|"remote.ssh.identity_agent = the link"| Aiterm["Aiterm pinned calls + keeper (forward id module-&lt;terminalId&gt;)"]
+  Aiterm -->|"ssh"| Link
 ```
 
+Protects the keys: they exist only inside the module and the agent it serves; the parent, Aiterm and every file never hold one. Self-exit: a holder that exits (module restart does not end it; a container restart does) is started again with a 2 s to 30 s backoff and nothing waits for a person; while it is down `available` is false and the launch is `CREDENTIAL_UNAVAILABLE` until it is back.
 - Molly #813: the parent resolves the handle through Mika (`purpose: terminal.ssh`, expected revision) and pipes the raw key to `aiterm-remote-terminal credential-load --ref R --terminal-id ID --handle UUID --revision N --purpose ssh-key` on stdin as UID1000. Execution never holds the value; it never lands on disk, argv, env, logs, MCP arguments or the PTY.
 - A receipt that is not `accepted` for the same handle/revision, or any error (binding error code, `TERMINAL_KEY_LOAD_UNAVAILABLE`, `TERMINAL_KEY_LOAD_INVALID`, `CREDENTIAL_UNAVAILABLE`, Mika's stale revision), is `CREDENTIAL_UNAVAILABLE` (`not_started`); `loadKey`'s caller arms terminals' observer, and Mika's availability event (terminals `onCredentialEvent`) drains the wait.
 - Native-key terminals (`credentialRevision`, no `credential`) are unchanged: no load.

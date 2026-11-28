@@ -51,7 +51,7 @@ import { createAuthMediationFacade } from './auth-mediation-facade.mjs'
 import { createAuthMediationRelay } from './auth-mediation-relay.mjs'
 import { createRunningExclusions } from './running-exclusions.mjs'
 import { createSeatCredentials } from './seat-credentials.mjs'
-import { createTerminalKeyLoader, TERMINAL_KEY_OPERATOR } from './terminal-key-loader.mjs'
+import { createTerminalKeyHolder, TERMINAL_KEY_OPERATOR } from './terminal-key-holder.mjs'
 import { createCredentialRefresh } from './secret-credential-refresh.mjs'
 import { REMOTE_SEAT_MCP_PATH, seatCandidates } from './seat-mcp.mjs'
 import { TERMINALS_UNAVAILABLE } from './http-terminals-api.mjs'
@@ -118,9 +118,10 @@ export async function loadTerminalKey({ credentials, terminalId, memberId = null
   if (typeof terminalId !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/u.test(terminalId) || !uuidText(ref) || !uuidText(handle)
     || !Number.isSafeInteger(revision) || revision < 1 || (memberId !== null && typeof memberId !== 'string'))
     throw TERMINAL_KEY_LOAD_FAILED('TERMINAL_KEY_LOAD_INVALID', 400)
-  // The 認証仲介 module runs the loader with the key in its own environment: the parent never holds it. A terminal with no mediated item falls through to usage.
+  // The 認証仲介 module's ssh agent serves the key: nothing is loaded into Aiterm and the parent never holds it. The receipt only says the agent holds this terminal's key.
   if (reader?.owns(terminalId)) {
-    try { return await reader.load({ terminalId, memberId, ref, handle, revision }) } catch (error) { if (error?.code !== 'KEY_NOT_MEDIATED') throw error }
+    if ((await reader.available(terminalId)).available !== true) throw TERMINAL_KEY_LOAD_FAILED('CREDENTIAL_UNAVAILABLE')
+    return { schema: 'aiterm.credential-load.v1', accepted: true, ref, handle, revision, source: 'module-agent' }
   }
   if (typeof credentials?.withResolved !== 'function') throw TERMINAL_KEY_LOAD_FAILED('CREDENTIAL_UNAVAILABLE')
   return credentials.withResolved(handle, { terminalId, memberId, purpose: 'terminal.ssh', expectedRevision: revision }, async value => {
@@ -286,7 +287,9 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     onDiagnostic: conversationDiagnosticPort(diagnostics), onState: state => { updateCenter?.notify(); if (state.phase === 'running' && state.available) directMessages?.requestDrain() } })
   // Remote seats (remote-seat-ingress.md): terminals core is an in-parent injectable; seat credentials are parent state.
   // authMediation is built later in this function, so the loader reads it lazily.
-  const terminalKeyLoader = createTerminalKeyLoader({ authMediation: () => authMediation, operatorBotId: TERMINAL_KEY_OPERATOR })
+  // The module's ssh agent holds the three terminal keys (terminal-keys-module-agent): started once, it needs the operator Bot's folder as its caller identity.
+  const operatorProject = bots.get(TERMINAL_KEY_OPERATOR)?.project ?? null
+  const terminalKeyLoader = operatorProject ? createTerminalKeyHolder({ run: createSeatProcessRunner(operatorProject, { environment: 'base' }), report: report => diagnostics.record(report) }) : null
   const seatCredentials = createSeatCredentials({ path: join(root, 'state/seat-credentials.json') })
   // remote-user-tools.md U1: names/kinds of the user-global MCP servers for a Bot's harness, read as the seat user.
   const listUserToolsFor = async botId => {
@@ -305,7 +308,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     return spawn(spec.command, spec.args, { env: spec.env, stdio: ['pipe', 'pipe', 'pipe'] })
   } })
   terminals = createTerminalsCore ? createTerminalsCore({ stateRoot: join(root, 'state'), credentials: usageAssembly?.credentials ?? null,
-    keyReader: terminalKeyReader ?? terminalKeyLoader, report: report => diagnostics.record(report) }) : null
+    keyReader: terminalKeyReader ?? terminalKeyLoader ?? null, report: report => diagnostics.record(report) }) : null
   // RS11: native SSH credential status comes from Elegg's one-shot UID 1000 bin; usage validates the DTO.
   if (terminals && usageAssembly?.credentials?.setNativeProvider) usageAssembly.credentials.setNativeProvider({ status: ref => remoteTerminalStatus(root, ref) })
   // RS12: bind an Aiterm-held key ref to a registered terminal; the target comes from the record, never the caller.
@@ -346,7 +349,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     reveal: credentialRef => seatCredentials.reveal(credentialRef),
     // RS13: execution calls this before launching on a secret-backed terminal (target.credential {handle, revision}).
     loadTerminalKey: ({ terminalId, memberId = null, ref, handle, revision }) => loadTerminalKey({ credentials: usageAssembly?.credentials ?? null,
-      terminalId, memberId, ref, handle, revision, run: createSeatProcessRunner(root), reader: terminalKeyReader ?? terminalKeyLoader }),
+      terminalId, memberId, ref, handle, revision, run: createSeatProcessRunner(root), reader: terminalKeyReader ?? terminalKeyLoader ?? null }),
   })
   if (executionFactory) {
     const selection = adoptionFactory({ root }), selected = await selection.read()
