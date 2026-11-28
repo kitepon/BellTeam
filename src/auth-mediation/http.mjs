@@ -350,7 +350,8 @@ export async function callHttp(fields, request, fetchImpl = fetch, rotation = nu
   }
   if (body && (body.length > REQUEST_BODY_MAX || ['GET', 'HEAD'].includes(request.method))) throw refuse('The body is not allowed.')
   function applyQts(sid) { // the module's session id: a form field for a body, a query field for a GET; the caller cannot set it
-    if (['GET', 'HEAD'].includes(request.method)) { url.searchParams.set('sid', sid); return }
+    const type = (headers['content-type'] ?? 'application/x-www-form-urlencoded').split(';')[0].trim().toLowerCase()
+    if (['GET', 'HEAD'].includes(request.method) || type !== 'application/x-www-form-urlencoded') { url.searchParams.set('sid', sid); return } // a multipart upload (File Station) keeps its body byte for byte: the sid goes in the query
     const own = new URLSearchParams(body?.toString('utf8') ?? ''); own.set('sid', sid); body = Buffer.from(own.toString()); headers['content-type'] = 'application/x-www-form-urlencoded'
   }
   if (fields.http_auth === 'aws-sigv4' && !passthrough(fields, url)) { // after every header and the body are final: the signature covers them
