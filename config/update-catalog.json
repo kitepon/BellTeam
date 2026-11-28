@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-28T11:48:51Z",
-  "expiresAt": "2026-12-05T11:48:51Z",
+  "publishedAt": "2026-11-28T12:31:06Z",
+  "expiresAt": "2026-12-05T12:31:06Z",
   "releases": [
     {
       "componentId": "usage",
@@ -489,8 +489,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "9874c94a1364a2cc140f3f363fd3b6d532bc9575",
-      "versionId": "ef807ccca95ead2cd09df7baeda87fde7bbf5a0bf98259dce896128db60e881f",
+      "sourceCommit": "781a2e7ff8ba86b6cddf9d1b959d25ea0bc956be",
+      "versionId": "5fffd673626dfb78eade1df527ee329a69bf659a8417c1ad345d0b72d7ac4697",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -498,16 +498,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T065200Z/execution-9874c94a1364a2cc140f3f363fd3b6d532bc9575-linux-amd64.tar.gz",
-          "bytes": 3882600,
-          "sha256": "ef807ccca95ead2cd09df7baeda87fde7bbf5a0bf98259dce896128db60e881f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T122511Z/execution-781a2e7ff8ba86b6cddf9d1b959d25ea0bc956be-linux-amd64.tar.gz",
+          "bytes": 3880952,
+          "sha256": "5fffd673626dfb78eade1df527ee329a69bf659a8417c1ad345d0b72d7ac4697"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T065200Z/execution-9874c94a1364a2cc140f3f363fd3b6d532bc9575-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11083,
-          "sha256": "aa6d44f7aacacbfaea8a6e32614a881a14e5a05c92978ba90c92bed2fa3c1eeb"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T122511Z/execution-781a2e7ff8ba86b6cddf9d1b959d25ea0bc956be-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11224,
+          "sha256": "38aef9387f4d2df1cbc64096ad4f31ffdec19105981ed5318c3a759277599ec9"
         },
-        "signerCommit": "9874c94a1364a2cc140f3f363fd3b6d532bc9575"
+        "signerCommit": "781a2e7ff8ba86b6cddf9d1b959d25ea0bc956be"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -517,13 +517,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "遠隔の席の転送の準備に、接続先を渡すようになり、fox・macbook・rabbit の席が起動できます。"
+        "長く休んでいた Claude の席を起こす時に、キャッシュが切れていれば新しく始め直す判断を、実行モジュールで行えるようになります。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "9874c94a1364a2cc140f3f363fd3b6d532bc9575",
-      "versionId": "43fbb53ea6737243efdeed7e4d5e444b109e753bd1b3539011c6b2aa8ae72b43",
+      "sourceCommit": "781a2e7ff8ba86b6cddf9d1b959d25ea0bc956be",
+      "versionId": "a683b67971b6c662a3432b71f24c818c8b22180842acb57d63e1d01fbce3802f",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -531,16 +531,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T065200Z/execution-9874c94a1364a2cc140f3f363fd3b6d532bc9575-linux-arm64.tar.gz",
-          "bytes": 3882600,
-          "sha256": "43fbb53ea6737243efdeed7e4d5e444b109e753bd1b3539011c6b2aa8ae72b43"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T122511Z/execution-781a2e7ff8ba86b6cddf9d1b959d25ea0bc956be-linux-arm64.tar.gz",
+          "bytes": 3880952,
+          "sha256": "a683b67971b6c662a3432b71f24c818c8b22180842acb57d63e1d01fbce3802f"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T065200Z/execution-9874c94a1364a2cc140f3f363fd3b6d532bc9575-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10993,
-          "sha256": "ad825197586665daa73f600b8256f19835dcc1e57c2607620f305b7e0430aec4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T122511Z/execution-781a2e7ff8ba86b6cddf9d1b959d25ea0bc956be-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11255,
+          "sha256": "80d51d9ae04a8e82b56bf43549d0767847f5e7584b095b47dc014970bb2d8c74"
         },
-        "signerCommit": "9874c94a1364a2cc140f3f363fd3b6d532bc9575"
+        "signerCommit": "781a2e7ff8ba86b6cddf9d1b959d25ea0bc956be"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -550,13 +550,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "遠隔の席の転送の準備に、接続先を渡すようになり、fox・macbook・rabbit の席が起動できます。"
+        "長く休んでいた Claude の席を起こす時に、キャッシュが切れていれば新しく始め直す判断を、実行モジュールで行えるようになります。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "c8ff5bce511ab95a4540d73e842c7ca12bec1e13",
-      "versionId": "bd0bc35f95634c65f5771348cf5e8ff65f84fcbefb301f9f562d4ade3443fa4e",
+      "sourceCommit": "781a2e7ff8ba86b6cddf9d1b959d25ea0bc956be",
+      "versionId": "4d4031a407549139052d4bdd6a8bbb71662d6a36b8382ed0dfa5a4bf794445a1",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -564,16 +564,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T013933Z/members-c8ff5bce511ab95a4540d73e842c7ca12bec1e13-linux-amd64.tar.gz",
-          "bytes": 4580048,
-          "sha256": "bd0bc35f95634c65f5771348cf5e8ff65f84fcbefb301f9f562d4ade3443fa4e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T122525Z/members-781a2e7ff8ba86b6cddf9d1b959d25ea0bc956be-linux-amd64.tar.gz",
+          "bytes": 4620961,
+          "sha256": "4d4031a407549139052d4bdd6a8bbb71662d6a36b8382ed0dfa5a4bf794445a1"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T013933Z/members-c8ff5bce511ab95a4540d73e842c7ca12bec1e13-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11000,
-          "sha256": "a20df2c2f03e47fa68975f2446c5591ad743c442905d34180bd6476310f74a03"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T122525Z/members-781a2e7ff8ba86b6cddf9d1b959d25ea0bc956be-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11145,
+          "sha256": "0b9c18f0a85a9adb9af2100acb752ea74eeb13e111d01aab5bcd7ddbe06e208e"
         },
-        "signerCommit": "c8ff5bce511ab95a4540d73e842c7ca12bec1e13"
+        "signerCommit": "781a2e7ff8ba86b6cddf9d1b959d25ea0bc956be"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -590,13 +590,13 @@
         }
       },
       "changes": [
-        "共通規範に、正本の文書は現在の状態だけを書く（古い手順や裁定は archive へ移す）という規則が加わります。"
+        "席に見せる共通のルール（common-agents.md）が、中身を変えずに短くなります。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "c8ff5bce511ab95a4540d73e842c7ca12bec1e13",
-      "versionId": "62b4429852aa0924b18060389e3913b04ca35cd351b0831a6a0e8fbd2e6270d6",
+      "sourceCommit": "781a2e7ff8ba86b6cddf9d1b959d25ea0bc956be",
+      "versionId": "6b20f20c4f8ae93e52e9fdb717e81d62e731a8473bd702a284bb11bf256cf2bd",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -604,16 +604,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T013933Z/members-c8ff5bce511ab95a4540d73e842c7ca12bec1e13-linux-arm64.tar.gz",
-          "bytes": 4580048,
-          "sha256": "62b4429852aa0924b18060389e3913b04ca35cd351b0831a6a0e8fbd2e6270d6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T122525Z/members-781a2e7ff8ba86b6cddf9d1b959d25ea0bc956be-linux-arm64.tar.gz",
+          "bytes": 4620961,
+          "sha256": "6b20f20c4f8ae93e52e9fdb717e81d62e731a8473bd702a284bb11bf256cf2bd"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T013933Z/members-c8ff5bce511ab95a4540d73e842c7ca12bec1e13-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11000,
-          "sha256": "53cafe9b1ca9ab332a47801fa6aaf0ec6d223170b501d62732c003a70255b0d7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T122525Z/members-781a2e7ff8ba86b6cddf9d1b959d25ea0bc956be-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11184,
+          "sha256": "074001e913a7e9e5452cad89cc09f27731b62ba86c69992511e3e9ecc376a703"
         },
-        "signerCommit": "c8ff5bce511ab95a4540d73e842c7ca12bec1e13"
+        "signerCommit": "781a2e7ff8ba86b6cddf9d1b959d25ea0bc956be"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -630,7 +630,7 @@
         }
       },
       "changes": [
-        "共通規範に、正本の文書は現在の状態だけを書く（古い手順や裁定は archive へ移す）という規則が加わります。"
+        "席に見せる共通のルール（common-agents.md）が、中身を変えずに短くなります。"
       ]
     },
     {
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "d9bf1255ffd585cc2fbecdb9e25e7e2ccae814f8",
-      "versionId": "sha256:c260649390c657158be27ea127530c342892c57f8ada3a72e9c093054b070e54",
+      "sourceCommit": "781a2e7ff8ba86b6cddf9d1b959d25ea0bc956be",
+      "versionId": "sha256:b6af1f720fc0a7d163606c2ac86a921a60ed0c6b7945ec6008830658052429e3",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c260649390c657158be27ea127530c342892c57f8ada3a72e9c093054b070e54"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b6af1f720fc0a7d163606c2ac86a921a60ed0c6b7945ec6008830658052429e3"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -722,20 +722,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "工程表の毎分の見回りが、Claude の席を起こすのは、働いている Claude の席が 5 未満の時だけになります（利用上限に当たっている間の負荷を抑えます）。"
+        "長く休んでいた Claude の席（プロンプトのキャッシュが切れた後）を、起こす時に新しく始め直せるようになります。席に見せる共通のルールが、中身は変えずに短くなります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "d9bf1255ffd585cc2fbecdb9e25e7e2ccae814f8",
-      "versionId": "sha256:c260649390c657158be27ea127530c342892c57f8ada3a72e9c093054b070e54",
+      "sourceCommit": "781a2e7ff8ba86b6cddf9d1b959d25ea0bc956be",
+      "versionId": "sha256:b6af1f720fc0a7d163606c2ac86a921a60ed0c6b7945ec6008830658052429e3",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c260649390c657158be27ea127530c342892c57f8ada3a72e9c093054b070e54"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b6af1f720fc0a7d163606c2ac86a921a60ed0c6b7945ec6008830658052429e3"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -744,7 +744,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "工程表の毎分の見回りが、Claude の席を起こすのは、働いている Claude の席が 5 未満の時だけになります（利用上限に当たっている間の負荷を抑えます）。"
+        "長く休んでいた Claude の席（プロンプトのキャッシュが切れた後）を、起こす時に新しく始め直せるようになります。席に見せる共通のルールが、中身は変えずに短くなります。"
       ]
     },
     {
