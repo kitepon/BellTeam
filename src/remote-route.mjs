@@ -118,7 +118,7 @@ export class RemoteRoutes {
       this.kept.set(terminalId, this.now())
       try {
         const fresh = await this.resolve(terminalId)
-        const answer = await this.client.call('ensure_forward', { id: fresh.forward.id, to: { host: '127.0.0.1', port: this.port() } })
+        const answer = await this.client.call('ensure_forward', { id: fresh.forward.id, remote: fresh.remote, to: { host: '127.0.0.1', port: this.port() } })
         const ready = answer?.structuredContent?.ready_at
         if (typeof ready === 'string' && ready) this.readyAt.set(terminalId, ready); else this.readyAt.delete(terminalId)
         this.reported.delete(terminalId)

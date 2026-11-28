@@ -185,7 +185,7 @@ export class RemoteSeats {
     if (!remote || !forward?.id || !client) return null
     try {
       const seat = new URL(url)
-      const result = await client.call('ensure_forward', { id: forward.id, to: { host: '127.0.0.1', port: Number(seat.port) } })
+      const result = await client.call('ensure_forward', { id: forward.id, remote, to: { host: '127.0.0.1', port: Number(seat.port) } })
       const port = result?.structuredContent?.port ?? result?.port
       if (result?.isError || !Number.isInteger(port)) return null
       seat.port = String(port)
