@@ -1,7 +1,7 @@
 # Harness accounts: 1st/2nd slots, limit failover and return
 
 Owner: Kiro (execution). Requested by the Owner via Trony, 2026-11-08 20:1x JST. Status: implemented (execution #674); one login per slot designed 2026-11-11 (this revision). Limit-driven only (Owner ruling 2026-11-09 06:3x JST via Trony): there are no preference rules and no 「Fableを2ndアカウントで使う」 switch.
-Scope: Claude only. The shape is keyed by harness, so another harness can add slots later without a new contract; nothing Codex-specific is built.
+The account registry manages Claude slots. The launch policy can temporarily select Codex for a Claude seat.
 
 Names in every UI and contract: 「1stアカウント」 (`slot: '1st'`, primary) and 「2ndアカウント」 (`slot: '2nd'`, fallback). No e-mail address is hard-coded. The Owner logs each slot in once from the app.
 
@@ -18,7 +18,8 @@ One login per slot (Trony request 2026-11-11, Owner: 「何度も何度もログ
 | Limit detection | execution | wait result (trigger) + usage reading (reset time) |
 | Signed-out detection and renewal | execution | wait result `failure.category:'authentication'` (E6) is only the trigger: the slot is signed out only when its own token is rejected by the API (token probe, below) at its current mtime. Exits: the token file changes, a seat on that same token finishes a turn after the mark, or the token probe accepts the token (10-minute re-read; needs no seat on the slot) |
 | Slot selection at launch / model change | execution | launch option `claudeLogin` (the slot, every slot, every launch incl. resume and fork); the seat-side launcher puts that slot's token into the CLI env |
-| Failover after a limit, return after reset | execution | existing reconfigure (apply at the next turn boundary) + capacity continuation message |
+| Failover after a limit, return after reset | execution | the account review moves the session pointer at a turn boundary; the next delivery launches it. The existing keyed capacity continuation can start the interrupted work once. |
+| Temporary provider selection | execution | Opus → `gpt-6.2-sol` high, Sonnet → `gpt-6.2-sol` medium via the existing `agent_launch` port when both Claude slots have confirmed limits for that model. |
 | Account-card data and slot-aware login contacts | usage (Mika) | typed auth/account-card data built from `accounts.list()` |
 | Routes, private port injection, SSE, Bot DTO | Molly | `accounts.list` route, `account` in Bot items, SSE topic `settings` |
 | Rendering: card rows, banner, member card | Admi (Web), Apple and Windows owners | the data contacts above |
@@ -69,6 +70,22 @@ flowchart TD
   Return --> Back[seats whose effective slot is now the 1st: switch back at next idle boundary]
   Registry --> List[accounts.list / seatAccount] --> UI[settings card, member card, both-limited banner]
 ```
+
+## Temporary Codex seat
+
+```mermaid
+stateDiagram-v2
+  [*] --> Claude
+  Claude --> Codex: Both slots confirmed limited for the model, next turn boundary
+  Codex --> Claude: A limit clears or evidence is unavailable, next turn boundary
+  Claude --> Claude: Other model family, one usable slot, or unconfirmed usage
+```
+
+Selection uses the existing per-model limit registry and its reset and usage re-read. Missing, unclassified or expired limit evidence keeps the seat on Claude. A confirmed limit with no reset time can still be cleared by the usage re-read or a successful Claude turn. Remote seats use this policy only in the terminal's Owner account domain, from the existing terminal target port.
+
+The member's configured harness, model, effort and fast setting remain the inputs to policy. A Codex launch takes the mapped model and effort at ordinary speed. Its session uses the existing account-session shape, with a `codex` prefix on the final token of the `1st` name; this names the seat for existing callers and does not pass a Claude login. The member's session pointer therefore retains the effective provider across execution exchanges. Launch and resume never pass a Claude token to this seat. An idle provider change follows the normal account move and launches only on demand. Earlier sessions follow the existing idle cleanup. Native history stays with its own provider, and Throughline supplies the handoff context.
+
+An interrupted Claude turn uses the existing limit-end continuation and its durable key on either the available Claude slot or the temporary Codex seat. If availability changes before delivery, the next launch takes the current policy. Codex turns update the member's last accepted input and do not count as Claude limit or recovery evidence. Forks use the main session's provider. Explicit execution bindings retain their reserved session and provider.
 
 ## Storage
 

@@ -1,3 +1,5 @@
+import { codexFallbackEffort } from './harness-accounts.mjs'
+
 const categories = new Set(['capacity', 'rate_limited'])
 const sameSettings = (a, b) => ['harness', 'model', 'reasoningEffort', 'fastMode'].every(key => a?.[key] === b?.[key])
 const superseded = () => Object.assign(new Error('CONTINUATION_SUPERSEDED'), { code: 'CONTINUATION_SUPERSEDED', effect: 'not_started' })
@@ -73,7 +75,8 @@ export class CapacityContinuation {
     if (context.accountLimit && this.accounts && this.transport?.recoverAccount) {
       await context.accountLimit.recorded.catch(() => {})
       guard()
-      if (!context.failure || await this.accounts.freeSlot('claude', context.bot.model)) {
+      if (!context.failure || codexFallbackEffort(context.bot.model)
+        || await this.accounts.freeSlot('claude', context.bot.model)) {
         this.transport.recoverAccount(context.bot.id)
         return
       }
@@ -121,7 +124,8 @@ export class CapacityContinuation {
   async resume(bot, { slot, deliveryId = null, limitEnd = null }) {
     const check = () => { if (this.closed) throw superseded(); this.assertEnabled() }
     check()
-    const message = `利用上限かログイン切れで止まっていた前の処理を、同じAIの${slot}アカウントの席で続けてください。前の会話は短期記憶と手順書で引き継いでいます。` +
+    const seat = slot ? `同じAIの${slot}アカウントの席` : '一時的に利用できるAIの席'
+    const message = `利用上限かログイン切れで止まっていた前の処理を、${seat}で続けてください。前の会話は短期記憶と手順書で引き継いでいます。` +
       (deliveryId ? `元の依頼は保存された会話履歴のdelivery_id=${deliveryId}です。` : '') +
       '前の処理で実行済みの操作や結果不明の副作用を確認し、元の依頼本文や完了済みの操作を繰り返さずに続けてください。' +
       // harness-accounts.md "one continuation": the engine's input boundary admits one delivery per limit end by this key.
