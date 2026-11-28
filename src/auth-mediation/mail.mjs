@@ -64,7 +64,7 @@ export async function sendMail(fields, request, { connect = defaultConnect, now 
     }
     if (!hello.lines.some(l => /AUTH[ =].*PLAIN/iu.test(l))) throw fail(MAIL_REJECTED, 'no AUTH PLAIN')
     await expect(235, 'AUTH PLAIN ' + Buffer.from(`\0${user}\0${password}`).toString('base64'))
-    if (checkOnly) { try { socket.write('QUIT\r\n') } catch { /* done */ } return { tls_verified: true } } // login only: nothing is sent
+    if (checkOnly) { await expect(221, 'QUIT').catch(() => {}); return { tls_verified: true } } // login only: nothing is sent; the farewell is awaited so the server sees it
     await expect(250, `MAIL FROM:<${fromAddress}>`)
     for (const a of to) await expect([250, 251], `RCPT TO:<${a}>`)
     await expect(354, 'DATA')
