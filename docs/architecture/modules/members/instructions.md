@@ -19,7 +19,7 @@ flowchart TD
   BotSave -->|"保存後"| Notice["呼出Botからユーザーへの直接会話に<br/>自動記録: 誰/時刻/根拠/差分"]
   Save --> Refresh["refreshGlobalInstructions"]
   Generation["新members世代の初回owner.read<br/>候補の準備確認、利用可能の公開前"] --> Refresh
-  Common["integration所有<br/>common-agents.md"] --> Refresh
+  Common["members所有<br/>common-agents.md"] --> Refresh
   Data --> Refresh
   Refresh --> Write["Owner情報→個別規範→製品規範<br/>members global.writeInstructions（唯一のwriter、bd14 E4）"]
   Write --> Globals["home下4CLI（.claude/.codex/.grok/.cursor）のAGENTS<br/>全文そのまま。次の通常指示読込から"]
@@ -49,7 +49,7 @@ CLI固有のAGENTS.overrideやCLAUDE.localに依存しない。個別指示は�
 
 ## Ownerプロフィールと規範
 
-`OwnerProfile.get/update`が`owner/profile.json`、`UserRules.get/update/history`が`owner/user-rules.md`と`owner/user-rules-history.jsonl`を所有する。HTTPの更新、通常MCPのBot更新と別owner MCPは、保存後に`refreshGlobalInstructions`を呼ぶ。`createGlobalInstructionsRefresher`はOwner情報→ユーザー規範→製品規範の順に生成して、`writeGlobalInstructions`または席proxyに渡す。Bot個別のAGENTS生成とは別責任である。全製品共通テンプレート`config/common-agents.md`は統合担当が所有し、membersは生成経路へ渡された本文を使う。
+`OwnerProfile.get/update`が`owner/profile.json`、`UserRules.get/update/history`が`owner/user-rules.md`と`owner/user-rules-history.jsonl`を所有する。HTTPの更新、通常MCPのBot更新と別owner MCPは、保存後に`refreshGlobalInstructions`を呼ぶ。`createGlobalInstructionsRefresher`はOwner情報→ユーザー規範→製品規範の順に生成して、`writeGlobalInstructions`または席proxyに渡す。Bot個別のAGENTS生成とは別責任である。全製品共通テンプレート`config/common-agents.md`はmembersが所有する（module.jsonのsource、Tronie裁定 2026-11-28 assign-owner）。本文の圧縮・改訂でもRULE IDと条件の意味は変えない。
 
 ### 全文共通指示の有効template
 
@@ -107,6 +107,6 @@ Webの`createOwnerEditor.save`はprofile PATCH→rules PUTの順であり、一�
 
 ## Common-rules DSL prefix (Owner 2026-11-07)
 
-Function: integration owns the verbatim DSL prefix in config/common-agents.md. DFD: unchanged rendered Owner/user prefix + full common template → existing five CLI global writers. Model usage lives in the user rules (Owner ruling 2026-11-15), so the common template has no `SECTION models`; execution forwards the caller's original message text without a `bellteam_task_settings` suffix. members/dispatcher and members/instructions pass the template through without heading parsing. Root’s fixed communication-through-Japanese-preamble DSL is copied verbatim; the original English Ponytail body remains byte-identical. No endpoint, write location or runtime policy parser is introduced.
+Function: members owns config/common-agents.md (module.json source, Tronie ruling 2026-11-28), including the verbatim DSL prefix. DFD: unchanged rendered Owner/user prefix + full common template → existing five CLI global writers. Model usage lives in the user rules (Owner ruling 2026-11-15), so the common template has no `SECTION models`; execution forwards the caller's original message text without a `bellteam_task_settings` suffix. members/dispatcher and members/instructions pass the template through without heading parsing. Root’s fixed communication-through-Japanese-preamble DSL is copied verbatim; the original English Ponytail body remains byte-identical. No endpoint, write location or runtime policy parser is introduced.
 
 Root final content decision supersedes the initial prefix-only constraint: the two canonical fenced DSL blocks form the common policy, followed by the original English Ponytail text. Both fenced blocks and the pass-through renderer/writers are unchanged; only execution's duplicate per-delivery suffix is removed.
