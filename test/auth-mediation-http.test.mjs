@@ -99,3 +99,37 @@ test('protocol: http takes exactly its fields; a result carries status, headers,
   assert.doesNotThrow(() => validateAuthMediationResult('http', { outcome: 'granted', status: 200, headers: { 'content-type': 'x' }, body: 'AA==', truncated: false }))
   assert.throws(() => validateAuthMediationResult('http', { outcome: 'granted', status: 99 }))
 })
+
+test('http plain: http:// only with http_allow_plain=1 AND a private IPv4 literal host; never a name, a public address or the flag missing', async () => {
+  const plain = { ...ITEM, http_base: 'http://192.168.1.2:39310/ledger', http_allow_plain: '1' }
+  const ok = setup({ item: plain }); const r = await ask(ok, { path: '/ledger/api/x' }); assert.equal(r.outcome, 'granted'); assert.equal(ok.seen[0].url, 'http://192.168.1.2:39310/ledger/api/x'); assert.equal(ok.seen[0].headers.authorization, 'Bearer ' + SECRET)
+  for (const base of ['http://192.168.1.2/x', 'http://10.0.0.5', 'http://172.16.0.1', 'http://172.31.255.254', 'http://127.0.0.1:39301']) assert.equal((await ask(setup({ item: { ...plain, http_base: base } }), { path: '/x' })).outcome, 'granted', base) // every private range, dotted IPv4 only
+  for (const base of ['http://8.8.8.8', 'http://172.32.0.1', 'http://172.15.0.1', 'http://192.169.1.1', 'http://11.0.0.1', 'http://localhost:1', 'http://printer.local', 'http://[::1]:80', 'http://010.0.0.1', 'http://192.168.1.256', 'http://user:p@192.168.1.2']) assert.equal((await ask(setup({ item: { ...plain, http_base: base } }), { path: '/x' })).outcome, 'error', base)
+  assert.equal((await ask(setup({ item: { ...plain, http_allow_plain: undefined } }), { path: '/ledger/x' })).outcome, 'error'); assert.equal((await ask(setup({ item: { ...plain, http_allow_plain: 'yes' } }), { path: '/ledger/x' })).outcome, 'error')
+})
+
+test('http passthrough paths: on the listed paths the CALLER\'s own Authorization goes and the module adds none; elsewhere the module\'s credential, and a caller Authorization is still ignored', async () => {
+  const item = { ...ITEM, http_base: 'https://api.example.com/pages', http_passthrough_paths: '/pages/assets, /pages/upload' }
+  const t = setup({ item })
+  await ask(t, { path: '/pages/assets/check-missing', method: 'POST', headers: { Authorization: 'Bearer upload-jwt-123' } }); assert.equal(t.seen[0].headers.authorization, 'Bearer upload-jwt-123')
+  await ask(t, { path: '/pages/upload?x=1', method: 'POST', headers: { authorization: 'Bearer other-token-9' } }); assert.equal(t.seen[1].headers.authorization, 'Bearer other-token-9')
+  await ask(t, { path: '/pages/projects', headers: { Authorization: 'Bearer stolen' } }); assert.equal(t.seen[2].headers.authorization, 'Bearer ' + SECRET)
+  await ask(t, { path: '/pages/assets2/x', headers: { Authorization: 'Bearer stolen' } }); assert.equal(t.seen[3].headers.authorization, 'Bearer ' + SECRET) // a prefix means a path segment
+  assert.equal((await ask(t, { path: '/pages/assets/check-missing', method: 'POST' })).outcome, 'error'); assert.equal((await ask(t, { path: '/pages/assets/x', method: 'POST', headers: { authorization: 'Bearer a\r\nb' } })).outcome, 'error')
+  assert.equal(t.seen.length, 4)
+  const echo = setup({ item, answer: () => new Response('token upload-jwt-123 seen') }); const r = await ask(echo, { path: '/pages/assets/x', method: 'POST', headers: { Authorization: 'Bearer upload-jwt-123' } }); assert.equal(text(r), 'token [redacted] seen')
+})
+
+test('http form auth: the module appends its fields to the caller\'s form body, cannot be overridden, needs a form content type; secrets are scrubbed', async () => {
+  const item = { http_base: 'https://oauth.example.com', http_auth: 'form', http_form_fields: 'client_id=cid-123456&client_secret=sec-abcdef-987', http_methods: 'POST' }
+  const t = setup({ item })
+  const body = text2 => Buffer.from(text2).toString('base64')
+  const r = await ask(t, { method: 'POST', path: '/token', headers: { 'content-type': 'application/x-www-form-urlencoded; charset=utf-8' }, body: body('grant_type=authorization_code&code=abc&client_secret=forged') })
+  assert.equal(r.outcome, 'granted'); const sent = new URLSearchParams(String(t.seen[0].body))
+  assert.equal(sent.get('client_secret'), 'sec-abcdef-987'); assert.equal(sent.get('client_id'), 'cid-123456'); assert.equal(sent.get('grant_type'), 'authorization_code'); assert.equal(sent.get('code'), 'abc'); assert.deepEqual([...sent.getAll('client_secret')], ['sec-abcdef-987'])
+  assert.equal(t.seen[0].headers['content-type'], 'application/x-www-form-urlencoded'); assert.ok(!t.seen[0].headers.authorization)
+  await ask(t, { method: 'POST', path: '/token' }); assert.equal(new URLSearchParams(String(t.seen[1].body)).get('client_id'), 'cid-123456') // no caller body: just the fields
+  for (const bad of [{ headers: { 'content-type': 'application/json' }, body: body('{}') }, { method: 'GET' }]) assert.equal((await ask(t, { method: 'POST', path: '/token', ...bad })).outcome, 'error')
+  assert.equal((await ask(setup({ item: { ...item, http_form_fields: '' } }), { method: 'POST', path: '/token' })).outcome, 'error')
+  const echo = setup({ item, answer: () => new Response('{"echo":"sec-abcdef-987","id":"cid-123456"}') }); const e = await ask(echo, { method: 'POST', path: '/token' }); assert.equal(text(e), '{"echo":"[redacted]","id":"[redacted]"}')
+})

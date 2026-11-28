@@ -10,7 +10,7 @@ SEAT_UID = int(os.environ.get("AUTH_RELAY_SEAT_UID", "1000"))
 MAX_REQUEST, MAX_REPLY, READ_SECONDS, BODY_SECONDS = 65536, 4 << 20, 10, 45  # a reply may carry a 1 MiB message as base64 (mail read)
 SOCKETS = (("container-socket", "container.sock", 0o666), ("host-socket", "host.sock", 0o600))
 # One socket per container caller of key use (wrap / unwrap): callers/<name>/<name>.sock. Whoever can open it is that caller. A new caller is a body train, on purpose.
-CALLERS = ("mmobank", "auctionbot")
+CALLERS = ("mmobank", "auctionbot", "reminderbot", "reminderbot-public", "yuihome", "forklore-web", "forklore-mcp", "poly-daily")
 
 
 def read_line(conn, limit, seconds):
