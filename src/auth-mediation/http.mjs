@@ -100,10 +100,10 @@ export const forgetTokens = () => tokens.clear()
 // Item fields: http_rotate_path, http_rotate_query (fixed part), http_rotate_param (default access_token), http_rotate_days (default 30, 1..365).
 export function createTokenState(path) {
   let tail = Promise.resolve()
-  const load = async () => { try { return JSON.parse(await readFile(path, 'utf8')) } catch (error) { if (error.code === 'ENOENT') return {}; throw error } }
+  const load = async () => { try { const all = JSON.parse(await readFile(path, 'utf8')); return all && typeof all === 'object' && !Array.isArray(all) ? all : {} } catch (error) { if (error.code === 'ENOENT' || error instanceof SyntaxError) return {}; throw error } } // a broken file is the same as none: the item's own value wins and a fresh file is written
   const save = async all => { await mkdir(dirname(path), { recursive: true, mode: 0o700 }); const tmp = path + '.' + randomUUID(); await writeFile(tmp, JSON.stringify(all), { mode: 0o600 }); await rename(tmp, path) }
   // One change at a time per file: two requests must not both refresh (the first refresh may retire the old token).
-  return { update: work => { const next = tail.then(async () => { const all = await load(); const out = await work(all); await save(all); return out }); tail = next.catch(() => {}); return next } }
+  return { update: work => { const next = tail.then(async () => { const all = await load(), before = JSON.stringify(all), out = await work(all); if (JSON.stringify(all) !== before) await save(all); return out }); tail = next.catch(() => {}); return next } }
 }
 
 async function rotated(fields, item, state, fetchImpl, audit) {
@@ -136,6 +136,8 @@ const scrub = (buffer, secrets) => Buffer.from(scrubAll(buffer.toString('latin1'
 export async function callHttp(fields, request, fetchImpl = fetch, rotation = null) {
   if (fields.http_rotate_path !== undefined) {
     if (!rotation || !/^\/[^\s#?\\]*$/u.test(fields.http_rotate_path)) throw refuse('The key item cannot be refreshed here.')
+    let basePath; try { basePath = new URL(fields.http_base).pathname } catch { throw refuse('The key item has no usable base URL.') }
+    target({ ...fields, http_methods: 'GET' }, { method: 'GET', path: basePath }) // the same https / private-plain rule as the request itself, BEFORE the token is sent anywhere
     fields = { ...fields, http_secret: await rotated(fields, rotation.item, rotation.state, fetchImpl, rotation.audit) }
   }
   const url = target(fields, request)

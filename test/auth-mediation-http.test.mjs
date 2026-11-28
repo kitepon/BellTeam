@@ -214,3 +214,15 @@ test('http rotation: the module refreshes a long-lived token itself, keeps the n
   fields.http_secret = 'changed-token-cccccc'; const items2 = createItemCache({ runOp: async () => itemJson(fields) }); const core2 = createAuthCore({ store: t.store, items: items2, tokenState: createTokenState(file), audit: () => {}, roots: () => ({ 'bot-a': CWD }), fetchImpl: async (url) => { t.seen.push({ url: String(url) }); return answer(url) } })
   await core2.http({ name: 'stripe', method: 'GET', path: '/v1/me', via: 'host-socket', cwd: UNIT, unit: UNIT }); assert.match(t.seen.at(-2).url, /refresh_access_token.*access_token=changed-token-cccccc/u)
 })
+
+test('http rotation: an http:// non-private base makes no network call at all (the token never goes out in clear); a broken state file is replaced', async () => {
+  const { mkdtemp, readFile, writeFile } = await import('node:fs/promises'); const { tmpdir } = await import('node:os'); const { join } = await import('node:path')
+  const { createTokenState } = await import('../src/auth-mediation/http.mjs'); const { createAuthCore } = await import('../src/auth-mediation/core.mjs')
+  const dir = await mkdtemp(join(tmpdir(), 'rot-')), file = join(dir, 'http-tokens.json')
+  const mk = fields => { const t = setup({ item: fields }); const core = createAuthCore({ store: t.store, items: createItemCache({ runOp: async () => itemJson(fields) }), tokenState: createTokenState(file), audit: () => {}, roots: () => ({ 'bot-a': CWD }), fetchImpl: async url => { t.seen.push({ url: String(url) }); return new Response(String(url).includes('refresh') ? '{"access_token":"fresh-token-dddd"}' : 'ok') } }); return { t, call: () => core.http({ name: 'stripe', method: 'GET', path: '/v1/me', via: 'host-socket', cwd: UNIT, unit: UNIT }) } }
+  const plain = mk({ http_base: 'http://graph.example.com/v1', http_auth: 'bearer', http_secret: 'old-token-aaaaaa', http_rotate_path: '/refresh_access_token' }); const r = await plain.call()
+  assert.equal(r.outcome, 'error'); assert.equal(plain.t.seen.length, 0)
+  await writeFile(file, '{broken'); const ok = mk({ http_base: 'https://graph.example.com', http_auth: 'bearer', http_secret: 'old-token-aaaaaa', http_rotate_path: '/refresh_access_token' })
+  assert.equal((await ok.call()).outcome, 'granted'); assert.equal(JSON.parse(await readFile(file, 'utf8'))['http stripe'].token, 'fresh-token-dddd')
+  const before = await readFile(file, 'utf8'); await ok.call(); assert.equal(await readFile(file, 'utf8'), before)
+})
