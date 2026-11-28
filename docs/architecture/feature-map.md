@@ -28,6 +28,7 @@ flowchart LR
   m_approval_box_extension -->|"lattice-owner-task (facade.ownerTask / facade.link, L20; caller: approval-box-extension, Delta)"| m_lattice
   m_approval_box_extension -->|"secrets"| m_usage
   m_approval_box_extension -->|"registry"| m_members
+  m_approval_box_extension -->|"messages"| m_conversation
   m_auth_mediation -->|"registry"| m_members
   m_auth_mediation -->|"seat-process"| m_runtime
   m_auth_mediation -->|"lifecycle"| m_runtime
@@ -124,6 +125,7 @@ flowchart LR
   m_apple["Appleアプリ / ベル"]
   m_approval_box["Approval Box / ナユタ"]
   m_approval_box_extension["決裁箱拡張 / デルタ"]
+  m_auth_mediation["認証仲介 / ライ"]
   m_bridge["call-bridge/grokbot-bridge / リター"]
   m_bughub["BugHub / フラジャイル"]
   m_conversation["会話・履歴 / N102"]
@@ -175,6 +177,7 @@ flowchart LR
   m_usage -->|"MCP tools (stdio)"| m_aiterm
   m_usage -->|"connection export (call-bridge.connection.v1)"| m_bridge
   m_windows -->|"HTTP/SSE"| m_integration
+  m_windows -->|"auth-exec (MCP auth_exec; container socket; main-server host socket)"| m_auth_mediation
 ```
 
 ## 担当図と公開窓口
@@ -186,7 +189,7 @@ flowchart LR
 | [Appleアプリ](modules/apple/README.md) | ベル |  |
 | [Approval Box](modules/approval-box/README.md) | ナユタ | connection export (approval-box connection export --json) / version --json (capabilities) / harness-entries (approval-box) / connector /v1 (HTTP) / bellteam client (client session on /v1: decisions, attachments GET, events, /me; connector /v1 pairing) |
 | [決裁箱拡張](modules/approval-box-extension/README.md) | デルタ | approvals-app-contract (/api/approvals/*) / decision-task-link / approval-box-port (P1 approvals.decisions: file / read / cancel; decision-port.md) |
-| [認証仲介](modules/auth-mediation/README.md) | ライ | auth-exec (MCP auth_exec; container socket; main-server host socket) / auth-admin (stop, resume, show, flush, audit, token, entry-set) / grant entry (grant, revoke only from the registered entry program) |
+| [認証仲介](modules/auth-mediation/README.md) | ライ | auth-exec (MCP auth_exec; container socket; main-server host socket) / auth-admin (stop, resume, show, flush, audit, token, entry-set) / grant entry (grant, revoke only from the registered entry program, with the decision record) |
 | [call-bridge/grokbot-bridge](modules/bridge/README.md) | リター | connection export (call-bridge.connection.v1) / MCP /mcp |
 | [BugHub](modules/bughub/README.md) | フラジャイル | public |
 | [Caveat](modules/caveat/README.md) | ノア | public |
@@ -203,7 +206,7 @@ flowchart LR
 | [記憶・知識](modules/memory/README.md) | ビスケット | memory |
 | [RTK](modules/rtk/README.md) | ドリリー | hook / harness-entries.json |
 | [実行環境・更新復旧](modules/runtime/README.md) | モリー | lifecycle / seat-process / project-files / cli-registration / module-runner / update / module-runner |
-| [端末接続](modules/terminals/README.md) | クラスト | registry / reachability / connection / trust / folder / privilege / maintenance / door |
+| [端末接続](modules/terminals/README.md) | クラスト | registry / reachability / connection / trust / folder / privilege / maintenance |
 | [testgate](modules/testgate/README.md) | シラツル | registration v1 (item in RTK harness-entries.json) |
 | [Throughline](modules/throughline/README.md) | リヴァリン | context CLI / storage: THROUGHLINE_HOME, locate, export |
 | [利用設定・通知](modules/usage/README.md) | ミカ | settings / notify / auth / secrets / harnessCli (installed, watch) / homeLogin (/api/home, bellteam-console) |

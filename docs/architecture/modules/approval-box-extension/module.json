@@ -8,7 +8,7 @@
   "provides": [
     "approvals-app-contract (/api/approvals/*)",
     "decision-task-link",
-    "approval-box-port (P1 approvals.decisions: file / read / cancel; P5 seat entry file; decision-port.md)"
+    "approval-box-port (P1 approvals.decisions: file / read / cancel; decision-port.md)"
   ],
   "uses": [
     {
@@ -29,7 +29,7 @@
     },
     {
       "module": "conversation",
-      "port": "messenger.sendmessage (F8 answer relay to a seat from scheduler)"
+      "port": "messages"
     }
   ],
   "source": [
