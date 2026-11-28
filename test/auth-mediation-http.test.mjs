@@ -328,3 +328,17 @@ test('http proxy discovery: krNNN.nordvpn.com becomes krNNN.proxy.nordvpn.com; a
   assert.equal(await pick('kr202.nordvpn.com'), 'kr202.proxy.nordvpn.com'); assert.equal(await pick('kr7.proxy.nordvpn.com'), 'kr7.proxy.nordvpn.com')
   for (const bad of ['evil.example.org', 'kr202.nordvpn.com.evil.org', 'x.y.nordvpn.com', 'kr202.nordvpn.com@evil']) assert.equal(await pick(bad), 'kr229.proxy.nordvpn.com', bad)
 })
+
+test('http oauth2-refresh, Plaud contract: refresh_token is the only form field, a user agent is sent, a rotated refresh token is kept, two parallel first calls refresh once, expires_in 86400 keeps the access token a day', async () => {
+  const { mkdtemp, readFile } = await import('node:fs/promises'); const { tmpdir } = await import('node:os'); const { join } = await import('node:path')
+  const { createTokenState, forgetTokens } = await import('../src/auth-mediation/http.mjs'); const { createAuthCore } = await import('../src/auth-mediation/core.mjs'); forgetTokens()
+  const file = join(await mkdtemp(join(tmpdir(), 'plaud-')), 'http-tokens.json'), seen = []
+  const fields = { http_base: 'https://platform.plaud.ai/developer/api', http_auth: 'oauth2-refresh', http_secret: 'refresh-plaud-0001', http_oauth_token_url: 'https://platform.plaud.ai/developer/api/oauth/third-party/access-token/refresh', http_oauth_user_agent: 'plaud-cli/0.3.11', http_methods: 'GET' }
+  const fx = async (url, o) => { seen.push({ url: String(url), body: o?.body ? String(o.body) : '', ua: o?.headers?.['user-agent'], auth: o?.headers?.authorization }); await new Promise(r => setTimeout(r, 30)); return String(url).endsWith('/refresh') ? new Response(JSON.stringify({ access_token: 'plaud-access-abcdef', refresh_token: 'refresh-plaud-0002', token_type: 'bearer', expires_in: 86400 })) : new Response('{"data":[]}') }
+  const t0 = setup({ item: fields }), core = createAuthCore({ store: t0.store, items: createItemCache({ runOp: async () => itemJson(fields) }), tokenState: createTokenState(file), audit: () => {}, roots: () => ({ 'bot-a': CWD }), fetchImpl: fx })
+  const call = () => core.http({ name: 'stripe', method: 'GET', path: '/developer/api/open/third-party/files/?page=1&page_size=20', via: 'host-socket', cwd: UNIT, unit: UNIT })
+  const [a, b] = await Promise.all([call(), call()]); assert.equal(a.status, 200); assert.equal(b.status, 200)
+  const refreshes = seen.filter(x => x.url.endsWith('/refresh')); assert.equal(refreshes.length, 1); assert.equal(refreshes[0].body, 'refresh_token=refresh-plaud-0001'); assert.equal(refreshes[0].ua, 'plaud-cli/0.3.11')
+  assert.equal(seen.filter(x => !x.url.endsWith('/refresh'))[0].auth, 'Bearer plaud-access-abcdef'); assert.equal(JSON.parse(await readFile(file, 'utf8'))['http stripe'].token, 'refresh-plaud-0002')
+  await call(); assert.equal(seen.filter(x => x.url.endsWith('/refresh')).length, 1) // the access token is kept (24 h)
+})
