@@ -5,7 +5,7 @@ import { createAuthCore } from '../src/auth-mediation/core.mjs'
 import { createItemCache } from '../src/auth-mediation/items.mjs'
 import { buildMessage, sendMail, MAIL_NOT_SUBMITTED, MAIL_REJECTED, MAIL_UNKNOWN } from '../src/auth-mediation/mail.mjs'
 import { emptyPolicy } from '../src/auth-mediation/policy.mjs'
-import { validateAuthMediationRequest } from '../src/auth-mediation-protocol.mjs'
+import { validateAuthMediationRequest, validateAuthMediationResult } from '../src/auth-mediation-protocol.mjs'
 import { relayAnswer } from '../src/auth-mediation-relay.mjs'
 
 const ITEM = { mail_host: 'smtp.example.com', mail_port: '465', mail_tls: 'implicit', mail_user: 'bot@example.com', mail_password: 'pa55-word-secret' }
@@ -82,6 +82,16 @@ test('mail check: a login-only probe on 465 or 587 stops after AUTH: no MAIL FRO
   const s = await fakeSmtp(); const ok = await sendMail(ITEM, {}, { connect: s.connect, checkOnly: true }); s.close()
   assert.deepEqual(ok, { tls_verified: true }); assert.deepEqual(s.seen.commands.map(c => c.split(' ')[0]), ['EHLO', 'AUTH', 'QUIT'])
   const bad = await send({ AUTH: '535 bad credentials' }, ITEM, {}); assert.equal(bad.result.code, MAIL_REJECTED)
+})
+
+test('mail: a failed answer carries a reason the caller may see (the server status or a fixed word), never a value from the item or the request', async () => {
+  const s = await fakeSmtp({ AUTH: '535 5.7.8 Username and Password not accepted for pa55-word-secret' }); const t = core(ITEM, undefined, s)
+  try {
+    const r = await t.core.mail({ action: 'send', name: 'contact', ...REQUEST, via: 'caller-socket', unit: t.UNIT })
+    assert.deepEqual(r, { outcome: 'error', error: MAIL_REJECTED, detail: 'smtp 535' }); assert.ok(!JSON.stringify(r).includes('pa55'))
+    const bad = await t.core.mail({ action: 'send', name: 'contact', ...REQUEST, to: ['not-an-address'], via: 'caller-socket', unit: t.UNIT }); assert.equal(bad.error, MAIL_REJECTED); assert.equal(bad.detail, 'request')
+    assert.doesNotThrow(() => validateAuthMediationResult('mail', r)); assert.throws(() => validateAuthMediationResult('mail', { ...r, detail: 'x'.repeat(65) }))
+  } finally { s.close() }
 })
 
 test('mail: buildMessage keeps html as an alternative and dot-stuffs nothing it does not need', () => {

@@ -12,6 +12,8 @@ import { sendMail } from './mail.mjs'
 import { LIMITS, listFolders, openImap, readFolder, sortMessage } from './imap.mjs'
 
 const NOT_REGISTERED = 'This command is not registered.'
+// A reason the caller may see (a server's status code or one of our fixed words): never a value from the item or the request.
+const SAFE_DETAIL = /^(?:smtp [2-5]\d\d|imap (?:NO|BAD|BYE)|token \d{3}|token request|no AUTH PLAIN|no archive folder|no MOVE|no such message|keywords do not persist|uidvalidity|connect|timeout|connection|io|item|request|keywords|nothing|date|control|q|id|labels|max_results|page_token|format|action)$/u
 const ENTRY_ONLY = ['grant', 'revoke', 'import'], DECISION_KEYS = ['id', 'role', 'record', 'need', 'reason']
 const REFUSALS = { stopped: 'This command is stopped by the operator.', denied: 'This command is not permitted.' }
 
@@ -165,7 +167,7 @@ export function createAuthCore({ store, items, audit, roots, now = () => new Dat
       const result = request.action === 'read' ? await readMail(found.fields, request) : request.action === 'sort' ? await sortMail(found.fields, request) : request.action === 'check' ? await checkMail(found.fields, request) : await sendMail(found.fields, request, { now, ...(mailConnect ? { connect: mailConnect } : {}) })
       record(rec, 'granted', { cache: found.hit ? 'hit' : 'miss', message_id: result.message_id, folders: result.folders?.length, messages: result.messages?.length, flagged: result.flagged?.length, moved: result.moved, protocol: request.protocol })
       return { outcome: 'granted', ...result }
-    } catch (error) { const code = error?.code?.startsWith?.('MAIL_') ? error.code : 'MAIL_NOT_SUBMITTED'; record(rec, 'error', { cache: found.hit ? 'hit' : 'miss', class: code, why: error?.why }); return { outcome: 'error', error: code } }
+    } catch (error) { const code = error?.code?.startsWith?.('MAIL_') ? error.code : 'MAIL_NOT_SUBMITTED'; record(rec, 'error', { cache: found.hit ? 'hit' : 'miss', class: code, why: error?.why }); return { outcome: 'error', error: code, ...(SAFE_DETAIL.test(error?.why ?? '') ? { detail: error.why } : {}) } }
   }
   // Gmail (F21): fixed Gmail API calls with the item's OAuth secrets. Grants "gmail <name> read" (list, get) and "gmail <name> sort" (modify). The audit has the action and the status only.
   const gmailTokens = new Map()
@@ -181,7 +183,7 @@ export function createAuthCore({ store, items, audit, roots, now = () => new Dat
       const result = await callGmail(found.fields, request, { tokens: gmailTokens, name: request.name, fetchImpl, now: () => now().getTime() })
       record(rec, 'granted', { cache: found.hit ? 'hit' : 'miss', status: result.status })
       return { outcome: 'granted', ...result }
-    } catch (error) { const code = error?.code?.startsWith?.('GMAIL_') ? error.code : 'GMAIL_FAILED'; record(rec, 'error', { cache: found.hit ? 'hit' : 'miss', class: code, why: error?.why }); return { outcome: 'error', error: code } }
+    } catch (error) { const code = error?.code?.startsWith?.('GMAIL_') ? error.code : 'GMAIL_FAILED'; record(rec, 'error', { cache: found.hit ? 'hit' : 'miss', class: code, why: error?.why }); return { outcome: 'error', error: code, ...(SAFE_DETAIL.test(error?.why ?? '') ? { detail: error.why } : {}) } }
   }
   return { resolve, admin, keyuse, http, mail, gmail }
 }
