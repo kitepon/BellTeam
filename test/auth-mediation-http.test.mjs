@@ -62,7 +62,7 @@ test('http: the response never shows the credential: not in the body (raw or bas
 
 test('http: a path that hides a separator is refused (%2f %5c %00 %2e, any case, backslash) before any call, in the query it is allowed', async () => {
   const t = setup({ item: { ...ITEM, http_base: 'https://api.example.com/v1', http_passthrough_paths: '/v1/token' } })
-  for (const path of ['/v1/items%2f..%2ftoken/x', '/v1/items%2F..%2Ftoken/x', '/v1/a%5cb', '/v1/a%5Cb', '/v1/a%00b', '/v1/%2e%2e/items', '/v1/%2E./items', '/v1/a%2e%2e/b', '/v1\\x'])
+  for (const path of ['/v1/items%2f..%2ftoken/x', '/v1/items%2F..%2Ftoken/x', '/v1/a%5cb', '/v1/a%5Cb', '/v1/a%00b', '/v1/%2e%2e/items', '/v1/%2E./items', '/v1/a%2e%2e/b', '/v1/token%3fx', '/v1/token%3Fx', '/v1/token%23x', '/v1\\x'])
     assert.equal((await ask(t, { path })).outcome, 'error', path)
   assert.equal(t.seen.length, 0)
   assert.equal((await ask(t, { path: '/v1/items?next=a%2fb&x=%2e' })).outcome, 'granted') // the query is the server's data, not a route
