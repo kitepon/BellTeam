@@ -10,7 +10,14 @@ SOCK = os.environ.get("AUTH_SOCK") or "/srv/bellteam/shared/tools/auth-mediation
 def ask(request):
     s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     s.settimeout(60)
-    s.connect(SOCK)
+    for wait in range(50):  # a full listen queue answers EAGAIN at once on a socket with a timeout (a burst of agent clients, 2026-11-28); queue up for at most 5 s
+        try:
+            s.connect(SOCK)
+            break
+        except BlockingIOError:
+            if wait == 49:
+                raise
+            time.sleep(0.1)
     s.sendall((json.dumps(request) + "\n").encode())
     return json.loads(s.makefile().readline())
 
@@ -283,6 +290,8 @@ def serve_agent(recv, send, names, cwd):
     identities = {}  # public key blob -> name; filled when the client asks for the list
 
     def key_ask(op, name, **extra):
+        nonlocal tried
+        tried = name
         resp = ask({"op": op, "name": name, "cwd": cwd, **extra})
         return base64.b64decode(resp["data"]) if resp.get("outcome") == "granted" else None
 
@@ -305,7 +314,7 @@ def serve_agent(recv, send, names, cwd):
         body = read_exact(size)
         if body is None:
             return
-        out = b"\x05"  # SSH_AGENT_FAILURE
+        out, why, tried = b"\x05", "not granted or key not listed", None  # SSH_AGENT_FAILURE
         try:
             if body[:1] == b"\x0b":  # list identities
                 keys = []
@@ -325,8 +334,10 @@ def serve_agent(recv, send, names, cwd):
                     sig = key_ask("ssh-sign", identities[blob], data=base64.b64encode(data).decode(), flags=flags)
                     if sig:
                         out = b"\x0e" + struct.pack(">I", len(sig)) + sig
-        except (OSError, ValueError, struct.error, KeyError):
-            out = b"\x05"
+        except (OSError, ValueError, struct.error, KeyError) as e:
+            out, why = b"\x05", type(e).__name__
+        if out == b"\x05":  # one line per failed list or sign, no data, so the holder log shows why the client was refused
+            print(f"auth agent: {'list' if body[:1] == b'\x0b' else 'sign' if body[:1] == b'\x0d' else 'other'} {tried or '-'}: {why}", file=sys.stderr, flush=True)
         send(struct.pack(">I", len(out)) + out)
 
 

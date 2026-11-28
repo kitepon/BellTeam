@@ -119,3 +119,35 @@ test('auth ssh-stdio: the agent protocol on stdin/stdout: ssh-add -L and ssh-key
   const exited = new Promise(resolve => edge.on('close', resolve)); const big = Buffer.alloc(4); big.writeUInt32BE(300000); edge.stdin.write(big)
   assert.equal(await exited, 0); m2.close()
 })
+
+test('auth ask: a full listen queue (EAGAIN) is waited out, not turned into a refusal; a failed agent request prints one line without data', () => {
+  const script = [
+    'import importlib.machinery as m, importlib.util as u, socket, sys, os, threading, time, json, io',
+    'p = sys.argv[1] + "/q.sock"; os.environ["AUTH_SOCK"] = p',
+    'l = socket.socket(socket.AF_UNIX); l.bind(p); l.listen(1)',
+    'fill = []',
+    'for _ in range(8):',
+    '    s = socket.socket(socket.AF_UNIX); s.setblocking(False)',
+    '    try: s.connect(p); fill.append(s)',
+    '    except BlockingIOError: break',
+    'def serve():',
+    '    time.sleep(0.4)',
+    '    for s in fill: s.close()',
+    '    while True:',
+    '        c, _ = l.accept()',
+    '        try: c.makefile().readline(); c.sendall(b"{\\"outcome\\": \\"denied\\"}\\n"); c.close()',
+    '        except OSError: pass',
+    'threading.Thread(target=serve, daemon=True).start()',
+    'spec = m.SourceFileLoader("auth", sys.argv[2]); mod = u.module_from_spec(u.spec_from_loader("auth", spec)); spec.exec_module(mod)',
+    'sys.stderr = io.StringIO(); out = []',
+    'req = b"\\x00\\x00\\x00\\x01\\x0b"; pos = [0]',
+    'def recv(n): b = req[pos[0]:pos[0] + n]; pos[0] += n; return b',
+    'mod.serve_agent(recv, out.append, ["ed"], "/")',
+    'sys.stderr = io.StringIO(); out2 = []; pos[0] = 0; mod.SOCK = p + ".gone"; mod.serve_agent(recv, out2.append, ["ed"], "/"); assert b"".join(out2) == b"\\x00\\x00\\x00\\x01\\x05"',
+    'print(json.dumps({"answer": b"".join(out).hex(), "log": sys.stderr.getvalue()}), file=sys.__stdout__)',
+  ].join('\n')
+  const r = spawnSync('python3', ['-I', '-c', script, dir, AUTH], { encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr)
+  const { answer, log } = JSON.parse(r.stdout)
+  assert.match(answer, /^000000050c00000000$/u) // the list reached the module after the queue drained (an empty key list, since it said denied): 0c, not a failure (05)
+  assert.equal(log, 'auth agent: list ed: FileNotFoundError\n') // the second list, to a socket that is gone, is refused with one line and no data
+})
