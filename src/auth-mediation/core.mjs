@@ -4,7 +4,7 @@ import { posix } from 'node:path'
 import { authorize, importV1 } from './policy.mjs'
 import { envReturn, runEnv } from './env.mjs'
 import { botForCwd, callerKey } from './identity.mjs'
-import { useKey, signData } from './keyuse.mjs'
+import { useKey, signData, signDigest } from './keyuse.mjs'
 import { callHttp } from './http.mjs'
 import { sshIdentity, sshSign } from './sshkey.mjs'
 
@@ -87,7 +87,7 @@ export function createAuthCore({ store, items, audit, roots, now = () => new Dat
   async function keyuse(request) {
     const at = now(), policy = await store.read()
     // wrap / unwrap use the item "wrapkey <name>", sign the item "signkey <name>"; the grant command adds the action. The caller is named by the transport (caller socket unit, host folder, container peer folder).
-    const caller = await identify(request), key = `${{ sign: 'signkey', 'ssh-identity': 'sshkey', 'ssh-sign': 'sshkey' }[request.action] ?? 'wrapkey'} ${request.name}`, name = `${key} ${request.action.startsWith('ssh-') ? 'sign' : request.action}`
+    const caller = await identify(request), key = `${{ sign: 'signkey', 'sign-digest': 'signkey', 'ssh-identity': 'sshkey', 'ssh-sign': 'sshkey' }[request.action] ?? 'wrapkey'} ${request.name}`, name = `${key} ${request.action.startsWith('ssh-') || request.action === 'sign-digest' ? 'sign' : request.action}`
     const where = request.cwd ?? request.unit
     const rec = { time: at.toISOString(), request_id: randomUUID(), caller: caller ? callerKey(caller) : null, item: name, action: request.action, via: request.via ?? 'caller-socket', cwd: where, aad: request.aad }
     if (!caller) { record(rec, 'unknown-caller'); return { outcome: 'unknown-caller', error: 'The caller is not registered.' } }
@@ -96,7 +96,7 @@ export function createAuthCore({ store, items, audit, roots, now = () => new Dat
     const found = await items.get(key, policy.vault, policy.cache_seconds)
     if (!found) { record(rec, 'not-registered'); return { outcome: 'not-registered', error: NOT_REGISTERED } }
     const cache = found.hit ? 'hit' : 'miss'
-    try { const data = request.action === 'sign' ? signData(found.fields, request.data) : request.action === 'ssh-identity' ? sshIdentity(found.fields) : request.action === 'ssh-sign' ? sshSign(found.fields, request.data, request.flags) : useKey(request.action, found.fields, request.data, request.aad ?? ''); record(rec, 'granted', { cache }); return { outcome: 'granted', data } }
+    try { const data = request.action === 'sign' ? signData(found.fields, request.data) : request.action === 'sign-digest' ? signDigest(found.fields, request.data) : request.action === 'ssh-identity' ? sshIdentity(found.fields) : request.action === 'ssh-sign' ? sshSign(found.fields, request.data, request.flags) : useKey(request.action, found.fields, request.data, request.aad ?? ''); record(rec, 'granted', { cache }); return { outcome: 'granted', data } }
     catch { record(rec, 'error', { cache }); return { outcome: 'error', error: `Cannot ${request.action}.` } }
   }
   // Http (F14): the module makes the request with the credential added and returns the response. Grant command "http <name>"; item "http <name>".

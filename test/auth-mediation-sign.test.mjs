@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
-import { createHmac, generateKeyPairSync, verify } from 'node:crypto'
+import { createHash, createHmac, generateKeyPairSync, sign, verify } from 'node:crypto'
 import test from 'node:test'
 import { createAuthCore } from '../src/auth-mediation/core.mjs'
 import { createItemCache } from '../src/auth-mediation/items.mjs'
 import { emptyPolicy } from '../src/auth-mediation/policy.mjs'
-import { signData } from '../src/auth-mediation/keyuse.mjs'
+import { signData, signDigest } from '../src/auth-mediation/keyuse.mjs'
 import { validateAuthMediationRequest } from '../src/auth-mediation-protocol.mjs'
 import { relayAnswer } from '../src/auth-mediation-relay.mjs'
 
@@ -52,6 +52,17 @@ test('sign: same grants as the other uses: "signkey <name> sign"; a Bot caller i
   await new Promise(r => setImmediate(r)); const log = JSON.stringify(t.lines)
   assert.ok(!log.includes(data) && !log.includes(createHmac('sha256', item.sign_key).update(input).digest('base64')) && !log.includes(item.sign_key))
   assert.deepEqual(t.lines.map(l => [l.item, l.outcome, l.via]), [['signkey asc sign', 'granted', 'container-socket'], ['signkey asc sign', 'unknown-caller', 'container-socket'], ['signkey asc sign', 'granted', 'caller-socket']])
+})
+
+test('sign-digest: an RS256 key signs a SHA-256 digest the caller computed: the result equals the normal signature over the message and verifies; other keys, algorithms and lengths are refused', async () => {
+  const fields = { sign_key: pem(keys.rs256.privateKey), sign_alg: 'RS256' }, message = Buffer.from('a very large file stands in for this'), digest = createHash('sha256').update(message).digest()
+  const sig = signDigest(fields, digest.toString('base64'))
+  assert.equal(sig, sign('sha256', message, keys.rs256.privateKey).toString('base64')) // RSASSA-PKCS1-v1_5 is deterministic: same bytes as signing the message
+  assert.ok(verify('sha256', message, keys.rs256.publicKey, Buffer.from(sig, 'base64')))
+  for (const [f, d] of [[{ ...fields, sign_alg: 'ES256' }, digest], [{ sign_key: pem(keys.es256.privateKey), sign_alg: 'RS256' }, digest], [fields, Buffer.alloc(31)], [fields, Buffer.alloc(33)], [{ sign_alg: 'RS256' }, digest]])
+    assert.throws(() => signDigest(f, d.toString('base64')), /KEYUSE_REFUSED/u)
+  const t = setup(fields); const r = await t.core.keyuse({ action: 'sign-digest', name: 'asc', data: digest.toString('base64'), via: 'host-socket', cwd: UNIT, unit: UNIT })
+  assert.deepEqual(r, { outcome: 'granted', data: sig })
 })
 
 test('relay: sign reaches the facade with the caller named by the transport; protocol takes it', async () => {

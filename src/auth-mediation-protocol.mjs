@@ -31,7 +31,7 @@ export function validateAuthMediationRequest(method, params, context) {
     && (params.botId === undefined || botId(params.botId)) && (params.cwd === undefined || path(params.cwd)) && str(params.verb) && /^[a-z][a-z.-]{0,31}$/u.test(params.verb)
     && (params.args === undefined || params.args && typeof params.args === 'object' && !Array.isArray(params.args))
     && (params.program === undefined || authMediationObject(params.program, ['path', 'sha256', 'sealed']) && path(params.program.path) && /^[a-f0-9]{64}$/u.test(params.program.sha256) && typeof params.program.sealed === 'boolean'))
-  else if (method === 'keyuse') check(authMediationObject(params, ['action', 'name'], ['data', 'aad', 'flags', 'via', 'cwd', 'unit']) && ['wrap', 'unwrap', 'sign', 'ssh-identity', 'ssh-sign'].includes(params.action)
+  else if (method === 'keyuse') check(authMediationObject(params, ['action', 'name'], ['data', 'aad', 'flags', 'via', 'cwd', 'unit']) && ['wrap', 'unwrap', 'sign', 'sign-digest', 'ssh-identity', 'ssh-sign'].includes(params.action)
     && text(params.name, 128) && /^[A-Za-z0-9][A-Za-z0-9._-]*$/u.test(params.name)
     && (params.data === undefined ? params.action === 'ssh-identity' : text(params.data, 8192) && /^[A-Za-z0-9+/]+={0,2}$/u.test(params.data))
     && (params.flags === undefined || Number.isInteger(params.flags) && params.flags >= 0 && params.flags <= 7)
