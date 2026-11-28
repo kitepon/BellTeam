@@ -235,6 +235,7 @@ BUSINESS_FILES = {
         'src/auth-mediation/policy.mjs',
         'src/auth-mediation/redact.mjs',
         'src/auth-mediation/service.mjs',
+        'src/auth-mediation/sshkey.mjs',
         'src/module-ipc.mjs',
         'src/module-locks.mjs',
         'src/module-streams.mjs',

@@ -103,7 +103,97 @@ def sign_main(argv):
     return 0
 
 
+def ssh_main(argv):
+    """auth ssh NAME[,NAME...] -- COMMAND...: runs the command with SSH_AUTH_SOCK set to a per-run agent socket. The socket only forwards the two agent requests
+    (list keys, sign) to the module, which holds the key; no key is in this process, a file or the command's environment. The socket is removed when the command ends."""
+    import base64, struct
+    if "--" not in argv or len(argv) < 3 or argv.index("--") != 1:
+        sys.exit("usage: auth ssh NAME[,NAME...] -- COMMAND...")
+    names, command = argv[0].split(","), argv[2:]
+    cwd = os.getcwd()
+    identities = {}  # public key blob -> name; filled when ssh asks for the list
+
+    def key_ask(op, name, **extra):
+        resp = ask({"op": op, "name": name, "cwd": cwd, **extra})
+        return base64.b64decode(resp["data"]) if resp.get("outcome") == "granted" else None
+
+    def serve(conn):
+        with conn:
+            while True:
+                head = conn.recv(4)
+                if len(head) < 4:
+                    return
+                body = b""
+                while len(body) < struct.unpack(">I", head)[0]:
+                    chunk = conn.recv(struct.unpack(">I", head)[0] - len(body))
+                    if not chunk:
+                        return
+                    body += chunk
+                out = b"\x05"  # SSH_AGENT_FAILURE
+                try:
+                    if body[:1] == b"\x0b":  # list identities
+                        keys = []
+                        for name in names:
+                            blob = key_ask("ssh-identity", name)
+                            if blob:
+                                identities[blob] = name
+                                keys.append(struct.pack(">I", len(blob)) + blob + struct.pack(">I", len(name)) + name.encode())
+                        out = b"\x0c" + struct.pack(">I", len(keys)) + b"".join(keys)
+                    elif body[:1] == b"\x0d":  # sign request: string key, string data, uint32 flags
+                        n = struct.unpack(">I", body[1:5])[0]
+                        blob = body[5:5 + n]
+                        m = struct.unpack(">I", body[5 + n:9 + n])[0]
+                        data = body[9 + n:9 + n + m]
+                        flags = struct.unpack(">I", body[9 + n + m:13 + n + m])[0]
+                        if blob in identities:
+                            sig = key_ask("ssh-sign", identities[blob], data=base64.b64encode(data).decode(), flags=flags)
+                            if sig:
+                                out = b"\x0e" + struct.pack(">I", len(sig)) + sig
+                except (OSError, ValueError, struct.error, KeyError):
+                    out = b"\x05"
+                conn.sendall(struct.pack(">I", len(out)) + out)
+
+    d = scratch()
+    path = os.path.join(d, "agent.sock")
+    listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    listener.bind(path)
+    os.chmod(path, 0o600)
+    listener.listen(8)
+
+    def accept():
+        while True:
+            try:
+                conn, _ = listener.accept()
+            except OSError:
+                return
+            threading.Thread(target=serve, args=(conn,), daemon=True).start()
+
+    threading.Thread(target=accept, daemon=True).start()
+    child = []
+
+    def stop(sig, _):
+        if not child:
+            sys.exit(128 + sig)
+        t = threading.Timer(1, lambda: child[0].poll() is None and child[0].send_signal(sig))
+        t.daemon = True
+        t.start()
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(sig, stop)
+    try:
+        try:
+            child.append(subprocess.Popen(command, env={**os.environ, "SSH_AUTH_SOCK": path}))
+        except OSError:
+            sys.exit("The command could not be started.")
+        return child[0].wait()
+    finally:
+        listener.close()
+        shutil.rmtree(d, ignore_errors=True)
+
+
 def main():
+    if len(sys.argv) >= 2 and sys.argv[1] == "ssh":
+        return ssh_main(sys.argv[2:])
     if len(sys.argv) >= 2 and sys.argv[1] == "sign":
         return sign_main(sys.argv[2:])
     if len(sys.argv) >= 2 and sys.argv[1] == "http":
