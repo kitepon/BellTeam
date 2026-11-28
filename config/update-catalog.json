@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-28T06:52:33Z",
-  "expiresAt": "2026-12-05T06:52:33Z",
+  "publishedAt": "2026-11-28T07:28:02Z",
+  "expiresAt": "2026-12-05T07:28:02Z",
   "releases": [
     {
       "componentId": "usage",
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "c677866782eb38907fce94770aa53461f9ce43dc",
-      "versionId": "sha256:c7156bff443f3dfbf69f7d335870a5ed41b42bfcfc52908987ac101c36940c29",
+      "sourceCommit": "6b154229c944282e7cc622d490dc65f1829a7dc2",
+      "versionId": "sha256:2f66e12a1297119946bb1841b5dde4d3792591d76adeee9aff97c8a660bed47a",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c7156bff443f3dfbf69f7d335870a5ed41b42bfcfc52908987ac101c36940c29"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:2f66e12a1297119946bb1841b5dde4d3792591d76adeee9aff97c8a660bed47a"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -722,21 +722,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "新しく作ったコンテナでも、fox・macbook・rabbit の席が、モジュールの ssh エージェントの鍵で起動できるようになります（鍵の置き場のフォルダを作る、転送の準備に接続先を渡す）。",
-        "認証仲介に、決まったコマンドを項目の秘密付きで動かす通路、HTTP の追加の認証方式と大きな返答、AWS の署名、プッシュ用の呼び出し元が加わります。"
+        "認証仲介の中継に、BugHub 用の呼び出し元が加わり、書きかけの要求行と開いたままの実行の通路に上限、要求行ごとに 30 秒の制限が付きます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "c677866782eb38907fce94770aa53461f9ce43dc",
-      "versionId": "sha256:c7156bff443f3dfbf69f7d335870a5ed41b42bfcfc52908987ac101c36940c29",
+      "sourceCommit": "6b154229c944282e7cc622d490dc65f1829a7dc2",
+      "versionId": "sha256:2f66e12a1297119946bb1841b5dde4d3792591d76adeee9aff97c8a660bed47a",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c7156bff443f3dfbf69f7d335870a5ed41b42bfcfc52908987ac101c36940c29"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:2f66e12a1297119946bb1841b5dde4d3792591d76adeee9aff97c8a660bed47a"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -745,8 +744,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "新しく作ったコンテナでも、fox・macbook・rabbit の席が、モジュールの ssh エージェントの鍵で起動できるようになります（鍵の置き場のフォルダを作る、転送の準備に接続先を渡す）。",
-        "認証仲介に、決まったコマンドを項目の秘密付きで動かす通路、HTTP の追加の認証方式と大きな返答、AWS の署名、プッシュ用の呼び出し元が加わります。"
+        "認証仲介の中継に、BugHub 用の呼び出し元が加わり、書きかけの要求行と開いたままの実行の通路に上限、要求行ごとに 30 秒の制限が付きます。"
       ]
     },
     {
@@ -891,8 +889,8 @@
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "c677866782eb38907fce94770aa53461f9ce43dc",
-      "versionId": "1013ab135dfdbda494fb252a7f05608dd12c524e5e005e84c8b4bd503084ae09",
+      "sourceCommit": "9adf8f1dfaa85743d1b976224fc3e1c9e15c6ad9",
+      "versionId": "f1d3a51332ef6ff905e3d73b7c6557d34eeb3d5ca12fe81b288de8653d2618cb",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -900,16 +898,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T065011Z/auth-mediation-c677866782eb38907fce94770aa53461f9ce43dc-linux-amd64.tar.gz",
-          "bytes": 3732749,
-          "sha256": "1013ab135dfdbda494fb252a7f05608dd12c524e5e005e84c8b4bd503084ae09"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T071943Z/auth-mediation-9adf8f1dfaa85743d1b976224fc3e1c9e15c6ad9-linux-amd64.tar.gz",
+          "bytes": 3733911,
+          "sha256": "f1d3a51332ef6ff905e3d73b7c6557d34eeb3d5ca12fe81b288de8653d2618cb"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T065011Z/auth-mediation-c677866782eb38907fce94770aa53461f9ce43dc-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10991,
-          "sha256": "2d2400b99e126da42d27645152a8af898b79a8b836a87abd990aa6ff0707b6b4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T071943Z/auth-mediation-9adf8f1dfaa85743d1b976224fc3e1c9e15c6ad9-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11085,
+          "sha256": "a16552471fa388141483d00170053f36c9d86faaf15a524e0c95877672b39019"
         },
-        "signerCommit": "c677866782eb38907fce94770aa53461f9ce43dc"
+        "signerCommit": "9adf8f1dfaa85743d1b976224fc3e1c9e15c6ad9"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -921,13 +919,13 @@
         }
       },
       "changes": [
-        "決まったコマンドを項目の秘密付きで動かす通路、HTTP の追加の認証方式と大きな返答、Threads の長期トークンの更新、AWS の署名を、モジュールの中で行えるようになります。"
+        "HTTP の経路 '/' を、保存した基準の URL そのものとして扱い、範囲に関する見出しを返し、項目のプロキシ（GET だけ）を通せるようになります。AWS の署名の正規の経路を直します。"
       ]
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "c677866782eb38907fce94770aa53461f9ce43dc",
-      "versionId": "d9924cc594e37a185ae736284384853f6271636e8057dbf7b4a5b476eab24dd6",
+      "sourceCommit": "9adf8f1dfaa85743d1b976224fc3e1c9e15c6ad9",
+      "versionId": "6ac3c4d337a8f1ae997aabadb5cd474e9f6d0bfb0dfd6c09fd239cc153241d8d",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -935,16 +933,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T065011Z/auth-mediation-c677866782eb38907fce94770aa53461f9ce43dc-linux-arm64.tar.gz",
-          "bytes": 3732749,
-          "sha256": "d9924cc594e37a185ae736284384853f6271636e8057dbf7b4a5b476eab24dd6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T071943Z/auth-mediation-9adf8f1dfaa85743d1b976224fc3e1c9e15c6ad9-linux-arm64.tar.gz",
+          "bytes": 3733911,
+          "sha256": "6ac3c4d337a8f1ae997aabadb5cd474e9f6d0bfb0dfd6c09fd239cc153241d8d"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T065011Z/auth-mediation-c677866782eb38907fce94770aa53461f9ce43dc-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10897,
-          "sha256": "1cd9c0f5d53421dd5db5e4e9cfdb1ca259f6d54d692796b3c0137dddc0243acf"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T071943Z/auth-mediation-9adf8f1dfaa85743d1b976224fc3e1c9e15c6ad9-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10889,
+          "sha256": "67834e55730b16506ce9b55801fdf1bc6a7bae0b7a19614d0c17cb9745f5ba8b"
         },
-        "signerCommit": "c677866782eb38907fce94770aa53461f9ce43dc"
+        "signerCommit": "9adf8f1dfaa85743d1b976224fc3e1c9e15c6ad9"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -956,7 +954,7 @@
         }
       },
       "changes": [
-        "決まったコマンドを項目の秘密付きで動かす通路、HTTP の追加の認証方式と大きな返答、Threads の長期トークンの更新、AWS の署名を、モジュールの中で行えるようになります。"
+        "HTTP の経路 '/' を、保存した基準の URL そのものとして扱い、範囲に関する見出しを返し、項目のプロキシ（GET だけ）を通せるようになります。AWS の署名の正規の経路を直します。"
       ]
     }
   ],
