@@ -49,7 +49,7 @@ export function validateAuthMediationRequest(method, params, context) {
         && (params.from_name === undefined || text(params.from_name, 100)) && (params.reply_to === undefined || text(params.reply_to, 254))
         && ['mailbox', 'search', 'order', 'limit', 'fetch', 'uid', 'folders'].every(k => params[k] === undefined)
       : ['to', 'subject', 'text', 'html', 'from_name', 'reply_to'].every(k => params[k] === undefined)
-        && (params.mailbox === undefined || text(params.mailbox, 200)) && (params.order === undefined || ['newest', 'oldest'].includes(params.order))
+        && (params.mailbox === undefined || text(params.mailbox, 200) && !/[\x00-\x1f\x7f]/u.test(params.mailbox)) && (params.order === undefined || ['newest', 'oldest'].includes(params.order))
         && (params.limit === undefined || Number.isInteger(params.limit) && params.limit >= 1 && params.limit <= 50) && (params.fetch === undefined || ['none', 'headers', 'text', 'raw'].includes(params.fetch))
         && (params.uid === undefined || Number.isInteger(params.uid) && params.uid >= 1) && (params.folders === undefined || typeof params.folders === 'boolean')
         && (params.search === undefined || authMediationObject(params.search, [], ['unseen', 'since', 'before', 'from', 'subject']) && (params.search.unseen === undefined || typeof params.search.unseen === 'boolean')

@@ -8,7 +8,8 @@ const fail = (code, why) => Object.assign(new Error(code), { code, why })
 const STEP_MS = 20000, TOTAL_MS = 60000
 export const LIMITS = { messages: 50, headers: 65536, text: 262144, raw: 262144, one: 1048576, total: 2097152 }
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-const quote = value => '"' + String(value).replace(/([\\"])/gu, '\\$1') + '"'
+// Every value that goes into a command line passes here: a control character (CR, LF, NUL ...) would end the line and start another command, so it is refused for user, password, folder and search alike.
+const quote = value => { if (/[\x00-\x1f\x7f]/u.test(String(value))) throw fail(MAIL_REJECTED, 'control'); return '"' + String(value).replace(/([\\"])/gu, '\\$1') + '"' }
 const printable = (value, max) => typeof value === 'string' && value.length >= 1 && value.length <= max && /^[\x20-\x7e]*$/u.test(value)
 const imapDate = iso => { const m = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(iso ?? ''); if (!m || +m[2] < 1 || +m[2] > 12) throw fail(MAIL_REJECTED, 'date'); return `${+m[3]}-${MONTHS[+m[2] - 1]}-${m[1]}` }
 
@@ -103,7 +104,7 @@ export async function readFolder(client, folder, { search, order = 'newest', lim
       if (bytes.length > cap) { bytes = bytes.subarray(0, cap); m.truncated = true }
       if (budget.left < bytes.length) { bytes = bytes.subarray(0, Math.max(0, budget.left)); m.truncated = true }
       budget.left -= bytes.length
-      if (fetch === 'raw') m.raw = bytes.toString('base64'); else m[fetch] = bytes.toString('utf8')
+      if (fetch === 'raw') m.raw = bytes.toString('base64'); else { const s = bytes.toString('utf8'); if (s.length > cap) m.truncated = true; m[fetch] = s.slice(0, cap) } // cap on the decoded length too: invalid UTF-8 can grow when decoded
     }
     return [m]
   })

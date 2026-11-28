@@ -78,6 +78,19 @@ test('imap: the search is built from fixed words and checked values; anything th
   for (const search of [{ from: 'a"\r\nA2 DELETE' }, { subject: 'ü' }, { since: '28/11/2026' }, { since: '2026-13-01' }, { from: '' }]) assert.throws(() => searchCriteria(search), e => e.code === 'MAIL_REJECTED')
 })
 
+test('imap: no value that reaches a command line may carry a control character: a mailbox, user or password with CR/LF is refused before it is written; the protocol refuses such a mailbox too', async () => {
+  const s = await fakeImap()
+  try {
+    const c = await openImap(ITEM, { connect: s.connect }); const before = s.seen.length
+    for (const folder of ['INBOX\r\nA9 DELETE Archive\r\nA10 NOOP', 'INBOX\nA9 DELETE Archive', 'INBOX\0', 'IN\x7fBOX']) assert.equal((await readFolder(c, folder, { budget: { left: 1 } }).catch(e => e)).code, 'MAIL_REJECTED', JSON.stringify(folder))
+    c.close(); assert.equal(s.seen.slice(before).filter(l => /DELETE|NOOP|EXAMINE/u.test(l)).length, 0) // nothing was written
+    for (const fields of [{ ...ITEM, mail_user: 'me\r\nA2 DELETE x' }, { ...ITEM, mail_password: 'p\r\nA2 NOOP' }]) assert.equal((await openImap(fields, { connect: s.connect }).catch(e => e)).code, 'MAIL_REJECTED')
+  } finally { s.close() }
+  const ctx = { generation: 'g1' }
+  for (const mailbox of ['INBOX\r\nA9 DELETE Archive', 'a\nb', 'a\0b']) assert.throws(() => validateAuthMediationRequest('mail', { action: 'read', name: 'box', via: 'host-socket', cwd: '/c', mailbox }, ctx), /AUTH_MEDIATION_INVALID/u)
+  assert.doesNotThrow(() => validateAuthMediationRequest('mail', { action: 'read', name: 'box', via: 'host-socket', cwd: '/c', mailbox: 'Réception &AOk-' }, ctx)) // a non-ASCII name stays allowed
+})
+
 test('imap: a wrong password is MAIL_REJECTED, a refused connection MAIL_NOT_SUBMITTED, an unknown folder an error', async () => {
   const s = await fakeImap({ password: 'other' })
   try { assert.equal((await openImap(ITEM, { connect: s.connect }).catch(e => e)).code, 'MAIL_REJECTED') } finally { s.close() }
