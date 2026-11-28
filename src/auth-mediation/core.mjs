@@ -5,13 +5,14 @@ import { authorize, importV1 } from './policy.mjs'
 import { envReturn, runEnv } from './env.mjs'
 import { botForCwd, callerKey } from './identity.mjs'
 import { useKey } from './keyuse.mjs'
+import { callHttp } from './http.mjs'
 
 const NOT_REGISTERED = 'This command is not registered.'
 const ENTRY_ONLY = ['grant', 'revoke', 'import'], DECISION_KEYS = ['id', 'role', 'record', 'need', 'reason']
 const REFUSALS = { stopped: 'This command is stopped by the operator.', denied: 'This command is not permitted.' }
 
 // store: {read, write}; items: createItemCache; audit: line => Promise; roots: () => {botId: absoluteRoot}.
-export function createAuthCore({ store, items, audit, roots, now = () => new Date(), realpath = fsRealpath }) {
+export function createAuthCore({ store, items, audit, roots, now = () => new Date(), realpath = fsRealpath, fetchImpl = fetch }) {
   // An audit failure never refuses a request (the diagnostic is the caller's); it is swallowed here by design.
   const record = (rec, outcome, extra = {}) => { void Promise.resolve(audit({ ...rec, outcome, ...extra })).catch(() => {}) }
 
@@ -20,14 +21,17 @@ export function createAuthCore({ store, items, audit, roots, now = () => new Dat
     try { const [c, r] = await Promise.all([real(cwd), real(root)]); return c === r || c.startsWith(r + '/') } catch { return false }
   }
 
+  // The caller: the Bot the transport named, the unit (host folder or caller socket), or the registered Bot root that contains the peer's cwd.
+  const identify = async request => request.botId ? { kind: 'bot', id: request.botId }
+    : request.unit ? { kind: 'unit', folder: request.unit }
+      : (id => id && { kind: 'bot', id })(botForCwd(await roots(), request.cwd))
+
   // request: {command: string[], cwd, via: 'mcp'|'container-socket'|'host-socket', botId?, unit?}
   async function resolve(request) {
     const at = now()
     const policy = await store.read()
     const name = request.command.join(' ')
-    const caller = request.botId ? { kind: 'bot', id: request.botId }
-      : request.unit ? { kind: 'unit', folder: request.unit }
-        : (id => id && { kind: 'bot', id })(botForCwd(await roots(), request.cwd))
+    const caller = await identify(request)
     const rec = { time: at.toISOString(), request_id: randomUUID(), caller: caller ? callerKey(caller) : null, item: name, via: request.via, cwd: request.cwd }
     if (!caller || request.command.length === 0) { record(rec, 'unknown-caller'); return { outcome: 'unknown-caller', error: 'The caller is not registered.' } }
     // The run path starts a process in cwd, so cwd must be a clean path inside the Bot's own project (symlinks resolved).
@@ -91,5 +95,20 @@ export function createAuthCore({ store, items, audit, roots, now = () => new Dat
     try { const data = useKey(request.action, found.fields, request.data, request.aad ?? ''); record(rec, 'granted', { cache }); return { outcome: 'granted', data } }
     catch { record(rec, 'error', { cache }); return { outcome: 'error', error: `Cannot ${request.action}.` } }
   }
-  return { resolve, admin, keyuse }
+  // Http (F14): the module makes the request with the credential added and returns the response. Grant command "http <name>"; item "http <name>".
+  async function http(request) {
+    const at = now(), policy = await store.read(), caller = await identify(request), item = `http ${request.name}`
+    const rec = { time: at.toISOString(), request_id: randomUUID(), caller: caller ? callerKey(caller) : null, item, via: request.via, cwd: request.cwd ?? request.unit, method: request.method, path: request.path.split('?')[0] }
+    if (!caller) { record(rec, 'unknown-caller'); return { outcome: 'unknown-caller', error: 'The caller is not registered.' } }
+    const verdict = authorize(policy, caller, item, request.cwd ?? request.unit, at.getTime())
+    if (verdict !== 'granted') { if (verdict === 'stopped') items.flush(item); record(rec, verdict); return { outcome: verdict, error: REFUSALS[verdict] } }
+    const found = await items.get(item, policy.vault, policy.cache_seconds)
+    if (!found) { record(rec, 'not-registered'); return { outcome: 'not-registered', error: NOT_REGISTERED } }
+    try {
+      const result = await callHttp(found.fields, request, fetchImpl)
+      record(rec, 'granted', { cache: found.hit ? 'hit' : 'miss', status: result.status })
+      return { outcome: 'granted', ...result }
+    } catch (error) { record(rec, 'error', { cache: found.hit ? 'hit' : 'miss' }); return { outcome: 'error', error: error?.code?.startsWith?.('HTTP_') ? error.message : 'The request failed.' } }
+  }
+  return { resolve, admin, keyuse, http }
 }
