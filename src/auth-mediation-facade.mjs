@@ -20,7 +20,7 @@ export function createAuthMediationFacade({ controller, bots }) {
     // The container socket sends the peer cwd (the child finds the Bot from the registered roots); the MCP-side callers send a Bot ID. Exactly one of the two.
     admin: ({ botId, cwd, verb, args, program }) => call('admin', clean({ botId, cwd, verb, args, program })).catch(() => ({ outcome: 'error', error: NOT_RUNNING })),
     // Key use on a container caller's own socket: the unit is the socket's path (named by the relay). The module uses the key inside itself and answers with the result only.
-    keyuse: ({ action, name, data, aad, via, cwd, unit }) => call('keyuse', clean({ action, name, data, aad, via, cwd, unit })).catch(error => error?.code === 'AUTH_MEDIATION_INVALID' ? { outcome: 'error', error: 'request invalid' } : { outcome: 'error', error: NOT_RUNNING }),
+    keyuse: ({ action, name, data, aad, flags, via, cwd, unit }) => call('keyuse', clean({ action, name, data, aad, flags, via, cwd, unit })).catch(error => error?.code === 'AUTH_MEDIATION_INVALID' ? { outcome: 'error', error: 'request invalid' } : { outcome: 'error', error: NOT_RUNNING }),
     // Http: the module makes the request with the credential added and returns the response only.
     http: params => call('http', clean(params)).catch(error => error?.code === 'AUTH_MEDIATION_INVALID' ? { outcome: 'error', error: 'request invalid' } : { outcome: 'error', error: NOT_RUNNING }),
     status: () => call('status', {}).catch(() => ({ state: 'unavailable' })),
