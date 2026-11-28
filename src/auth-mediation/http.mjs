@@ -16,7 +16,8 @@ function target(fields, request) {
   if ((base.protocol !== 'https:' && !plainOk) || base.username || base.password || base.search || base.hash) throw refuse('The key item has no usable base URL.')
   const methods = (fields.http_methods ?? 'GET').toUpperCase().split(/[\s,]+/u).filter(Boolean)
   if (!METHODS.includes(request.method) || !methods.includes(request.method)) throw refuse('This method is not allowed for this key.')
-  if (!/^\/[^\s#\\]*$/u.test(request.path)) throw refuse('The path is not usable.')
+  // An encoded slash, backslash, NUL or dot could be read as a separator by the server but not by the URL check below: a path that hides a separator is refused outright.
+  if (!/^\/[^\s#\\]*$/u.test(request.path) || /%(?:2f|5c|00|2e)/iu.test(request.path.split('?')[0])) throw refuse('The path is not usable.')
   const url = new URL(request.path, base)
   const prefix = base.pathname.replace(/\/$/u, '')
   if (url.origin !== base.origin || (url.pathname + '/').slice(0, prefix.length + 1) !== prefix + '/') throw refuse('The path leaves the key\'s API.')

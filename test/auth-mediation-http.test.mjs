@@ -60,6 +60,15 @@ test('http: the response never shows the credential: not in the body (raw or bas
   assert.deepEqual(Object.keys(basic.seen[0].headers).sort(), ['authorization', 'x-request-id'])
 })
 
+test('http: a path that hides a separator is refused (%2f %5c %00 %2e, any case, backslash) before any call, in the query it is allowed', async () => {
+  const t = setup({ item: { ...ITEM, http_base: 'https://api.example.com/v1', http_passthrough_paths: '/v1/token' } })
+  for (const path of ['/v1/items%2f..%2ftoken/x', '/v1/items%2F..%2Ftoken/x', '/v1/a%5cb', '/v1/a%5Cb', '/v1/a%00b', '/v1/%2e%2e/items', '/v1/%2E./items', '/v1/a%2e%2e/b', '/v1\\x'])
+    assert.equal((await ask(t, { path })).outcome, 'error', path)
+  assert.equal(t.seen.length, 0)
+  assert.equal((await ask(t, { path: '/v1/items?next=a%2fb&x=%2e' })).outcome, 'granted') // the query is the server's data, not a route
+  assert.equal((await ask(t, { path: '/v1/items/a%20b' })).outcome, 'granted')
+})
+
 test('http: a response is cut at 256 KiB and any copy of the credential in it is replaced; the audit never holds headers, bodies or the credential', async () => {
   const big = setup({ answer: () => new Response('a'.repeat(300000)) }); const r = await ask(big)
   assert.equal(r.truncated, true); assert.equal(Buffer.from(r.body, 'base64').length, 262144)
