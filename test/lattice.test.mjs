@@ -11,6 +11,7 @@ import { createLatticeCore } from '../src/lattice/core.mjs'
 import { createLatticeApi } from '../src/lattice/http-api.mjs'
 import { latticeToolHandlers, latticeTools } from '../src/lattice/mcp.mjs'
 import { projectChart, projectHistory } from '../src/lattice/projection.mjs'
+import { validateLatticeResult } from '../src/lattice-protocol.mjs'
 
 const ref = (plan, task) => ({ plan_key: plan, task_id: task })
 const at = minute => `2026-11-11T10:${String(minute).padStart(2, '0')}:00.000Z`
@@ -25,6 +26,7 @@ const activityOf = events => {
     const item = byTask.get(event.task_id) ?? { task_id: event.task_id, changed_at: event.recorded_at, started: null }
     item.changed_at = item.changed_at > event.recorded_at ? item.changed_at : event.recorded_at
     if (event.kind === 'start') item.started = { at: event.recorded_at, agent: event.actor.agent }
+    if (event.kind === 'add') item.added = { at: event.recorded_at, agent: event.actor.agent }
     byTask.set(event.task_id, item)
   }
   const first = events.find(event => event.recorded_at === times[0])
@@ -198,6 +200,39 @@ test('projection: a 接続 (Lattice 0.104.0 connections, a161) is never an edge 
   assert.deepEqual([done['p1/t2'].state, done['p1/t3'].state], ['ready', 'pending'], 'a finished task 接続 no longer holds; a schedule still does')
 })
 
+test('projection: addedBy is the task\'s add actor, else none (never the plan\'s first actor: a revision restarts it); waiters are open task 接続 of other charts (README L27)', () => {
+  const p1 = planMember({ tasks: [{ task_id: 't1' }, { task_id: 't2' }, { task_id: 't3' }], states: [['t1', 'pending'], ['t2', 'pending'], ['t3', 'pending']],
+    events: [ev('plan', 't1', 'bot-a', 0), ev('add', 't2', 'bot-b', 3)] })
+  const waiter = (project_id, task, extra = {}) => ({ project_id, plan_key: 'q', task_id: task, title: 'W ' + task, lane: 'bot-b', status: 'pending', kind: 'task', state: 'open', reason: 'needs t1', since: at(task === 'w2' ? 9 : 8), event_digest: 'd', ...extra })
+  const waiters = [{ plan_key: 'p1', task_id: 't1', waiters: [waiter('other', 'w2'), waiter('other', 'w1'), waiter('other', 'w3', { state: 'settled' }), waiter('other', 'w4', { status: 'retired' }), waiter('Bad Id', 'w5'), waiter('third', 'w6', { status: 'done' })] }]
+  const elsewhere = (projectId, cardId) => projectId === 'other' && cardId === 'q/w1' ? { chartName: 'Other', title: 'Known title', producer: 'bot-c' } : null
+  const result = projectChart({ read: readOf([p1], { waiters }), members: roster(['bot-a', 'bot-b', 'bot-c']), elsewhere })
+  const cards = byId(result)
+  assert.deepEqual([cards['p1/t1'].addedBy, cards['p1/t2'].addedBy, cards['p1/t3'].addedBy], [undefined, 'bot-b', undefined], 'only Lattice\'s added (plan create: null, the reader falls back to the chart creator)')
+  assert.equal(byId(projectChart({ read: readOf([planMember({ tasks: [{ task_id: 't1' }], states: [['t1', 'pending']] })]), members: [] }))['p1/t1'].addedBy, undefined, 'no journal: no key')
+  assert.deepEqual(cards['p1/t1'].waiters, [{ ref: 'other:q/w1', reason: 'needs t1', since: at(8) }, { ref: 'other:q/w2', reason: 'needs t1', since: at(9) }, { ref: 'third:q/w6', reason: 'needs t1', since: at(8) }].sort((a, b) => a.since.localeCompare(b.since) || a.ref.localeCompare(b.ref)),
+    'oldest since first; settled, retired and malformed waiters are dropped; a done one stays')
+  assert.equal(cards['p1/t2'].waiters, undefined)
+  assert.deepEqual(result.externals, [
+    { id: 'other:q/w2', projectId: 'other', cardId: 'q/w2', chartName: null, title: 'W w2', state: 'pending', finished: false, producer: null },
+    { id: 'other:q/w1', projectId: 'other', cardId: 'q/w1', chartName: 'Other', title: 'Known title', state: 'pending', finished: false, producer: 'bot-c' },
+    { id: 'third:q/w6', projectId: 'third', cardId: 'q/w6', chartName: null, title: 'W w6', state: 'done', finished: true, producer: null }], 'one externals entry per waiter')
+  assert.deepEqual([result.edges, result.waits, result.counts.connections], [[], [], 0], 'a waiter is never an edge, a wait or a connection count')
+})
+
+test('projection: the sweep gets every state of a task or schedule 接続 (README L26) and the wire keeps only the open ones', () => {
+  const p1 = planMember({ tasks: [{ task_id: 't1' }], states: [['t1', 'pending']] })
+  const entry = (kind, ref, state, extra = {}) => ({ kind, ref, state, reason: null, since: at(1), ...extra })
+  const connections = [{ plan_key: 'p1', task_id: 't1', connections: [entry('task', 'other/q/x', 'gone', { state_reason: 'target_retired', target_content_digest: 'c1' }), entry('schedule', 's1', 'settled', { state_reason: 'schedule_resolved' }),
+    entry('task', 'other/q/y', 'open', { target_content_digest: null }), entry('priority', undefined, 'open', { agent: 'bot-a' }), entry('task', 'broken', 'gone'), entry('task', 'other/q/z', 'bogus')] }]
+  const result = projectChart({ read: readOf([p1], { connections }), members: [], elsewhere: (project, id) => project === 'other' && id === 'q/x' ? { chartName: 'Other', title: 'X', producer: null } : null })
+  assert.deepEqual(result.news, [
+    { cardId: 'p1/t1', ref: 'other/q/x', kind: 'task', state: 'gone', reason: 'target_retired', content: 'c1', targetTitle: 'X', chartName: 'Other' },
+    { cardId: 'p1/t1', ref: 's1', kind: 'schedule', state: 'settled', reason: 'schedule_resolved', content: null, targetTitle: null, chartName: null },
+    { cardId: 'p1/t1', ref: 'other/q/y', kind: 'task', state: 'open', reason: null, content: null, targetTitle: null, chartName: null }])
+  assert.deepEqual(byId(result)['p1/t1'].connections.map(item => item.ref ?? item.agent), ['other:q/y', 'bot-a'])
+})
+
 test('projection: ready is only Lattice\'s next_ready (a448): an edge the read does not show, a phase gate or no answer never makes a card ready', () => {
   // t2 has no predecessor in the read (Lattice holds it for a reason the projection cannot see, e.g. an edge from `todo add --before`), t3 is in progress.
   const plan = planMember({ tasks: [{ task_id: 't1' }, { task_id: 't2' }, { task_id: 't3' }], states: [['t1', 'pending'], ['t2', 'pending'], ['t3', 'in-progress']] })
@@ -288,6 +323,7 @@ function rig(extra = {}) {
     exists: async id => cli.charts.includes(id),
     async setName(id, name, from) { cli.named.push([id, name, from]); cli.metas[id] = { ...cli.metas[id], name } },
     async migrateLegacy() { return { names: 0, record: false } },
+    news: {}, async readNewsRecord() { return cli.news }, async writeNewsRecord(value) { cli.news = JSON.parse(JSON.stringify(value)) },
     async run({ id, args, env, input }) {
       const key = args.join(' ')
       cli.calls.push(key === READ ? `${key} ${id}` : key)
@@ -934,4 +970,22 @@ test('mcp: one tool with a strict schema; the handler runs the chart for the cal
   await latticeToolHandlers.lattice({ lattice, from: 'bot-a', args: { project: 'p', name: '工程', args: [] } })
   assert.deepEqual(calls, [{ from: 'bot-a', projectId: 'p', args: ['status'], input: null }, { from: 'bot-a', projectId: 'p', args: ['plan', 'create'], input: { a: 1 } },
     { from: 'bot-a', projectId: 'p', args: [], input: null, name: '工程' }])
+})
+
+test('core: a snapshot with waiters and addedBy passes the parent validator (older bodies take them as optional keys), and the news record is its own 0600 file', async () => {
+  const x = rig()
+  x.cli.reads.alpha = readOf([planMember({ tasks: [{ task_id: 't1' }], states: [['t1', 'pending']], events: [ev('plan', 't1', 'bot-a', 0), ev('add', 't1', 'bot-b', 1)] })],
+    { waiters: [{ plan_key: 'p1', task_id: 't1', waiters: [{ project_id: 'other', plan_key: 'q', task_id: 'w', title: 'W', lane: 'bot-b', status: 'pending', kind: 'task', state: 'open', reason: 'r', since: at(2), event_digest: 'd' }] }] })
+  const snapshot = await x.chart()
+  validateLatticeResult('chart', snapshot)
+  assert.deepEqual([snapshot.cards[0].addedBy, snapshot.cards[0].waiters, snapshot.externals.map(item => item.id)], ['bot-b', [{ ref: 'other:q/w', reason: 'r', since: at(2) }], ['other:q/w']])
+  assert.equal(JSON.stringify(snapshot).includes('target_content_digest'), false, 'the news side list never rides the snapshot')
+  const stateDir = await mkdtemp(join(tmpdir(), 'lattice-news-'))
+  try {
+    const cli = createLatticeCli({ stateDir, bin: '/nonexistent' })
+    assert.deepEqual(await cli.readNewsRecord(), {})
+    await cli.writeNewsRecord({ 'a/p/t/r': { state: 'open', content: null } })
+    assert.deepEqual(JSON.parse(readFileSync(join(stateDir, 'connection-news.json'), 'utf8')), { 'a/p/t/r': { state: 'open', content: null } })
+    assert.equal((await lstat(join(stateDir, 'connection-news.json'))).mode & 0o777, 0o600)
+  } finally { await rm(stateDir, { recursive: true, force: true }) }
 })

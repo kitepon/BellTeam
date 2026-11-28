@@ -18,25 +18,37 @@ const REASSIGN = 'Lattice: on charts you created, these tasks are in progress or
   + 'Give each one to the member who does it (a Bot id) or to `owner`: `lattice plan show <P> --json`, change the task\'s lane, and send the whole plan back with `lattice plan revise --plan <P> --input <file>`; '
   + 'or retire it (`lattice todo retire --plan <P> --task <T> --reason <why>`) and add it again in the right lane (`lattice todo add ... --lane <Bot id or approval-box>`).\n'
 
+// Connection news (README L26, Tronie 2026-11-28): what changed about the thing a task is connected to, from Lattice's own state and content digest; one line, information only.
+const NEWS = 'Lattice: something a task of yours is connected to has changed.\n'
+const STATE_TEXT = item => item.state === 'open' ? (item.kind === 'schedule' ? 'the schedule waits again' : 'the target was reopened: the task waits again')
+  : item.state === 'settled' ? (item.kind === 'schedule' ? 'the schedule ran' : 'the target is done')
+    : item.reason === 'target_retired' ? 'the target was retired' : item.reason === 'schedule_removed' ? 'the schedule was removed' : 'the target no longer exists'
+const newsLine = ({ card, news: { item, stateChanged, contentChanged } }) => {
+  const what = [stateChanged && STATE_TEXT(item), contentChanged && (stateChanged ? 'its content also changed' : "the target's content changed (title, done condition, lane or split)")].filter(Boolean).join('; ')
+  return `- ${card.plan}/${card.taskId} 「${card.title}」 is connected to ${item.ref}${item.targetTitle ? ` 「${item.targetTitle}」` : ''}${item.chartName ? ` (${item.chartName})` : ''}: ${what}`
+    + (card.state === 'ready' ? ` -> it can start now: \`lattice todo start --plan ${card.plan} --task ${card.taskId}\`` : '')
+}
+
 const line = card => card.state === 'ready'
   ? `- ${card.plan}/${card.taskId} 「${card.title}」: can start -> \`lattice todo start --plan ${card.plan} --task ${card.taskId}\``
   : `- ${card.plan}/${card.taskId} 「${card.title}」: in progress`
-const lineOf = (card, reassign) => reassign ? `- ${card.plan}/${card.taskId} 「${card.title}」: lane ${card.lane ? `"${card.lane}" is not a Bot` : 'is empty'}` : line(card)
+const lineOf = (card, reassign, entry) => entry?.news ? newsLine(entry) : reassign ? `- ${card.plan}/${card.taskId} 「${card.title}」: lane ${card.lane ? `"${card.lane}" is not a Bot` : 'is empty'}` : line(card)
 
 // ONE message per Bot per tick (Owner; Epinel gate): each part's head once, then a header per chart and its task lines, within LIMIT.
 // Lines that do not fit are left out and counted in the last line, so the Bot still gets exactly one prompt.
 const more = n => `\n... and ${n} more of your tasks are in progress or can start: see \`lattice status\` on each chart.`
 export function nudgeMessage(entries) {
   const room = LIMIT - more(entries.length).length
-  const own = entries.filter(entry => !entry.reassign), other = entries.filter(entry => entry.reassign)
+  const own = entries.filter(entry => !entry.reassign && !entry.news), other = entries.filter(entry => entry.reassign), told = entries.filter(entry => entry.news)
   let text = '', left = 0
-  for (const [head, part] of [[HEAD, own], [REASSIGN, other]]) {
+  for (const [head, part] of [[HEAD, own], [REASSIGN, other], [NEWS, told]]) {
     if (!part.length) continue
     text += (text ? '\n\n' : '') + head
     let chart = null
-    for (const { projectId, card, reassign } of part) {
+    for (const entry of part) {
+      const { projectId, card, reassign } = entry
       // shortcut: a single task line over LIMIT is left out and counted; titles are short. Upgrade if titles ever grow past a few hundred chars.
-      const piece = `${projectId === chart ? '' : `\nChart ${projectId} (lattice tool, project ${projectId}):`}\n${lineOf(card, reassign)}`
+      const piece = `${projectId === chart ? '' : `\nChart ${projectId} (lattice tool, project ${projectId}):`}\n${lineOf(card, reassign, entry)}`
       if (left || text.length + piece.length > room) { left++; continue }
       text += piece
       chart = projectId
@@ -49,8 +61,11 @@ export function nudgeMessage(entries) {
 // `warned`: the reassign warnings already delivered (key = chart/plan/task/lane/state -> creator), so one task's warning reaches its creator once
 // and again only when the task changes (b25, Shiratsuru: three warnings in minutes, each delivery starting a turn). The in-prompt tasks repeat by
 // design (the Owner's nudge); only the creator warning is once. shortcut: kept in memory per child generation, so a child restart warns once more; upgrade if restarts get frequent.
-export async function nudgeSweep(charts, { laneOf, log, effect, warned = new Map() }) {
+export async function nudgeSweep(charts, { laneOf, log, effect, warned = new Map(), news = null }) {
   const lanes = new Map(), orphans = new Set(), current = new Set(), out = { charts: charts.length, prompted: 0, skipped: 0, failed: 0 }
+  const record = await news?.read().catch(error => (log(`lattice-news-record ${error?.code ?? 'FAILED'}`), null)) ?? null, seen = new Set()
+  let recordDirty = false
+  const flush = async () => { if (recordDirty) { recordDirty = false; await news.write(record).catch(error => log(`lattice-news-record ${error?.code ?? 'FAILED'}`)) } }
   for (const { projectId, createdBy, cards } of charts) for (const card of cards) {
     if (card.state !== 'in-progress' && card.state !== 'ready') continue
     const bot = laneOf(card.lane)
@@ -62,9 +77,27 @@ export async function nudgeSweep(charts, { laneOf, log, effect, warned = new Map
     if (key) { current.add(key); if (warned.get(key) === target) continue }
     lanes.set(target, [...lanes.get(target) ?? [], { projectId, card, reassign: !bot, key }])
   }
+  // Connection news (README L26): first sight is recorded silently; a different state or content digest is one line in the lane's one message; the record advances only on an accepted send or an Owner lane.
+  for (const { projectId, createdBy, cards, news: items = [], verified } of record ? charts : []) {
+    for (const item of items) {
+      const card = cards.find(entry => entry.id === item.cardId)
+      if (!card) continue
+      const key = `${projectId}/${item.cardId}/${item.ref}`, was = record[key], next = { state: item.state, content: item.content ?? was?.content ?? null }
+      seen.add(key)
+      const stateChanged = !!was && was.state !== item.state, contentChanged = !!was?.content && !!item.content && was.content !== item.content
+      if (!stateChanged && !contentChanged) { if (!was || was.content !== next.content) { record[key] = next; recordDirty = true } continue }
+      const bot = laneOf(card.lane)
+      if (bot === 'owner') { record[key] = next; recordDirty = true; continue }
+      const target = bot ?? laneOf(createdBy)
+      if (!target || target === 'owner') { log(`lattice-news ${projectId} no-creator`); continue }
+      lanes.set(target, [...lanes.get(target) ?? [], { projectId, card, news: { item, stateChanged, contentChanged }, newsKey: key, next }])
+    }
+    // A key whose entry left a verified read of its chart is deleted (the record stays as small as the open connections).
+    if (verified) for (const key of Object.keys(record)) if (key.startsWith(`${projectId}/`) && !seen.has(key)) { delete record[key]; recordDirty = true }
+  }
   for (const key of warned.keys()) if (!current.has(key)) warned.delete(key)
   for (const projectId of orphans) log(`lattice-nudge-lane ${projectId} no-creator`)
-  if (!lanes.size) return out
+  if (!lanes.size) { await flush(); return out }
   // Only 'working' proves the Bot is running (script/CI waits included, bellteam-running); unknown or a failed read is prompted.
   const turns = await effect('turns.read', { botIds: [...lanes.keys()] }).then(value => value.turns, () => ({}))
   for (const [bot, entries] of lanes) {
@@ -73,8 +106,13 @@ export async function nudgeSweep(charts, { laneOf, log, effect, warned = new Map
     const now = await effect('turns.read', { botIds: [bot] }).then(value => value.turns[bot], () => turns[bot])
     if (now === 'working') { out.skipped++; continue }
     const value = await effect('messages.send', { from: 'scheduler', target: bot, message: nudgeMessage(entries) }).catch(() => null)
-    if (['running', 'steered', 'queued', 'delivered', 'answered'].includes(value?.delivery)) { out.prompted++; for (const entry of entries) if (entry.key) warned.set(entry.key, bot) }
+    if (['running', 'steered', 'queued', 'delivered', 'answered'].includes(value?.delivery)) {
+      out.prompted++
+      for (const entry of entries) { if (entry.key) warned.set(entry.key, bot); if (entry.newsKey) { record[entry.newsKey] = entry.next; recordDirty = true } }
+      await flush()
+    }
     else { out.failed++; log(`lattice-nudge-send ${bot} not accepted`) }
   }
+  await flush()
   return out
 }

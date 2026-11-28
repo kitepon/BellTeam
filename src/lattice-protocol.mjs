@@ -134,8 +134,11 @@ const CARD_STATES = ['pending', 'ready', 'in-progress', 'blocked', 'done', 'reti
 // An open 接続 of a card (Lattice 0.104.0): `ref` for a task of another chart (its externals[] id) or a schedule, `agent` for a 優先接続.
 const connection = value => latticeObject(value, ['kind', 'state', 'reason', 'since'], ['ref', 'agent']) && ['task', 'schedule', 'priority'].includes(value.kind) && value.state === 'open'
   && strOrNull(value.reason) && strOrNull(value.since) && (value.ref === undefined || str(value.ref)) && (value.agent === undefined || strOrNull(value.agent))
+// A card the others wait on (README L27): `ref` names an externals[] entry.
+const waiter = value => latticeObject(value, ['ref', 'reason', 'since']) && str(value.ref) && strOrNull(value.reason) && strOrNull(value.since)
 const card = value => latticeObject(value, ['id', 'plan', 'taskId', 'title', 'doneCondition', 'designMemo', 'state', 'lane', 'producer',
-  'startedAt', 'changedAt', 'blockedReason', 'depth'], ['phase', 'parent', 'doneAt', 'archived', 'counted', 'connections']) && (value.connections === undefined || list(value.connections, connection)) && ['id', 'plan', 'taskId', 'title'].every(key => str(value[key]))
+  'startedAt', 'changedAt', 'blockedReason', 'depth'], ['phase', 'parent', 'doneAt', 'archived', 'counted', 'connections', 'waiters', 'addedBy']) && (value.connections === undefined || list(value.connections, connection))
+  && (value.waiters === undefined || list(value.waiters, waiter)) && (value.addedBy === undefined || str(value.addedBy)) && ['id', 'plan', 'taskId', 'title'].every(key => str(value[key]))
   && [value.phase, value.parent, value.doneAt].every(item => item === undefined || strOrNull(item))
   && [value.archived, value.counted].every(item => item === undefined || typeof item === 'boolean')
   && ['doneCondition', 'designMemo', 'lane', 'producer', 'startedAt', 'changedAt', 'blockedReason'].every(key => strOrNull(value[key]))

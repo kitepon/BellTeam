@@ -38,7 +38,7 @@ export function projectChart({ read, ready = null, members = [], previous = null
     }
     const states = new Map(list((raw ? member.snapshot : member)?.tasks).map(task => [task?.task_id, task]))
     // Lattice's compact read (K3): what the journal gives the screens, already reduced. An unverified raw member has none.
-    const starts = new Map(), changed = new Map(), activity = raw ? null : member.activity
+    const starts = new Map(), changed = new Map(), added = new Map(), activity = raw ? null : member.activity
     const firstAt = stamp(activity?.first?.at)
     if (firstAt && (!first || Date.parse(firstAt) < Date.parse(first.at))) first = { at: firstAt, agent: text(activity.first.agent) }
     updatedAt = later(updatedAt, stamp(activity?.last_at))
@@ -47,18 +47,19 @@ export function projectChart({ read, ready = null, members = [], previous = null
       if (!id) continue
       changed.set(id, later(changed.get(id) ?? null, stamp(item.changed_at)))
       if (agent) starts.set(id, { agent, at })
+      if (text(item.added?.agent)) added.set(id, item.added.agent)
     }
     for (const task of list(plan.tasks)) {
       const taskId = text(task?.task_id), entry = states.get(taskId)
       const status = entry === undefined ? 'pending' : String(entry?.status).replace('_', '-')
       if (!taskId || !STATUS.includes(status)) continue
-      const lane = task.lane === 'main' ? null : text(task.lane), start = starts.get(taskId) // `main` is Lattice's default lane, not an owner
+      const lane = task.lane === 'main' ? null : text(task.lane), start = starts.get(taskId), addedBy = added.get(taskId) // `main` is Lattice's default lane, not an owner
       cards.set(`${key}/${taskId}`, { id: `${key}/${taskId}`, plan: key, taskId, title: text(task.title) ?? taskId,
         doneCondition: text(task.done_condition), designMemo: text(task.design_memo), state: status, lane,
         producer: (status === 'done' || status === 'retired') && lane ? assigned(lane) : start?.agent ?? assigned(lane), startedAt: start?.at ?? null, changedAt: changed.get(taskId) ?? null,
         blockedReason: status === 'blocked' ? text(entry.blocked_reason) : null, depth: 0,
         phase: phaseIds.has(task.phase_id) ? `${key}/${task.phase_id}` : null, parent: null,
-        doneAt: status === 'done' ? stamp(entry?.done_at) ?? changed.get(taskId) ?? null : status === 'retired' ? changed.get(taskId) ?? null : null, archived: false, counted: true })
+        doneAt: status === 'done' ? stamp(entry?.done_at) ?? changed.get(taskId) ?? null : status === 'retired' ? changed.get(taskId) ?? null : null, archived: false, counted: true, ...addedBy && { addedBy } })
       if (text(task.parent_task_id)) parents.set(`${key}/${taskId}`, `${key}/${task.parent_task_id}`)
     }
     for (const dep of list(plan.hard_dependencies)) deps.push([ref(dep?.from), ref(dep?.to)])
@@ -85,17 +86,24 @@ export function projectChart({ read, ready = null, members = [], previous = null
     edges.push({ from, to, waiting: !finished(cards.get(from)) && !finished(cards.get(to)) })
   }
   // Open 接続 per card (Lattice `connections`; only `open` entries count). A task of another chart: ref = its `externals[]` id.
-  const externals = new Map(), links = new Map(list(read?.connections).map(item => [ref(item), item]))
+  const externals = new Map(), news = [], links = new Map(list(read?.connections).map(item => [ref(item), item])), waiting = new Map(list(read?.waiters).map(item => [ref(item), item]))
+  const validProject = project => /^[a-z0-9][a-z0-9-]{0,62}$/u.test(project)
   for (const card of cards.values()) {
     card.connections = []
     for (const entry of list(links.get(card.id)?.connections)) {
       const kind = entry?.kind, [project, plan, task] = String(entry?.ref).split('/')
+      // What the lane is told of (README L26, K11 (a)): every state of a task or schedule entry, for the sweep only, never on the wire.
+      if ((kind === 'task' ? validProject(project) && plan && task : kind === 'schedule' && text(entry.ref)) && ['open', 'settled', 'gone'].includes(entry.state ?? 'open')) {
+        const known = kind === 'task' ? elsewhere(project, `${plan}/${task}`) : null
+        news.push({ cardId: card.id, ref: entry.ref, kind, state: entry.state ?? 'open', reason: text(entry.state_reason), content: kind === 'task' ? text(entry.target_content_digest) : null,
+          targetTitle: known?.title ?? null, chartName: known?.chartName ?? null })
+      }
       if (!['task', 'schedule', 'priority'].includes(kind) || (entry.state ?? 'open') !== 'open') continue
       const item = { kind, state: 'open', reason: text(entry.reason), since: stamp(entry.since) }
       if (kind === 'priority') item.agent = text(entry.agent)
       else if (kind === 'schedule') { if (!text(entry.ref)) continue; item.ref = entry.ref }
       else {
-        if (!/^[a-z0-9][a-z0-9-]{0,62}$/u.test(project) || !plan || !task) continue // a malformed ref drops only this entry
+        if (!validProject(project) || !plan || !task) continue // a malformed ref drops only this entry
         const id = `${project}:${plan}/${task}`, found = outside.get(id), known = elsewhere(project, `${plan}/${task}`), status = String(found?.status).replace('_', '-')
         if (!externals.has(id)) externals.set(id, { id, projectId: project, cardId: `${plan}/${task}`, chartName: known?.chartName ?? null, title: known?.title ?? null,
           state: STATUS.includes(status) && !text(found?.reason) ? status : null, finished: found?.finished === true, producer: known?.producer ?? null })
@@ -103,6 +111,17 @@ export function projectChart({ read, ready = null, members = [], previous = null
       }
       card.connections.push(item)
     }
+    // Who waits on this card (K11 (b), README L27): open task 接続 of other charts, from Lattice's `waiters`; a retired waiter is not a next step.
+    const waiters = []
+    for (const entry of list(waiting.get(card.id)?.waiters)) {
+      const status = String(entry?.status).replace('_', '-')
+      if (entry?.kind !== 'task' || (entry.state ?? 'open') !== 'open' || status === 'retired' || !validProject(entry.project_id) || !ref(entry)) continue
+      const id = `${entry.project_id}:${ref(entry)}`, known = elsewhere(entry.project_id, ref(entry))
+      if (!externals.has(id)) externals.set(id, { id, projectId: entry.project_id, cardId: ref(entry), chartName: known?.chartName ?? null, title: known?.title ?? text(entry.title),
+        state: STATUS.includes(status) ? status : null, finished: status === 'done', producer: known?.producer ?? null })
+      waiters.push({ ref: id, reason: text(entry.reason), since: stamp(entry.since) })
+    }
+    if (waiters.length) card.waiters = waiters.sort((a, b) => (a.since ? Date.parse(a.since) : Infinity) - (b.since ? Date.parse(b.since) : Infinity) || a.ref.localeCompare(b.ref))
     if (card.state === 'pending' && ready?.has(card.id)) card.state = 'ready'
   }
   // Trees come from Lattice (display read `trees`, 0.100.0; Owner: BellTeam computes no trees). A card in no tree is a tree of one.
@@ -134,7 +153,7 @@ export function projectChart({ read, ready = null, members = [], previous = null
   const all = [...cards.values()], counted = all.filter(card => card.counted), count = state => counted.filter(card => card.state === state).length
   // `closed` (Lattice's open read, a457): the finished tasks of closed trees, which this read does not carry.
   const closedTasks = Number.isInteger(read?.closed?.tasks) && read.closed.tasks >= 0 ? read.closed.tasks : 0
-  return { state, verifiedAt: stamp(read?.verified_at), closedTasks, cards: all, edges, waits, phases, externals: [...externals.values()],
+  return { state, verifiedAt: stamp(read?.verified_at), closedTasks, cards: all, edges, waits, phases, externals: [...externals.values()], news,
     memberIds: [...new Set([...all.map(card => card.producer), ...waits.map(wait => wait.waiter), ...[...externals.values()].map(item => item.producer),
       ...all.flatMap(card => card.connections.map(entry => entry.agent))].filter(id => id && id !== 'owner'))].sort(),
     counts: { total: counted.length, done: count('done') + count('retired'), working: count('in-progress'), blocked: count('blocked'),
