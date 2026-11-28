@@ -28,7 +28,7 @@ stateDiagram-v2
   Unavailable --> Backoff: register retained generation or lost child
   Backoff --> Recovering: one timer / local and shared exchange ownership
   Recovering --> Backoff: failure / keep the same lifecycle work
-  Recovering --> Available: retained resume or selected-source restore completes
+  Recovering --> Available: resume/probe completes and controller is initialized
   Starting --> Closed: close
   Available --> Closed: close
   Backoff --> Closed: close cancels timer
@@ -47,7 +47,7 @@ flowchart LR
   Restore --> Configuration[Latest configuration epochs / same business data]
   Configuration --> Ready[Ready / resume ACK and actual completion]
   Resume --> Ready
-  Ready --> Available[Publish available]
+  Ready --> Available[Publish available / mark initialized after successful resume]
   Shared --> Diagnostic[One fixed diagnostic on lifecycle state transition]
 ```
 
@@ -68,7 +68,12 @@ flowchart LR
   Closed --> Drain[実completion＋外部admission drain / 60秒]
   Drain --> Quiesce[child quiesce / 保存・stream・callback終端]
   Quiesce --> Handoff[固有private export / 必要moduleだけ]
-  Handoff --> Exit[exit / OS・IPC・pipe全close]
+  Handoff --> Recheck[prepareReleaseを再照合]
+  Drain -->|drainまたはhandoff失敗| Recheck
+  Recheck -->|照合失敗| ResumeOld[交換中フラグ解除 / 開いていれば旧子をresume]
+  ResumeOld -->|resume失敗| Recovery[unavailable / 共通復旧]
+  ResumeOld -->|resume成功| Caller
+  Recheck -->|一致| Exit[exit / OS・IPC・pipe全close]
   Exit --> ChildClosed[固有childClosed / 発行済callbackと自身の保存effect終端]
   ChildClosed --> Reaped[親incoming完了 / reaped]
   Reaped --> Launch[固定C / advanced IPC / 新generation]
@@ -76,6 +81,15 @@ flowchart LR
   Init --> Record[private adoption / 同stateデータ維持]
   Record --> Resume[resume ACK / 親新受付公開]
   Resume --> Caller
+  Launch -->|通常の起動失敗| Cleanup[未resumeの候補を回収]
+  Init -->|通常の初期化・ready失敗| Cleanup
+  Record -->|保存失敗| Cleanup
+  Resume -->|resume失敗| Cleanup
+  Resume -->|公開readiness probe失敗| Recovery
+  Cleanup --> Rollback[旧固定版とhandoffから復元 / 旧採用記録の保存 / resume]
+  Rollback -->|成功| Initialized[初期化済み / 交換中フラグ解除]
+  Rollback -->|失敗| Release[交換中フラグ解除 / closedまたはunavailable]
+  Release -->|開いたcontroller| Recovery
 ```
 
 `createModuleProcess({component,root,createChannel,prepareRelease,validateReady,initializeParams?,exportHandoff?,admission?,canContinue?,onGeneration?,onState?,onModuleChildExit?,investigationsFile?,exchangeMutex?,spawnProcess?})`はstart/close/request/callback/initialize/replace/reserve/snapshotと会話限定retireProtocolFailedWriterを返す。spawnProcessは実起動の試験DI、通常はNode spawn。component/実行path/argvは固定、envは空又はdiagnosticsの既notes設定一変数だけ。createChannel(child,{generation})は本人のready/request/callback/control/reapedを供給する。descriptorの固定appRootを共通検査し、prepareReleaseとvalidateReadyが作者の署名済版・protocol・実stateCompatibilityを検査する。
@@ -90,11 +104,11 @@ admissionを使うmoduleは同親のclose/drain/adopt/resumeを注入する。ca
 
 initializeParams({generation,mode,handoff})は初回bootstrap、採用済起動/交換はrestoreを固有paramsへ変換する。usageのsettings/subscriptions/services段階は同親がinitialize(stage)で進め、交換はexportHandoff(channel)から得た同private handoffを一回のrestoreへ渡す。snapshot start/end/abort・権限はcreateChannelの閉closureへ注入する。本文/path/envをHTTPや更新DTOへ追加しない。
 
-quiesce失敗/60秒未終端は旧resume、新子0・kill0・unknown再送0。新版ready/保存/resume失敗時は未受付candidateをOS終了まで回収し、旧固定版と同handoffから再生成する。A retained resumed writer enters shared lifecycle retry; it is not killed as a shortcut, and real writer/effect ownership is preserved. closeは起動/交換中operationと既writerを回収し、新子の起動を止める。exitの5秒killはquiesce成功後だけ。
+If drain, quiesce, or handoff export fails, the exchange drops the handoff and rechecks the candidate. A failed recheck clears `exchanging` before attempting to resume the retained child. If the recheck succeeds, the old child exits and the candidate restores from durable state. If old-child termination fails, shared recovery retries the unfinished termination stage. The exchange's five-second kill timer starts when exit is requested. Explicit controller close waits for its existing operation and prevents a new child from launching.
 
-admission.drainが明示busyを返した時は、子quiesceへ進まず同DRAIN_TIMEOUTで旧resumeへ戻る。
+After the old child has been reaped, an ordinary candidate launch, initialization, adoption-write, or resume failure reaps the unresumed candidate, then restores the previous fixed release and adoption record with the same handoff. A successful resume and probe marks the controller initialized, including when an exchange began before initial startup completed. A failed rollback reports its own stage and leaves the controller closed or unavailable with a lifecycle retry. The candidate/rollback `finally` clears `exchanging` in either case. Failed candidate public readiness uses the selected-release recovery path. A resumed writer on that path goes through drain and exit. A child restored successfully by that recovery path is treated as initialized so its later unexpected exit starts normal recovery. Recovery retries lifecycle work only.
 
-quiesce RPCは残りdrain時間を明示し、共通controller自身もその残時間のwithinで囲む。固有channelのACK/進捗によるcaller期限変更を実drain期限の延長にしない。期限後は元control.completionをactiveへ残し、旧resumeと子epoch検査を使い、遅着quiesceで新受付を再閉鎖しない。close/次交換はその実終端を待つ。
+The quiesce RPC uses the remaining drain deadline. Channel ACKs or progress do not extend it. On timeout the controller keeps the underlying control completion in its active set. The selected lifecycle path retains ownership of that work and does not replay it.
 
 ## Adopted release from another body's state format (2026-11-09, K-36W2AY)
 

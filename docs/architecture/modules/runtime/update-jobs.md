@@ -19,15 +19,18 @@ flowchart TD
   App[Authenticated plan/start] --> Parent[Molly existing operation ledger]
   Parent --> Admit[admitJob for each step before common HTTP202]
   Admit --> Durable[updater state/jobs UUID JSON fsync + rename + directory fsync]
-  Parent --> Start[client.start / startModuleInstall with same jobId]
-  Start --> Durable
-  Durable --> Accept[acceptance returned with jobId / state / reason]
+  Durable --> Accept[Parent saves all admission receipts]
+  Accept --> Enrich[Read jobs for optional operation projection]
+  Enrich -->|read succeeds| AcceptedWithJobs[HTTP 202 operation with stored jobs]
+  Enrich -->|read fails| AcceptedOperation[HTTP 202 saved operation without jobs]
+  Enrich -->|either result| Start[client.start / startModuleInstall with same jobId]
+  Enrich -->|either result| Local[Parent-owned installed or builtin verification]
   Start --> Worker[existing fixed independent worker]
-  Accept --> Abort[Earlier module failure / parent abort]
+  Worker --> Abort[Earlier module failure / parent abort]
+  Local --> Abort
   Abort --> Unclaimed[Container queued / no operation.json / no claimed marker]
   Unclaimed --> Aborted[updateJob failed + reason / same durable job writer]
   Aborted --> End
-  Accept --> Local[Parent-owned installed or builtin verification]
   Local --> Verify
   Worker --> Download[downloading / fixed artifact acquisition]
   Download --> Verify[verifying / existing signature and install verification]
@@ -61,7 +64,7 @@ flowchart TD
 
 ## Admission before common HTTP202 (installed/builtin and multi-step)
 
-The body additionally exposes admitJob({jobId,idempotencyKey,kind,target}) -> stored record through the fixed admitJob operation. Same exact target/key returns the existing job; conflicting bindings reject. target has {catalogSha256,moduleId,versionId}; catalogSha256 may be null for local/builtin steps; versionId may be "builtin". This operation writes only the job record, never launches or supplies privileged code. Parent admits each planned step with its existing backend UUID BEFORE returning common HTTP202, binds all returned records as jobs[] to the existing parent operation, then starts asynchronous execution. If one admission fails, no202; retain successful admissions and report failure, never fabricate atomic acceptance. Same retained keys make a retry reuse those jobs.
+The body additionally exposes admitJob({jobId,idempotencyKey,kind,target}) -> stored record through the fixed admitJob operation. Same exact target/key returns the existing job; conflicting bindings reject. target has {catalogSha256,moduleId,versionId}; catalogSha256 may be null for local/builtin steps; versionId may be "builtin". This operation writes only the job record, never launches or supplies privileged code. The parent saves each admission with its existing backend UUID before returning HTTP 202. Once all receipts are saved, the same bound work proceeds even if the initial request cannot read the job projection. The response then carries the saved accepted operation without `jobs`, and a later read can return the stored jobs. If admission itself fails, there is no 202. The parent retains successful admissions so the same key can reuse them.
 
 For an installer step, subsequent start/startModuleInstall uses that same jobId/requestId and idempotencyKey; the updater verifies its target against the existing signed plan before launching once. No duplicate job is made. For an already-installed/builtin step, Molly calls updateJob downloading (resolve installed selection), verifying before existing prepareRelease/compatibility, swapping before replace, and ready after runtime probe. Failure at any stage reports failed/reason. Such jobs have no installer operation file; reader returns the stored record and does not invent a worker. Parent executor owns completing these admitted steps, including its own restart reconciliation; no time-based fake result is inferred for a parent-owned step. Installer-backed module jobs still require successful installation before parent swapping/ready. A multi-step operation exposes separate stored jobs[] and never invents a single aggregate state. If an earlier module fails, the parent reports its saved abort reason through the container client updateJob({jobId,state:"failed",reason}) for the unstarted queued container step. A later start rejects that terminal job; no work is launched or replayed. Retrying a failed-abort write uses job(jobId) to read the saved result; the container mutation allowance itself remains queued-only.
 
