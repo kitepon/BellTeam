@@ -378,3 +378,10 @@ test('http method paths: a method listed in http_method_paths may only be used u
   assert.equal((await ask(t, { method: 'POST', path: base, body: Buffer.from('{}').toString('base64') })).outcome, 'granted') // POST is not listed: free
   assert.equal(t.seen.length, 3)
 })
+
+test('http method paths: an entry that cannot be read refuses every request of the item (fail closed)', async () => {
+  for (const bad of ['GET/messages/', 'GET:messages/', 'FETCH:/x', ':/x', 'GET:/messages/,oops']) {
+    const t = setup({ item: { http_base: 'https://hooks.example.com/api/hook/AbCdEfGhIjKlMnOpQrSt', http_auth: 'none', http_methods: 'GET POST', http_method_paths: bad } })
+    const r = await ask(t, { method: 'POST', path: '/api/hook/AbCdEfGhIjKlMnOpQrSt', body: Buffer.from('{}').toString('base64') }); assert.equal(r.outcome, 'error', bad); assert.equal(t.seen.length, 0, bad)
+  }
+})
