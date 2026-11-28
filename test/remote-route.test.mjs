@@ -28,7 +28,7 @@ function fixture({ switched = true, answers = [{ remote, forward, revision: 'r1'
 test('prepare on a switched terminal ensures the forward first, names P in the seat URLs and launches on remote', async () => {
   const { seats, calls } = fixture()
   const prepared = await seats.prepare(bot, args, { slot: null, harness: 'claude-code' })
-  assert.deepEqual(calls[0], ['ensure_forward', { id: 'owner-macbook', to: { host: '127.0.0.1', port: 4183 } }])
+  assert.deepEqual(calls[0], ['ensure_forward', { id: 'owner-macbook', remote, to: { host: '127.0.0.1', port: 4183 } }], 'remote rides on every ensure_forward: an id that is not a binding ref (the module agent) is unknown to Aiterm without it')
   assert.deepEqual(prepared.args.remote, remote)
   assert.equal('terminal' in prepared.args, false)
   assert.equal(prepared.args.mcp_config.mcpServers.bellteam.url, 'http://127.0.0.1:41999/api/seat-mcp')
@@ -126,7 +126,7 @@ test('the keeper calls ensure_forward at most once a minute per terminal and tak
   await routes.keep(); assert.equal(calls.length, 0)
   clock = 61_000; await routes.keep(); await routes.keep()
   assert.equal(calls.length, 1)
-  assert.deepEqual(calls[0], ['ensure_forward', { id: 'owner-macbook', to: { host: '127.0.0.1', port: 4183 } }])
+  assert.deepEqual(calls[0], ['ensure_forward', { id: 'owner-macbook', remote, to: { host: '127.0.0.1', port: 4183 } }])
   assert.equal(routes.routes.get('mac-1').revision, 'r1')
   assert.equal(routes.readyAt.get('mac-1'), 'R1')
   clock = 130_000; ready = 'R2'; await routes.keep()
