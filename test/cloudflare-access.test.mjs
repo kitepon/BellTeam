@@ -92,3 +92,15 @@ test('JWKS取得のタイムアウトや非200応答のJOSEErrorは401にせず�
   await assert.rejects(down(req), error => error instanceof errors.JOSEError)
   assert.equal(failedCalls, 2)
 })
+
+test('alg none / an unknown alg in the caller\'s own token is a 401 (false) at once, not a retried 5xx', async () => {
+  const { publicKey, privateKey } = await generateKeyPair('RS256')
+  const good = await new SignJWT({}).setProtectedHeader({ alg: 'RS256' })
+    .setIssuer('https://team.cloudflareaccess.com').setAudience('bellteam-aud').setExpirationTime('1h').sign(privateKey)
+  const b64 = value => Buffer.from(JSON.stringify(value)).toString('base64url')
+  const [, payload, signature] = good.split('.')
+  let calls = 0
+  const authorize = cloudflareAccessAuthorizer({ teamDomain: 'team.cloudflareaccess.com', audience: 'bellteam-aud', retryDelayMs: 1, keySet: async () => { calls += 1; return publicKey } })
+  for (const alg of ['none', 'XX999']) assert.equal(await authorize({ headers: { 'cf-access-jwt-assertion': [b64({ alg }), payload, signature].join('.') } }), false)
+  assert.equal(calls, 2, 'one key read per token, no retry')
+})

@@ -11,6 +11,8 @@ const isTokenRejection = error => error instanceof errors.JWTExpired
   || error instanceof errors.JWTInvalid
   || error instanceof errors.JWSInvalid
   || error instanceof errors.JWKSNoMatchingKey
+  || error instanceof errors.JOSEAlgNotAllowed // the caller's own token (odd alg/header): a retry cannot heal it
+  || error instanceof errors.JOSENotSupported
 
 export function cloudflareAccessAuthorizer({ teamDomain, audience, keySet, retryDelayMs = KEY_FETCH_RETRY_MS } = {}) {
   if (!teamDomain || !audience) throw new Error('BELLTEAM_CLOUDFLARE_ACCESS_CONFIG_REQUIRED')
