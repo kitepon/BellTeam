@@ -96,3 +96,26 @@ test('auth ssh: ssh-add -L lists the module\'s key by name; ssh-keygen -Y sign t
     const gone = await sh(env, ['ed', '--', 'sh', '-c', 'echo $SSH_AUTH_SOCK']); assert.equal(spawnSync('ls', [gone.stdout.trim()]).status !== 0, true)
   } finally { m.close() }
 })
+
+// The same agent over stdin/stdout (the forced command of a restricted entry key): a Node bridge plays the remote forwarder (named pipe -> ssh stdio), here a unix socket -> the child's stdio.
+test('auth ssh-stdio: the agent protocol on stdin/stdout: ssh-add -L and ssh-keygen -Y sign through it work; a failure answer for anything but list and sign; a huge frame ends the conversation', async () => {
+  const m = await fakeModule(), env = { ...process.env, AUTH_SOCK: m.sock }
+  const sock = join(dir, 'bridge.sock')
+  const child = spawn('python3', [AUTH, 'ssh-stdio', 'ed,rsa'], { env, cwd: dir })
+  const server = createServer(c => { c.pipe(child.stdin, { end: false }); child.stdout.on('data', d => c.write(d)); c.on('error', () => {}) })
+  await new Promise(r => server.listen(sock, r))
+  try {
+    const run = (cmd, args) => new Promise(resolve => { const c = spawn(cmd, args, { env: { ...process.env, SSH_AUTH_SOCK: sock } }); let out = ''; c.stdout.on('data', d => { out += d }); c.stderr.on('data', d => { out += d }); c.on('close', code => resolve({ code, out })) })
+    const list = await run('ssh-add', ['-L']); assert.equal(list.code, 0, list.out); assert.match(list.out, /^ssh-ed25519 \S+ ed$/mu); assert.match(list.out, /^ssh-rsa \S+ rsa$/mu)
+    await writeFile(join(dir, 'stdio.msg'), 'hello stdio')
+    const signed = await run('ssh-keygen', ['-Y', 'sign', '-n', 'file', '-f', join(dir, 'ed.pub'), '-U', join(dir, 'stdio.msg')]); assert.equal(signed.code, 0, signed.out)
+    const ok = spawnSync('ssh-keygen', ['-Y', 'check-novalidate', '-n', 'file', '-s', join(dir, 'stdio.msg.sig')], { input: 'hello stdio' }); assert.equal(ok.status, 0, String(ok.stderr))
+    assert.ok(m.seen.includes('ssh-sign') && m.seen.includes('ssh-identity'))
+  } finally { server.close(); child.stdin.end(); child.kill(); m.close() }
+  // protocol edges on a fresh child: an unknown request is a failure answer (5); an oversized frame ends the conversation without buffering it
+  const m2 = await fakeModule(), edge = spawn('python3', [AUTH, 'ssh-stdio', 'ed'], { env: { ...process.env, AUTH_SOCK: m2.sock }, cwd: dir })
+  const answer = () => new Promise(resolve => { let b = Buffer.alloc(0); const on = d => { b = Buffer.concat([b, d]); if (b.length >= 4 && b.length >= 4 + b.readUInt32BE(0)) { edge.stdout.off('data', on); resolve(b.subarray(4)) } }; edge.stdout.on('data', on) })
+  edge.stdin.write(Buffer.from([0, 0, 0, 1, 99])); assert.equal((await answer())[0], 5)
+  const exited = new Promise(resolve => edge.on('close', resolve)); const big = Buffer.alloc(4); big.writeUInt32BE(300000); edge.stdin.write(big)
+  assert.equal(await exited, 0); m2.close()
+})
