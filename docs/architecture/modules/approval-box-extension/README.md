@@ -2,7 +2,7 @@
 
 > **2026-11-24: the client path is [client-v0.5.md](client-v0.5.md)** (BellTeam's 決裁箱 is the Approval Box client: `/v1` now, `/pc/v1` with the Approval Box app). Section 3 and the app contract's content routes describe the body path that new client builds no longer use; link rules L1-L10, the link record and the screens stay.
 
-> **2026-11-28 (owner-lane-always-abx-delta): the module never writes a card for an Owner-lane task; a request it filed in its first version is withdrawn (F9, section 5b). The Bot that made the task files it.**
+> **2026-11-28 (owner-lane-always-abx-delta): the module never writes a card for an Owner-lane task; it tells the Bot that added a startable Owner-lane task to file the request itself, until one is linked (F9, section 5b).**
 
 > **2026-11-28: BellTeam's one port to Approval Box is the decision interface P1 and the seat entry file P5, drawn in [decision-port.md](decision-port.md). The body keeps no hosted connector, no pairing, no QR and no door (Owner through Tronie: Approval Box stays standalone).** The daemon feed of the link engine (peer-channel-feed.md) is removed with it: the engine reads `/v1`.
 
@@ -45,7 +45,7 @@ flowchart LR
     F6["F6 Entitlement gate (contract R4, Bready)<br/>in-process: Approval Box /me through F7 → {entitled,state,validUntil,…}<br/>gate reads only entitled; plan active without expires_at (billing-exempt account) = paid; unknown = keep last known, never lock; cache 5 min"]
     F7["F7 Connection holder<br/>device-authorization connect (no redirect to the user's server): request code → hosted consent page → child polls → scoped session, 90 days<br/>(kept as usage secret, R7: usage `secrets.put/erase` not shipped yet, task a199; until then it lives in this process only, and a refused put is retried on every later root; never in logs)"]
     F8["F8 Answer relay (2026-11-27)<br/>answered decision of a BellTeam seat → one message to that seat, once<br/>(ledger answers.json: ids + delivery word, no answer text)"]
-    F9["F9 Owner-lane withdrawal (2026-11-28)<br/>the module never writes a card: a request it once filed (row filed: true, machine-written) is cancelled with 作り直します and the row dropped<br/>(section 5b)"]
+    F9["F9 Owner-lane telling (2026-11-28)<br/>an Owner-lane task that can start and has no linked request: the Bot that added it is told to file it itself (Owner's language), every 60 min until a request is linked;<br/>the module writes no card; a request its first version filed is cancelled (作り直します). Section 5b"]
   end
   subgraph LAT["Lattice module (Flora) — unchanged contract + R3"]
     LPORT["public port<br/>owner-task: add / start / done / retire / note / find"]
@@ -79,8 +79,11 @@ flowchart LR
   F1 --> F8
   F8 -->|"effect seat.message (parent, from scheduler)"| SEND --> SEAT
   F8 -.->|"delivery word → view: 'delivered'"| F5
+  LCHART -->|"facade.charts / facade.chart: Owner-lane cards that can start, with addedBy (read)"| F9
   F9 <--> F4
-  F9 -->|"parent effect decisions.cancel (P1, body)"| P1["P1 Decision port (body, decision-port.md)<br/>backend: the host's public Approval Box client (Kiro)"]
+  F9 -->|"facade.link (L18 then skips the card)"| LPORT
+  F9 -->|"parent effect seat.message → messenger.sendmessage (from scheduler) to the adder Bot"| SEND
+  F9 -->|"parent effect decisions.cancel (P1): first-version requests only"| P1["P1 Decision port (body, decision-port.md)<br/>backend: the host's public Approval Box client (Kiro)"]
 ```
 
 Connections that must also appear in the other products' diagrams (same diff as the code): Approval Box `docs/architecture` (a new reader: the extension, via the public API row of R1, including `/me` for the entitlement); Lattice module `docs/architecture/modules/lattice/` (a new caller of the owner-task facade, R3, and the apps' `by-task` lookup); usage/billing docs (state that the extension entitlement is Approval Box's own subscription and is not in the BellTeam subscription verdict, R4); the Apple/Windows/Linux/Web module docs (new screen and entry).
@@ -102,8 +105,10 @@ flowchart TD
   RD -- "D11 list/one (view model: decision + link + task state)" --> AC
   LP -- "D12 task state of the linked task (read)" --> AC
   AC -- "D13 summary (pending, urgent, held) + list + SSE" --> APP["menu badge, 決裁箱 screen, 工程表 詳細"]
-  OL["F9 withdrawal"] -- "D16 cancel {decisionId, reason 作り直します} (P1)" --> ABS
-  OL <-- "D18 link rows (filed: true only)" --> LR
+  CARD["Lattice charts: Owner-lane cards that can start (ready / in-progress), addedBy"] -- "D15 plan/task, title, state, addedBy (read; ids and short text)" --> OL["F9 telling"]
+  OL -- "D16 one message to the adder Bot: file the request yourself, in the Owner's language (seat.message)" --> SEATBOT["the adder Bot's seat"]
+  SEATBOT -- "D17 request_decision with session_label 'Lattice <project> <plan>/<task>' (the Bot's own Approval Box)" --> ABS
+  OL <-- "D18 told record (owner-told.json: ids, time, count) and filed:true rows to cancel" --> LR
   ABAPI2["Approval Box /me (via F7)"] -- "D14 plan state → entitled yes/no (F6, R4)" --> AC
 ```
 
@@ -143,25 +148,29 @@ Rule W (who waits): L8 names the waiting task; the successors of the previous de
 
 Relation to the Lattice module's existing Owner-wait hand-over (L18/L19, Flora; its lane is `approval-box` after a189): with the extension entitled, a card that has a link row is **skipped** by the hand-over (the hourly reminder was removed, Lattice a211) (the extension already drives it); without the extension everything stays as today. The hand-over's "creator Bot files one plain-Japanese request" stays the way decisions get filed; only the manual "record the answer on the chart" step disappears. This needs one lookup from Flora (R3).
 
-The extension never edits or cancels a decision an AI filed (the AI side keeps those; the API gives apps only answer/hold/unhold). The one exception is the withdrawal of the machine-written requests of its first Owner-lane version (section 5b): it cancels only those. It never retries an answer that has an unknown outcome; it re-reads the decision instead (Idempotency-Key makes a resend harmless).
+The extension never edits or cancels a decision an AI filed (the AI side keeps those; the API gives apps only answer/hold/unhold). The one exception is the withdrawal of the machine-written requests of its first Owner-lane version (section 5b): it cancels only those (section 5b O4). It never retries an answer that has an unknown outcome; it re-reads the decision instead (Idempotency-Key makes a resend harmless).
 
 ## 5b. Owner-lane cards: the Bot that made the task files the request (Owner 2026-11-28)
 
-Owner 2026-11-28: 「Lattice工程表に、俺のタスクを載せられるのは良いんだけど、その場合必ず決裁箱に出すように改良してください。決裁箱に出さない俺のタスクなんてあり得ない。」 and, after the first version wrote the cards itself: 「機械が出すんじゃなくて工程作ったやつが真面目に俺にお願いしろ。そして俺は日本語だ。言語設定に従え。」 and 「決裁箱を導入してないユーザーは、決裁箱に出せないからそのままだがね。」
+Owner 2026-11-28: 「Lattice工程表に、俺のタスクを載せられるのは良いんだけど、その場合必ず決裁箱に出すように改良してください。決裁箱に出さない俺のタスクなんてあり得ない。」, after the first version wrote the cards itself: 「機械が出すんじゃなくて工程作ったやつが真面目に俺にお願いしろ。そして俺は日本語だ。言語設定に従え。」, and 「決裁箱を導入してないユーザーは、決裁箱に出せないからそのままだがね。」
 
-**This module never writes an Approval Box card for a chart task.** A machine-written title and background (the English chart title, a generic line) cannot say what the Owner is to do, where, why and what waits on it; only the Bot that made the task knows. What the module does:
+**This module never writes an Approval Box card for a chart task.** A machine-written title and background (the English chart title, a generic line) cannot say what the Owner is to do, where, why and what waits on it; only the Bot that made the task knows. The module tells that Bot, and keeps telling it until a request is linked.
 
-| # | When | Action | Link record |
+| # | When | Action | Record |
 | --- | --- | --- | --- |
-| O0 | every scan (60 s) of F9: a link row with `filed: true` (a request this module wrote in its first version, 2026-11-28 10:59-11:01 JST) | `decisions.cancel` through P1 with the reason 作り直します, then the row is dropped. P1 unavailable: the row stays for the next scan. Refused (already answered) or gone: the row is dropped. The task stays on the chart and the Lattice hand-over (L18) asks for its request as before | row removed |
-| O1 | an AI files a request with the label `Lattice <project> <plan>/<task>` | L8/L10 attach it to the Owner-lane task and drive it (answer closes the task) | `linked (attached)` |
-| O5 | the Owner has no connected, entitled Approval Box, or the extension is off or absent | nothing happens; the card stays on the chart | none |
+| O1 | each scan (60 s) of F9, with a connected and entitled Approval Box: a card of any chart (`facade.charts` then `facade.chart`) whose lane is the Owner lane (`approval-box` or `決裁箱`, matched case-insensitively as Lattice resolves it; the retired `owner` / `指揮官` are not told, as L8 never attached them), whose state is `ready` or `in-progress` (it can start: a task behind an open predecessor is not told), with **no link row** for its `plan/task` and no told record younger than 60 min | **tell the adder**: one message through the parent effect `seat.message` (the public send path, from `scheduler`) to `card.addedBy`; `addedBy` null or no longer a roster Bot: the chart's creator (`createdBy`); neither: nobody is told. At the first telling the card is registered with `facade.link`, so Lattice's own hand-over (L18) does not also ask the creator. The message (English, between Bots) says: you added this Owner-lane task and it can start; file ONE Approval Box request yourself with `session_label` `Lattice <project> <plan>/<task>`; write it for the Owner in the language the user rules give for what the Owner reads (today Japanese): the title says in one sentence what he is to do; the background says where (which screen or device), why, and what waits on it; each option says what happens after it; no chart text in another language and no task ids on the card; the module closes the task when he answers | `owner-told.json`: `{<project>/<plan>/<task>: {toldAt, count, to}}` |
+| O2 | an AI files a request with that label | L8/L10 attach it to the Owner-lane task and drive it (his answer starts and finishes the task); the told record is dropped. The scan stops telling | link row `linked (attached)` |
+| O3 | the card is gone, done, retired, or no longer can start (a predecessor reopened) | the told record is dropped; nothing is told | record removed |
+| O4 | a link row with `filed: true` (a request the first version of this module wrote on 2026-11-28 10:59-11:01 JST) | `decisions.cancel` through P1 with the reason 作り直します, then the row is dropped (P1 unavailable: it stays for the next scan; refused or gone: dropped) | row removed |
+| O5 | the Owner has no connected, entitled Approval Box, or the extension is off or absent | nothing is told, nothing is written; the card stays on the chart and L18 behaves as today | none |
 
-The rule that every Owner-lane task has a request, written by the Bot that added the task in the Owner's language, is carried by telling that Bot (chart task owner-lane-always-abx-delta, next change; needs the card's `addedBy` from Lattice, Flora). Until it is live the Lattice hand-over (L18) asks the chart creator Bot as before. The lane is matched case-insensitively, as Lattice resolves it.
+Telling is bounded: at most 5 messages per scan, in chart order; the same card at most once per 60 min (`shortcut: fixed 60 min, when the Owner wants another interval, make it a setting`). The language is not read from a setting by this module: the Bot's own user rules carry it (`shortcut: today Japanese for every Owner; when BellTeam has a per-Owner language setting, the module passes it in the message`).
 
 ## 6. State it owns
 
-`/srv/bellteam/state/approval-box-extension/` (server uid, same family as `lattice-module/`; BellTeam state dir, not a Bot project). One file `links.json`, written atomically (temp + rename) before the effect it records, so a crash replays the effect. Row: `{decisionId, projectId, plan, taskId, state: linked|answered|closed|diverged, attached: bool, filed?: true (written by the first Owner-lane version; withdrawn by O0), sessionLabelRef, handledVersion, updatedAt}`. No titles, no contexts, no answers. A decision gone from Approval Box (deleted) and a closed task: row removed after 30 days (`shortcut: fixed age, when the Owner wants an audit trail, keep in the chart evidence instead`).
+`/srv/bellteam/state/approval-box-extension/` (server uid, same family as `lattice-module/`; BellTeam state dir, not a Bot project). One file `links.json`, written atomically (temp + rename) before the effect it records, so a crash replays the effect. Row: `{decisionId, projectId, plan, taskId, state: linked|answered|closed|diverged, attached: bool, filed?: true (written by the first Owner-lane version; withdrawn by O4), sessionLabelRef, handledVersion, updatedAt}`. No titles, no contexts, no answers. A decision gone from Approval Box (deleted) and a closed task: row removed after 30 days (`shortcut: fixed age, when the Owner wants an audit trail, keep in the chart evidence instead`).
+
+A second file `owner-told.json` (same folder, same atomic write) keeps the Owner-lane telling (section 5b O1): `{version: 1, items: {"<project>/<plan>/<task>": {toldAt, count, to}}}`, ids and times only; an item is dropped when its card is gone, ended, can no longer start, or has a link row.
 
 Link record state machine (self-exits are the retries):
 
@@ -178,7 +187,7 @@ stateDiagram-v2
   Answered --> [*]: row removed after 30 days
   Closed --> [*]: row removed after 30 days
   Answered --> Answered: done failed → retry next tick (decision stays answered)
-  Linked --> [*]: filed: true rows are cancelled and dropped (O0)
+  Linked --> [*]: filed: true rows are cancelled and dropped (O4)
 ```
 
 ## 7. Entry points the extension uses (public only)

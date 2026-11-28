@@ -43,7 +43,7 @@ function harness({ decisions = [], session = { token: 'kss_x', expiresAt: null }
     if (method === 'session.erase') { stored = null; return { ok: true } }
     if (method === 'seat.message') { if (!seatMessage) throw new Error('unexpected effect'); return seatMessage(params) }
     if (method.startsWith('decisions.')) { if (!p1) throw new Error('unexpected effect'); return p1[method.slice('decisions.'.length)](params) }
-    if (method === 'members.list') return [{ id: 'bot-823b56e9', name: 'ブレッディ' }]
+    if (method === 'members.list') return [{ id: 'bot-823b56e9', name: 'ブレッディ' }, { id: 'bot-7b140b27', name: 'トロニー' }]
     if (method === 'lattice.charts') return [{ projectId: 'bellteam', name: 'BellTeam開発', createdBy: 'bot-7b140b27', coordinator: true }]
     if (method === 'lattice.chart') return { cards: chartCards, edges: [] }
     if (method === 'lattice.link') return { schema: 'bellteam.lattice-link.v1', ...params, linked: true }
@@ -347,12 +347,12 @@ const ownedRow = { decisionId: 'K-AAAA', projectId: 'bellteam', plan: 'p1', task
 test('F9 withdrawal: a filed row is cancelled with 作り直します and dropped; an AI-filed row stays; nothing is filed for an open Owner card', async () => {
   const cancelled = [], p1 = { cancel: async params => (cancelled.push(params), { status: 'cancelled' }), file: async () => { throw new Error('the module never files') } }
   const c = clock('2026-11-28T02:00:00Z')
-  const h = harness({ decisions: [raw('K-AAAA')], p1, now: c.now, cards: [{ id: 'p1/t1', plan: 'p1', taskId: 't1', state: 'ready', lane: 'approval-box', title: 'x' }],
+  const h = harness({ decisions: [raw('K-AAAA')], p1, seatMessage: async () => ({ delivery: 'delivered', deliveryId: 'd' }), now: c.now, cards: [{ id: 'p1/t1', plan: 'p1', taskId: 't1', state: 'ready', lane: 'approval-box', title: 'x' }],
     rowsText: JSON.stringify({ version: 1, rows: [filedRow('K-OWN1', 't1'), filedRow('K-OWN2', 't2'), ownedRow] }) })
   await h.core.refresh({ since: 0 }, h.effect)
   assert.deepEqual(cancelled.map(item => [item.decisionId, item.reason]).sort(), [['K-OWN1', '作り直します'], ['K-OWN2', '作り直します']])
   assert.deepEqual(rowsOf(h).map(row => row.decisionId), ['K-AAAA'])
-  assert.ok(!h.calls.some(([method]) => method === 'lattice.link'), 'no card is linked or filed by the module')
+  assert.ok(!h.calls.some(([method]) => method.startsWith('decisions.') && method !== 'decisions.cancel'), 'the module never files')
 })
 
 test('F9 withdrawal: P1 unavailable keeps the row for the next scan; a refusal (already answered) drops it', async () => {
@@ -365,6 +365,59 @@ test('F9 withdrawal: P1 unavailable keeps the row for the next scan; a refusal (
   mode = 'refused'; c.advance(61_000)
   await h.core.refresh({ since: 0 }, h.effect)
   assert.deepEqual(rowsOf(h), [])
+})
+
+const oc = (taskId, extra = {}) => ({ id: `p1/${taskId}`, plan: 'p1', taskId, state: 'ready', lane: 'approval-box', title: 'App Storeのプライバシーを直す', addedBy: 'bot-823b56e9', ...extra })
+const sentLog = () => { const log = []; return { log, fn: async params => (log.push(params), { delivery: 'delivered', deliveryId: 'd' + log.length }) } }
+
+test('F9 O1: the Bot that added a startable Owner-lane task is told once, the card is linked, nothing is filed; unstartable, other-lane and ended cards are not told', async () => {
+  const seat = sentLog(), c = clock('2026-11-28T03:00:00Z')
+  const h = harness({ decisions: [], seatMessage: seat.fn, now: c.now, cards: [oc('t1'), oc('t2', { lane: '決裁箱', addedBy: null }), oc('t3', { state: 'pending' }), oc('t4', { lane: 'bot-823b56e9' }), oc('t5', { state: 'done' }), oc('t6', { lane: 'Approval-Box', state: 'in-progress' })] })
+  await h.core.refresh({ since: 0 }, h.effect)
+  assert.deepEqual(seat.log.map(item => item.target), ['bot-823b56e9', 'bot-7b140b27', 'bot-823b56e9']) // t2 has no addedBy: the chart creator (bot-7b140b27) is told
+  assert.match(seat.log[0].message, /Lattice bellteam p1\/t1/u)
+  assert.match(seat.log[0].message, /language the user rules give/u)
+  assert.deepEqual(h.calls.filter(([m]) => m === 'lattice.link').map(([, p]) => p.taskId), ['t1', 't2', 't6'])
+  assert.ok(!h.calls.some(([m]) => m.startsWith('decisions.')), 'the module files nothing')
+  const record = JSON.parse(h.files.get('owner-told.json')).items
+  assert.deepEqual(Object.keys(record).sort(), ['bellteam/p1/t1', 'bellteam/p1/t2', 'bellteam/p1/t6'])
+})
+
+test('F9 O1: told again only after 60 min; the first telling links, a reminder does not link again', async () => {
+  const seat = sentLog(), c = clock('2026-11-28T03:00:00Z')
+  const h = harness({ decisions: [], seatMessage: seat.fn, now: c.now, cards: [oc('t1')] })
+  await h.core.refresh({ since: 0 }, h.effect)
+  c.advance(61_000); await h.core.refresh({ since: 0 }, h.effect)
+  assert.equal(seat.log.length, 1, 'not within 60 min')
+  c.advance(60 * 60_000); await h.core.refresh({ since: 0 }, h.effect)
+  assert.equal(seat.log.length, 2)
+  assert.match(seat.log[1].message, /reminder 2/u)
+  assert.equal(h.calls.filter(([m]) => m === 'lattice.link').length, 1)
+})
+
+test('F9 O2/O3: a card with a link row is not told; a told record is dropped when its card can no longer start', async () => {
+  const seat = sentLog(), c = clock('2026-11-28T03:00:00Z'), cards = [oc('t1'), oc('t2')]
+  const row = { decisionId: 'K-AAAA', projectId: 'bellteam', plan: 'p1', taskId: 't1', state: 'linked', attached: true, sessionLabel: 'Lattice bellteam p1/t1', handledVersion: 1, updatedAt: '2026-11-28T03:00:00Z' }
+  const h = harness({ decisions: [raw('K-AAAA')], seatMessage: seat.fn, now: c.now, cards, rowsText: JSON.stringify({ version: 1, rows: [row] }) })
+  await h.core.refresh({ since: 0 }, h.effect)
+  assert.deepEqual(seat.log.map(item => /p1\/(t\d)/u.exec(item.message)[1]), ['t2'], 'the card with a request is not told')
+  assert.deepEqual(Object.keys(JSON.parse(h.files.get('owner-told.json')).items), ['bellteam/p1/t2'])
+  cards[1].state = 'pending'; c.advance(61_000)
+  await h.core.refresh({ since: 0 }, h.effect)
+  assert.deepEqual(JSON.parse(h.files.get('owner-told.json')).items, {}, 'the record is dropped')
+})
+
+test('F9 O5: a Bot that is gone and a chart without a creator are skipped; an unaccepted send is tried again next scan', async () => {
+  let accept = false
+  const seat = { log: [], fn: async params => { seat.log.push(params); return accept ? { delivery: 'delivered', deliveryId: 'd' } : { delivery: 'failed', deliveryId: null } } }
+  const c = clock('2026-11-28T03:00:00Z')
+  const h = harness({ decisions: [], seatMessage: seat.fn, now: c.now, cards: [oc('t1', { addedBy: 'bot-gone' })] })
+  await h.core.refresh({ since: 0 }, h.effect)
+  assert.equal(seat.log[0].target, 'bot-7b140b27', 'the creator is told when the adder left the roster')
+  assert.ok(!h.files.has('owner-told.json'), 'not accepted: nothing recorded')
+  accept = true; c.advance(61_000)
+  await h.core.refresh({ since: 0 }, h.effect)
+  assert.equal(JSON.parse(h.files.get('owner-told.json')).items['bellteam/p1/t1'].count, 1)
 })
 
 test('F9 protocol: only the withdrawal effect exists', () => {
