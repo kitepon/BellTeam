@@ -110,8 +110,8 @@ public sealed class SignalSocket : IAsyncDisposable
                 Message?.Invoke(doc);
             }
         }
-        catch (Exception error) when (error is WebSocketException or OperationCanceledException) { /* a failed socket closes; the owner reconnects with backoff (13) */ }
-        Closed?.Invoke();
+        catch (Exception) { /* a failed socket closes; the owner reconnects with backoff (13) */ }
+        finally { Closed?.Invoke(); }
     }
 
     public async Task SendAsync(string json, CancellationToken ct)

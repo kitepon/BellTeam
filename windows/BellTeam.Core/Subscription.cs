@@ -34,7 +34,7 @@ public sealed class SubscriptionApi(BellApi api)
     public async Task<bool> PaywalledAsync(CancellationToken token = default)
     {
         try { return (await GetAsync(token)).EntitlementState == "none"; }
-        catch (Exception error) when (error is not OperationCanceledException) { return false; }
+        catch (Exception) when (!token.IsCancellationRequested) { return false; }
     }
     public async Task<SubscriptionState> RefreshAsync(CancellationToken token = default) => (await api.PostAsync<SubscriptionResponse>("/api/subscription/refresh", new { }, token)).Subscription;
     // Each call makes a new Stripe Checkout (the server changes no state). 503 SUBSCRIPTION_NOT_CONFIGURED (Stripe not set up) and 409 SUBSCRIPTION_NOT_REQUIRED (developer server) mean there is nothing to buy: see OffersPurchase.
