@@ -1,7 +1,7 @@
 // The credentialed request (README F14): the module makes the request and adds the credential; only the response leaves. The origin and path prefix come from the item
 // (written by Sakura in 1Password), never from the caller. Item fields are lower-case on purpose: the exec transports only return upper-case labels, so none of them ever leaves.
 const METHODS = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE']
-const SAFE_REQUEST_HEADER = /^(?:accept|accept-language|content-type|idempotency-key|if-match|if-none-match|if-modified-since|user-agent|stripe-version|x-[a-z0-9-]+)$/u
+const SAFE_REQUEST_HEADER = /^(?:accept|accept-language|content-type|idempotency-key|if-match|if-none-match|if-modified-since|user-agent|stripe-version|x-request-id|x-correlation-id)$/u
 const SHOWN_RESPONSE_HEADERS = ['content-type', 'content-length', 'etag', 'location', 'retry-after', 'last-modified', 'cache-control', 'x-request-id', 'request-id']
 export const REQUEST_BODY_MAX = 32768, RESPONSE_BODY_MAX = 262144
 const refuse = message => Object.assign(new Error(message), { code: 'HTTP_REFUSED' })
@@ -31,7 +31,9 @@ function addCredential(fields, url, headers) {
   return secret
 }
 
-const scrub = (buffer, secret) => secret.length < 6 ? buffer : Buffer.from(buffer.toString('latin1').split(secret).join('[redacted]'), 'latin1')
+// Replaces the credential and its base64 form (basic auth) wherever the response shows it.
+const scrubText = (text, secret) => secret.length < 6 ? text : [secret, Buffer.from(secret).toString('base64')].reduce((out, s) => out.split(s).join('[redacted]'), text)
+const scrub = (buffer, secret) => Buffer.from(scrubText(buffer.toString('latin1'), secret), 'latin1')
 
 export async function callHttp(fields, request, fetchImpl = fetch) {
   const url = target(fields, request)
@@ -49,6 +51,6 @@ export async function callHttp(fields, request, fetchImpl = fetch) {
     if (size + chunk.length > RESPONSE_BODY_MAX) { chunks.push(chunk.subarray(0, RESPONSE_BODY_MAX - size)); truncated = true; break }
     chunks.push(chunk); size += chunk.length
   }
-  const shown = Object.fromEntries(SHOWN_RESPONSE_HEADERS.map(name => [name, response.headers.get(name)]).filter(([, value]) => value !== null))
+  const shown = Object.fromEntries(SHOWN_RESPONSE_HEADERS.map(name => [name, response.headers.get(name)]).filter(([, value]) => value !== null).map(([name, value]) => [name, scrubText(value, secret)]))
   return { status: response.status, headers: shown, body: scrub(Buffer.concat(chunks), secret).toString('base64'), truncated }
 }
