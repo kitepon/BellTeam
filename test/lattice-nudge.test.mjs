@@ -48,8 +48,45 @@ test('nudge: in-progress and startable cards, ONE prompt per lane Bot that is no
   assert.deepEqual(out, { charts: 3, prompted: 2, skipped: 1, failed: 0 })
 })
 
+// Owner 2026-11-28 rate-limit order: a Claude seat is started only while fewer than cap Claude seats work; fairest first; others and a failed read are not capped.
+function capRig({ load, turns = {} }) {
+  const sent = [], logs = [], promptedAt = new Map()
+  const effect = async (method, params) => {
+    if (method === 'claude.load') { if (load instanceof Error) throw load; return load }
+    if (method === 'turns.read') return { turns: Object.fromEntries(params.botIds.map(id => [id, turns[id] ?? 'idle'])) }
+    sent.push(params.target)
+    return { delivery: 'running', deliveryId: 'd' }
+  }
+  const charts = [{ projectId: 'alpha', cards: ['bot-a', 'bot-b', 'bot-c'].map(lane => card('t-' + lane, 'ready', lane)) }]
+  return { sent, logs, promptedAt, go: () => nudgeSweep(charts, { laneOf: laneResolver(members), log: line => logs.push(line), effect, promptedAt }) }
+}
+
+test('nudge cap: at or above the cap no Claude seat is prompted; below it at most cap - working, the one prompted longest ago first', async () => {
+  const full = capRig({ load: { cap: 2, claude: ['bot-a', 'bot-b', 'bot-c', 'bot-x'], working: ['bot-x', 'bot-y'] } })
+  assert.deepEqual(await full.go(), { charts: 1, prompted: 0, skipped: 3, failed: 0 })
+  assert.deepEqual([full.sent, full.logs], [[], ['lattice-nudge-cap 2/2']], 'nothing is sent; the tick says why')
+  const some = capRig({ load: { cap: 3, claude: ['bot-a', 'bot-b', 'bot-c', 'bot-x'], working: ['bot-x', 'bot-y'] } })
+  some.promptedAt.set('bot-a', 5); some.promptedAt.set('bot-b', 1)
+  assert.deepEqual(await some.go(), { charts: 1, prompted: 1, skipped: 2, failed: 0 })
+  assert.deepEqual(some.sent, ['bot-c'], 'one place: the Bot never prompted goes before the older and the newer prompt')
+  assert.ok(some.promptedAt.has('bot-c'))
+  const again = capRig({ load: { cap: 3, claude: ['bot-a', 'bot-b', 'bot-c'], working: [] } })
+  again.promptedAt.set('bot-a', 5); again.promptedAt.set('bot-b', 1); again.promptedAt.set('bot-c', 3)
+  await again.go()
+  assert.deepEqual(again.sent, ['bot-b', 'bot-c', 'bot-a'], 'three places: all are sent, longest ago first')
+})
+
+test('nudge cap: a seat that is not Claude, a seat already working and a failed claude.load are not limited', async () => {
+  const other = capRig({ load: { cap: 1, claude: ['bot-a'], working: ['bot-y'] } })
+  assert.deepEqual(await other.go(), { charts: 1, prompted: 2, skipped: 1, failed: 0 })
+  assert.deepEqual(other.sent, ['bot-b', 'bot-c'], 'bot-a (Claude, cap full) is held; the others go')
+  const failed = capRig({ load: new Error('old body') })
+  assert.deepEqual(await failed.go(), { charts: 1, prompted: 3, skipped: 0, failed: 0 })
+  assert.deepEqual(failed.logs, [], 'an unknown load is no cap and no noise')
+})
+
 test('nudge: a Bot that started a turn after the batch read is not prompted (a481)', async () => {
-  const sent = [], effect = async (method, params) => method === 'turns.read'
+  const sent = [], effect = async (method, params) => method === 'claude.load' ? {} : method === 'turns.read'
     ? { turns: { 'bot-a': params.botIds.length > 1 ? 'idle' : 'working', 'bot-c': 'idle' } }
     : (sent.push(params.target), { delivery: 'running' })
   const out = await nudgeSweep([{ projectId: 'alpha', cards: [card('t1', 'ready', 'bot-a'), card('t2', 'ready', 'bot-c')] }], { laneOf: laneResolver(members), log() {}, effect })
@@ -70,7 +107,7 @@ test('nudge: a failed turns read prompts every Bot; a send not accepted counts f
 test('nudge: a task list over 4000 chars is ONE send per Bot, bounded, the rest counted', async () => {
   const cards = Array.from({ length: 40 }, (_, i) => ({ ...card(`t${i}`, 'ready', 'bot-a'), title: 'x'.repeat(80) }))
   const sends = []
-  const effect = async (method, params) => method === 'turns.read' ? { turns: { 'bot-a': 'idle' } } : (sends.push(params), { delivery: 'running' })
+  const effect = async (method, params) => method === 'claude.load' ? {} : method === 'turns.read' ? { turns: { 'bot-a': 'idle' } } : (sends.push(params), { delivery: 'running' })
   const out = await nudgeSweep([{ projectId: 'a', cards }], { laneOf: lane => lane, log: () => {}, effect })
   assert.equal(sends.length, 1, 'exactly one prompt')
   assert.deepEqual([out.prompted, out.failed], [1, 0])
@@ -117,6 +154,10 @@ test('protocol: root nudge and effect turns.read', () => {
   validateLatticeEffect('turns.read', { botIds: ['bot-a'] })
   for (const botIds of [[], ['a', 'a'], [''], 'bot-a']) assert.throws(() => validateLatticeEffect('turns.read', { botIds }), { code: 'LATTICE_INVALID' })
   validateLatticeEffectResult('turns.read', { turns: { 'bot-a': 'working', 'bot-b': 'unknown' } })
+  validateLatticeEffect('claude.load', {})
+  assert.throws(() => validateLatticeEffect('claude.load', { botIds: ['a'] }), { code: 'LATTICE_INVALID' })
+  validateLatticeEffectResult('claude.load', { cap: 5, claude: ['bot-a'], working: [] })
+  for (const bad of [{ cap: 0, claude: [], working: [] }, { cap: 5, claude: 'a', working: [] }, { cap: 5, claude: [] }]) assert.throws(() => validateLatticeEffectResult('claude.load', bad), { code: 'LATTICE_IPC_INVALID' })
   assert.throws(() => validateLatticeEffectResult('turns.read', { turns: { 'bot-a': 'busy' } }), { code: 'LATTICE_IPC_INVALID' })
 })
 
@@ -128,7 +169,7 @@ test('real Lattice: a predecessor on another chart holds the prompt until it is 
   const core = createLatticeCore({ cli: createLatticeCli({ bin, chartsRoot: join(root, 'charts'), home: join(root, 'home') }), firstNudgeMs: 0, log: () => {} })
   const sent = []
   const effect = async (method, params) => method === 'members.list' ? { members: ['bot-a', 'bot-b'].map(id => ({ id, name: id, color: 'c', avatarVersion: 'v', deleting: false })) }
-    : method === 'turns.read' ? { turns: {} } : (sent.push(params), { delivery: 'queued', deliveryId: 'd' })
+    : method === 'claude.load' ? {} : method === 'turns.read' ? { turns: {} } : (sent.push(params), { delivery: 'queued', deliveryId: 'd' })
   const run = (from, projectId, args, input = null) => core.run({ from, projectId, args, input }, effect)
   const plan = (key, lane) => ({ schema: 'lattice.plan_create_input.v5', plan_key: key, phases: [{ phase_id: 'a', title: 'A' }],
     tasks: [{ task_id: 't1', title: `${key} one`, phase_id: 'a', design_memo: 'm', lane }], hard_dependencies: [] })
@@ -204,7 +245,7 @@ test('nudge a509: a child answers the ticks of its first 3 minutes with the empt
 test('news: first sight is recorded silently; a state or content change is one line in the lane\'s one sweep message; the record advances only on an accepted send', async () => {
   const record = { value: {} }, io = { read: async () => record.value, write: async value => { record.value = JSON.parse(JSON.stringify(value)) } }
   const sent = [], accept = { value: 'running' }
-  const effect = async (method, params) => method === 'turns.read' ? { turns: { 'bot-a': 'idle', 'bot-b': 'idle' } } : (sent.push(params), { delivery: accept.value })
+  const effect = async (method, params) => method === 'claude.load' ? {} : method === 'turns.read' ? { turns: { 'bot-a': 'idle', 'bot-b': 'idle' } } : (sent.push(params), { delivery: accept.value })
   const item = (extra = {}) => ({ cardId: 'p1/t1', ref: 'other/q/x', kind: 'task', state: 'open', reason: null, content: 'c1', targetTitle: 'X', chartName: 'Other', ...extra })
   const chart = (items, cards = [{ id: 'p1/t1', plan: 'p1', taskId: 't1', title: 'T1', state: 'pending', lane: 'bot-a' }], extra = {}) => ({ projectId: 'alpha', createdBy: 'bot-b', cards, news: items, verified: true, ...extra })
   const go = items => nudgeSweep([chart(items)], { laneOf: laneResolver(members), log() {}, effect, news: io })
@@ -241,7 +282,7 @@ test('news: first sight is recorded silently; a state or content change is one l
 test('news: an Owner lane advances silently, a lane that is no Bot goes to the creator, a verified read drops rows whose entry is gone', async () => {
   const record = { value: { 'alpha/p1/t1/other/q/x': { state: 'open', content: null }, 'alpha/p1/t2/other/q/x': { state: 'open', content: null }, 'alpha/gone/t/other/q/x': { state: 'open', content: null }, 'beta/p/t/r': { state: 'open', content: null } } }
   const io = { read: async () => record.value, write: async value => { record.value = JSON.parse(JSON.stringify(value)) } }
-  const sent = [], effect = async (method, params) => method === 'turns.read' ? { turns: { 'bot-b': 'idle' } } : (sent.push(params), { delivery: 'running' })
+  const sent = [], effect = async (method, params) => method === 'claude.load' ? {} : method === 'turns.read' ? { turns: { 'bot-b': 'idle' } } : (sent.push(params), { delivery: 'running' })
   const item = cardId => ({ cardId, ref: 'other/q/x', kind: 'task', state: 'settled', reason: 'target_done', content: null, targetTitle: null, chartName: null })
   const cards = [{ id: 'p1/t1', plan: 'p1', taskId: 't1', title: 'T1', state: 'pending', lane: 'owner' }, { id: 'p1/t2', plan: 'p1', taskId: 't2', title: 'T2', state: 'pending', lane: 'stranger' }]
   const out = await nudgeSweep([{ projectId: 'alpha', createdBy: 'bot-b', cards, news: [item('p1/t1'), item('p1/t2')], verified: true }, { projectId: 'beta', createdBy: 'bot-b', cards: [], news: [], verified: false }], { laneOf: laneResolver(members), log() {}, effect, news: io })

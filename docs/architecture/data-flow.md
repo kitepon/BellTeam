@@ -222,7 +222,7 @@ flowchart LR
   P1 -->|LT17 chart reminder read / set| F
   F <-->|LT18 saved setting / enabled project IDs| Settings
   F -->|"LT11 arming body: root nudge {projectIds} every 60 s"| C
-  C -->|"LT12 turns.read and messages.send: enabled charts, one prompt per lane Bot not running"| F
+  C -->|"LT12 turns.read, claude.load and messages.send: enabled charts, one prompt per lane Bot not running; a Claude seat only while fewer than the cap (default 5) Claude seats work"| F
   Apps -->|LT13 GET blockers; POST charts/:id/unblock stopId (Owner only)| P1
   F -->|LT14 root blockers / unblock| C
   SCH[P4 body scheduler and registry removal hook] -->|LT15 facade.run: fixed 接続 verbs (condition add / resolve / remove, todo show: also read before each connected run, a done or retired task removes the schedule) as the schedule owner Bot| F

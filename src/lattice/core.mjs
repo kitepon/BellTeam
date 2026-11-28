@@ -28,7 +28,7 @@ const parse = text => { try { return JSON.parse(text) } catch { return undefined
 export const FIRST_NUDGE_MS = 180_000
 export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId = 'bot-7b140b27', refreshMs = 2000, firstNudgeMs = FIRST_NUDGE_MS,
   log = line => process.stderr.write(line + '\n'), codeCharts = createCodeCharts({ cli, now, log }) }) {
-  const epoch = randomUUID(), startedAt = now(), memos = new Map(), locks = new Map(), warned = new Map()
+  const epoch = randomUUID(), startedAt = now(), memos = new Map(), locks = new Map(), warned = new Map(), promptedAt = new Map()
   // Seat runs on one chart run one at a time, so a code chart's fast-forward and sensor sync never overlap a write.
   const locked = (id, fn) => {
     const next = (locks.get(id) ?? Promise.resolve()).then(fn, fn)
@@ -210,7 +210,7 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
       const charts = ids.map((projectId, i) => ({ projectId, name: memos[i].content.name, createdBy: memos[i].content.createdBy, cards: memos[i].content.cards,
         news: memos[i].projection?.news ?? [], verified: memos[i].content.state === 'verified' && !memos[i].content.degraded?.length }))
       const laneOf = laneResolver(roster), live = roster.filter(member => !member.deleting)
-      const out = await nudgeSweep(charts, { laneOf, log, effect, warned, news: { read: () => cli.readNewsRecord(), write: value => cli.writeNewsRecord(value) } })
+      const out = await nudgeSweep(charts, { laneOf, log, effect, warned, promptedAt, news: { read: () => cli.readNewsRecord(), write: value => cli.writeNewsRecord(value) } })
       // Owner-lane filing (L18-L19); a failed record read or write ends this part of the tick, the next tick retries.
       let owner = { filed: 0, routed: 0 }
       try {
