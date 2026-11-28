@@ -45,7 +45,6 @@ on:
       - scripts/terminal-key-load
       - scripts/server-start.c
       - scripts/install-sce-headers.py
-      - scripts/import-call-bridge.mjs
       - compose.cursor-update.yaml
       - compose.state-maintenance.json
       - config/common-agents.md

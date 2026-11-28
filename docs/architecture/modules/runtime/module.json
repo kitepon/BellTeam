@@ -60,10 +60,6 @@
     },
     {
       "module": "bridge",
-      "port": "connection export (call-bridge.connection.v1)"
-    },
-    {
-      "module": "bridge",
       "port": "MCP /mcp"
     },
     {

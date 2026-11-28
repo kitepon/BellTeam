@@ -35,7 +35,7 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
     'scripts/module-start.c', 'scripts/usage-start.c', 'scripts/diagnostics-start.c',
     'scripts/seat-exec.c', 'scripts/server-start.c',
     'scripts/assert-state-writers-stopped.sh',
-    'scripts/install-sce-headers.py', 'scripts/import-call-bridge.mjs',
+    'scripts/install-sce-headers.py',
     'distribution/server/install-resume-state.sh', 'distribution/server/emergency-body.sh', 'scripts/emergency-body.py',
     'distribution/lattice/package.json', 'distribution/lattice/package-lock.json',
     'config/work-graph-verification.json', 'config/lattice-verification.json', 'config/approval-box-extension-verification.json', 'config/auth-mediation-verification.json', 'config/execution-verification.json',
@@ -81,7 +81,6 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
   for (const path of ['compose.cursor-update.yaml', 'compose.state-maintenance.json', 'src/server-state-transfer.mjs', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh', 'scripts/bellteam-console.mjs']) assert.ok(pathsInArchive.includes(path))
   for (const path of ['scripts/module-start.c', 'scripts/usage-start.c', 'scripts/diagnostics-start.c', 'scripts/seat-exec.c', 'scripts/server-start.c']) assert.ok(pathsInArchive.includes(path))
   assert.ok(pathsInArchive.includes('scripts/install-sce-headers.py'))
-  assert.ok(pathsInArchive.includes('scripts/import-call-bridge.mjs'))
   assert.ok(pathsInArchive.includes('config/harness-products.json'))
   assert.ok(pathsInArchive.includes('config/lattice-harness-entries.json') && pathsInArchive.includes('scripts/lattice-sensor-init'))
   for (const path of ['config/web-gateway-verification.json', 'config/web-gateway-trusted-root.jsonl',

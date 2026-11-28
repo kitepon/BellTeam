@@ -29,10 +29,6 @@ BellTeam は、同一コンテナ内（および接続したリモート端末�
 
 着信口は `BELLTEAM_CALL_BRIDGE_SOCKET` の UNIX ソケット（既定 `/srv/bellteam/shared/tools/call-bridge/bellteam.sock`）で、BellTeam が作成し、ブリッジ側は親ディレクトリを `/run/bellteam` へマウントして `CALL_BRIDGE_BELLTEAM_UNIX=/run/bellteam/bellteam.sock` で接続します。通話の公開操作は `grokbot-bridge` MCP に置き、BellTeam MCP へ通話ツールを追加しません。外部の通話相手は通話ブリッジ経由の送信者として表示し、ユーザーや BellTeam Bot の ID に置き換えません。
 
-メインサーバーでの取り込み：
-- `cd /home/kite/call-bridge && python3 scripts/export_connection.py --json | docker exec -i bellteam node /app/scripts/import-call-bridge.mjs`
-- 取り込み口は stdin を 64 KiB まで読み、値を表示せず、コンテナ内 loopback から `PATCH /api/settings/callBridge` で稼働中の本体へ渡します（`.env` 書換・再起動なし）。認証ファイル・ソケット・各 CLI の通話 MCP 登録は設定反映で再構築され、通話 MCP は Bot プロジェクトから決めた ID を `X-Call-Bridge-Caller-Id` で付与します（`src/call-bridge-mcp.mjs`）。
-
 ## 自動実行予定と Bot 環境
 
 - **自動実行**：一回・毎時・毎日・曜日指定・○日おき・○時間おき・cron 式に対応。実行済みで次回のない単発予定は一覧に表示せず、実行記録のみ保持します。予定の内容は `prompt`（AI への指示）または `command`（AI を起こさず Bot フォルダで `sh -c` 実行）のどちらか一方とし、AI を起こす必要のない機械作業は `command` にします（`command` は失敗時のみユーザー会話へ 1 件残し、成功時は何も出しません）。予定は Bot・ルームごとに 1 ファイル（`schedule.json`）で、BellTeam 内の scheduler が解釈します（ホストの crontab は使いません）。
