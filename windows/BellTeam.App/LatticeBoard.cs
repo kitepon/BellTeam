@@ -180,7 +180,7 @@ internal sealed class LatticeBoard : Canvas
         if (note.Length > 0 || open > 0)
         {
             var bottom = new DockPanel { Margin = new Thickness(0, 3, 0, 0) };
-            if (open > 0) { var chip = Row(Shape(LinkGeometry, 11, Violet), Spaced(Text($"接続 {open}", 10.5, Violet, FontWeights.Bold), 3)); chip.Margin = new Thickness(6, 0, 0, 0); DockPanel.SetDock(chip, Dock.Right); bottom.Children.Add(chip); }
+            if (open > 0) { var chip = Row(Shape(LinkGeometry, 11, Violet), Spaced(Text(AppStrings.LatticeBoard_CardView_1(open), 10.5, Violet, FontWeights.Bold), 3)); chip.Margin = new Thickness(6, 0, 0, 0); DockPanel.SetDock(chip, Dock.Right); bottom.Children.Add(chip); }
             var line = Text(note, 11, card.State == "blocked" ? Red : Muted); line.TextTrimming = TextTrimming.CharacterEllipsis; bottom.Children.Add(line);
             stack.Children.Add(bottom);
         }

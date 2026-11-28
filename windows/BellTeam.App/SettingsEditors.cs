@@ -18,7 +18,7 @@ public sealed partial class SettingsWindow : EditorWindow
     private readonly Dictionary<SettingsPage, (TextBlock Line, ContentControl Badge)> rowStates = [];
     private readonly StackPanel attentionBand = new();
     private UpdateContent? updateContent;
-    private readonly TextBlock profileName = SettingsUi.Text("あなた", 15, SettingsUi.Ink, FontWeights.SemiBold);
+    private readonly TextBlock profileName = SettingsUi.Text(AppStrings.SettingsEditors_profileName_1, 15, SettingsUi.Ink, FontWeights.SemiBold);
     private readonly AvatarTile profileAvatar = new() { Width = 36, Height = 36 };
     private readonly ContentControl pane = new();
     private readonly ContentControl toolbarLeft = new();
@@ -43,7 +43,7 @@ public sealed partial class SettingsWindow : EditorWindow
     private (UpdateKind Kind, string Title)? update;
     private Window? host;
 
-    public SettingsWindow(Workspace workspace, Action? changeServer = null, DesktopNotifications? notifications = null, Action? signOut = null, Action? deleteAccount = null) : base("設定", workspace.ConnectionToken)
+    public SettingsWindow(Workspace workspace, Action? changeServer = null, DesktopNotifications? notifications = null, Action? signOut = null, Action? deleteAccount = null) : base(AppStrings.FeatureEditor_InitializeAsync_5, workspace.ConnectionToken)
     {
         this.workspace = workspace; this.changeServer = changeServer; this.notifications = notifications; this.signOut = signOut; this.deleteAccount = deleteAccount;
         profileName.Text = workspace.OwnerName;
@@ -88,7 +88,7 @@ public sealed partial class SettingsWindow : EditorWindow
     public async Task SelectAsync(SettingsPage page)
     {
         if (page == selected && !inSubPage && pane.Content is not null) return;
-        if (embedded?.CanNavigateAway == false || updateContent?.Busy == true) { workspace.ReportActionError("操作が終わってから画面を切り替えてください。"); return; }
+        if (embedded?.CanNavigateAway == false || updateContent?.Busy == true) { workspace.ReportActionError(AppStrings.MainWindow_xaml_ShowPage_1); return; }
         lifetime?.Cancel(); lifetime?.Dispose(); embedded?.Close(); embedded = null; updateContent?.Dispose(); updateContent = null; inSubPage = false;
         selected = page; headPage = null; Highlight(); SetToolbar(null, null, null);
         lifetime = CancellationTokenSource.CreateLinkedTokenSource(Token); var token = lifetime.Token;
@@ -190,9 +190,9 @@ public sealed partial class SettingsWindow : EditorWindow
         SettingsPage.Stop => SettingsSummary.Stop(control, controlUnreadable),
         _ => new(SettingsPageInfo.Detail(page))
     };
-    private string ServerHost { get { var value = Uri.TryCreate(workspace.Server, UriKind.Absolute, out var uri) ? uri.Host : ""; return value.Length == 0 ? "未設定" : value; } }
+    private string ServerHost { get { var value = Uri.TryCreate(workspace.Server, UriKind.Absolute, out var uri) ? uri.Host : ""; return value.Length == 0 ? AppStrings.FeatureEditor_InitializeAsync_7 : value; } }
     private static string VersionText => typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? "-";
-    private static string DisplayChoiceText { get { try { return new SettingsStore(SettingsStore.UserDirectory).Load().ConversationOpening == ConversationOpening.Fade ? "フェードインだけ" : "下から順に浮き上がる"; } catch (Exception) { return SettingsPageInfo.Detail(SettingsPage.Display); } } }
+    private static string DisplayChoiceText { get { try { return new SettingsStore(SettingsStore.UserDirectory).Load().ConversationOpening == ConversationOpening.Fade ? AppStrings.SettingsEditors_DisplayChoiceText_1 : AppStrings.SettingsEditors_DisplayChoiceText_2; } catch (Exception) { return SettingsPageInfo.Detail(SettingsPage.Display); } } }
 
     private void RefreshRows()
     {
@@ -205,7 +205,7 @@ public sealed partial class SettingsWindow : EditorWindow
         attentionBand.Children.Clear();
         var attention = SettingsPageInfo.Groups.SelectMany(group => group).Select(page => (Page: page, Status: ItemStatus(page))).Where(item => item.Status.NeedsAttention).ToList();
         if (attention.Count == 0) return;
-        attentionBand.Children.Add(SettingsUi.Text("要対応", 12, SettingsUi.Secondary, FontWeights.SemiBold, new Thickness(20, 0, 0, 4)));
+        attentionBand.Children.Add(SettingsUi.Text(AppStrings.SettingsEditors_RefreshRows_1, 12, SettingsUi.Secondary, FontWeights.SemiBold, new Thickness(20, 0, 0, 4)));
         foreach (var (page, status) in attention)
         {
             var grid = new Grid(); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(30) }); grid.ColumnDefinitions.Add(new ColumnDefinition()); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -350,5 +350,5 @@ public sealed partial class SettingsWindow : EditorWindow
         SetToolbar(button, title, null); pane.Content = content;
     }
     private void Reopen() { var page = selected; inSubPage = true; _ = SelectAsync(page); }
-    private static string ErrorText(Exception error) => error is BellApiException { Status: not null } ? error.Message : "操作の結果を確認できませんでした。現在の状態を確認してください。\n" + error.Message;
+    private static string ErrorText(Exception error) => error is BellApiException { Status: not null } ? error.Message : AppStrings.EditorWindow_RunAsync_1(error.Message);
 }

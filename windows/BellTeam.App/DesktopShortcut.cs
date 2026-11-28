@@ -14,7 +14,7 @@ public static class DesktopShortcut
         {
             ((IPersistFile)link).Load(path, 0); var target = new StringBuilder(32768); link.GetPath(target, target.Capacity, IntPtr.Zero, 0);
             var key = new PropertyKey { Format = new("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3"), Id = 5 }; ((IPropertyStore)link).GetValue(ref key, out var value);
-            try { if (value.Type != 31) throw new System.IO.InvalidDataException("ショートカットのAppUserModelIDが文字列ではありません。"); return (target.ToString(), Marshal.PtrToStringUni(value.Text)!); }
+            try { if (value.Type != 31) throw new System.IO.InvalidDataException(AppStrings.DesktopShortcut_Inspect_1); return (target.ToString(), Marshal.PtrToStringUni(value.Text)!); }
             finally { PropVariantClear(ref value); }
         }
         finally { Marshal.FinalReleaseComObject(link); }

@@ -118,12 +118,12 @@ internal sealed class LatticeStopsPage : Grid
         rowElements.Clear(); focusable.Clear();
         var page = new StackPanel { Margin = new Thickness(40, 30, 40, 40), MaxWidth = 1180 };
         var header = new DockPanel { Margin = new Thickness(0, 0, 0, 22) };
-        var back = Plain(Glass(Row(Icon("", 12, Muted), Spaced(Text("すべての工程表", 15, Ink, FontWeights.SemiBold), 8)), 14, new Thickness(12, 8, 14, 8), 0xB3), "すべての工程表へ戻る");
+        var back = Plain(Glass(Row(Icon("", 12, Muted), Spaced(Text(AppStrings.LatticeStopsView_Render_1, 15, Ink, FontWeights.SemiBold), 8)), 14, new Thickness(12, 8, 14, 8), 0xB3), AppStrings.LatticeStopsView_Render_2);
         back.Margin = new Thickness(0, 0, 18, 0); back.Click += (_, _) => window.ShowList(); DockPanel.SetDock(back, Dock.Left);
         System.Windows.Automation.AutomationProperties.SetAutomationId(back, "lattice-stops-back"); header.Children.Add(back);
-        var reload = Action("読み直す", ""); reload.Margin = new Thickness(12, 0, 0, 0); reload.VerticalAlignment = VerticalAlignment.Center; reload.Click += (_, _) => Read(); DockPanel.SetDock(reload, Dock.Right);
+        var reload = Action(AppStrings.ApprovalsWindow_Toolbar_15, ""); reload.Margin = new Thickness(12, 0, 0, 0); reload.VerticalAlignment = VerticalAlignment.Center; reload.Click += (_, _) => Read(); DockPanel.SetDock(reload, Dock.Right);
         System.Windows.Automation.AutomationProperties.SetAutomationId(reload, "lattice-stops-reload"); header.Children.Add(reload);
-        header.Children.Add(Text("ブロック一覧", 28, Ink, FontWeights.Bold));
+        header.Children.Add(Text(AppStrings.LatticeStopsView_Render_4, 28, Ink, FontWeights.Bold));
         page.Children.Add(header);
         if (State == Phase.Ready && unread) page.Children.Add(Line(LatticeStops.Unread));
         if (State == Phase.Retry)
@@ -159,31 +159,31 @@ internal sealed class LatticeStopsPage : Grid
         var info = new StackPanel(); SetColumn(info, 1); main.Children.Add(info);
         var title = Text(row.Title, 16, Ink, FontWeights.Bold, TextWrapping.Wrap); title.TextTrimming = TextTrimming.CharacterEllipsis; title.MaxHeight = 16 * 1.34 * 2; info.Children.Add(title);
         var chart = Text(row.Chart, 12.5, Muted); chart.Margin = new Thickness(0, 2, 0, 8); info.Children.Add(chart);
-        info.Children.Add(Field("担当", Person(row.Lane)));
+        info.Children.Add(Field(AppStrings.LatticeStopsView_RowElement_1, Person(row.Lane)));
         var reason = Text(row.Reason, 13, Ink, null, TextWrapping.Wrap); reason.TextTrimming = TextTrimming.CharacterEllipsis; reason.MaxHeight = 13 * 1.34 * 3;
-        info.Children.Add(Field("理由", reason));
+        info.Children.Add(Field(AppStrings.LatticeStopsView_RowElement_2, reason));
         var by = Person(row.By); if (row.Time.Length > 0) by.Children.Add(Spaced(Text(row.Time, 12.5, Muted), 10));
-        info.Children.Add(Field("ブロックした人", by));
-        var open = Plain(main, $"{row.Title}を開く"); open.HorizontalContentAlignment = HorizontalAlignment.Stretch; open.Click += (_, _) => window.OpenCard(row.ProjectId, row.CardId);
+        info.Children.Add(Field(AppStrings.LatticeStopsView_RowElement_3, by));
+        var open = Plain(main, AppStrings.LatticeStopsView_RowElement_4(row.Title)); open.HorizontalContentAlignment = HorizontalAlignment.Stretch; open.Click += (_, _) => window.OpenCard(row.ProjectId, row.CardId);
         System.Windows.Automation.AutomationProperties.SetAutomationId(open, "lattice-stop-open");
 
         var act = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(16, 0, 0, 0) };
         if (busy)
         {
-            var spinning = Action("外す", "", true); spinning.Content = Row(Spinner(13), Spaced(Text("外す", 13, Colors.White), 6)); spinning.IsEnabled = false; act.Children.Add(spinning);
+            var spinning = Action(AppStrings.ApprovalsWindow_LinkPanel_8, "", true); spinning.Content = Row(Spinner(13), Spaced(Text(AppStrings.ApprovalsWindow_LinkPanel_8, 13, Colors.White), 6)); spinning.IsEnabled = false; act.Children.Add(spinning);
         }
         else if (asking)
         {
             var ask = Text(LatticeStops.Ask, 13, Ink, FontWeights.SemiBold); ask.Margin = new Thickness(0, 0, 10, 0); act.Children.Add(ask);
-            var confirm = Action("外す", "", true); confirm.Click += (_, _) => _ = RemoveAsync(row); focusable[$"confirm:{id}"] = confirm;
+            var confirm = Action(AppStrings.ApprovalsWindow_LinkPanel_8, "", true); confirm.Click += (_, _) => _ = RemoveAsync(row); focusable[$"confirm:{id}"] = confirm;
             System.Windows.Automation.AutomationProperties.SetAutomationId(confirm, "lattice-stop-confirm"); act.Children.Add(confirm);
-            var cancel = Action("やめる", ""); cancel.Click += (_, _) => Cancel(true);
+            var cancel = Action(AppStrings.ApprovalsWindow_DeviceStrip_1, ""); cancel.Click += (_, _) => Cancel(true);
             System.Windows.Automation.AutomationProperties.SetAutomationId(cancel, "lattice-stop-cancel"); act.Children.Add(cancel);
         }
         else
         {
-            var remove = Action("外す", ""); remove.Click += (_, _) => Ask(id); focusable[$"ask:{id}"] = remove;
-            System.Windows.Automation.AutomationProperties.SetName(remove, $"外す、{row.Title}"); System.Windows.Automation.AutomationProperties.SetAutomationId(remove, "lattice-stop-remove"); act.Children.Add(remove);
+            var remove = Action(AppStrings.ApprovalsWindow_LinkPanel_8, ""); remove.Click += (_, _) => Ask(id); focusable[$"ask:{id}"] = remove;
+            System.Windows.Automation.AutomationProperties.SetName(remove, AppStrings.LatticeStopsView_RowElement_10(row.Title)); System.Windows.Automation.AutomationProperties.SetAutomationId(remove, "lattice-stop-remove"); act.Children.Add(remove);
         }
         var dock = new DockPanel(); DockPanel.SetDock(act, Dock.Right); dock.Children.Add(act); dock.Children.Add(open);
         var stack = new StackPanel(); stack.Children.Add(dock);

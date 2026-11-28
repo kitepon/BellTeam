@@ -40,12 +40,12 @@ public partial class App : Application
                 if (galleryWorkspace.ConnectionError is { } failure) throw new BellApiException(failure);
                 var target = galleryWorkspace.Entries.Single(item=>item.Target.Id==galleryId); await galleryWorkspace.SelectAsync(target);
                 var paths = galleryWorkspace.Messages.SelectMany(item=>item.Message.DisplayedImageUrls).Distinct().ToArray();
-                if (paths.Length==0) throw new BellApiException("表示する画像がありません。");
+                if (paths.Length==0) throw new BellApiException(AppStrings.App_xaml_OnStartup_1);
                 var galleryWindow = new MainWindow(galleryWorkspace, persistPlacement: false); var gallery = galleryWindow.ShowGallery(paths, 0); await gallery.ReadyTask;
                 // The viewer states (a277): zoomed in, and the saved / failed notices of the 保存 button (set through render seams; nothing is written).
                 if (galleryFlag == "--render-gallery-zoomed") gallery.ZoomForRender(3);
-                if (galleryFlag == "--render-gallery-saved") gallery.Notify("保存しました: " + System.IO.Path.GetFileName(paths[0]));
-                if (galleryFlag == "--render-gallery-failed") gallery.Notify("保存できませんでした。ディスクがいっぱいです。", error: true);
+                if (galleryFlag == "--render-gallery-saved") gallery.Notify(AppStrings.App_xaml_OnStartup_2(System.IO.Path.GetFileName(paths[0])));
+                if (galleryFlag == "--render-gallery-failed") gallery.Notify(AppStrings.App_xaml_OnStartup_3, error: true);
                 WritePng(galleryWindow, 1280, 820, galleryOutput); galleryWindow.Close(); Shutdown(0); return;
             }
             if (e.Args is ["--render-editor", var editorKind, var editorAddress, var editorId, var editorOutput])
@@ -59,9 +59,9 @@ public partial class App : Application
                 }
                 EditorWindow editor;
                 if (editorKind is "settings" or "profile") { var settingsEditor = new SettingsWindow(editorWorkspace) { Width = 960, Height = 800 }; editor = settingsEditor; await settingsEditor.InitializeAsync(SettingsPage.Profile); }
-                else if (editorKind == "feature") { var feature = new FeatureEditor(editorWorkspace, editorId, "追加機能"); editor = feature; await feature.InitializeAsync(); }
+                else if (editorKind == "feature") { var feature = new FeatureEditor(editorWorkspace, editorId, AppStrings.App_xaml_OnStartup_4); editor = feature; await feature.InitializeAsync(); }
                 else if (editorKind == "authentication") { var option = (await new HarnessAuthenticationApi(editorWorkspace.Management.Api).ListAsync(editorWorkspace.ConnectionToken)).Harnesses.Single(item => item.Id == editorId); var authentication = new HarnessAuthenticationWindow(editorWorkspace, option); editor = authentication; await authentication.InitializeAsync(); }
-                else throw new ArgumentException("未対応の編集画面です。");
+                else throw new ArgumentException(AppStrings.App_xaml_OnStartup_5);
                 await editor.ReadyTask; WritePng(editor, (int)editor.Width, (int)editor.Height, editorOutput); editor.Close(); Shutdown(0); return;
             }
             if (e.Args is ["--render-editors", var editorScene, var sceneAddress, var sceneId, var sceneOutput])
@@ -92,7 +92,7 @@ public partial class App : Application
                     var folderRoot = (FrameworkElement)folderWindow.Content; folderRoot.Measure(new Size(width, height)); folderRoot.Arrange(new Rect(0, 0, width, height)); folderRoot.UpdateLayout();
                     if (!picking)
                     {
-                        folderView.ChooseTerminalForRender("ハル", editorScene == "folder-new-windows" ? "fox" : "owner-macbook");
+                        folderView.ChooseTerminalForRender(AppStrings.App_xaml_OnStartup_6, editorScene == "folder-new-windows" ? "fox" : "owner-macbook");
                         if (editorScene == "folder-new-typed") { await folderView.OpenPickerForRender(null); folderView.ClosePickerForRender(); }
                         if (editorScene == "folder-new-missing") folderView.ShowFolderRefusalForRender("FOLDER_MISSING");
                         folderRoot.UpdateLayout();
@@ -107,7 +107,7 @@ public partial class App : Application
                 else if (editorScene is "new-room") window.ShowRoomSheet(null);
                 else if (editorScene is "room" or "room-delete-alert") window.ShowRoomSheet(sceneId);
                 else if (editorScene == "crop") { window.ShowCropForRender(SplitSwatch(), AvatarVariant.Small); }
-                else throw new ArgumentException("未対応の編集画面です。");
+                else throw new ArgumentException(AppStrings.App_xaml_OnStartup_5);
                 await window.PageReady;
                 if (editorScene == "room-delete-alert" && window.OpenEditor is RoomEditorView roomView) roomView.AskDelete();
                 if (window.OpenEditor is MemberEditorView created) await created.ImagesReady;
@@ -124,17 +124,17 @@ public partial class App : Application
                 await model.ConnectAsync(scheduleAddress, listen: false);
                 if (model.ConnectionError is { } connectFailure) throw new BellApiException(connectFailure);
                 window.ShowSchedules(); await window.PageReady;
-                var page = window.SchedulesPage ?? throw new BellApiException("予定のページを開けませんでした。");
+                var page = window.SchedulesPage ?? throw new BellApiException(AppStrings.App_xaml_OnStartup_8);
                 switch (scheduleScene)
                 {
                     case "list" or "empty" or "failed": break;
                     case "delete": page.AskDeleteForRender(); break;
-                    case "editor-member": page.OpenEditorForRender().Prefill(nameText: "朝の確認", text: "今日の予定と優先事項を整理して、先に知らせてほしい。"); break;
-                    case "editor-room": page.OpenEditorForRender().Prefill(ownerPath: new ChatTarget("planning", true).Path, nameText: "週のふり返り", text: "進んだ仕事をまとめる", frequencyId: "daily"); break;
+                    case "editor-member": page.OpenEditorForRender().Prefill(nameText: AppStrings.App_xaml_OnStartup_9, text: AppStrings.App_xaml_OnStartup_10); break;
+                    case "editor-room": page.OpenEditorForRender().Prefill(ownerPath: new ChatTarget("planning", true).Path, nameText: AppStrings.App_xaml_OnStartup_11, text: AppStrings.App_xaml_OnStartup_12, frequencyId: "daily"); break;
                     case "editor-weekly-error": { var view = page.OpenEditorForRender("weekly"); view.Prefill(frequencyId: "weekly", weekdays: []); await view.SaveAsync(); break; }
                     case "editor-command" or "editor-command-open": page.OpenEditorForRender("morning"); break;
-                    case "editor-interval": page.OpenEditorForRender().Prefill(nameText: "巡回", text: "python3 tools/patrol.py", frequencyId: "interval_hours"); break;
-                    default: throw new ArgumentException("未対応の予定の画面です。");
+                    case "editor-interval": page.OpenEditorForRender().Prefill(nameText: AppStrings.App_xaml_OnStartup_13, text: "python3 tools/patrol.py", frequencyId: "interval_hours"); break;
+                    default: throw new ArgumentException(AppStrings.App_xaml_OnStartup_14);
                 }
                 await window.PageReady;
                 var scheduleRoot = (FrameworkElement)window.Content;
@@ -150,9 +150,9 @@ public partial class App : Application
                 using var pageWorkspace = new Workspace(); await pageWorkspace.ConnectAsync(pageAddress, listen: false);
                 if (pageWorkspace.ConnectionError is { } failure) throw new BellApiException(failure);
                 var pageWindow = new MainWindow(pageWorkspace, persistPlacement: false, notifications: new DesktopNotifications(new WindowsNotificationSink(), new SettingsStore(SettingsStore.UserDirectory), (_, _) => { }));
-                if (pageKind is "settings" or "settings-lower") pageWindow.ShowSettings(); else if (pageKind.StartsWith("settings-", StringComparison.Ordinal) && Enum.TryParse<SettingsPage>(pageKind["settings-".Length..], ignoreCase: true, out var settingsPage)) pageWindow.ShowSettings(settingsPage); else if (pageKind == "schedules") pageWindow.ShowSchedules(); else if (pageKind == "goals") pageWindow.ShowGoals(); else if (pageKind is "updates" or "updates-current" or "updates-narrow" or "updates-detail-narrow") pageWindow.ShowSettings(SettingsPage.Update); else if (pageKind == "update-sheet") { if (pageWorkspace.Entries.FirstOrDefault() is { } behind) await pageWorkspace.SelectAsync(behind); pageWindow.ShowUpdateSheet(); } else if (pageKind.StartsWith("onepassword-", StringComparison.Ordinal)) pageWindow.ShowSettings(SettingsPage.Features); else throw new ArgumentException("未対応のページです。");
+                if (pageKind is "settings" or "settings-lower") pageWindow.ShowSettings(); else if (pageKind.StartsWith("settings-", StringComparison.Ordinal) && Enum.TryParse<SettingsPage>(pageKind["settings-".Length..], ignoreCase: true, out var settingsPage)) pageWindow.ShowSettings(settingsPage); else if (pageKind == "schedules") pageWindow.ShowSchedules(); else if (pageKind == "goals") pageWindow.ShowGoals(); else if (pageKind is "updates" or "updates-current" or "updates-narrow" or "updates-detail-narrow") pageWindow.ShowSettings(SettingsPage.Update); else if (pageKind == "update-sheet") { if (pageWorkspace.Entries.FirstOrDefault() is { } behind) await pageWorkspace.SelectAsync(behind); pageWindow.ShowUpdateSheet(); } else if (pageKind.StartsWith("onepassword-", StringComparison.Ordinal)) pageWindow.ShowSettings(SettingsPage.Features); else throw new ArgumentException(AppStrings.App_xaml_OnStartup_15);
                 await pageWindow.PageReady;
-                if (pageKind.StartsWith("onepassword-", StringComparison.Ordinal)) await (pageWindow.SettingsPageWindow ?? throw new BellApiException("設定を開けませんでした。")).OpenOnePasswordForRender(pageKind["onepassword-".Length..]);
+                if (pageKind.StartsWith("onepassword-", StringComparison.Ordinal)) await (pageWindow.SettingsPageWindow ?? throw new BellApiException(AppStrings.App_xaml_OnStartup_16)).OpenOnePasswordForRender(pageKind["onepassword-".Length..]);
                 var pageWidth = pageKind is "updates-narrow" or "updates-detail-narrow" ? 1100 : 1280; var pageHeight = pageKind is "updates-narrow" or "updates-detail-narrow" ? 700 : 820;
                 var pageRoot = (FrameworkElement)pageWindow.Content; pageRoot.Measure(new Size(pageWidth, pageHeight)); pageRoot.Arrange(new Rect(0, 0, pageWidth, pageHeight)); pageRoot.UpdateLayout();
                 if (pageKind == "updates-detail-narrow") { FindExpander(pageRoot).IsExpanded = true; pageRoot.UpdateLayout(); }
@@ -175,14 +175,14 @@ public partial class App : Application
                 {
                     var editor = new TerminalEditorView(terminalWorkspace, terminals, null) { Closer = terminalWindow.CloseUpdateSheet };
                     if (terminalScene.StartsWith("editor-this-pc", StringComparison.Ordinal)) await editor.AddThisPcAsync(); else editor.OsPicker.SelectedValue = terminalScene["editor-".Length..];
-                    terminalWindow.OpenSheet("端末を追加", editor);
+                    terminalWindow.OpenSheet(AppStrings.App_xaml_OnStartup_17, editor);
                 }
                 else if (terminalScene != "list")
                 {
                     settingsPage.OpenTerminal(terminalId);
                     switch (terminalScene)
                     {
-                        case "detail-auth-failed": terminals.Checks[terminalId] = Failed("AUTH_FAILED", "この鍵がまだMacに入っていないかもしれません。「このMacにこの鍵を入れる」で、Macのログインパスワードを使って入れられます"); break;
+                        case "detail-auth-failed": terminals.Checks[terminalId] = Failed("AUTH_FAILED", AppStrings.App_xaml_OnStartup_18); break;
                         case "detail-windows": terminals.Checks[terminalId] = Failed("CONNECTION_REFUSED", null); break;
                         case "detail-authorizing": terminals.Checks[terminalId] = Failed("AUTH_FAILED", null); terminals.Authorizations[terminalId] = new AuthorizeState.Waiting("r1", false); break;
                         case "detail-this-pc-mismatch": terminals.TrustNotes[terminalId] = ThisPcTrust.Server(new BellApiException("x", System.Net.HttpStatusCode.Conflict, "HOST_KEY_FINGERPRINT_MISMATCH"))!; break;
@@ -190,7 +190,7 @@ public partial class App : Application
                     }
                     terminals.Notify();
                     if (terminalScene == "detail-hostkey") settingsPage.TerminalDetail!.OtherWaysOpen = true;
-                    if (terminalScene == "hostkey-sheet") terminalWindow.OpenSheet("ホスト鍵", new HostKeyView(terminalWorkspace, terminals, terminals.Find(terminalId)!, terminals.Checks[terminalId]) { Closer = terminalWindow.CloseUpdateSheet });
+                    if (terminalScene == "hostkey-sheet") terminalWindow.OpenSheet(AppStrings.App_xaml_OnStartup_19, new HostKeyView(terminalWorkspace, terminals, terminals.Find(terminalId)!, terminals.Checks[terminalId]) { Closer = terminalWindow.CloseUpdateSheet });
                 }
                 var terminalRoot = (FrameworkElement)terminalWindow.Content; terminalRoot.Measure(new Size(1280, 820)); terminalRoot.Arrange(new Rect(0, 0, 1280, 820)); terminalRoot.UpdateLayout();
                 await terminalWindow.PrepareRenderAsync(bottomOfPage: terminalScene.StartsWith("keys", StringComparison.Ordinal)); WritePng(terminalWindow, 1280, 820, terminalOutput); terminalWindow.Close(); Shutdown(0); return;
@@ -201,25 +201,25 @@ public partial class App : Application
                 var model = new Workspace(); var window = new MainWindow(model, persistPlacement: false);
                 await model.ConnectAsync(conversationAddress, listen: false);
                 if (model.ConnectionError is { } connectFailure) throw new BellApiException(connectFailure);
-                await model.SelectAsync(model.Entries.FirstOrDefault(entry => entry.Target.Id == sceneConversationId) ?? throw new BellApiException("指定した会話がありません。"));
+                await model.SelectAsync(model.Entries.FirstOrDefault(entry => entry.Target.Id == sceneConversationId) ?? throw new BellApiException(AppStrings.App_xaml_OnStartup_20));
                 if (scene != "failed" && model.ConnectionError is { } readFailure) throw new BellApiException(readFailure);
                 if (scene is not ("member" or "room")) window.HideInspectorForRender();
-                if (scene == "draft") { model.AttachClipboardImage(Swatch(0x0A, 0x84, 0xFF)); model.AttachClipboardImage(Swatch(0xE8, 0x6B, 0x94)); model.DraftText = "この画像も見てほしい。"; }
+                if (scene == "draft") { model.AttachClipboardImage(Swatch(0x0A, 0x84, 0xFF)); model.AttachClipboardImage(Swatch(0xE8, 0x6B, 0x94)); model.DraftText = AppStrings.App_xaml_OnStartup_21; }
                 if (scene == "stop-notice") model.StopResult = StopNotice.Sent;
-                if (scene == "echo") { model.ShowEchoForRender("続きはあとで確認するね。", accepted: true); model.ShowEchoForRender("ありがとう、助かったよ。", accepted: false); }
+                if (scene == "echo") { model.ShowEchoForRender(AppStrings.App_xaml_OnStartup_22, accepted: true); model.ShowEchoForRender(AppStrings.App_xaml_OnStartup_23, accepted: false); }
                 if (scene == "reply-pick") model.StartQuote(model.Messages.Select(item => item.Message).First(item => item.Id == "c5"));
-                if (scene == "reply-part-pick") model.StartQuote(model.Messages.Select(item => item.Message).First(item => item.Id == "c3"), new QuoteSelection("午後はBellTeamの確認です。"));
+                if (scene == "reply-part-pick") model.StartQuote(model.Messages.Select(item => item.Message).First(item => item.Id == "c3"), new QuoteSelection(AppStrings.App_xaml_OnStartup_24));
                 if (scene is "forward-sheet" or "forward-failed")
                 {
                     var forwarding = window.ShowForwardSheet(model.Messages.Select(item => item.Message).First(item => item.Id == "c5"));
-                    forwarding.SetForRender(1, "これお願い");
+                    forwarding.SetForRender(1, AppStrings.App_xaml_OnStartup_25);
                     if (scene == "forward-failed") forwarding.FailForRender(Timeline.ForwardRefusal(new BellApiException("x", System.Net.HttpStatusCode.UnsupportedMediaType, "FILE_NOT_SUPPORTED")));
                 }
                 if (scene == "peer-sheet") window.ShowPeerSheet(model.Messages.Select(item => item.Message).First(item => item.Kind == "peer"));
                 var conversationHeight = scene == "states" ? 1300 : scene == "stack" ? 1500 : 820;
                 var conversationRoot = (FrameworkElement)window.Content;
                 conversationRoot.Measure(new Size(1280, conversationHeight)); conversationRoot.Arrange(new Rect(0, 0, 1280, conversationHeight)); conversationRoot.UpdateLayout();
-                if (scene is "reply-jump" or "reply-part-jump") { await model.JumpToAsync(scene == "reply-jump" ? new ReplyReference("c1-0", true) : new ReplyReference("c3-0", true, "ユキ", "BellTeamの確認です。", Part: true)); await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle); }
+                if (scene is "reply-jump" or "reply-part-jump") { await model.JumpToAsync(scene == "reply-jump" ? new ReplyReference("c1-0", true) : new ReplyReference("c3-0", true, AppStrings.App_xaml_OnStartup_26, AppStrings.App_xaml_OnStartup_27, Part: true)); await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle); }
                 await window.PrepareRenderAsync(readingOlder: scene is "scrolled" or "reply-jump" or "reply-part-jump");
                 WritePng(window, 1280, conversationHeight, conversationOutput);
                 model.Dispose(); Shutdown(0); return;
@@ -230,8 +230,8 @@ public partial class App : Application
                 var shareModel = new Workspace(); await shareModel.ConnectAsync(shareAddress, listen: false);
                 if (shareModel.ConnectionError is { } shareFailure) throw new BellApiException(shareFailure);
                 var picture = ImageCodec.Png(Swatch(0xE8, 0x6B, 0x94));
-                var window = new ShareWindow(shareModel, new ShareContent("LINE", "この記事、明日の打ち合わせで見てほしい。", ["https://example.com/articles/42"]), shareScene == "text" ? [] : [new ImageAttachment("shared.png", "image/png", picture)], shareScene == "skipped" ? 2 : 0);
-                window.SetForRender(1, shareScene == "failed" ? "確認お願いします" : "", shareScene == "failed" ? Timeline.ShareRefusal(new BellApiException("x", System.Net.HttpStatusCode.UnsupportedMediaType, "FILE_NOT_SUPPORTED")) : null);
+                var window = new ShareWindow(shareModel, new ShareContent("LINE", AppStrings.App_xaml_OnStartup_28, ["https://example.com/articles/42"]), shareScene == "text" ? [] : [new ImageAttachment("shared.png", "image/png", picture)], shareScene == "skipped" ? 2 : 0);
+                window.SetForRender(1, shareScene == "failed" ? AppStrings.App_xaml_OnStartup_29 : "", shareScene == "failed" ? Timeline.ShareRefusal(new BellApiException("x", System.Net.HttpStatusCode.UnsupportedMediaType, "FILE_NOT_SUPPORTED")) : null);
                 window.Width = 600; window.Height = 760; WritePng(window, 600, 760, shareOutput); shareModel.Dispose(); Shutdown(0); return;
             }
             if (e.Args is ["--render-inspector", var inspectorScene, var inspectorAddress, var inspectorId, var inspectorOutput])
@@ -240,12 +240,12 @@ public partial class App : Application
                 var model = new Workspace(); var window = new MainWindow(model, persistPlacement: false);
                 await model.ConnectAsync(inspectorAddress, listen: false);
                 if (model.ConnectionError is { } connectFailure) throw new BellApiException(connectFailure);
-                await model.SelectAsync(model.Entries.FirstOrDefault(entry => entry.Target.Id == inspectorId) ?? throw new BellApiException("指定した会話がありません。"));
+                await model.SelectAsync(model.Entries.FirstOrDefault(entry => entry.Target.Id == inspectorId) ?? throw new BellApiException(AppStrings.App_xaml_OnStartup_20));
                 if (inspectorScene is "restart-busy" or "restart-success") window.ProfilePanel.SetRestartForRender(inspectorId, inspectorScene == "restart-busy");
                 if (inspectorScene.StartsWith("pending", StringComparison.Ordinal))
                 {
                     var swatch = Swatch(0xE8, 0x6B, 0x94);
-                    model.ImageSession(inspectorId).Keep(AvatarVariant.Large, new AvatarSelection(AvatarCropView.Encode(swatch, new AvatarCrop(swatch.PixelWidth, swatch.PixelHeight, 1024)), "data:image/jpeg;base64,/9j/", new AvatarCropRect(0, 0, 1, 1)), BotProfileText.Unconfirmed(new BellApiException("接続が切れました。")));
+                    model.ImageSession(inspectorId).Keep(AvatarVariant.Large, new AvatarSelection(AvatarCropView.Encode(swatch, new AvatarCrop(swatch.PixelWidth, swatch.PixelHeight, 1024)), "data:image/jpeg;base64,/9j/", new AvatarCropRect(0, 0, 1, 1)), BotProfileText.Unconfirmed(new BellApiException(AppStrings.App_xaml_OnStartup_31)));
                 }
                 AvatarActionsView? sheet = inspectorScene switch { "sheet-small" => window.ShowAvatarSheetForRender(AvatarVariant.Small), "sheet-large" or "sheet-unsupported" or "pending-sheet" => window.ShowAvatarSheetForRender(AvatarVariant.Large), _ => null };
                 if (inspectorScene == "sheet-unsupported" && sheet is not null) await sheet.LoadSettingsAsync();
@@ -264,14 +264,14 @@ public partial class App : Application
                 var model = new Workspace(); var window = new MainWindow(model, persistPlacement: false);
                 await model.ConnectAsync(goalAddress, listen: false);
                 if (model.ConnectionError is { } connectFailure) throw new BellApiException(connectFailure);
-                await model.SelectAsync(model.Entries.FirstOrDefault(entry => entry.Target.Id == goalBotId) ?? throw new BellApiException("指定した会話がありません。"));
+                await model.SelectAsync(model.Entries.FirstOrDefault(entry => entry.Target.Id == goalBotId) ?? throw new BellApiException(AppStrings.App_xaml_OnStartup_20));
                 window.HideInspectorForRender();
                 await window.GoalBar.LoadTask;
                 if (goalScene == "pill-open") window.GoalBar.SetExpanded(true);
                 if (goalScene is "editor-create" or "editor-edit")
                 {
-                    var editor = window.GoalBar.OpenEditorForRender(goalScene == "editor-create" ? "create" : "edit") ?? throw new BellApiException("ゴールを読み取れませんでした。");
-                    if (goalScene == "editor-create") { editor.SetForRender("新機能の設計をまとめる", "abc"); await editor.SaveAsync(); }
+                    var editor = window.GoalBar.OpenEditorForRender(goalScene == "editor-create" ? "create" : "edit") ?? throw new BellApiException(AppStrings.App_xaml_OnStartup_33);
+                    if (goalScene == "editor-create") { editor.SetForRender(AppStrings.App_xaml_OnStartup_34, "abc"); await editor.SaveAsync(); }
                 }
                 var goalRoot = (FrameworkElement)window.Content;
                 goalRoot.Measure(new Size(1280, 820)); goalRoot.Arrange(new Rect(0, 0, 1280, 820)); goalRoot.UpdateLayout();
@@ -285,10 +285,10 @@ public partial class App : Application
                 var model = new Workspace(); var window = new MainWindow(model, persistPlacement: false);
                 await model.ConnectAsync(screenAddress, listen: false);
                 if (model.ConnectionError is { } connectFailure) throw new BellApiException(connectFailure);
-                await model.SelectAsync(model.Entries.FirstOrDefault(entry => entry.Target.Id == screenId) ?? throw new BellApiException("指定した会話がありません。"));
+                await model.SelectAsync(model.Entries.FirstOrDefault(entry => entry.Target.Id == screenId) ?? throw new BellApiException(AppStrings.App_xaml_OnStartup_20));
                 var opened = model.OpenScreenAsync();
                 await model.ScreenFirstRead.WaitAsync(TimeSpan.FromSeconds(10));
-                if (screenScene == "digits") { window.ScreenPanel.OpenDigitsForRender(); model.ScreenInput!.SetNoticeForRender("席が起動していません"); }
+                if (screenScene == "digits") { window.ScreenPanel.OpenDigitsForRender(); model.ScreenInput!.SetNoticeForRender(AppStrings.App_xaml_OnStartup_36); }
                 if (screenScene == "sent") window.ScreenPanel.ShowSentForRender("Enter");
                 var screenRoot = (FrameworkElement)window.Content;
                 screenRoot.Measure(new Size(1280, 820)); screenRoot.Arrange(new Rect(0, 0, 1280, 820)); screenRoot.UpdateLayout();
@@ -303,13 +303,13 @@ public partial class App : Application
                 // The startup screens read from the mock server (GET only). The routing is the real one: the mock answers the session and setup the scene needs.
                 var model = new Workspace(); var window = new MainWindow(model, persistPlacement: false) { AutoRetry = false };
                 StartupPhase? expected = startupScene switch { "opening" => StartupPhase.Checking, "setup" or "guide" => StartupPhase.Setup, "failure" => StartupPhase.Failure, "login" => StartupPhase.SignIn, "account" => StartupPhase.Account, "onboarding-choose" or "onboarding-waiting" => StartupPhase.Onboarding, "banner" => StartupPhase.Ready, _ => null };
-                if (expected is null) throw new ArgumentException("未対応の起動画面です。");
+                if (expected is null) throw new ArgumentException(AppStrings.App_xaml_OnStartup_37);
                 if (startupScene == "opening") window.ShowOpeningForRender();
                 else if (startupScene == "account") window.ShowAccount();   // the first screen (AccountGateView), no server read
                 else if (startupScene is "setup" or "guide") { window.ShowServerSetup(); if (startupScene == "guide") window.ShowServerGuide(); }
                 else await window.ConnectAsync(startupAddress, openLogin: false);
-                if (window.Startup != expected) throw new BellApiException($"起動画面が想定と違います: {window.Startup}");
-                if (startupScene == "banner") model.SetConnectionErrorForRender("更新の接続が切れました。再接続しています。");
+                if (window.Startup != expected) throw new BellApiException(AppStrings.App_xaml_OnStartup_38(window.Startup));
+                if (startupScene == "banner") model.SetConnectionErrorForRender(AppStrings.App_xaml_OnStartup_39);
                 var startupRoot = (FrameworkElement)window.Content;
                 startupRoot.Measure(new Size(1280, 820)); startupRoot.Arrange(new Rect(0, 0, 1280, 820)); startupRoot.UpdateLayout();
                 await window.PrepareRenderAsync();
@@ -321,8 +321,8 @@ public partial class App : Application
                 // The secret input window for the first secret request of bot-one, read from the mock server (GET only). Nothing is typed or sent.
                 var model = new Workspace(); await model.ConnectAsync(secretAddress, listen: false);
                 if (model.ConnectionError is { } secretFailure) throw new BellApiException(secretFailure);
-                await model.SelectAsync(model.Entries.FirstOrDefault(entry => entry.Target.Id == "bot-one") ?? throw new BellApiException("指定した会話がありません。"));
-                var request = model.Messages.Select(item => item.Message.SecretRequest).FirstOrDefault(item => item is not null) ?? throw new BellApiException("秘密の依頼がありません。");
+                await model.SelectAsync(model.Entries.FirstOrDefault(entry => entry.Target.Id == "bot-one") ?? throw new BellApiException(AppStrings.App_xaml_OnStartup_20));
+                var request = model.Messages.Select(item => item.Message.SecretRequest).FirstOrDefault(item => item is not null) ?? throw new BellApiException(AppStrings.App_xaml_OnStartup_41);
                 var secretWindow = new SecretInputWindow(request, submission => model.FinishSecretAsync(request.Id, submission), () => model.SecretKeysAsync(request.Id), _ => { });
                 await secretWindow.KeysReady;
                 if (secretScene.EndsWith("-search", StringComparison.Ordinal)) secretWindow.SearchForRender("infra"); else if (secretScene.EndsWith("-vault", StringComparison.Ordinal)) secretWindow.SearchForRender("team");
@@ -343,7 +343,7 @@ public partial class App : Application
                 graphRoot.Measure(new Size(graphWidth, graphHeight)); graphRoot.Arrange(new Rect(0, 0, graphWidth, graphHeight)); graphRoot.UpdateLayout();
                 graphWindow.Graph.Run((onActivity, token) => model.Management.Api.WorkGraphEventsAsync(onActivity, token), model.ConnectionToken);
                 var until = DateTime.UtcNow.AddSeconds(10);
-                while (graphWindow.Graph.Model.Connection != WorkGraphConnection.Live) { if (DateTime.UtcNow > until) throw new BellApiException("相関図のsnapshotを受け取れませんでした。"); await Task.Delay(20); }
+                while (graphWindow.Graph.Model.Connection != WorkGraphConnection.Live) { if (DateTime.UtcNow > until) throw new BellApiException(AppStrings.App_xaml_OnStartup_42); await Task.Delay(20); }
                 for (var frame = 0; frame < 12 * 60; frame++) { graphNow += 1.0 / 60; graphWindow.Graph.Frame(graphNow); }
                 graphWindow.Graph.Stop();
                 graphRoot.UpdateLayout();
@@ -366,7 +366,7 @@ public partial class App : Application
                     {
                         case "join-signing": join.SigningIn = true; break;
                         case "join-waiting": join.Phase = ChildJoinPhase.Waiting; join.QrLink = "https://login-billing.kitepon.dev/join/dev.kitepon.approvalbox#lbq4:EXAMPLEJOINLINK0123456789"; join.ExpiresAt = DateTimeOffset.Now.AddMinutes(5); join.Code = "https://login-billing.kitepon.dev/join/dev.kitepon.approvalbox#lbc1:EXAMPLEJOINCODE0123456789abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"; break;
-                        case "join-not-answering": join.Phase = ChildJoinPhase.Failed; join.FailedCode = "not_answering"; join.Words = "同じネットワークにはつながっていますが、QRを出している端末が応答しません。その端末のセキュリティソフトやファイアウォールが、接続を止めているかもしれません。その端末で、QRを出しているアプリの通信を許可してください（Windowsでは、つないでいるネットワークを「プライベート」にしてください）。そのあと、新しいQRを出して、もう一度読んでください。"; break;
+                        case "join-not-answering": join.Phase = ChildJoinPhase.Failed; join.FailedCode = "not_answering"; join.Words = AppStrings.App_xaml_OnStartup_43; break;
                         case "join-failed": join.Phase = ChildJoinPhase.Failed; join.FailedCode = "parent_refused"; break;
                         case "join-other-account": join.Phase = ChildJoinPhase.Failed; join.FailedCode = "other_account"; break;
                         case "join-removed": join.Removed = true; break;
@@ -378,9 +378,9 @@ public partial class App : Application
                 var page = approvals.Page; page.Now = () => DateTimeOffset.UtcNow;
                 async Task Wait(Func<bool> done, string what) { var until = DateTime.UtcNow.AddSeconds(10); while (!done()) { if (DateTime.UtcNow > until) throw new BellApiException(what); await Task.Delay(20); } }
                 approvals.Sync();
-                await Wait(() => page.Settled, "決裁箱を読めませんでした。");
+                await Wait(() => page.Settled, AppStrings.App_xaml_OnStartup_44);
                 await Task.Delay(200);   // the chart-link reads arrive
-                if (approvalsScene.StartsWith("link", StringComparison.Ordinal) || approvalsScene == "join-block") { await page.OpenLinkAsync(); if (approvalsScene == "link-waiting") await Wait(() => page.ConnectPhase == "waiting", "つなぎの待ちになりませんでした。"); }
+                if (approvalsScene.StartsWith("link", StringComparison.Ordinal) || approvalsScene == "join-block") { await page.OpenLinkAsync(); if (approvalsScene == "link-waiting") await Wait(() => page.ConnectPhase == "waiting", AppStrings.App_xaml_OnStartup_45); }
                 if (approvalsScene is "main" or "answer") page.Select("K-1");
                 if (approvalsScene is "external") page.Select("K-3");
                 if (approvalsScene == "unknown-member") page.Select("K-4");
@@ -407,44 +407,44 @@ public partial class App : Application
                 var latticeRoot = (FrameworkElement)lattice.Content;
                 async Task Until(Func<bool> done, string what) { var until = DateTime.UtcNow.AddSeconds(10); while (!done()) { if (DateTime.UtcNow > until) throw new BellApiException(what); await Task.Delay(20); } }
                 lattice.Sync();
-                if (latticeScene is "list" or "list-many" or "list-nudge" or "list-empty" or "old-server") await Until(() => lattice.ListSettled, "工程表の一覧を読めませんでした。");
+                if (latticeScene is "list" or "list-many" or "list-nudge" or "list-empty" or "old-server") await Until(() => lattice.ListSettled, AppStrings.App_xaml_OnStartup_46);
                 // list-many (a87): 35 charts; the page is scrolled to its end so the last chart shows it is reachable.
                 if (latticeScene == "list-many") { latticeRoot.Measure(new Size(latticeWidth, latticeHeight)); latticeRoot.Arrange(new Rect(0, 0, latticeWidth, latticeHeight)); latticeRoot.UpdateLayout(); lattice.ScrollListToEnd(); }
                 else if (latticeScene == "list-nudge") { latticeRoot.Measure(new Size(latticeWidth, latticeHeight)); latticeRoot.Arrange(new Rect(0, 0, latticeWidth, latticeHeight)); latticeRoot.UpdateLayout(); }
                 else if (latticeScene.StartsWith("stops", StringComparison.Ordinal))
                 {
                     // ブロック一覧 from 一覧. stops-confirm: the first row asks; stops-refused: the first row's 外す was refused; stops-open: the first row opened its chart and 詳細.
-                    await Until(() => lattice.ListSettled, "工程表の一覧を読めませんでした。");
+                    await Until(() => lattice.ListSettled, AppStrings.App_xaml_OnStartup_46);
                     lattice.ShowStops(); var stops = lattice.Stops!;
-                    await Until(() => stops.State != LatticeStopsPage.Phase.Loading, "ブロック一覧を読めませんでした。");
+                    await Until(() => stops.State != LatticeStopsPage.Phase.Loading, AppStrings.App_xaml_OnStartup_48);
                     if (latticeScene == "stops-confirm") stops.Ask(stops.Rows[0].StopId);
                     if (latticeScene == "stops-refused") { await stops.RemoveAsync(stops.Rows[0]); await stops.Reading; }
                     if (latticeScene == "stops-open")
                     {
                         var first = stops.Rows[0]; lattice.OpenCard(first.ProjectId, first.CardId);
-                        await Until(() => lattice.Chart!.SelectedCard is not null, "ブロック一覧から工程を開けませんでした。");
+                        await Until(() => lattice.Chart!.SelectedCard is not null, AppStrings.App_xaml_OnStartup_49);
                     }
                 }
                 else if (latticeScene == "list-back")
                 {
                     // 一覧 opened from a chart through the switcher: the back button names that chart.
-                    lattice.OpenChart("lattice"); await Until(() => lattice.Chart!.Feed.Snapshot is not null, "工程表のsnapshotを受け取れませんでした。");
-                    lattice.ShowList(fromChart: true); await Until(() => lattice.ListSettled, "工程表の一覧を読めませんでした。");
+                    lattice.OpenChart("lattice"); await Until(() => lattice.Chart!.Feed.Snapshot is not null, AppStrings.App_xaml_OnStartup_50);
+                    lattice.ShowList(fromChart: true); await Until(() => lattice.ListSettled, AppStrings.App_xaml_OnStartup_46);
                 }
                 else
                 {
                     lattice.OpenChart(latticeScene == "not-found" ? "missing" : "lattice");
                     var chart = lattice.Chart!;
-                    await Until(() => latticeScene switch { "not-found" => chart.Feed.Connection == LatticeConnection.NotFound, "reconnecting" => chart.Feed.Connection == LatticeConnection.Reconnecting, _ => chart.Feed.Snapshot is not null }, "工程表のsnapshotを受け取れませんでした。");
+                    await Until(() => latticeScene switch { "not-found" => chart.Feed.Connection == LatticeConnection.NotFound, "reconnecting" => chart.Feed.Connection == LatticeConnection.Reconnecting, _ => chart.Feed.Snapshot is not null }, AppStrings.App_xaml_OnStartup_50);
                     latticeRoot.Measure(new Size(latticeWidth, latticeHeight)); latticeRoot.Arrange(new Rect(0, 0, latticeWidth, latticeHeight)); latticeRoot.UpdateLayout();
                     if (latticeScene is "detail" or "tree-detail") chart.OpenDetail("p1/t04", morph: false);
-                    if (latticeScene == "owner") { chart.OpenDetail("p1/t11", morph: false); await Until(() => chart.Decisions.GetValueOrDefault("p1/t11") is not null, "決裁を読めませんでした。"); }
+                    if (latticeScene == "owner") { chart.OpenDetail("p1/t11", morph: false); await Until(() => chart.Decisions.GetValueOrDefault("p1/t11") is not null, AppStrings.App_xaml_OnStartup_53); }
                     if (latticeScene == "connections-end") chart.ScrollWaitsToEnd();
                     // 工程表の設定: the sheet over the chart once its first read has an answer; -on and -save-fails change the switch once (the server answers 503 after keeping it).
                     if (latticeScene.StartsWith("reminders", StringComparison.Ordinal))
                     {
                         chart.OpenReminders(); var reminders = chart.Reminders!.Model;
-                        await Until(() => reminders.Ready || reminders.Status != LatticeReminderModel.Loading, "催促の設定を読めませんでした。");
+                        await Until(() => reminders.Ready || reminders.Status != LatticeReminderModel.Loading, AppStrings.App_xaml_OnStartup_54);
                         if (latticeScene is "reminders-on" or "reminders-save-fails") await reminders.SetAsync(true);
                         latticeRoot.UpdateLayout();
                     }
@@ -463,7 +463,7 @@ public partial class App : Application
                 var window = new MainWindow(model, persistPlacement: false);
                 if (e.Args[0] == "--render-url") await model.ConnectAsync(e.Args[1], listen: false);
                 else model.LoadPreview();
-                var first = e.Args is ["--render-url", _, var conversationId, _] ? model.Entries.FirstOrDefault(entry => entry.Target.Id == conversationId) ?? throw new BellApiException("指定した会話がありません。") : model.Entries.FirstOrDefault();
+                var first = e.Args is ["--render-url", _, var conversationId, _] ? model.Entries.FirstOrDefault(entry => entry.Target.Id == conversationId) ?? throw new BellApiException(AppStrings.App_xaml_OnStartup_20) : model.Entries.FirstOrDefault();
                 if (first is not null) await model.SelectAsync(first);
                 if (model.ConnectionError is { } renderError) throw new BellApiException(renderError);
                 var root = (FrameworkElement)window.Content;
@@ -477,7 +477,7 @@ public partial class App : Application
                 Shutdown(0);
                 return;
             }
-            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-approvals <main|answer|external|unknown-member|held|done|filter|empty|unavailable|link|link-connected|link-waiting|link-denied|gone|unreadable|join|join-signing|join-waiting|join-not-answering|join-failed|join-other-account|join-removed|join-live|join-block> <PNG>、--render-lattice <list|list-many|list-nudge|list-back|list-empty|old-server|stops|stops-confirm|stops-refused|stops-open|stops-empty|stops-unread|stops-retry|stops-old|reminders|reminders-on|reminders-save-fails|reminders-old|single|chart|authored|tree|tree-detail|history|owner|owner-lanes|detail|external|external-detail|highlight|unverified|last-verified|unknown|degraded|reconnecting|unavailable|not-found> <PNG>、--render-gallery <URL> <会話ID> <PNG>、--render-url <URL> [会話ID] <PNG>、--render-inspector <member|member-small|restart-busy|restart-success|room|sheet-small|sheet-large|sheet-unsupported|pending|pending-sheet> <URL> <会話ID> <PNG>、--render-screen <keys|approval|digits|sent|empty|offline|failed> <URL> <会話ID> <PNG>、--render-conversation <member|room|fork|secret|echo|states|stop|stop-notice|stop-member|draft|peer-sheet|stack|empty|failed> <URL> <会話ID> <PNG>、--render-secret <ssh-search|sudo-list|sudo-vault|reference|onetime|login|old> <URL> <PNG>、--render-page <settings|settings-lower|settings-<profile|ai|features|notifications|connection|display|billing|update|about|stop>|schedules|updates|updates-current|updates-narrow|updates-detail-narrow|update-sheet> <URL> <PNG>、--render-terminals <list|detail-auth-failed|detail-hostkey|detail-windows|detail-authorizing|keys|keys-pending|hostkey-sheet|editor-macos|editor-windows|editor-linux> <URL> <PNG>、--render-startup <opening|setup|guide|failure|login|account|onboarding-choose|onboarding-waiting|banner> <URL> <PNG>、--render-editor <member|settings|profile|feature|schedules|new-schedule|authentication> <URL> <ID> <PNG>、--render-editors <new-member|new-room|room|room-delete-alert|crop|member|member-delete-alert|member-delete-pending|member-delete-unconfirmed|folder-new|folder-new-windows|folder-new-missing|folder-new-typed|folder-picker|folder-picker-sub|folder-picker-created> <URL> <ID> <PNG> のいずれかです。");
+            if (e.Args.Length != 0) throw new ArgumentException(AppStrings.App_xaml_OnStartup_56);
 
             // Started by the Windows share sheet (sparse-package identity, scripts/register-windows-share-target.ps1): only the share window, no single-instance hand-over.
             if (e.Args.Length == 0 && await ShareActivation.ReadAsync() is { } shared)
@@ -498,7 +498,7 @@ public partial class App : Application
             var notifications = new DesktopNotifications(new WindowsNotificationSink(), new SettingsStore(SettingsStore.UserDirectory), (server, target) => Dispatcher.BeginInvoke(() => _ = main!.OpenNotificationAsync(server, target)));
             main = new MainWindow(workspace, access: access, notifications: notifications, approvalBox: new ApprovalBoxDevice(SettingsStore.UserDirectory));
             MainWindow = main;
-            main.Closed += async (_, _) => { workspace.Dispose(); try { await notifications.DisposeAsync(); } catch (Exception error) { MessageBox.Show("通知の終了処理を完了できませんでした。" + error.Message, "BellTeam", MessageBoxButton.OK, MessageBoxImage.Error); } finally { Shutdown(); } };
+            main.Closed += async (_, _) => { workspace.Dispose(); try { await notifications.DisposeAsync(); } catch (Exception error) { MessageBox.Show(AppStrings.App_xaml_OnStartup_57(error.Message), "BellTeam", MessageBoxButton.OK, MessageBoxImage.Error); } finally { Shutdown(); } };
             main.Show();
             var settings = new SettingsStore(SettingsStore.UserDirectory).Load();
             if (StartupRoute.Initial(settings.ServerUrl, AccountStore.Paid is not null) == StartupPhase.Account) main.ShowAccount(); else await main.ConnectAsync(settings.ServerUrl!);
@@ -535,7 +535,7 @@ public partial class App : Application
             if (current is System.Windows.Controls.Expander expander) return expander;
             for (var index = 0; index < VisualTreeHelper.GetChildrenCount(current); index++) pending.Push(VisualTreeHelper.GetChild(current, index));
         }
-        throw new InvalidOperationException("更新の詳細を描画できません。");
+        throw new InvalidOperationException(AppStrings.App_xaml_FindExpander_1);
     }
     private static void WritePng(Window window, int width, int height, string path)
     {

@@ -17,22 +17,22 @@ public sealed class FeatureEditor : EditorWindow
     public void ClearSecrets() { foreach (var input in inputs) input.Password?.Clear(); }
     public async Task InitializeAsync()
     {
-        SaveButton.IsEnabled = false; Status.Text = "読み込んでいます…";
+        SaveButton.IsEnabled = false; Status.Text = AppStrings.FeatureEditor_InitializeAsync_1;
         try
         {
             var original = (await workspace.Planning.FeaturesAsync(Token)).Single(setting => setting.Id == id); Token.ThrowIfCancellationRequested();
-            var (switchRow, enabled) = SettingsUi.SwitchRow("有効にする"); enabled.IsChecked = original.Enabled; switchRow.Margin = new Thickness(0, 10, 0, 14); Body.Children.Add(switchRow);
+            var (switchRow, enabled) = SettingsUi.SwitchRow(AppStrings.FeatureEditor_InitializeAsync_2); enabled.IsChecked = original.Enabled; switchRow.Margin = new Thickness(0, 10, 0, 14); Body.Children.Add(switchRow);
             // A feature with no fields (thinkingDisplay) is only this switch: nothing to register, no empty 設定 heading.
-            if (original.Fields.Length != 0) Body.Children.Add(new TextBlock { Text = "必要な項目を登録してから有効にしてください。秘密の値は会話へ送られません。", TextWrapping = TextWrapping.Wrap });
-            if (original.ApplyFailed) Body.Children.Add(new TextBlock { Text = "設定を保存しましたが、反映できませんでした。設定を確認して再度保存してください。", TextWrapping = TextWrapping.Wrap, Foreground = System.Windows.Media.Brushes.Firebrick });
-            if (original.Fields.Length != 0) Heading("設定");
+            if (original.Fields.Length != 0) Body.Children.Add(new TextBlock { Text = AppStrings.FeatureEditor_InitializeAsync_3, TextWrapping = TextWrapping.Wrap });
+            if (original.ApplyFailed) Body.Children.Add(new TextBlock { Text = AppStrings.FeatureEditor_InitializeAsync_4, TextWrapping = TextWrapping.Wrap, Foreground = System.Windows.Media.Brushes.Firebrick });
+            if (original.Fields.Length != 0) Heading(AppStrings.FeatureEditor_InitializeAsync_5);
             foreach (var field in original.Fields)
             {
                 if (!field.Secret) { inputs.Add((field, TextField(field.Label, field.Value), null, null)); continue; }
                 Body.Children.Add(new TextBlock { Text = field.Label, Margin = new Thickness(0, 10, 0, 5) });
-                Body.Children.Add(new TextBlock { Text = field.Configured ? "登録済み・変更するときだけ入力" : "未設定", FontSize = 14 });
+                Body.Children.Add(new TextBlock { Text = field.Configured ? AppStrings.FeatureEditor_InitializeAsync_6 : AppStrings.FeatureEditor_InitializeAsync_7, FontSize = 14 });
                 var password = new PasswordBox { Margin = new Thickness(0, 5, 0, 5), Padding = new Thickness(10, 8, 10, 8), FontSize = 16 }; Body.Children.Add(password);
-                var remove = new CheckBox { Content = "保存すると登録済みの値を消す", Margin = new Thickness(0, 4, 0, 8) };
+                var remove = new CheckBox { Content = AppStrings.FeatureEditor_InitializeAsync_8, Margin = new Thickness(0, 4, 0, 8) };
                 remove.Checked += (_, _) => { password.Clear(); password.IsEnabled = false; }; remove.Unchecked += (_, _) => password.IsEnabled = true;
                 Body.Children.Add(remove); inputs.Add((field, null, password, remove));
             }
@@ -44,7 +44,7 @@ public sealed class FeatureEditor : EditorWindow
                 try
                 {
                     var updated = await workspace.Planning.SaveFeatureAsync(id, changedEnabled, values, Token);
-                    if (updated.ApplyFailed) { Saved = true; Status.Text = "設定を保存しましたが、反映できませんでした。閉じて最新の状態を確認してください。"; return false; }
+                    if (updated.ApplyFailed) { Saved = true; Status.Text = AppStrings.FeatureEditor_InitializeAsync_9; return false; }
                     return true;
                 }
                 finally { values.Clear(); }
@@ -52,7 +52,7 @@ public sealed class FeatureEditor : EditorWindow
             Status.Text = ""; SaveButton.IsEnabled = true;
         }
         catch (OperationCanceledException) when (Token.IsCancellationRequested) { }
-        catch (Exception) { Status.Text = "追加機能の設定を読み取れませんでした。接続と認証を確認してください。"; }
+        catch (Exception) { Status.Text = AppStrings.FeatureEditor_InitializeAsync_10; }
     }
     public Dictionary<string, string> CollectChanges()
     {

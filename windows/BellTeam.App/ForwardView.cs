@@ -17,8 +17,8 @@ public sealed class ForwardView : ScrollViewer, ISheetSave
     private bool sending;
     public bool CanSave => !sending && destinations.SelectedItem is not null;
     public event Action? CanSaveChanged;
-    string ISheetSave.CloseLabel => "キャンセル";
-    string ISheetSave.SaveLabel => sending ? "転送中…" : "転送";
+    string ISheetSave.CloseLabel => AppStrings.EditorForm_CloseLabel_1;
+    string ISheetSave.SaveLabel => sending ? AppStrings.ForwardView_SaveLabel_1 : AppStrings.ForwardView_SaveLabel_2;
     public string ErrorText => error.Text;
     // Render seam: what a person would have picked and typed.
     public void SetForRender(int destination, string text) { destinations.SelectedIndex = destination; comment.Text = text; }
@@ -30,16 +30,16 @@ public sealed class ForwardView : ScrollViewer, ISheetSave
         VerticalScrollBarVisibility = ScrollBarVisibility.Auto; Background = (Brush)Application.Current.FindResource("ConversationBackground");
         var muted = (Brush)Application.Current.FindResource("Muted");
         var form = new StackPanel { Margin = new Thickness(20, 8, 20, 24), MaxWidth = 720 };
-        form.Children.Add(Header("転送する発言"));
-        var text = message.QuoteText; if (text.Length == 0 && message.DisplayedImageUrls.Length != 0) text = "（画像）";
+        form.Children.Add(Header(AppStrings.ForwardView_ForwardView_1));
+        var text = message.QuoteText; if (text.Length == 0 && message.DisplayedImageUrls.Length != 0) text = AppStrings.ForwardView_ForwardView_2;
         form.Children.Add(new Border { BorderBrush = (Brush)Application.Current.FindResource("Violet"), BorderThickness = new Thickness(3, 0, 0, 0), Background = new SolidColorBrush(Color.FromArgb(40, 0x61, 0x47, 0xD4)), Padding = new Thickness(12, 8, 12, 8), Child = new TextBlock { Text = text, FontSize = 15, Foreground = muted, TextWrapping = TextWrapping.Wrap, MaxHeight = 90, TextTrimming = TextTrimming.CharacterEllipsis } });
-        form.Children.Add(Header("転送先"));
+        form.Children.Add(Header(AppStrings.ForwardView_ForwardView_3));
         destinations.ItemsSource = workspace.Entries; destinations.DisplayMemberPath = nameof(ConversationEntry.Name); destinations.FontSize = 16;
-        System.Windows.Automation.AutomationProperties.SetName(destinations, "転送先");
+        System.Windows.Automation.AutomationProperties.SetName(destinations, AppStrings.ForwardView_ForwardView_3);
         destinations.SelectionChanged += (_, _) => CanSaveChanged?.Invoke();
         form.Children.Add(destinations);
-        form.Children.Add(Header("コメント（任意）"));
-        System.Windows.Automation.AutomationProperties.SetName(comment, "コメント");
+        form.Children.Add(Header(AppStrings.ForwardView_ForwardView_5));
+        System.Windows.Automation.AutomationProperties.SetName(comment, AppStrings.ForwardView_ForwardView_6);
         form.Children.Add(comment); form.Children.Add(error);
         Content = form;
     }

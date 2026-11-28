@@ -105,7 +105,7 @@ public partial class MainWindow : Window, IInspectorHost
                 var store = settingsStore;
                 var bounds = RestoreBounds;
                 try { store.Save(store.Load() with { Window = new(bounds.Left, bounds.Top, bounds.Width, bounds.Height, WindowState == WindowState.Maximized) }); }
-                catch (Exception error) { MessageBox.Show(this, "窓の位置を保存できませんでした。" + error.Message, "BellTeam"); }
+                catch (Exception error) { MessageBox.Show(this, AppStrings.MainWindow_xaml_MainWindow_1(error.Message), "BellTeam"); }
             };
         }
     }
@@ -123,7 +123,7 @@ public partial class MainWindow : Window, IInspectorHost
     {
         if (sender is not FrameworkElement { DataContext: ConversationEntry entry }) return;
         try { await model.SetPinnedAsync(entry.Target.Id, !entry.Pinned); }
-        catch (Exception error) when (error is not OperationCanceledException) { model.ReportActionError("ピン留めを変えられませんでした。" + error.Message); }
+        catch (Exception error) when (error is not OperationCanceledException) { model.ReportActionError(AppStrings.MainWindow_xaml_Pin_Click_1(error.Message)); }
     }
     private async void Send_Click(object sender, RoutedEventArgs e) => await model.SendAsync();
     // a471-scrollback (machine-stream.md "History pages of a long stream"): older pages are read from the scroll motion, before the Owner runs out of rows, never only when the list is empty.
@@ -173,12 +173,12 @@ public partial class MainWindow : Window, IInspectorHost
     private async void Export_Click(object sender, RoutedEventArgs e)
     {
         if (model.Selected is not { } entry) return;
-        var dialog = new SaveFileDialog { FileName = $"BellTeam-{entry.Target.Id}.json", Filter = "JSONファイル|*.json", DefaultExt = ".json" };
+        var dialog = new SaveFileDialog { FileName = $"BellTeam-{entry.Target.Id}.json", Filter = AppStrings.MainWindow_xaml_Export_Click_1, DefaultExt = ".json" };
         if (dialog.ShowDialog(this) == true) await model.ExportAsync(dialog.FileName);
     }
     private async void Attach_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new OpenFileDialog { Filter = "画像|*.png;*.jpg;*.jpeg;*.webp;*.gif", Multiselect = true, Title = "画像を添付" };
+        var dialog = new OpenFileDialog { Filter = AppStrings.AvatarActions_ChangeAsync_1, Multiselect = true, Title = AppStrings.MainWindow_xaml_Attach_Click_2 };
         if (dialog.ShowDialog(this) == true) await model.AttachFilesAsync(dialog.FileNames);
     }
     private void RemoveImage_Click(object sender, RoutedEventArgs e) { if (sender is Button { Tag: ImageAttachment image }) model.RemoveAttachment(image); }
@@ -195,7 +195,7 @@ public partial class MainWindow : Window, IInspectorHost
         if (e.DataObject.GetData(DataFormats.Bitmap) is System.Windows.Media.Imaging.BitmapSource image)
         {
             e.CancelCommand();
-            try { model.AttachClipboardImage(image); } catch (Exception) { model.ReportDraftError("貼り付けた画像を読み込めませんでした。"); }
+            try { model.AttachClipboardImage(image); } catch (Exception) { model.ReportDraftError(AppStrings.MainWindow_xaml_Composer_Pasting_1); }
         }
         else if (e.DataObject.GetData(DataFormats.FileDrop) is string[] paths) { e.CancelCommand(); await model.AttachFilesAsync(paths); }
     }
@@ -217,19 +217,19 @@ public partial class MainWindow : Window, IInspectorHost
         if (!model.Connected) return;
         if (sheetContent is null)
         {
-            CloseUpdateSheet(); OpenSheet("アップデート", sheetContent = new UpdateContent(model));
+            CloseUpdateSheet(); OpenSheet(AppStrings.MainWindow_xaml_ShowUpdateSheet_1, sheetContent = new UpdateContent(model));
         }
         PageReady = SheetReady = sheetContent.RefreshAsync();
     }
     // Mac PeerMessageSheet in the shared in-window sheet.
     public void ShowPeerSheet(TimelineMessage message)
     {
-        CloseUpdateSheet(); OpenSheet("メンバー間の連絡", new PeerMessageView(model, message));
+        CloseUpdateSheet(); OpenSheet(AppStrings.MainWindow_xaml_ShowPeerSheet_1, new PeerMessageView(model, message));
     }
     // 転送: the sheet that picks a destination for one message of this conversation.
     public ForwardView ShowForwardSheet(TimelineMessage message)
     {
-        CloseUpdateSheet(); var view = new ForwardView(model, message, CloseUpdateSheet); OpenSheet("転送", view); return view;
+        CloseUpdateSheet(); var view = new ForwardView(model, message, CloseUpdateSheet); OpenSheet(AppStrings.ForwardView_SaveLabel_2, view); return view;
     }
     private ISheetSave? sheetSave;
     private void SheetSaveChanged()
@@ -242,7 +242,7 @@ public partial class MainWindow : Window, IInspectorHost
     private void ReleaseSheetSave()
     {
         if (sheetSave is not null) sheetSave.CanSaveChanged -= SheetSaveChanged;
-        sheetSave = null; UpdateSheetSave.Visibility = Visibility.Collapsed; UpdateSheetClose.Content = "閉じる"; UpdateSheetSave.Content = "保存";
+        sheetSave = null; UpdateSheetSave.Visibility = Visibility.Collapsed; UpdateSheetClose.Content = AppStrings.ApprovalsWindow_NotUsable_1; UpdateSheetSave.Content = AppStrings.EditorForm_SaveLabel_1;
     }
     public void OpenSheet(string title, UIElement content)
     {
@@ -267,12 +267,12 @@ public partial class MainWindow : Window, IInspectorHost
     public void ShowMemberSheet()
     {
         if (!model.Connected) return;
-        var view = new MemberEditorView(model, null); OpenEditorSheet("メンバーを追加", view); PageReady = SheetReady = ReadyAfter(view.InitializeAsync(), view);
+        var view = new MemberEditorView(model, null); OpenEditorSheet(AppStrings.MainWindow_xaml_ShowMemberSheet_1, view); PageReady = SheetReady = ReadyAfter(view.InitializeAsync(), view);
     }
     public void ShowRoomSheet(string? id)
     {
         if (!model.Connected) return;
-        var view = new RoomEditorView(model, id); OpenEditorSheet(id is null ? "ルームを作る" : "ルームを編集", view); PageReady = SheetReady = ReadyAfter(view.InitializeAsync(), view);
+        var view = new RoomEditorView(model, id); OpenEditorSheet(id is null ? AppStrings.MainWindow_xaml_ShowRoomSheet_1 : AppStrings.MainWindow_xaml_ShowRoomSheet_2, view); PageReady = SheetReady = ReadyAfter(view.InitializeAsync(), view);
     }
     private static async Task ReadyAfter(Task initialize, EditorFormView view) { await initialize; await view.ReadyTask; }
     private void OpenEditorSheet(string title, EditorFormView view) { CloseUpdateSheet(); view.Closer = CloseUpdateSheet; OpenSheet(title, view); }
@@ -362,8 +362,8 @@ public partial class MainWindow : Window, IInspectorHost
     public void OpenLatticeChart(string projectId) => ShowLattice()?.OpenChart(projectId);
     public async Task OpenFromLatticeAsync(string botId)
     {
-        if (page?.CanNavigateAway == false) { model.ReportActionError("操作が終わってから会話を開いてください。"); return; }
-        await OpenConversationAsync(new ChatTarget(botId, false), "工程表のメンバーの会話が見つかりません。メンバーとルームの一覧を更新してください。");
+        if (page?.CanNavigateAway == false) { model.ReportActionError(AppStrings.MainWindow_xaml_OpenFromLatticeAsync_1); return; }
+        await OpenConversationAsync(new ChatTarget(botId, false), AppStrings.MainWindow_xaml_OpenFromLatticeAsync_2);
     }
     public void ShowGoals() { if (!model.Connected) return; var editor = new GoalsWindow(model, this); if (ShowPage(editor)) PageReady = editor.InitializeAsync(); }
     private void UpdateGoalBar() => GoalBar.Attach(model, model.Connected && model.Selected is { Target: { IsRoom: false } target } ? target.Id : null, this);
@@ -374,7 +374,7 @@ public partial class MainWindow : Window, IInspectorHost
     public void ShowSettings(SettingsPage page = SettingsPage.Profile) { if (!model.Connected) return; var editor = new SettingsWindow(model, OpenConnectionSettings, notifications, () => _ = SignOutAsync(), () => _ = DeleteAccountAsync()); if (ShowPage(editor)) PageReady = editor.InitializeAsync(page); }
     private bool ShowPage(EditorWindow editor)
     {
-        if (page?.CanNavigateAway == false) { editor.Close(); model.ReportActionError("操作が終わってから画面を切り替えてください。"); return false; }
+        if (page?.CanNavigateAway == false) { editor.Close(); model.ReportActionError(AppStrings.MainWindow_xaml_ShowPage_1); return false; }
         if (IsLoaded) editor.Owner = this;
         model.ReturnToProfile(); PageHost.Content = null; page?.Close(); page = editor;
         PageHost.Content = editor.AsPage(ShowConversation); PageArea.Visibility = Visibility.Visible;
@@ -383,7 +383,7 @@ public partial class MainWindow : Window, IInspectorHost
     }
     private void ShowConversation()
     {
-        if (page?.CanNavigateAway == false) { model.ReportActionError("操作が終わってから画面を切り替えてください。"); return; }
+        if (page?.CanNavigateAway == false) { model.ReportActionError(AppStrings.MainWindow_xaml_ShowPage_1); return; }
         PageHost.Content = null; page?.Close(); page = null; PageArea.Visibility = Visibility.Collapsed;
         ConversationArea.Visibility = Visibility.Visible; ProfileLayout();
     }
@@ -405,7 +405,7 @@ public partial class MainWindow : Window, IInspectorHost
         var idle = empty && !model.Loading && !model.HasActivity;
         EmptyConversation.Visibility = idle && !model.LoadFailed ? Visibility.Visible : Visibility.Collapsed;
         FailedConversation.Visibility = idle && model.LoadFailed ? Visibility.Visible : Visibility.Collapsed;
-        EmptyTitle.Text = model.Title + "と話しましょう";
+        EmptyTitle.Text = AppStrings.MainWindow_xaml_UpdateWelcome_1(model.Title);
     }
     private void ShowStopResult()
     {
@@ -421,7 +421,7 @@ public partial class MainWindow : Window, IInspectorHost
         var quote = model.Quote;
         QuoteBar.Visibility = quote is null ? Visibility.Collapsed : Visibility.Visible;
         if (quote is null) { shownQuote = null; return; }
-        QuoteBarName.Text = (quote.SenderName ?? "") + (quote.Part ? "の発言の一部への返信" : "への返信"); QuoteBarText.Text = Timeline.QuoteBody(quote).ReplaceLineEndings(" ");
+        QuoteBarName.Text = (quote.SenderName ?? "") + (quote.Part ? AppStrings.MainWindow_xaml_UpdateQuoteBar_1 : AppStrings.MainWindow_xaml_UpdateQuoteBar_2); QuoteBarText.Text = Timeline.QuoteBody(quote).ReplaceLineEndings(" ");
         if (shownQuote?.Id != quote.Id) Composer.Focus();
         shownQuote = quote;
     }
@@ -437,7 +437,7 @@ public partial class MainWindow : Window, IInspectorHost
     {
         var atBottom = MessageHost.IsNewest;
         if (atBottom) unreadNew = false;
-        NewMessagesLabel.Text = unreadNew ? "新着メッセージ" : "最新へ"; System.Windows.Automation.AutomationProperties.SetName(NewMessagesButton, NewMessagesLabel.Text);
+        NewMessagesLabel.Text = unreadNew ? AppStrings.MainWindow_xaml_ShowLatestButton_1 : AppStrings.MainWindow_xaml_ShowLatestButton_2; System.Windows.Automation.AutomationProperties.SetName(NewMessagesButton, NewMessagesLabel.Text);
         NewMessagesBand.Visibility = atBottom && !unreadNew ? Visibility.Collapsed : Visibility.Visible;
     }
     private void NewMessages_Click(object sender, RoutedEventArgs e) { unreadNew = false; MessageHost.FollowNewest(); NewMessagesBand.Visibility = Visibility.Collapsed; }
@@ -450,7 +450,7 @@ public partial class MainWindow : Window, IInspectorHost
         if (sender is not Button button) return;
         static TextBlock Check(bool on) => new() { Text = on ? "\uE73E" : "\uE91F", FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets") };
         var menu = new ContextMenu { PlacementTarget = button, Placement = System.Windows.Controls.Primitives.PlacementMode.Top };
-        var auto = new MenuItem { Header = "返信者を自動選択", Icon = Check(!model.ReplyMembers.Any(member => member.Selected)), IsEnabled = model.RoutingEnabled };
+        var auto = new MenuItem { Header = AppStrings.MainWindow_xaml_ReplyTarget_Click_1, Icon = Check(!model.ReplyMembers.Any(member => member.Selected)), IsEnabled = model.RoutingEnabled };
         auto.Click += (_, _) => model.ClearReplyMembers(); menu.Items.Add(auto);
         foreach (var member in model.ReplyMembers.ToArray())
         {
@@ -493,7 +493,7 @@ public partial class MainWindow : Window, IInspectorHost
     // Mac changeServer: the server entry screen replaces the window. The saved address stays until a new one is entered, so it is offered again.
     public void OpenConnectionSettings()
     {
-        if (page?.CanNavigateAway == false) { model.ReportActionError("操作が終わってから接続先を変更してください。"); return; }
+        if (page?.CanNavigateAway == false) { model.ReportActionError(AppStrings.MainWindow_xaml_OpenConnectionSettings_1); return; }
         ShowConversation(); ShowServerSetup();
     }
     public void ShowServerSetup() => ShowStartup(StartupPhase.Setup);
@@ -528,11 +528,11 @@ public partial class MainWindow : Window, IInspectorHost
         {
             (string What, Func<Task> Run)[] steps =
             [
-                ("決裁箱のサインイン", () => approvalBox?.DeleteLocalDataAsync(CancellationToken.None) ?? Task.CompletedTask),
-                ("通知の登録", () => notifications?.SetEnabledAsync(false, persist: false) ?? Task.CompletedTask),
-                ("Webのログイン", () => access?.SignOutAsync() ?? Task.CompletedTask),
-                ("BellTeamの購読の確認", () => { AccountStore.Local.SignOutLocal(); return Task.CompletedTask; }),
-                ("保存した接続先", () => { settingsStore.Save(settingsStore.Load() with { ServerUrl = null }); return Task.CompletedTask; }),
+                (AppStrings.MainWindow_xaml_DeleteAccountAsync_1, () => approvalBox?.DeleteLocalDataAsync(CancellationToken.None) ?? Task.CompletedTask),
+                (AppStrings.MainWindow_xaml_DeleteAccountAsync_2, () => notifications?.SetEnabledAsync(false, persist: false) ?? Task.CompletedTask),
+                (AppStrings.MainWindow_xaml_DeleteAccountAsync_3, () => access?.SignOutAsync() ?? Task.CompletedTask),
+                (AppStrings.MainWindow_xaml_DeleteAccountAsync_4, () => { AccountStore.Local.SignOutLocal(); return Task.CompletedTask; }),
+                (AppStrings.MainWindow_xaml_DeleteAccountAsync_5, () => { settingsStore.Save(settingsStore.Load() with { ServerUrl = null }); return Task.CompletedTask; }),
             ];
             foreach (var (what, run) in steps)
             {
@@ -582,8 +582,8 @@ public partial class MainWindow : Window, IInspectorHost
         };
         StartupHost.Visibility = phase == StartupPhase.Ready ? Visibility.Collapsed : Visibility.Visible;
     }
-    private bool AskServerChange() => new ConfirmationWindow("接続先を変更しますか？", "今のサーバーからログアウトして、接続先の入力に戻ります。", "接続先を変更") { Owner = this }.ShowDialog() == true;
-    public void ShowServerGuide() { CloseUpdateSheet(); OpenSheet("サーバーの導入ガイド", new ServerGuideView()); }
+    private bool AskServerChange() { var ask = new ConfirmationWindow(AppStrings.MainWindow_xaml_AskServerChange_1, AppStrings.MainWindow_xaml_AskServerChange_2, AppStrings.OnboardingView_Render_7) { Owner = this }; return ask.ShowDialog() == true; }
+    public void ShowServerGuide() { CloseUpdateSheet(); OpenSheet(AppStrings.MainWindow_xaml_ShowServerGuide_1, new ServerGuideView()); }
     private void RouteToLogin() { if (model.NeedsLogin && !connecting && startup != StartupPhase.SignIn) ShowSignIn(!signingOut && model.AuthMode == "cloudflare"); }
     // Mac LoginView opens its login sheet by itself when the server just asked for a login (not after an explicit logout).
     private void ShowSignIn(bool openLogin) { ShowStartup(StartupPhase.SignIn); if (openLogin) OpenLoginSheet(); }
@@ -594,9 +594,9 @@ public partial class MainWindow : Window, IInspectorHost
         {
             var origin = ServerOrigin.Parse(model.Server);
             CloseUpdateSheet();
-            OpenSheet("ログイン", new AccessLoginView(access, origin, () => { CloseUpdateSheet(); _ = ConnectAsync(model.Server, openLogin: false); }));
+            OpenSheet(AppStrings.MainWindow_xaml_OpenLoginSheet_1, new AccessLoginView(access, origin, () => { CloseUpdateSheet(); _ = ConnectAsync(model.Server, openLogin: false); }));
         }
-        catch (Exception) { (StartupHost.Child as LoginView)?.ShowError("ログイン画面を開けませんでした。接続先とWebView2 Runtimeを確認してください。"); }
+        catch (Exception) { (StartupHost.Child as LoginView)?.ShowError(AppStrings.MainWindow_xaml_OpenLoginSheet_2); }
     }
     // Mac bootstrap: opening, then the phase the server's answer decides. A failure retries by itself with the backoff (see ScheduleStartupRetry);
     // 「もう一度試す」 and 再接続 call this again at once. An automatic try keeps the failure page on screen instead of flashing the opening view.
@@ -670,16 +670,16 @@ public partial class MainWindow : Window, IInspectorHost
     }
     public async Task OpenNotificationAsync(string server, ChatTarget? target)
     {
-        if (server != model.Server || !model.Connected) { model.ReportActionError(target is null ? "通知の接続先へ接続してから、更新センターを開いてください。" : "通知の接続先へ接続してから、会話を開いてください。"); return; }
-        if (page?.CanNavigateAway == false) { model.ReportActionError("操作が終わってから通知を開いてください。"); return; }
+        if (server != model.Server || !model.Connected) { model.ReportActionError(target is null ? AppStrings.MainWindow_xaml_OpenNotificationAsync_1 : AppStrings.MainWindow_xaml_OpenNotificationAsync_2); return; }
+        if (page?.CanNavigateAway == false) { model.ReportActionError(AppStrings.MainWindow_xaml_OpenNotificationAsync_3); return; }
         if (target is null) { if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal; Show(); Activate(); ShowUpdates(); return; }
-        await OpenConversationAsync(target, "通知の会話が見つかりません。メンバーとルームの一覧を更新してください。");
+        await OpenConversationAsync(target, AppStrings.MainWindow_xaml_OpenNotificationAsync_4);
     }
     // The 相関図 window opens a member's chat through the same path as a notification (Mac AppStore.openConversation).
     public async Task OpenFromWorkGraphAsync(string botId)
     {
-        if (page?.CanNavigateAway == false) { model.ReportActionError("操作が終わってから会話を開いてください。"); return; }
-        await OpenConversationAsync(new ChatTarget(botId, false), "相関図のメンバーの会話が見つかりません。メンバーとルームの一覧を更新してください。");
+        if (page?.CanNavigateAway == false) { model.ReportActionError(AppStrings.MainWindow_xaml_OpenFromLatticeAsync_1); return; }
+        await OpenConversationAsync(new ChatTarget(botId, false), AppStrings.MainWindow_xaml_OpenFromWorkGraphAsync_2);
     }
     private async Task OpenConversationAsync(ChatTarget target, string missing)
     {

@@ -29,13 +29,13 @@ public sealed class ScreenView : Grid
     public ScreenView()
     {
         RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); RowDefinitions.Add(new RowDefinition()); RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        var back = InspectorUi.Bordered("プロフィールに戻る", "", size: 14); back.HorizontalAlignment = HorizontalAlignment.Left; back.Margin = new Thickness(0, 0, 12, 0); back.Click += (_, _) => Workspace?.ReturnToProfile();
+        var back = InspectorUi.Bordered(AppStrings.ScreenView_ScreenView_1, "", size: 14); back.HorizontalAlignment = HorizontalAlignment.Left; back.Margin = new Thickness(0, 0, 12, 0); back.Click += (_, _) => Workspace?.ReturnToProfile();
         var header = new DockPanel { Margin = new Thickness(16) }; DockPanel.SetDock(back, Dock.Left); header.Children.Add(back); header.Children.Add(title);
         title.HorizontalAlignment = HorizontalAlignment.Right;
         terminal.Background = Brushes.Transparent; terminal.Foreground = Brushes.White; terminal.FontFamily = new FontFamily("Cascadia Mono, Consolas"); terminal.FontSize = 12; terminal.IsReadOnly = true; terminal.AcceptsReturn = true;
         terminal.TextWrapping = TextWrapping.Wrap; terminal.BorderThickness = new Thickness(0); terminal.Padding = new Thickness(16); terminal.VerticalScrollBarVisibility = ScrollBarVisibility.Auto; terminal.HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
         terminal.IsInactiveSelectionHighlightEnabled = true;
-        System.Windows.Automation.AutomationProperties.SetName(terminal, "Botの画面");
+        System.Windows.Automation.AutomationProperties.SetName(terminal, AppStrings.ScreenView_ScreenView_2);
         var body = new Border { Background = Black, Child = terminal };
         SetRow(header, 0); SetRow(body, 1); SetRow(bar, 2); SetRow(statusLine, 3);
         Children.Add(header); Children.Add(body); Children.Add(bar); Children.Add(statusLine);
@@ -68,7 +68,7 @@ public sealed class ScreenView : Grid
             input = workspace.ScreenInput; barState = null; showDigits = false;
             if (input is not null) input.Changed += RenderBar;
         }
-        title.Text = (workspace.Selected?.Name ?? "") + "の画面";
+        title.Text = AppStrings.ScreenView_Refresh_1((workspace.Selected?.Name ?? ""));
         ShowText(workspace.Screen);
         var line = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
         line.Children.Add(new Ellipse { Width = 7, Height = 7, Fill = workspace.ScreenOnline ? InspectorUi.Mint : InspectorUi.Muted, Margin = new Thickness(0, 0, 7, 0), VerticalAlignment = VerticalAlignment.Center });
@@ -105,9 +105,9 @@ public sealed class ScreenView : Grid
         if (workspace.ScreenMachine && column.Children.Count == 0) { bar.Visibility = Visibility.Collapsed; return; }
         if (!workspace.ScreenMachine)
         {
-            column.Children.Add(Spaced(Row(8, Key(model, "Escape", "取消", Glyph(""), KeyTint, false), Key(model, "Tab", "Tab", TabIcon(), KeyTint, false), Key(model, "Enter", "決定", EnterIcon(), InspectorUi.Violet, false), Key(model, "C-c", "中断", StopIcon(), Destructive, false))));
-            var toggle = Plain(ToggleCap(showDigits), "数字"); toggle.Click += (_, _) => { showDigits = !showDigits; barState = null; RenderBar(); };
-            column.Children.Add(Spaced(Row(8, Key(model, "Left", "左", Glyph(""), KeyTint, true), Key(model, "Up", "上", Glyph(""), KeyTint, true), Key(model, "Down", "下", Glyph(""), KeyTint, true), Key(model, "Right", "右", Glyph(""), KeyTint, true), toggle)));
+            column.Children.Add(Spaced(Row(8, Key(model, "Escape", AppStrings.ScreenView_RenderBar_1, Glyph(""), KeyTint, false), Key(model, "Tab", "Tab", TabIcon(), KeyTint, false), Key(model, "Enter", AppStrings.ScreenView_RenderBar_2, EnterIcon(), InspectorUi.Violet, false), Key(model, "C-c", AppStrings.ScreenView_RenderBar_3, StopIcon(), Destructive, false))));
+            var toggle = Plain(ToggleCap(showDigits), AppStrings.ScreenView_RenderBar_4); toggle.Click += (_, _) => { showDigits = !showDigits; barState = null; RenderBar(); };
+            column.Children.Add(Spaced(Row(8, Key(model, "Left", AppStrings.ScreenView_RenderBar_5, Glyph(""), KeyTint, true), Key(model, "Up", AppStrings.ScreenView_RenderBar_6, Glyph(""), KeyTint, true), Key(model, "Down", AppStrings.ScreenView_RenderBar_7, Glyph(""), KeyTint, true), Key(model, "Right", AppStrings.ScreenView_RenderBar_8, Glyph(""), KeyTint, true), toggle)));
             if (showDigits) column.Children.Add(Spaced(Row(5, Enumerable.Range(0, 10).Select(digit => Digit(model, digit.ToString())).ToArray())));
         }
         column.Children[0].SetValue(MarginProperty, new Thickness(0));
@@ -152,7 +152,7 @@ public sealed class ScreenView : Grid
         var content = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         // Mac: "number" while closed, "chevron.down" while the digits row is open.
         content.Children.Add(open ? Glyph("") : new TextBlock { Text = "#", FontSize = 20, FontWeight = FontWeights.Bold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, LineHeight = 17, LineStackingStrategy = LineStackingStrategy.BlockLineHeight });
-        content.Children.Add(new TextBlock { Text = "数字", FontSize = 11, FontWeight = FontWeights.Medium, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 3, 0, 0) });
+        content.Children.Add(new TextBlock { Text = AppStrings.ScreenView_RenderBar_4, FontSize = 11, FontWeight = FontWeights.Medium, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 3, 0, 0) });
         return CapOf(content, KeyTint, true);
     }
     private Button Digit(ScreenInputModel model, string id)
@@ -160,7 +160,7 @@ public sealed class ScreenView : Grid
         var content = new Grid { VerticalAlignment = VerticalAlignment.Center };
         content.Children.Add(new TextBlock { Text = id, FontSize = 17, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, Opacity = model.SendingKey == id ? 0 : 1 });
         if (model.SendingKey == id) content.Children.Add(new Spinner { Stroke = Brushes.White, Width = 16, Height = 16, HorizontalAlignment = HorizontalAlignment.Center });
-        var button = Plain(CapOf(content, KeyTint, true), "数字" + id); button.IsEnabled = model.SendingKey is null;
+        var button = Plain(CapOf(content, KeyTint, true), AppStrings.ScreenView_Digit_1(id)); button.IsEnabled = model.SendingKey is null;
         button.Click += async (_, _) => await model.SendKeyAsync(id);
         return button;
     }
@@ -176,7 +176,7 @@ public sealed class ScreenView : Grid
         var column = new StackPanel();
         var head = new StackPanel { Orientation = Orientation.Horizontal };
         head.Children.Add(new TextBlock { Text = "✋", FontFamily = new FontFamily("Segoe UI Symbol"), FontSize = 15, Foreground = Amber, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
-        head.Children.Add(new TextBlock { Text = "許可を求められています", FontSize = 15, FontWeight = FontWeights.SemiBold, Foreground = Amber, VerticalAlignment = VerticalAlignment.Center });
+        head.Children.Add(new TextBlock { Text = AppStrings.ScreenView_Banner_1, FontSize = 15, FontWeight = FontWeights.SemiBold, Foreground = Amber, VerticalAlignment = VerticalAlignment.Center });
         column.Children.Add(head);
         var buttons = Row(8, approval.Choices!.Select(choice => Choice(model, choice)).ToArray()); buttons.Margin = new Thickness(0, 10, 0, 0); column.Children.Add(buttons);
         return new Border { Background = AmberFill, BorderBrush = AmberLine, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(14), Padding = new Thickness(12), Child = column };

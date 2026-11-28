@@ -69,7 +69,7 @@ internal static class LatticeLook
     private static Geometry Freeze(Geometry geometry) { geometry.Freeze(); return geometry; }
     public static Path Shape(Geometry geometry, double size, Color color) => new() { Data = geometry, Fill = Brush(color), Width = size, Height = size, Stretch = Stretch.Uniform, VerticalAlignment = VerticalAlignment.Center };
     public static UIElement Crown(double size = 15) => Shape(CrownGeometry, size, Color.FromRgb(0xD9, 0x9A, 0x1E));
-    public static Border CoordinatorBadge() => Pill(Row(Crown(13), Spaced(Text("統括", 12, Color.FromRgb(0x9A, 0x63, 0x00), FontWeights.SemiBold), 5)), Color.FromRgb(0xF5, 0xB7, 0x2E), 0x2E, new Thickness(8, 3, 9, 3));
+    public static Border CoordinatorBadge() => Pill(Row(Crown(13), Spaced(Text(AppStrings.LatticeViews_CoordinatorBadge_1, 12, Color.FromRgb(0x9A, 0x63, 0x00), FontWeights.SemiBold), 5)), Color.FromRgb(0xF5, 0xB7, 0x2E), 0x2E, new Thickness(8, 3, 9, 3));
     public static T Spaced<T>(T element, double left) where T : FrameworkElement { element.Margin = new Thickness(left, 0, 0, 0); return element; }
 
     /// <summary>State glyph: dashed circle, play, working arc, octagon exclamation, seal check, archive. Color never carries a state alone: the badge text is always beside it.</summary>
@@ -133,7 +133,7 @@ internal sealed class LatticeRing : FrameworkElement
     public LatticeRing(int done, int total, double size, bool showLabel = true)
     {
         fraction = total > 0 ? Math.Min(1, (double)done / total) : 0; label = showLabel ? $"{done}/{total}" : ""; this.size = size; Width = Height = size; VerticalAlignment = VerticalAlignment.Center;
-        System.Windows.Automation.AutomationProperties.SetName(this, $"完了 {done}/{total}");
+        System.Windows.Automation.AutomationProperties.SetName(this, AppStrings.LatticeViews_LatticeRing_1(done, total));
     }
     protected override void OnRender(DrawingContext context)
     {

@@ -17,7 +17,7 @@ internal sealed class HarnessInstallRunner(HarnessAuthenticationApi api, string 
     public bool Running => running;
     // Mac flow.pressing: the POST is in flight; the press says so until the server answers.
     public bool Pressing { get; private set; }
-    public string PressLabel => Pressing ? "始めています…" : Install?.ButtonLabel ?? HarnessCliInstall.DefaultLabel;
+    public string PressLabel => Pressing ? AppStrings.HarnessInstallRunner_PressLabel_1 : Install?.ButtonLabel ?? HarnessCliInstall.DefaultLabel;
     public event Action? Changed;
     public Task PressAsync() => RunAsync(post: true);
     // A press is queued or an installer runs (read again until it ends), or the first probe is still running.
@@ -25,7 +25,7 @@ internal sealed class HarnessInstallRunner(HarnessAuthenticationApi api, string 
     public Task FollowAsync() => Install is { } known && Waiting(known) ? RunAsync(post: false) : Task.CompletedTask;
     private void Apply(HarnessCliInstallResponse next)
     {
-        if (next.Harness != harness) throw new BellApiException("別のAIの導入状態が返されました。");
+        if (next.Harness != harness) throw new BellApiException(AppStrings.HarnessInstallRunner_Apply_1);
         Install = next.Install; Error = null; Changed?.Invoke();
     }
     private async Task RunAsync(bool post)

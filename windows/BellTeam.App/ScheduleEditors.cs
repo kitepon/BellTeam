@@ -23,10 +23,10 @@ public sealed class SchedulesWindow : EditorWindow
     public ScheduledEntry[] Entries => entries ?? [];
     internal ScheduleEditorView? Editor { get; private set; }
     // Mac onDismiss: whatever closes the sheet reads the schedules again.
-    public SchedulesWindow(Workspace workspace, IInspectorHost host) : base("予定", workspace.ConnectionToken)
+    public SchedulesWindow(Workspace workspace, IInspectorHost host) : base(AppStrings.ScheduleEditors_SchedulesWindow_1, workspace.ConnectionToken)
     {
         this.workspace = workspace; this.host = host;
-        SaveButton.Visibility = Visibility.Collapsed; CloseButton.Content = "閉じる";
+        SaveButton.Visibility = Visibility.Collapsed; CloseButton.Content = AppStrings.ApprovalsWindow_NotUsable_1;
         Body.Margin = new Thickness(22, 24, 22, 30);
         workspace.ServerChanged += Changed; Closed += (_, _) => workspace.ServerChanged -= Changed;
         Render();
@@ -91,10 +91,10 @@ public sealed class SchedulesWindow : EditorWindow
         if (signature == shown) return;
         shown = signature; Body.Children.Clear();
         var header = new DockPanel { Margin = new Thickness(0, 0, 0, 20) };
-        var add = GoalUi.Round("", "予定を追加", filled: true); add.VerticalAlignment = VerticalAlignment.Top; add.Click += (_, _) => OpenEditor(null);
+        var add = GoalUi.Round("", AppStrings.ScheduleEditors_Render_1, filled: true); add.VerticalAlignment = VerticalAlignment.Top; add.Click += (_, _) => OpenEditor(null);
         DockPanel.SetDock(add, Dock.Right); header.Children.Add(add);
-        var title = new StackPanel(); title.Children.Add(new TextBlock { Text = "予定", FontSize = 34, FontWeight = FontWeights.Bold });
-        title.Children.Add(GoalUi.Text("チームに任せた仕事の、これから。", 14, GoalUi.Brush("Muted"), margin: new Thickness(0, 8, 0, 0)));
+        var title = new StackPanel(); title.Children.Add(new TextBlock { Text = AppStrings.ScheduleEditors_SchedulesWindow_1, FontSize = 34, FontWeight = FontWeights.Bold });
+        title.Children.Add(GoalUi.Text(AppStrings.ScheduleEditors_Render_3, 14, GoalUi.Brush("Muted"), margin: new Thickness(0, 8, 0, 0)));
         header.Children.Add(title); Body.Children.Add(header);
         if (errorText is { } error) Body.Children.Add(GoalUi.Text(error, 13, GoalUi.Red, margin: new Thickness(0, 0, 0, 20)));
         if (entries is null) { Body.Children.Add(new Spinner { Width = 20, Height = 20, Stroke = GoalUi.Brush("Muted"), Margin = new Thickness(0, 75, 0, 0), HorizontalAlignment = HorizontalAlignment.Center }); return; }
@@ -102,10 +102,10 @@ public sealed class SchedulesWindow : EditorWindow
         {
             if (errorText is not null)
             {
-                var retry = EditorFormView.LinkButton("再読み込み", () => _ = LoadAsync()); retry.HorizontalAlignment = HorizontalAlignment.Center; retry.Margin = new Thickness(0, 14, 0, 0);
-                Body.Children.Add(Unavailable("", "予定を読み込めませんでした", "再読み込みしてください。", retry));
+                var retry = EditorFormView.LinkButton(AppStrings.OnePasswordView_OnePasswordView_6, () => _ = LoadAsync()); retry.HorizontalAlignment = HorizontalAlignment.Center; retry.Margin = new Thickness(0, 14, 0, 0);
+                Body.Children.Add(Unavailable("", AppStrings.ScheduleEditors_Render_5, AppStrings.ScheduleEditors_Render_6, retry));
             }
-            else Body.Children.Add(Unavailable("", "予定はありません", "右上の＋から追加できます。", null));
+            else Body.Children.Add(Unavailable("", AppStrings.ScheduleEditors_Render_7, AppStrings.ScheduleEditors_Render_8, null));
             return;
         }
         foreach (var entry in entries) { var card = BuildCard(entry); card.Margin = new Thickness(0, 0, 0, 20); Body.Children.Add(card); }
@@ -151,20 +151,20 @@ public sealed class SchedulesWindow : EditorWindow
             System.Windows.Automation.AutomationProperties.SetName(button, label); button.Click += (_, _) => click(); return button;
         }
         var buttons = new Grid(); buttons.ColumnDefinitions.Add(new ColumnDefinition()); buttons.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var run = Tinted("今すぐ実行", () => _ = ActAsync(() => workspace.Planning.RunScheduleAsync(entry, Token))); run.HorizontalAlignment = HorizontalAlignment.Left; buttons.Children.Add(run);
+        var run = Tinted(AppStrings.ScheduleEditors_BuildCard_1, () => _ = ActAsync(() => workspace.Planning.RunScheduleAsync(entry, Token))); run.HorizontalAlignment = HorizontalAlignment.Left; buttons.Children.Add(run);
         var right = new StackPanel { Orientation = Orientation.Horizontal }; Grid.SetColumn(right, 1);
-        right.Children.Add(Tinted("編集", () => OpenEditor(entry)));
-        var trash = Tinted("削除", () => AskDelete(entry), ""); trash.Margin = new Thickness(12, 0, 0, 0); right.Children.Add(trash);
+        right.Children.Add(Tinted(AppStrings.GoalViews_Build_2, () => OpenEditor(entry)));
+        var trash = Tinted(AppStrings.MemberEditors_AskDelete_1, () => AskDelete(entry), ""); trash.Margin = new Thickness(12, 0, 0, 0); right.Children.Add(trash);
         buttons.Children.Add(right); stack.Children.Add(buttons);
         var card = Card(stack); card.Padding = new Thickness(18);
-        System.Windows.Automation.AutomationProperties.SetName(card, entry.OwnerName + "の予定 " + schedule.Title);
+        System.Windows.Automation.AutomationProperties.SetName(card, AppStrings.ScheduleEditors_BuildCard_4(entry.OwnerName, schedule.Title));
         return card;
     }
     // A command is machine text (paths, IDs): the card names its kind and the command itself stays in the editor; a prompt keeps its text (three lines).
     internal static UIElement? ActionLine(Schedule schedule, Brush muted)
     {
         if (schedule.Command is null) return schedule.Prompt is { } prompt ? Clamp(GoalUi.Text(prompt, 14, muted, margin: new Thickness(0, 14, 0, 0)), 3, 20) : null;
-        var badge = Badge("AIを起こさずに動く自動の作業", SettingsTone.Violet, ""); badge.HorizontalAlignment = HorizontalAlignment.Left; badge.Margin = new Thickness(0, 14, 0, 0); return badge;
+        var badge = Badge(AppStrings.ScheduleEditors_ActionLine_1, SettingsTone.Violet, ""); badge.HorizontalAlignment = HorizontalAlignment.Left; badge.Margin = new Thickness(0, 14, 0, 0); return badge;
     }
     // Mac lineLimit(n): n lines of a fixed height, the last one cut with an ellipsis.
     private static TextBlock Clamp(TextBlock text, int lines, double lineHeight)
@@ -176,14 +176,14 @@ public sealed class SchedulesWindow : EditorWindow
     private void AskDelete(ScheduledEntry entry)
     {
         alertLayer.Children.Clear();
-        alertLayer.Children.Add(EditorFormView.AlertFrame("この予定を削除しますか？", "", () => alertLayer.Visibility = Visibility.Collapsed,
-            new AlertChoice("削除", () => _ = ActAsync(() => workspace.Planning.DeleteScheduleAsync(entry, Token)), Destructive: true), new AlertChoice("キャンセル", Bold: true)));
+        alertLayer.Children.Add(EditorFormView.AlertFrame(AppStrings.ScheduleEditors_AskDelete_1, "", () => alertLayer.Visibility = Visibility.Collapsed,
+            new AlertChoice(AppStrings.MemberEditors_AskDelete_1, () => _ = ActAsync(() => workspace.Planning.DeleteScheduleAsync(entry, Token)), Destructive: true), new AlertChoice(AppStrings.EditorForm_CloseLabel_1, Bold: true)));
         alertLayer.Visibility = Visibility.Visible;
     }
     private void OpenEditor(ScheduledEntry? entry)
     {
         var view = new ScheduleEditorView(workspace, entry, () => { if (!Token.IsCancellationRequested) _ = LoadAsync(); }) { Closer = host.CloseSheet };
-        Editor = view; host.OpenSheet(entry is null ? "予定を追加" : "予定を編集", view);
+        Editor = view; host.OpenSheet(entry is null ? AppStrings.ScheduleEditors_Render_1 : AppStrings.ScheduleEditors_OpenEditor_2, view);
     }
     // Render seams: the sheet and the delete confirmation without a click.
     internal ScheduleEditorView OpenEditorForRender(string? id = null) { OpenEditor(id is null ? null : Entries.First(entry => entry.Schedule.Id == id)); return Editor!; }
@@ -193,8 +193,8 @@ public sealed class SchedulesWindow : EditorWindow
 // Mac ScheduleEditor: 担当, 実行内容 and タイミング as a grouped form in the sheet. The same schedule is written back whole (PUT); a new one is a POST. 保存 sends once and never again by itself.
 public sealed class ScheduleEditorView : EditorFormView
 {
-    internal static readonly FormOption[] Frequencies = [new("once", "一回だけ"), new("hourly", "毎時"), new("daily", "毎日"), new("weekly", "毎週"), new("interval_days", "数日おき"), new("interval_hours", "数時間おき"), new("cron", "cron式")];
-    private static readonly string[] DayNames = ["日", "月", "火", "水", "木", "金", "土"];
+    internal static readonly FormOption[] Frequencies = [new("once", AppStrings.ScheduleEditors_Frequencies_1), new("hourly", AppStrings.ScheduleEditors_Frequencies_2), new("daily", AppStrings.ScheduleEditors_Frequencies_3), new("weekly", AppStrings.ScheduleEditors_Frequencies_4), new("interval_days", AppStrings.ScheduleEditors_Frequencies_5), new("interval_hours", AppStrings.ScheduleEditors_Frequencies_6), new("cron", AppStrings.ScheduleEditors_Frequencies_7)];
+    private static readonly string[] DayNames = [AppStrings.ScheduleEditors_DayNames_1, AppStrings.ScheduleEditors_DayNames_2, AppStrings.ScheduleEditors_DayNames_3, AppStrings.ScheduleEditors_DayNames_4, AppStrings.ScheduleEditors_DayNames_5, AppStrings.ScheduleEditors_DayNames_6, AppStrings.ScheduleEditors_DayNames_7];
     private readonly Workspace workspace;
     private readonly ScheduledEntry? initial;
     private Action? dismissed;
@@ -214,7 +214,7 @@ public sealed class ScheduleEditorView : EditorFormView
     private readonly List<(UIElement Row, string[] Modes)> timing = [];
     private readonly StackPanel errors = new();
     public string ErrorText { get; private set; } = "";
-    public override string CloseLabel => "キャンセル";
+    public override string CloseLabel => AppStrings.EditorForm_CloseLabel_1;
 
     public ScheduleEditorView(Workspace workspace, ScheduledEntry? initial, Action? dismissed = null) : base(workspace)
     {
@@ -224,46 +224,46 @@ public sealed class ScheduleEditorView : EditorFormView
         replyTo = [.. initial?.Schedule.Targets ?? []];
 
         // 担当
-        target = Popup("メンバー・ルーム", owners.Select(entry => new FormOption(entry.Target.Path, entry.Name)), initial?.Target.Path ?? owners.FirstOrDefault()?.Target.Path);
+        target = Popup(AppStrings.ScheduleEditors_ScheduleEditorView_1, owners.Select(entry => new FormOption(entry.Target.Path, entry.Name)), initial?.Target.Path ?? owners.FirstOrDefault()?.Target.Path);
         target.IsEnabled = initial is null; target.MinWidth = 180;
-        ownerCard.Add(Labeled("メンバー・ルーム", target));
+        ownerCard.Add(Labeled(AppStrings.ScheduleEditors_ScheduleEditorView_1, target));
 
         // 実行内容
-        var nameField = Field("予定の名前", draft.Name); name = nameField.Box;
-        action = Popup("種類", [new("prompt", "AIへの指示"), new("command", "コマンド")], draft.Action);
-        var promptField = Field("依頼する内容", initial?.Schedule.Prompt ?? "", multiline: true, minHeight: 54); prompt = promptField.Box; prompt.MaxHeight = 136;
-        var commandField = Field("実行するコマンド", initial?.Schedule.Command ?? "", multiline: true, minHeight: 36); command = commandField.Box; command.MaxHeight = 130; command.FontFamily = new FontFamily("Consolas, Yu Gothic UI"); command.FontSize = 12;
+        var nameField = Field(AppStrings.ScheduleEditors_ScheduleEditorView_3, draft.Name); name = nameField.Box;
+        action = Popup(AppStrings.ScheduleEditors_ScheduleEditorView_4, [new("prompt", AppStrings.ScheduleEditors_ScheduleEditorView_5), new("command", AppStrings.ScheduleEditors_ScheduleEditorView_6)], draft.Action);
+        var promptField = Field(AppStrings.ScheduleEditors_ScheduleEditorView_7, initial?.Schedule.Prompt ?? "", multiline: true, minHeight: 54); prompt = promptField.Box; prompt.MaxHeight = 136;
+        var commandField = Field(AppStrings.ScheduleEditors_ScheduleEditorView_8, initial?.Schedule.Command ?? "", multiline: true, minHeight: 36); command = commandField.Box; command.MaxHeight = 130; command.FontFamily = new FontFamily("Consolas, Yu Gothic UI"); command.FontSize = 12;
         // Mac: folded by default (paths and IDs only matter when changing the line); an empty command stays open so there is somewhere to type.
-        var commandFold = TerminalParts.Disclosure("コマンドを表示して編集", commandField.Element, string.IsNullOrEmpty(command.Text), _ => { });
+        var commandFold = TerminalParts.Disclosure(AppStrings.ScheduleEditors_ScheduleEditorView_9, commandField.Element, string.IsNullOrEmpty(command.Text), _ => { });
         System.Windows.Automation.AutomationProperties.SetAutomationId(commandFold, "schedule-command-disclosure");
         command.TextChanged += (_, _) => { if (command.Text.Length == 0) commandFold.IsExpanded = true; };
-        contentCard.Add(Row(nameField.Element)); contentCard.Add(kindRow = Labeled("種類", action)); contentCard.Add(promptRow = Row(promptField.Element)); contentCard.Add(commandRow = Row(commandFold));
+        contentCard.Add(Row(nameField.Element)); contentCard.Add(kindRow = Labeled(AppStrings.ScheduleEditors_ScheduleEditorView_4, action)); contentCard.Add(promptRow = Row(promptField.Element)); contentCard.Add(commandRow = Row(commandFold));
 
         // タイミング
-        frequency = Popup("繰り返し", Frequencies, draft.Frequency); timingCard.Add(Labeled("繰り返し", frequency));
+        frequency = Popup(AppStrings.ScheduleEditors_ScheduleEditorView_11, Frequencies, draft.Frequency); timingCard.Add(Labeled(AppStrings.ScheduleEditors_ScheduleEditorView_11, frequency));
         void AddTiming(UIElement row, params string[] modes) { timingCard.Add(row); timing.Add((row, modes)); }
         var (initialHour, initialMinute) = initial is null || initial.Schedule.Kind == "once" ? (draft.Date.Hour, draft.Date.Minute) : (draft.Hour, draft.Minute);
         once = new DatePicker { SelectedDate = draft.Date.Date, DisplayDateStart = draft.Date.Date < DateTime.Today ? draft.Date.Date : DateTime.Today, FontSize = 13, MinWidth = 130 };
-        System.Windows.Automation.AutomationProperties.SetName(once, "実行日");
-        onceTime = new TimeBox("実行時刻", draft.Date.Hour, draft.Date.Minute) { Margin = new Thickness(8, 0, 0, 0) };
+        System.Windows.Automation.AutomationProperties.SetName(once, AppStrings.ScheduleEditors_ScheduleEditorView_13);
+        onceTime = new TimeBox(AppStrings.ScheduleEditors_ScheduleEditorView_14, draft.Date.Hour, draft.Date.Minute) { Margin = new Thickness(8, 0, 0, 0) };
         var onceControl = new StackPanel { Orientation = Orientation.Horizontal }; onceControl.Children.Add(once); onceControl.Children.Add(onceTime);
-        AddTiming(Labeled("実行日時", onceControl), "once");
-        minute = MinuteBox("毎時何分", draft.Minute); AddTiming(Labeled("毎時何分", minute), "hourly");
-        time = new TimeBox("時刻", initialHour, initialMinute); AddTiming(Labeled("時刻", time), "daily", "weekly");
+        AddTiming(Labeled(AppStrings.ScheduleEditors_ScheduleEditorView_15, onceControl), "once");
+        minute = MinuteBox(AppStrings.ScheduleEditors_ScheduleEditorView_16, draft.Minute); AddTiming(Labeled(AppStrings.ScheduleEditors_ScheduleEditorView_16, minute), "hourly");
+        time = new TimeBox(AppStrings.ScheduleEditors_ScheduleEditorView_18, initialHour, initialMinute); AddTiming(Labeled(AppStrings.ScheduleEditors_ScheduleEditorView_18, time), "daily", "weekly");
         for (var day = 0; day < 7; day++) AddTiming(SwitchRow(DayNames[day], draft.Weekdays.Contains(day), days), "weekly");
-        var stepDays = Stepper(value => $"{value}日おき", draft.IntervalDays, 1, 365); intervalDays = stepDays.Value; AddTiming(stepDays.Row, "interval_days");
-        startDate = new DatePicker { SelectedDate = draft.StartDate.Date, FontSize = 13, MinWidth = 130 }; System.Windows.Automation.AutomationProperties.SetName(startDate, "開始日"); AddTiming(Labeled("開始日", startDate), "interval_days");
-        time2 = new TimeBox("時刻", initialHour, initialMinute); AddTiming(Labeled("時刻", time2), "interval_days");
-        var stepHours = Stepper(value => $"{value}時間おき", draft.IntervalHours, 1, 24); intervalHours = stepHours.Value; AddTiming(stepHours.Row, "interval_hours");
-        var stepStart = Stepper(value => $"開始 {value}時", draft.StartHour, 0, 23); startHour = stepStart.Value; AddTiming(stepStart.Row, "interval_hours");
-        var stepEnd = Stepper(value => $"終了 {value}時", draft.EndHour, 0, 23); endHour = stepEnd.Value; AddTiming(stepEnd.Row, "interval_hours");
-        minute2 = MinuteBox("実行する分", draft.Minute); AddTiming(Labeled("実行する分", minute2), "interval_hours");
-        var expressionField = Field("cron式", draft.Expression); expression = expressionField.Box; AddTiming(Row(expressionField.Element), "cron");
+        var stepDays = Stepper(value => AppStrings.ScheduleEditors_ScheduleEditorView_20(value), draft.IntervalDays, 1, 365); intervalDays = stepDays.Value; AddTiming(stepDays.Row, "interval_days");
+        startDate = new DatePicker { SelectedDate = draft.StartDate.Date, FontSize = 13, MinWidth = 130 }; System.Windows.Automation.AutomationProperties.SetName(startDate, AppStrings.ScheduleEditors_ScheduleEditorView_21); AddTiming(Labeled(AppStrings.ScheduleEditors_ScheduleEditorView_21, startDate), "interval_days");
+        time2 = new TimeBox(AppStrings.ScheduleEditors_ScheduleEditorView_18, initialHour, initialMinute); AddTiming(Labeled(AppStrings.ScheduleEditors_ScheduleEditorView_18, time2), "interval_days");
+        var stepHours = Stepper(value => AppStrings.ScheduleEditors_ScheduleEditorView_25(value), draft.IntervalHours, 1, 24); intervalHours = stepHours.Value; AddTiming(stepHours.Row, "interval_hours");
+        var stepStart = Stepper(value => AppStrings.ScheduleEditors_ScheduleEditorView_26(value), draft.StartHour, 0, 23); startHour = stepStart.Value; AddTiming(stepStart.Row, "interval_hours");
+        var stepEnd = Stepper(value => AppStrings.ScheduleEditors_ScheduleEditorView_27(value), draft.EndHour, 0, 23); endHour = stepEnd.Value; AddTiming(stepEnd.Row, "interval_hours");
+        minute2 = MinuteBox(AppStrings.ScheduleEditors_ScheduleEditorView_28, draft.Minute); AddTiming(Labeled(AppStrings.ScheduleEditors_ScheduleEditorView_28, minute2), "interval_hours");
+        var expressionField = Field(AppStrings.ScheduleEditors_Frequencies_7, draft.Expression); expression = expressionField.Box; AddTiming(Row(expressionField.Element), "cron");
         // The two 時刻 rows and the two minute lists are one value each, shown where the Mac shows them.
         time.Changed += () => time2.Set(time.Hour, time.Minute); time2.Changed += () => time.Set(time2.Hour, time2.Minute);
         minute.SelectionChanged += (_, _) => minute2.SelectedValue = minute.SelectedValue; minute2.SelectionChanged += (_, _) => minute.SelectedValue = minute2.SelectedValue;
 
-        Form.Children.Add(FormSection("担当", ownerCard)); Form.Children.Add(FormSection("実行内容", contentCard)); Form.Children.Add(FormSection("タイミング", timingCard)); Form.Children.Add(errors);
+        Form.Children.Add(FormSection(AppStrings.LatticeStopsView_RowElement_1, ownerCard)); Form.Children.Add(FormSection(AppStrings.ScheduleEditors_ScheduleEditorView_32, contentCard)); Form.Children.Add(FormSection(AppStrings.ScheduleEditors_ScheduleEditorView_33, timingCard)); Form.Children.Add(errors);
         target.SelectionChanged += (_, _) => { replyTo.Clear(); TargetChanged(); }; action.SelectionChanged += (_, _) => ShowContent(); frequency.SelectionChanged += (_, _) => ShowTiming();
         TargetChanged(); ShowTiming(); Ready = true; Notify();
     }
@@ -280,7 +280,7 @@ public sealed class ScheduleEditorView : EditorFormView
         memberRows.Clear();
         if (Owner?.Room is { } room)
         {
-            var hint = Note("返信するメンバーを指定。未選択なら自動選択し、発言は全員に届きます。", Ink, 12); memberRows.Add(hint); ownerCard.Add(hint);
+            var hint = Note(AppStrings.ScheduleEditors_TargetChanged_1, Ink, 12); memberRows.Add(hint); ownerCard.Add(hint);
             foreach (var id in room.MemberIds)
             {
                 var row = SwitchRow(workspace.Bots.FirstOrDefault(bot => bot.Id == id)?.DisplayName ?? id, replyTo.Contains(id), null, on => { if (on) replyTo.Add(id); else replyTo.Remove(id); });
@@ -296,7 +296,7 @@ public sealed class ScheduleEditorView : EditorFormView
     }
     private void ShowTiming() { foreach (var (row, modes) in timing) timingCard.SetVisible(row, modes.Contains(frequency.SelectedValue as string)); }
 
-    private static ComboBox MinuteBox(string label, int value) { var box = Popup(label, Enumerable.Range(0, 60).Select(minute => new FormOption(minute.ToString(CultureInfo.InvariantCulture), minute + "分")), value.ToString(CultureInfo.InvariantCulture)); box.MinWidth = 90; return box; }
+    private static ComboBox MinuteBox(string label, int value) { var box = Popup(label, Enumerable.Range(0, 60).Select(minute => new FormOption(minute.ToString(CultureInfo.InvariantCulture), AppStrings.ScheduleEditors_MinuteBox_1(minute))), value.ToString(CultureInfo.InvariantCulture)); box.MinWidth = 90; return box; }
     private static Border SwitchRow(string label, bool on, List<ToggleButton>? collect, Action<bool>? changed = null)
     {
         var toggle = Switch("#34C759"); toggle.IsChecked = on; System.Windows.Automation.AutomationProperties.SetName(toggle, label); collect?.Add(toggle);
@@ -313,7 +313,7 @@ public sealed class ScheduleEditorView : EditorFormView
             var button = Capsule(glyph, Brushes.Transparent, Ink, 8, 15, new Thickness(12, 2, 12, 2)); System.Windows.Automation.AutomationProperties.SetName(button, name);
             button.Click += (_, _) => { current = Math.Clamp(current + delta, min, max); text.Text = label(current); }; return button;
         }
-        var pair = new StackPanel { Orientation = Orientation.Horizontal }; pair.Children.Add(Step("−", -1, "減らす")); pair.Children.Add(new Border { Width = 1, Height = 16, Background = Hairline }); pair.Children.Add(Step("+", 1, "増やす"));
+        var pair = new StackPanel { Orientation = Orientation.Horizontal }; pair.Children.Add(Step("−", -1, AppStrings.ScheduleEditors_Stepper_1)); pair.Children.Add(new Border { Width = 1, Height = 16, Background = Hairline }); pair.Children.Add(Step("+", 1, AppStrings.ScheduleEditors_Stepper_2));
         var grid = new Grid { VerticalAlignment = VerticalAlignment.Center }; grid.ColumnDefinitions.Add(new ColumnDefinition()); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.Children.Add(text); var frame = new Border { Child = pair, Background = Fill, CornerRadius = new CornerRadius(8) }; Grid.SetColumn(frame, 1); grid.Children.Add(frame);
         return (Row(grid), () => current);
@@ -327,12 +327,12 @@ public sealed class ScheduleEditorView : EditorFormView
     // Mac save(): the typed values become the whole schedule; a room always sends the instruction.
     internal Dictionary<string, object?> Collect(out ConversationEntry owner)
     {
-        var picked = owner = Owner ?? throw new ArgumentException("担当を選んでください。");
+        var picked = owner = Owner ?? throw new ArgumentException(AppStrings.ScheduleEditors_Collect_1);
         var room = picked.Target.IsRoom; var frequencyId = (string)frequency.SelectedValue;
         draft.Name = name.Text; draft.Action = Commands ? "command" : "prompt"; draft.Content = Commands ? command.Text : prompt.Text; draft.Frequency = frequencyId;
         if (frequencyId == "once")
         {
-            if (once.SelectedDate is not { } date) throw new ArgumentException("実行日時を入力してください。");
+            if (once.SelectedDate is not { } date) throw new ArgumentException(AppStrings.ScheduleEditors_Collect_2);
             draft.Date = date.Date + new TimeSpan(onceTime.Hour, onceTime.Minute, 0);
         }
         if (frequencyId is "hourly" or "interval_hours") draft.Minute = int.Parse((string)minute.SelectedValue, CultureInfo.InvariantCulture);
@@ -377,8 +377,8 @@ public sealed class ScheduleEditorView : EditorFormView
         public TimeBox(string label, int h, int m)
         {
             Orientation = Orientation.Horizontal;
-            hour = Popup(label + "（時）", Enumerable.Range(0, 24).Select(value => new FormOption(value.ToString(CultureInfo.InvariantCulture), value.ToString(CultureInfo.InvariantCulture))), h.ToString(CultureInfo.InvariantCulture)); hour.MinWidth = 64;
-            minute = Popup(label + "（分）", Enumerable.Range(0, 60).Select(value => new FormOption(value.ToString(CultureInfo.InvariantCulture), value.ToString("00", CultureInfo.InvariantCulture))), m.ToString(CultureInfo.InvariantCulture)); minute.MinWidth = 64;
+            hour = Popup(AppStrings.ScheduleEditors_TimeBox_1(label), Enumerable.Range(0, 24).Select(value => new FormOption(value.ToString(CultureInfo.InvariantCulture), value.ToString(CultureInfo.InvariantCulture))), h.ToString(CultureInfo.InvariantCulture)); hour.MinWidth = 64;
+            minute = Popup(AppStrings.ScheduleEditors_TimeBox_2(label), Enumerable.Range(0, 60).Select(value => new FormOption(value.ToString(CultureInfo.InvariantCulture), value.ToString("00", CultureInfo.InvariantCulture))), m.ToString(CultureInfo.InvariantCulture)); minute.MinWidth = 64;
             Children.Add(hour); Children.Add(new TextBlock { Text = ":", FontSize = 13, Margin = new Thickness(6, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center }); Children.Add(minute);
             hour.SelectionChanged += (_, _) => { if (!setting) Changed?.Invoke(); }; minute.SelectionChanged += (_, _) => { if (!setting) Changed?.Invoke(); };
         }

@@ -6,10 +6,10 @@ namespace BellTeam.Linux;
 
 // i18n step 1 guard: user-facing text lives in the Strings.resx catalogs, never in code. A new Japanese literal fails here.
 // Move it into the catalog (scripts/i18n extracts it: see scripts/i18n/Program.cs) or, for text that is data and never shown, add "<file>|<text>" (or "file:<glob>|<reason>")
-// to scripts/i18n/allowlist.txt with the reason in a # line above it. The Windows app adds windows/BellTeam.App to Roots when its pass lands.
+// to scripts/i18n/allowlist.txt with the reason in a # line above it.
 public class NoHardCodedTextTests
 {
-    private static readonly string[] Roots = ["windows/BellTeam.Core", "linux/BellTeam.Linux", "android/BellTeam.Android"];
+    private static readonly string[] Roots = ["windows/BellTeam.Core", "windows/BellTeam.App", "linux/BellTeam.Linux", "android/BellTeam.Android"];
     private static readonly Regex Jp = new(@"[　-ヿ㐀-鿿＀-￯]");
 
     internal static IEnumerable<string> Find(string path, string source)

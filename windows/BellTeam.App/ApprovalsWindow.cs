@@ -28,7 +28,7 @@ internal sealed class ApprovalsWindow : Window
 
     internal ApprovalsWindow(ApprovalsHub hub)
     {
-        Title = "決裁箱"; Width = 1360; Height = 860; MinWidth = 1000; MinHeight = 600; UseLayoutRounding = true;
+        Title = AppStrings.ApprovalsHub_Paint_1; Width = 1360; Height = 860; MinWidth = 1000; MinHeight = 600; UseLayoutRounding = true;
         SetResourceReference(StyleProperty, typeof(Window)); SetResourceReference(BackgroundProperty, "ConversationBackground");
         Page = new ApprovalsPage(hub, this); Content = Page;
         Resources.Add(typeof(System.Windows.Controls.Primitives.ScrollBar), (Style)System.Windows.Markup.XamlReader.Parse("""
@@ -218,8 +218,8 @@ internal sealed class ApprovalsPage : Grid
     // MARK: 工程表との連携 (Delta 2026-11-23): the one BellTeam-to-Approval Box connection the server-side link engine needs (entitlement through /v1/me). A small panel, not a gate on the list.
     // The module gives the hosted consent page; the browser does the sign-in; the module polls.
 
-    private static readonly string Lapsed = "許可の待ち時間が過ぎました。もう一度つないでください。", ConnectFailed = Approvals.ConnectFailed, Blocked_ = "決裁箱の画面が開かなかったようです。「もう一度開く」を押してください。",
-        DropAsk = "決裁箱とのつなぎを外します。外すと、工程表との連携が止まります。", DropFailed = "いまはつなぎを外せませんでした。少し待って、もう一度押してください。";
+    private static readonly string Lapsed = AppStrings.ApprovalsWindow_Lapsed_1, ConnectFailed = Approvals.ConnectFailed, Blocked_ = AppStrings.ApprovalsWindow_Blocked__1,
+        DropAsk = AppStrings.ApprovalsWindow_DropAsk_1, DropFailed = AppStrings.ApprovalsWindow_DropFailed_1;
     internal async Task OpenLinkAsync() { linkOpen = true; connect = new("idle"); Paint(); await ReadConnectionAsync(); }
 
     internal async Task ReadConnectionAsync()
@@ -320,7 +320,7 @@ internal sealed class ApprovalsPage : Grid
     {
         var notice = (StackPanel)LatticeWindow.Notice(Approvals.NotAvailable, null, null, false);
         var acts = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 18, 0, 0) };
-        var close = Action("閉じる", "", true); close.Click += (_, _) => window.Close(); acts.Children.Add(Key(close, "close-screen"));
+        var close = Action(AppStrings.ApprovalsWindow_NotUsable_1, "", true); close.Click += (_, _) => window.Close(); acts.Children.Add(Key(close, "close-screen"));
         notice.Children.Add(acts); return notice;
     }
 
@@ -328,31 +328,31 @@ internal sealed class ApprovalsPage : Grid
     {
         var bar = new WrapPanel { Margin = new Thickness(18, 14, 18, 10) };
         var counts = Approvals.CountsOf(Device is null ? null : Approvals.SummaryOf(DeviceViews, Now()));
-        var title = Row(ApprovalsLook.Glyph("inbox", 18, Violet), Spaced(Text("決裁箱", 20, Ink, FontWeights.Bold), 9));
+        var title = Row(ApprovalsLook.Glyph("inbox", 18, Violet), Spaced(Text(AppStrings.ApprovalsHub_Paint_1, 20, Ink, FontWeights.Bold), 9));
         if (counts.Pending > 0) title.Children.Add(Spaced(Pill(Text(counts.Pending.ToString(), 13, Colors.White, FontWeights.Bold), Violet, 0xFF, new Thickness(9, 1, 9, 1)), 10));
         bar.Children.Add(Glass(title, 14, new Thickness(14, 8, 16, 8), 0xB3));
         if (!full) return bar;
         var live = DeviceLive;
         var dot = new System.Windows.Shapes.Ellipse { Width = 8, Height = 8, Fill = Brush(live ? Color.FromRgb(0x2E, 0xB3, 0x9E) : Muted) };
-        var livePill = Pill(Row(dot, Spaced(Text(live ? "ライブ" : "再接続中", 12, live ? ApprovalsLook.Tone("ok") : Muted, FontWeights.SemiBold), 6)), live ? Color.FromRgb(0x2E, 0xB3, 0x9E) : Muted, 0x1F);
+        var livePill = Pill(Row(dot, Spaced(Text(live ? AppStrings.ApprovalsWindow_Toolbar_2 : AppStrings.ApprovalsWindow_Toolbar_3, 12, live ? ApprovalsLook.Tone("ok") : Muted, FontWeights.SemiBold), 6)), live ? Color.FromRgb(0x2E, 0xB3, 0x9E) : Muted, 0x1F);
         livePill.Margin = new Thickness(14, 0, 0, 0); bar.Children.Add(livePill);
         Button Segment(string label, Tab tab, string? count)
         {
             var on = Current == tab; var row = Row(Text(label, 12.5, on ? Ink : Muted, on ? FontWeights.SemiBold : FontWeights.Normal));
             if (count is not null) row.Children.Add(Spaced(Text(count, 11.5, Muted), 6));
             var face = new Border { Child = row, CornerRadius = new CornerRadius(8), Padding = new Thickness(14, 5, 14, 5), Background = on ? Brush(Colors.White) : Brushes.Transparent };
-            var button = Plain(face, $"{label}{(count is not null ? " " + count : "")}{(on ? "、表示中" : "で表示")}"); button.Click += (_, _) => SetTab(tab);
+            var button = Plain(face, $"{label}{(count is not null ? " " + count : "")}{(on ? AppStrings.ApprovalsWindow_Toolbar_4 : AppStrings.ApprovalsWindow_Toolbar_5)}"); button.Click += (_, _) => SetTab(tab);
             return Key(button, "tab:" + tab);
         }
         var held = pending.Count(item => item.Status == "held"); var waiting = pending.Count(item => item.Status == "pending");
-        var seg = new Border { Child = Row(Segment("待ち", Tab.Pending, waiting.ToString()), Segment("保留", Tab.Held, held.ToString()), Segment("済み", Tab.Done, done.Count.ToString())),
+        var seg = new Border { Child = Row(Segment(AppStrings.ApprovalsWindow_Toolbar_8, Tab.Pending, waiting.ToString()), Segment(AppStrings.ApprovalsWindow_Toolbar_9, Tab.Held, held.ToString()), Segment(AppStrings.ApprovalsWindow_Toolbar_10, Tab.Done, done.Count.ToString())),
             CornerRadius = new CornerRadius(10), Padding = new Thickness(3), Background = Brush(Muted, 0x1F), Margin = new Thickness(14, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
         bar.Children.Add(seg);
-        var ring = Row(new LatticeRing(counts.Answered, Math.Max(counts.Filed, counts.Answered), 40, false), Spaced(new StackPanel { Children = { Text("今日の回答", 11, Muted), Text($"{counts.Answered} / {counts.Filed}", 14, Ink, FontWeights.SemiBold) }, VerticalAlignment = VerticalAlignment.Center }, 8),
-            Counter("待ち", counts.Pending, Violet, 22), Counter("急ぎ", counts.Urgent, Amber, 8), Counter("保留", counts.Held, Muted, 8));
+        var ring = Row(new LatticeRing(counts.Answered, Math.Max(counts.Filed, counts.Answered), 40, false), Spaced(new StackPanel { Children = { Text(AppStrings.ApprovalsWindow_Toolbar_11, 11, Muted), Text($"{counts.Answered} / {counts.Filed}", 14, Ink, FontWeights.SemiBold) }, VerticalAlignment = VerticalAlignment.Center }, 8),
+            Counter(AppStrings.ApprovalsWindow_Toolbar_8, counts.Pending, Violet, 22), Counter(AppStrings.ApprovalsWindow_Toolbar_13, counts.Urgent, Amber, 8), Counter(AppStrings.ApprovalsWindow_Toolbar_9, counts.Held, Muted, 8));
         ring.Margin = new Thickness(26, 2, 0, 2); bar.Children.Add(ring);
-        var reload = Action("読み直す", ""); reload.Margin = new Thickness(18, 0, 0, 0); reload.Click += (_, _) => Reload(); Key(reload, "reload"); bar.Children.Add(reload);
-        var link = Action("工程表との連携", ""); link.Margin = new Thickness(8, 0, 0, 0); link.Click += (_, _) => _ = OpenLinkAsync(); Key(link, "link"); bar.Children.Add(link);
+        var reload = Action(AppStrings.ApprovalsWindow_Toolbar_15, ""); reload.Margin = new Thickness(18, 0, 0, 0); reload.Click += (_, _) => Reload(); Key(reload, "reload"); bar.Children.Add(reload);
+        var link = Action(AppStrings.ApprovalsWindow_Toolbar_16, ""); link.Margin = new Thickness(8, 0, 0, 0); link.Click += (_, _) => _ = OpenLinkAsync(); Key(link, "link"); bar.Children.Add(link);
         return bar;
     }
     private static Border Counter(string label, int count, Color color, double left)
@@ -380,7 +380,7 @@ internal sealed class ApprovalsPage : Grid
             info.Children.Add(code);
             info.Children.Add(Text(Approvals.DeviceApprovalHow, 13, Ink, FontWeights.SemiBold, TextWrapping.Wrap));
             info.Children.Add(Text(Approvals.DeviceApprovalLeft(offer.ExpiresAt - Now()), 12, Muted));
-            var stop = Action("やめる", ""); stop.HorizontalAlignment = HorizontalAlignment.Left; stop.Margin = new Thickness(0, 10, 0, 0); stop.Click += (_, _) => hub.CancelApproval?.Invoke(); info.Children.Add(Key(stop, "legacy:やめる"));
+            var stop = Action(AppStrings.ApprovalsWindow_DeviceStrip_1, ""); stop.HorizontalAlignment = HorizontalAlignment.Left; stop.Margin = new Thickness(0, 10, 0, 0); stop.Click += (_, _) => hub.CancelApproval?.Invoke(); info.Children.Add(Key(stop, AppStrings.ApprovalsWindow_DeviceStrip_2));
             var border = new Border { Child = Row(new QrView(offer.Qr, 150), info), CornerRadius = new CornerRadius(14), Padding = new Thickness(16), Margin = new Thickness(18, 0, 18, 8), Background = Brush(Muted, 0x14), BorderBrush = Brush(Muted, 0x44), BorderThickness = new Thickness(1) };
             System.Windows.Automation.AutomationProperties.SetAutomationId(border, "approvals-device-waiting"); panel.Children.Add(border);
         }
@@ -394,7 +394,7 @@ internal sealed class ApprovalsPage : Grid
                 case RuntimeStatus.NeedsAdmission when hub.Offer is { } offer: Waiting(offer); break;
                 case RuntimeStatus.NeedsAdmission:
                     if (hub.OfferNote is { } ended) Line(ended);
-                    Line(device.State.Reason == "removed" ? Approvals.DeviceRemoved : Approvals.DeviceNeedsApproval, hub.RequestApproval is null ? null : hub.OfferNote is null ? Approvals.DeviceAskApproval : "もう一度", () => hub.RequestApproval?.Invoke());
+                    Line(device.State.Reason == "removed" ? Approvals.DeviceRemoved : Approvals.DeviceNeedsApproval, hub.RequestApproval is null ? null : hub.OfferNote is null ? Approvals.DeviceAskApproval : AppStrings.ApprovalsWindow_DeviceStrip_3, () => hub.RequestApproval?.Invoke());
                     break;
                 case RuntimeStatus.NotEntitled: Line(ChildJoinText.NotEntitled, ChildJoinText.Recheck, device.Refresh); break;
                 case RuntimeStatus.UpdateRequired: Line(ChildJoinText.UpdateRequired, ChildJoinText.Retry, device.Refresh); break;
@@ -413,24 +413,24 @@ internal sealed class ApprovalsPage : Grid
     {
         var phase = connect.Phase;
         var text = phase is "opening" or "waiting" ? Approvals.Waiting : phase == "denied" ? Approvals.Denied : drop is { Step: "confirm" } ask ? ask.Note ?? DropAsk
-            : linkState switch { "connected" => "工程表と連携しています。決裁が、工程表の工程につながります。", "not_connected" => "工程表との連携は、まだつながっていません。つなぐと、決裁が工程表の工程につながります。", _ => "連携の状態を読めませんでした。少し待って、読み直してください。" };
+            : linkState switch { "connected" => AppStrings.ApprovalsWindow_LinkPanel_1, "not_connected" => AppStrings.ApprovalsWindow_LinkPanel_2, _ => AppStrings.ApprovalsWindow_LinkPanel_3 };
         var stack = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, MaxWidth = 480, Margin = new Thickness(24, 60, 24, 24) };
         stack.Children.Add(new LatticeBud { Margin = new Thickness(0, 0, 0, 18), HorizontalAlignment = HorizontalAlignment.Center });
-        var head = Text("工程表との連携", 16, Ink, FontWeights.Bold); head.TextAlignment = TextAlignment.Center; stack.Children.Add(head);
+        var head = Text(AppStrings.ApprovalsWindow_Toolbar_16, 16, Ink, FontWeights.Bold); head.TextAlignment = TextAlignment.Center; stack.Children.Add(head);
         var main = Text(text, 18, Ink, FontWeights.SemiBold, TextWrapping.Wrap); main.TextAlignment = TextAlignment.Center; main.Margin = new Thickness(0, 8, 0, 0); System.Windows.Automation.AutomationProperties.SetAutomationId(main, "approvals-connect-text"); stack.Children.Add(main);
         if (phase is "opening" or "waiting" || drop is { Step: "busy" }) { var spin = Spinner(18); spin.Margin = new Thickness(0, 16, 0, 0); spin.HorizontalAlignment = HorizontalAlignment.Center; stack.Children.Add(spin); }
         var acts = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 18, 0, 0) };
         Button Act(string label, Action run, bool primary = false, string? key = null) { var button = Action(label, "", primary); button.Click += (_, _) => run(); return Key(button, key ?? label); }
-        if (phase == "waiting") { acts.Children.Add(Act("もう一度開く", () => _ = StartConnectAsync(), true, "connect:again")); acts.Children.Add(Act("やめる", () => _ = StopConnectAsync(), key: "connect:cancel")); }
-        else if (phase == "denied") acts.Children.Add(Act("もう一度つなぐ", () => _ = StartConnectAsync(), true, "connect:retry"));
-        else if (drop is { Step: "confirm" }) { acts.Children.Add(Act("外す", () => _ = DisconnectAsync(), true, "unlink-yes")); acts.Children.Add(Act("やめる", () => { drop = null; Paint(); }, key: "unlink-no")); }
+        if (phase == "waiting") { acts.Children.Add(Act(AppStrings.ApprovalsWindow_LinkPanel_5, () => _ = StartConnectAsync(), true, "connect:again")); acts.Children.Add(Act(AppStrings.ApprovalsWindow_DeviceStrip_1, () => _ = StopConnectAsync(), key: "connect:cancel")); }
+        else if (phase == "denied") acts.Children.Add(Act(AppStrings.ApprovalsWindow_LinkPanel_7, () => _ = StartConnectAsync(), true, "connect:retry"));
+        else if (drop is { Step: "confirm" }) { acts.Children.Add(Act(AppStrings.ApprovalsWindow_LinkPanel_8, () => _ = DisconnectAsync(), true, "unlink-yes")); acts.Children.Add(Act(AppStrings.ApprovalsWindow_DeviceStrip_1, () => { drop = null; Paint(); }, key: "unlink-no")); }
         else if (phase == "idle" && drop is null)
         {
-            if (linkState == "connected") acts.Children.Add(Act("つなぎを外す", () => { drop = ("confirm", null); Paint("unlink-no"); }, key: "unlink"));
-            else if (linkState == "not_connected") acts.Children.Add(Act("決裁箱につなぐ", () => _ = StartConnectAsync(), true, "connect:go"));
-            else acts.Children.Add(Act("読み直す", () => _ = ReadConnectionAsync(), true, "connect:reload"));
+            if (linkState == "connected") acts.Children.Add(Act(AppStrings.ApprovalsWindow_LinkPanel_10, () => { drop = ("confirm", null); Paint("unlink-no"); }, key: "unlink"));
+            else if (linkState == "not_connected") acts.Children.Add(Act(AppStrings.ApprovalsWindow_LinkPanel_11, () => _ = StartConnectAsync(), true, "connect:go"));
+            else acts.Children.Add(Act(AppStrings.ApprovalsWindow_Toolbar_15, () => _ = ReadConnectionAsync(), true, "connect:reload"));
         }
-        if (phase != "opening" && drop is not { Step: "busy" }) acts.Children.Add(Act("戻る", () => { linkOpen = false; drop = null; connect = new("idle"); Paint(); }, key: "connect:back"));
+        if (phase != "opening" && drop is not { Step: "busy" }) acts.Children.Add(Act(AppStrings.ApprovalsWindow_LinkPanel_13, () => { linkOpen = false; drop = null; connect = new("idle"); Paint(); }, key: "connect:back"));
         stack.Children.Add(acts);
         if (Join is { Phase: ChildJoinPhase.Joined } joined) stack.Children.Add(JoinBlock(joined));
         if (connect.Note.Length > 0) { var note = Text(connect.Note, 13, Red, FontWeights.SemiBold, TextWrapping.Wrap); note.Margin = new Thickness(0, 12, 0, 0); note.TextAlignment = TextAlignment.Center; System.Windows.Automation.AutomationProperties.SetAutomationId(note, "approvals-connect-note"); stack.Children.Add(note); }
@@ -450,7 +450,7 @@ internal sealed class ApprovalsPage : Grid
             var yes = Action(ChildJoinText.LeaveYes, "", true); yes.Click += (_, _) => _ = LeaveAsync(join); acts.Children.Add(Key(yes, "child-leave-yes"));
             var no = Action(ChildJoinText.LeaveNo, ""); no.Margin = new Thickness(8, 0, 0, 0); no.Click += (_, _) => { leaveStep = null; Paint(); }; acts.Children.Add(Key(no, "child-leave-no"));
         }
-        else { var leave = Action(ChildJoinText.Leave, ""); System.Windows.Automation.AutomationProperties.SetName(leave, "決裁箱への" + ChildJoinText.Leave); leave.Click += (_, _) => { leaveStep = "confirm"; Paint("child-leave-no"); }; acts.Children.Add(Key(leave, "child-leave")); }
+        else { var leave = Action(ChildJoinText.Leave, ""); System.Windows.Automation.AutomationProperties.SetName(leave, AppStrings.ApprovalsWindow_JoinBlock_1(ChildJoinText.Leave)); leave.Click += (_, _) => { leaveStep = "confirm"; Paint("child-leave-no"); }; acts.Children.Add(Key(leave, "child-leave")); }
         block.Children.Add(acts); return block;
     }
     private async Task LeaveAsync(IChildJoin join)
@@ -473,35 +473,35 @@ internal sealed class ApprovalsPage : Grid
     private FrameworkElement ListColumn()
     {
         var stack = new StackPanel { Margin = new Thickness(0, 0, 8, 16) };
-        var heading = Current switch { Tab.Pending => "回答を待っています", Tab.Held => "保留しています", _ => "済んだ決裁" };
-        var head = Row(Text(heading, 15, Ink, FontWeights.Bold)); if (Current == Tab.Pending) head.Children.Add(Spaced(Text("急ぎ → 期限 → 古い順", 11.5, Muted), 10)); head.Margin = new Thickness(6, 0, 0, 10); stack.Children.Add(head);
+        var heading = Current switch { Tab.Pending => AppStrings.ApprovalsWindow_ListColumn_1, Tab.Held => AppStrings.ApprovalsWindow_ListColumn_2, _ => AppStrings.ApprovalsWindow_ListColumn_3 };
+        var head = Row(Text(heading, 15, Ink, FontWeights.Bold)); if (Current == Tab.Pending) head.Children.Add(Spaced(Text(AppStrings.ApprovalsWindow_ListColumn_4, 11.5, Muted), 10)); head.Margin = new Thickness(6, 0, 0, 10); stack.Children.Add(head);
         var baseItems = Current == Tab.Done ? done : pending.Where(item => item.Status == (Current == Tab.Pending ? "pending" : "held")).ToList();
         var chips = Approvals.OriginCounts(baseItems); var shown = Approvals.OriginFilter(baseItems, Origin); var hidden = chips.All - shown.Count;
         Button Chip(string value, string label, int count)
         {
             var on = Origin == value; var face = new Border { Child = Row(Text(label, 12, on ? Colors.White : Ink, FontWeights.SemiBold), Spaced(Text(count.ToString(), 11.5, on ? Colors.White : Muted), 6)), CornerRadius = new CornerRadius(99), Padding = new Thickness(11, 4, 11, 4), Background = on ? Brush(Violet) : Brush(Muted, 0x1F), Margin = new Thickness(0, 0, 6, 0) };
-            var button = Plain(face, $"{label} {count}件{(on ? "、選択中" : "")}"); button.Click += (_, _) => SetOrigin(value); return Key(button, "origin:" + value);
+            var button = Plain(face, AppStrings.ApprovalsWindow_ListColumn_6(label, count, (on ? AppStrings.ApprovalsWindow_ListColumn_5 : ""))); button.Click += (_, _) => SetOrigin(value); return Key(button, "origin:" + value);
         }
         var filter = new WrapPanel { Margin = new Thickness(4, 0, 0, 10) };
-        filter.Children.Add(Spaced(Text("出どころ", 11.5, Muted), 0)); ((TextBlock)filter.Children[0]).Margin = new Thickness(2, 0, 8, 0);
-        filter.Children.Add(Chip("all", "すべて", chips.All)); filter.Children.Add(Chip("bellteam", "BellTeam", chips.Bellteam)); filter.Children.Add(Chip("external", "外部", chips.External)); stack.Children.Add(filter);
+        filter.Children.Add(Spaced(Text(AppStrings.ApprovalsWindow_ListColumn_7, 11.5, Muted), 0)); ((TextBlock)filter.Children[0]).Margin = new Thickness(2, 0, 8, 0);
+        filter.Children.Add(Chip("all", AppStrings.ApprovalsWindow_ListColumn_8, chips.All)); filter.Children.Add(Chip("bellteam", "BellTeam", chips.Bellteam)); filter.Children.Add(Chip("external", AppStrings.ApprovalsWindow_ListColumn_9, chips.External)); stack.Children.Add(filter);
         if (hidden > 0)
         {
-            var line = Row(ApprovalsLook.Glyph("info", 14, Amber), Spaced(Text($"{(Origin == "bellteam" ? "外部" : "BellTeam")}の決裁 {hidden}件を隠しています。", 12.5, Amber, FontWeights.SemiBold), 8));
-            var all = Action("すべてを見る", ""); all.Margin = new Thickness(10, 0, 0, 0); all.Click += (_, _) => SetOrigin("all"); line.Children.Add(Key(all, "show-all")); line.Margin = new Thickness(6, 0, 0, 10); stack.Children.Add(line);
+            var line = Row(ApprovalsLook.Glyph("info", 14, Amber), Spaced(Text(AppStrings.ApprovalsWindow_ListColumn_11((Origin == "bellteam" ? AppStrings.ApprovalsWindow_ListColumn_9 : "BellTeam"), hidden), 12.5, Amber, FontWeights.SemiBold), 8));
+            var all = Action(AppStrings.ApprovalsWindow_ListColumn_12, ""); all.Margin = new Thickness(10, 0, 0, 0); all.Click += (_, _) => SetOrigin("all"); line.Children.Add(Key(all, "show-all")); line.Margin = new Thickness(6, 0, 0, 10); stack.Children.Add(line);
         }
         if (Current == Tab.Done) DoneRows(stack, shown);
         else if (shown.Count == 0)
         {
-            var none = Text(baseItems.Count > 0 ? "絞り込みに合う決裁はありません。" : Current == Tab.Held ? Approvals.EmptyHeld : Approvals.EmptyPending, 14, Muted, null, TextWrapping.Wrap); none.Margin = new Thickness(8, 6, 8, 10); System.Windows.Automation.AutomationProperties.SetAutomationId(none, "approvals-none"); stack.Children.Add(none);
-            if (Current == Tab.Pending && baseItems.Count == 0) { var see = Action("済みを見る", ""); see.HorizontalAlignment = HorizontalAlignment.Left; see.Margin = new Thickness(6, 0, 0, 0); see.Click += (_, _) => SetTab(Tab.Done); stack.Children.Add(Key(see, "see-done")); }
+            var none = Text(baseItems.Count > 0 ? AppStrings.ApprovalsWindow_ListColumn_13 : Current == Tab.Held ? Approvals.EmptyHeld : Approvals.EmptyPending, 14, Muted, null, TextWrapping.Wrap); none.Margin = new Thickness(8, 6, 8, 10); System.Windows.Automation.AutomationProperties.SetAutomationId(none, "approvals-none"); stack.Children.Add(none);
+            if (Current == Tab.Pending && baseItems.Count == 0) { var see = Action(AppStrings.ApprovalsWindow_ListColumn_14, ""); see.HorizontalAlignment = HorizontalAlignment.Left; see.Margin = new Thickness(6, 0, 0, 0); see.Click += (_, _) => SetTab(Tab.Done); stack.Children.Add(Key(see, "see-done")); }
         }
         else
         {
             foreach (var item in shown) stack.Children.Add(Card(item));
             if (Current == Tab.Pending && Approvals.OriginFilter(pending.Where(item => item.Status == "held").ToList(), Origin) is { Count: > 0 } held)
             {
-                var divider = Row(ApprovalsLook.Glyph("pause", 13, Muted), Spaced(Text($"保留 {held.Count}", 12.5, Muted, FontWeights.SemiBold), 6)); divider.Margin = new Thickness(6, 14, 0, 8); stack.Children.Add(divider);
+                var divider = Row(ApprovalsLook.Glyph("pause", 13, Muted), Spaced(Text(AppStrings.ApprovalsWindow_ListColumn_15(held.Count), 12.5, Muted, FontWeights.SemiBold), 6)); divider.Margin = new Thickness(6, 14, 0, 8); stack.Children.Add(divider);
                 foreach (var item in held) stack.Children.Add(Card(item));
             }
         }
@@ -540,10 +540,10 @@ internal sealed class ApprovalsPage : Grid
                 if (row.Delivery is { } delivery) { var badge = ApprovalsLook.Badge(delivery); DockPanel.SetDock(badge, Dock.Right); dock.Children.Add(badge); }
                 var glyph = ApprovalsLook.Glyph(row.Cancelled ? "xmark" : "seal", 16, row.Cancelled ? Muted : ApprovalsLook.Tone("ok")); glyph.Margin = new Thickness(0, 0, 10, 0); DockPanel.SetDock(glyph, Dock.Left); dock.Children.Add(glyph);
                 var title = Text(row.Title, 13.5, row.Cancelled ? Muted : Ink, FontWeights.SemiBold); if (row.Cancelled) title.TextDecorations = TextDecorations.Strikethrough;
-                var line = string.Join("　", new[] { row.Line, row.Origin.External ? "外部から" : null }.OfType<string>().Where(part => part.Length > 0));
+                var line = string.Join(AppStrings.ApprovalsWindow_DoneRows_1, new[] { row.Line, row.Origin.External ? AppStrings.ApprovalsWindow_DoneRows_2 : null }.OfType<string>().Where(part => part.Length > 0));
                 dock.Children.Add(new StackPanel { Children = { title, Text(line, 11.5, Muted) }, VerticalAlignment = VerticalAlignment.Center });
                 var frame = new Border { Child = dock, CornerRadius = new CornerRadius(12), Padding = new Thickness(12, 8, 12, 8), Margin = new Thickness(0, 0, 0, 6), Background = Brush(Colors.White, 0xD9), BorderBrush = selected ? Brush(Violet) : Brush(Line), BorderThickness = new Thickness(selected ? 2 : 1) };
-                stack.Children.Add(Open(frame, $"{row.Title}、{line}", row.Id));
+                stack.Children.Add(Open(frame, AppStrings.ApprovalsWindow_DoneRows_3(row.Title, line), row.Id));
             }
         }
     }
@@ -556,7 +556,7 @@ internal sealed class ApprovalsPage : Grid
         if (decision is null)
         {
             var empty = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 120, 0, 0) };
-            empty.Children.Add(ApprovalsLook.Glyph("inbox", 40, Muted)); var text = Text(SelectedId is not null ? Approvals.Loading : "決裁を選ぶと、ここに内容が出ます。", 14, Muted); text.Margin = new Thickness(0, 12, 0, 0); empty.Children.Add(text);
+            empty.Children.Add(ApprovalsLook.Glyph("inbox", 40, Muted)); var text = Text(SelectedId is not null ? Approvals.Loading : AppStrings.ApprovalsWindow_DetailColumn_1, 14, Muted); text.Margin = new Thickness(0, 12, 0, 0); empty.Children.Add(text);
             System.Windows.Automation.AutomationProperties.SetAutomationId(text, "approvals-detail-empty");
             return Wrap(empty);
         }
@@ -564,40 +564,40 @@ internal sealed class ApprovalsPage : Grid
         var origin = Approvals.OriginOf(decision); var open = decision.Status is "pending" or "held";
         var head = new DockPanel();
         var close = Action("", ""); close.Content = ApprovalsLook.Glyph("xmark", 14, Ink); close.Padding = new Thickness(8); close.Margin = new Thickness(8, 0, 0, 0); DockPanel.SetDock(close, Dock.Right); close.Click += (_, _) => { SelectedId = null; answer = null; Paint(); };
-        System.Windows.Automation.AutomationProperties.SetName(close, "詳細を閉じる"); head.Children.Add(Key(close, "close"));
+        System.Windows.Automation.AutomationProperties.SetName(close, AppStrings.ApprovalsWindow_DetailColumn_2); head.Children.Add(Key(close, "close"));
         var badges = new WrapPanel(); foreach (var badge in Approvals.BadgesOf(decision)) badges.Children.Add(ApprovalsLook.Badge(badge)); head.Children.Add(badges); stack.Children.Add(head);
         var title = Text(decision.Title ?? "", 21, Ink, FontWeights.Bold, TextWrapping.Wrap); title.Margin = new Thickness(0, 10, 0, 8); stack.Children.Add(title);
         var sub = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
         sub.Children.Add(Row(ApprovalsLook.Origin(origin, 20, PersonOf, Avatar), Spaced(Text(NameOf(origin), 13.5, Ink, FontWeights.SemiBold), 8)));
-        var facts = $"{(origin.Member is not null && origin.Session.Length > 0 ? $"· {origin.Session}　" : "")}· {Approvals.Clock(decision.CreatedAt)} に受付{(open && decision.Deadline is not null ? $"　· 期限 {LatticeStops.StopTime(decision.Deadline, Now())}" : "")}";
+        var facts = AppStrings.ApprovalsWindow_DetailColumn_5((origin.Member is not null && origin.Session.Length > 0 ? AppStrings.ApprovalsWindow_DetailColumn_3(origin.Session) : ""), Approvals.Clock(decision.CreatedAt), (open && decision.Deadline is not null ? AppStrings.ApprovalsWindow_DetailColumn_4(LatticeStops.StopTime(decision.Deadline, Now())) : ""));
         sub.Children.Add(Spaced(Text(facts, 12.5, Muted), 10)); stack.Children.Add(sub);
         if (origin.External)
         {
-            var info = Row(ApprovalsLook.Origin(origin, 40, PersonOf, Avatar), Spaced(new StackPanel { Children = { Text("BellTeamの外から届いた決裁です", 13.5, Ink, FontWeights.Bold),
-                Text(string.Join(" · ", new[] { origin.Tool, origin.Via, origin.Session.Length > 0 ? $"セッション「{origin.Session}」" : "" }.Where(part => part.Length > 0)), 12, Muted) }, VerticalAlignment = VerticalAlignment.Center }, 12));
+            var info = Row(ApprovalsLook.Origin(origin, 40, PersonOf, Avatar), Spaced(new StackPanel { Children = { Text(AppStrings.ApprovalsWindow_DetailColumn_6, 13.5, Ink, FontWeights.Bold),
+                Text(string.Join(" · ", new[] { origin.Tool, origin.Via, origin.Session.Length > 0 ? AppStrings.ApprovalsWindow_DetailColumn_7(origin.Session) : "" }.Where(part => part.Length > 0)), 12, Muted) }, VerticalAlignment = VerticalAlignment.Center }, 12));
             var card = new Border { Child = info, CornerRadius = new CornerRadius(14), Padding = new Thickness(12), Margin = new Thickness(0, 6, 0, 6), Background = Brush(Muted, 0x12), BorderBrush = Brush(Line), BorderThickness = new Thickness(1) };
             System.Windows.Automation.AutomationProperties.SetAutomationId(card, "approvals-outside"); stack.Children.Add(card);
         }
-        if (decision.Context is { Length: > 0 } context) { Section(stack, "doc", "背景"); stack.Children.Add(Linkified(context)); }
+        if (decision.Context is { Length: > 0 } context) { Section(stack, "doc", AppStrings.ApprovalsWindow_DetailColumn_8); stack.Children.Add(Linkified(context)); }
         Attachments(stack, decision);
         if (open && decision.Options?.FirstOrDefault(option => option.Recommended) is { } rec)
-        { var line = Row(ApprovalsLook.Glyph("check", 14, Violet), Spaced(Text($"{origin.Who}の推奨：{rec.Label}", 13, Violet, FontWeights.SemiBold), 8)); line.Margin = new Thickness(0, 14, 0, 0); stack.Children.Add(line); }
+        { var line = Row(ApprovalsLook.Glyph("check", 14, Violet), Spaced(Text(AppStrings.ApprovalsWindow_DetailColumn_9(origin.Who, rec.Label), 13, Violet, FontWeights.SemiBold), 8)); line.Margin = new Thickness(0, 14, 0, 0); stack.Children.Add(line); }
         if (open) AnswerArea(stack, decision, origin); else Answered(stack, decision, origin);
         if (open)
         {
             var acts = new WrapPanel { Margin = new Thickness(0, 16, 0, 0) };
-            { var hold = Action(decision.Status == "held" ? "保留を戻す" : "保留にする", ""); hold.Click += (_, _) => _ = HoldAsync(decision); acts.Children.Add(Key(hold, "hold")); }
-            if (Approvals.LinkPanel(decision).Ids is { } ids) { var chart = Action("工程表で見る", ""); chart.Click += (_, _) => hub.OpenChart?.Invoke(ids.ProjectId, ids.CardId); acts.Children.Add(Key(chart, "chart")); }
+            { var hold = Action(decision.Status == "held" ? AppStrings.ApprovalsWindow_DetailColumn_10 : AppStrings.ApprovalsWindow_DetailColumn_11, ""); hold.Click += (_, _) => _ = HoldAsync(decision); acts.Children.Add(Key(hold, "hold")); }
+            if (Approvals.LinkPanel(decision).Ids is { } ids) { var chart = Action(AppStrings.ApprovalsWindow_DetailColumn_12, ""); chart.Click += (_, _) => hub.OpenChart?.Invoke(ids.ProjectId, ids.CardId); acts.Children.Add(Key(chart, "chart")); }
             stack.Children.Add(acts);
             if (holdNotes.GetValueOrDefault(decision.Id!) is { } holdNote) stack.Children.Add(FailLine(holdNote, "approvals-hold-note"));
         }
         var rows = Approvals.HistoryRows(decision, Now());
         if (rows.Count > 0)
         {
-            Section(stack, "hour", "経過");
+            Section(stack, "hour", AppStrings.ApprovalsWindow_DetailColumn_13);
             foreach (var item in rows)
             {
-                var line = Row(Text(item.Time, 12, Muted), Spaced(Text(item.Text, 13, Ink), 10)); if (item.Amended) line.Children.Add(Spaced(ApprovalsLook.Badge(new ApprovalBadge("修正あり", "ind", "pencil")), 8)); line.Margin = new Thickness(0, 0, 0, 5); stack.Children.Add(line);
+                var line = Row(Text(item.Time, 12, Muted), Spaced(Text(item.Text, 13, Ink), 10)); if (item.Amended) line.Children.Add(Spaced(ApprovalsLook.Badge(new ApprovalBadge(AppStrings.ApprovalsWindow_DetailColumn_14, "ind", "pencil")), 8)); line.Margin = new Thickness(0, 0, 0, 5); stack.Children.Add(line);
             }
         }
         return Wrap(stack);
@@ -629,12 +629,12 @@ internal sealed class ApprovalsPage : Grid
     private void Attachments(StackPanel stack, ViewDecision decision)
     {
         if (decision.RequestAttachments is not { Length: > 0 } list) return;
-        Section(stack, "image", $"添付 {list.Length}");
+        Section(stack, "image", AppStrings.ApprovalsWindow_Attachments_1(list.Length));
         var wrap = new WrapPanel();
         foreach (var item in list)
         {
             var tile = new Border { Width = 96, Height = 72, CornerRadius = new CornerRadius(10), Background = Brush(Muted, 0x1A), Margin = new Thickness(0, 0, 8, 8), Child = ApprovalsLook.Glyph("image", 22, Muted) };
-            var button = Plain(tile, $"{item.Name}を大きく開く"); var key = $"{decision.Id}/{item.Id}"; var id = decision.Id!; var attachment = item;
+            var button = Plain(tile, AppStrings.ApprovalsWindow_Attachments_2(item.Name)); var key = $"{decision.Id}/{item.Id}"; var id = decision.Id!; var attachment = item;
             if (!thumbs.TryGetValue(key, out var task)) thumbs[key] = task = ThumbAsync(id, attachment);
             _ = task.ContinueWith(done => { if (done.Result is { } image) Dispatcher.BeginInvoke(() => { tile.Child = new Image { Source = image, Stretch = Stretch.UniformToFill }; button.Click += (_, _) => ShowImage(image, attachment.Name ?? ""); }); }, TaskScheduler.Default);
             wrap.Children.Add(Key(button, "a:" + item.Id));
@@ -660,10 +660,10 @@ internal sealed class ApprovalsPage : Grid
 
     private void Answered(StackPanel stack, ViewDecision decision, ApprovalOriginView origin)
     {
-        Section(stack, decision.Status == "cancelled" ? "xmark" : "seal", decision.Status == "cancelled" ? "取り下げ" : "答え");
-        if (decision.Status == "cancelled") { stack.Children.Add(Text(decision.CancelReason is { Length: > 0 } reason ? $"{origin.Who}が取り下げました：{reason}" : $"{origin.Who}が取り下げました。", 14, Ink, null, TextWrapping.Wrap)); return; }
+        Section(stack, decision.Status == "cancelled" ? "xmark" : "seal", decision.Status == "cancelled" ? AppStrings.ApprovalsWindow_Answered_1 : AppStrings.ApprovalsWindow_Answered_2);
+        if (decision.Status == "cancelled") { stack.Children.Add(Text(decision.CancelReason is { Length: > 0 } reason ? AppStrings.ApprovalsWindow_Answered_3(origin.Who, reason) : AppStrings.ApprovalsWindow_Answered_4(origin.Who), 14, Ink, null, TextWrapping.Wrap)); return; }
         stack.Children.Add(Text(Approvals.AnswerText(decision), 14.5, Ink, FontWeights.SemiBold, TextWrapping.Wrap));
-        if (decision.Answer?.Attachments is { Length: > 0 } files) { var names = Text($"添付：{string.Join("、", files.Select(file => file.Name))}", 12.5, Muted, null, TextWrapping.Wrap); names.Margin = new Thickness(0, 4, 0, 0); stack.Children.Add(names); }
+        if (decision.Answer?.Attachments is { Length: > 0 } files) { var names = Text(AppStrings.ApprovalsWindow_Answered_6(string.Join(AppStrings.ApprovalsWindow_Answered_5, files.Select(file => file.Name))), 12.5, Muted, null, TextWrapping.Wrap); names.Margin = new Thickness(0, 4, 0, 0); stack.Children.Add(names); }
         var at = Row(); at.Margin = new Thickness(0, 8, 0, 0);
         if (Approvals.DeliveryBadge(decision) is { } badge) at.Children.Add(ApprovalsLook.Badge(badge));
         if (decision.Answer?.AnsweredAt is { } answered) at.Children.Add(Text(LatticeStops.StopTime(answered, Now()), 12, Muted));
@@ -672,7 +672,7 @@ internal sealed class ApprovalsPage : Grid
         var color = ApprovalsLook.Tone(note.Tone); var text = Text(note.Text, 13, color, FontWeights.SemiBold, TextWrapping.Wrap); text.Margin = new Thickness(0, 10, 0, 0); System.Windows.Automation.AutomationProperties.SetAutomationId(text, "approvals-delivery"); stack.Children.Add(text);
         if (note.Copy)
         {
-            var copy = Action(copied == decision.Id ? "コピーしました" : "再開の文をコピー", ""); copy.Margin = new Thickness(0, 8, 0, 0); copy.HorizontalAlignment = HorizontalAlignment.Left; copy.Click += (_, _) => CopyResume(decision); stack.Children.Add(Key(copy, "copy"));
+            var copy = Action(copied == decision.Id ? AppStrings.ApprovalsWindow_Answered_7 : AppStrings.ApprovalsWindow_Answered_8, ""); copy.Margin = new Thickness(0, 8, 0, 0); copy.HorizontalAlignment = HorizontalAlignment.Left; copy.Click += (_, _) => CopyResume(decision); stack.Children.Add(Key(copy, "copy"));
         }
     }
 
@@ -682,7 +682,7 @@ internal sealed class ApprovalsPage : Grid
         var mine = answer is { } a && a.Id == decision.Id ? a : null;
         if (mine is { Step: "sending" })
         {
-            var sending = Row(Spinner(16), Spaced(Text("答えを送っています…", 14, Ink, FontWeights.SemiBold), 10)); sending.Margin = new Thickness(0, 18, 0, 0); System.Windows.Automation.AutomationProperties.SetAutomationId(sending, "approvals-sending"); stack.Children.Add(sending); return;
+            var sending = Row(Spinner(16), Spaced(Text(AppStrings.ApprovalsWindow_AnswerArea_1, 14, Ink, FontWeights.SemiBold), 10)); sending.Margin = new Thickness(0, 18, 0, 0); System.Windows.Automation.AutomationProperties.SetAutomationId(sending, "approvals-sending"); stack.Children.Add(sending); return;
         }
         if (mine is { Step: "confirm" })
         {
@@ -690,24 +690,24 @@ internal sealed class ApprovalsPage : Grid
             if (mine.Text is { Length: > 0 } text) { var quote = Text(text, 13, Muted, null, TextWrapping.Wrap); quote.Margin = new Thickness(10, 8, 0, 0); box.Children.Add(quote); }
             if (mine.Note is { } note) box.Children.Add(FailLine(note, "approvals-answer-note"));
             var buttons = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0) };
-            var no = Action("やめる", ""); no.Click += (_, _) => CancelAnswer(true); buttons.Children.Add(Key(no, "cancel"));
-            var yes = Action("答える", "", true); yes.Click += (_, _) => _ = SendAsync(decision, mine); buttons.Children.Add(Key(yes, "confirm")); box.Children.Add(buttons);
+            var no = Action(AppStrings.ApprovalsWindow_DeviceStrip_1, ""); no.Click += (_, _) => CancelAnswer(true); buttons.Children.Add(Key(no, "cancel"));
+            var yes = Action(AppStrings.ApprovalsWindow_AnswerArea_3, "", true); yes.Click += (_, _) => _ = SendAsync(decision, mine); buttons.Children.Add(Key(yes, "confirm")); box.Children.Add(buttons);
             var frame = new Border { Child = box, CornerRadius = new CornerRadius(14), Padding = new Thickness(14), Margin = new Thickness(0, 16, 0, 0), Background = Brush(Violet, 0x14), BorderBrush = Brush(Violet, 0x66), BorderThickness = new Thickness(1.4) };
             System.Windows.Automation.AutomationProperties.SetAutomationId(frame, "approvals-confirm"); stack.Children.Add(frame); return;
         }
-        Section(stack, "target", "答えを選ぶ");
+        Section(stack, "target", AppStrings.ApprovalsWindow_AnswerArea_4);
         foreach (var option in decision.Options ?? [])
         {
             var row = Row(ApprovalsLook.Glyph(option.Recommended ? "check" : "arrow", 14, option.Recommended ? Colors.White : Violet), Spaced(Text(option.Label ?? "", 14, option.Recommended ? Colors.White : Ink, FontWeights.SemiBold, TextWrapping.Wrap), 10));
-            if (option.Recommended) row.Children.Add(Spaced(Pill(Text("推奨", 11.5, Violet, FontWeights.Bold), Colors.White, 0xE6, new Thickness(8, 1, 8, 1)), 10));
+            if (option.Recommended) row.Children.Add(Spaced(Pill(Text(AppStrings.ApprovalsWindow_AnswerArea_5, 11.5, Violet, FontWeights.Bold), Colors.White, 0xE6, new Thickness(8, 1, 8, 1)), 10));
             var frame = new Border { Child = row, CornerRadius = new CornerRadius(12), Padding = new Thickness(14, 10, 14, 10), Margin = new Thickness(0, 0, 0, 8), Background = option.Recommended ? Brush(Violet) : Brush(Colors.White, 0xE0), BorderBrush = option.Recommended ? Brush(Violet) : Brush(Line), BorderThickness = new Thickness(1) };
-            var button = Plain(frame, $"{option.Label}{(option.Recommended ? "、推奨" : "")}"); button.HorizontalContentAlignment = HorizontalAlignment.Stretch; var id = option.Id; var label = option.Label; button.Click += (_, _) => Ask(decision, id, label, null);
+            var button = Plain(frame, $"{option.Label}{(option.Recommended ? AppStrings.ApprovalsWindow_AnswerArea_6 : "")}"); button.HorizontalContentAlignment = HorizontalAlignment.Stretch; var id = option.Id; var label = option.Label; button.Click += (_, _) => Ask(decision, id, label, null);
             stack.Children.Add(Key(button, "o:" + option.Id));
         }
-        Section(stack, "pencil", "選ばずに、指示を書いて返す");
+        Section(stack, "pencil", AppStrings.ApprovalsWindow_AnswerArea_8);
         var box2 = new TextBox { Text = draft.Id == decision.Id ? draft.Text : "", AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 64, MaxHeight = 140, FontSize = 14, Padding = new Thickness(8) };
-        System.Windows.Automation.AutomationProperties.SetName(box2, "選ばずに、指示を書いて返す"); box2.TextChanged += (_, _) => draft = (decision.Id, box2.Text); Key(box2, "text"); stack.Children.Add(box2);
-        var send = Action("指示を送る", ""); send.Margin = new Thickness(0, 8, 0, 0); send.HorizontalAlignment = HorizontalAlignment.Left;
+        System.Windows.Automation.AutomationProperties.SetName(box2, AppStrings.ApprovalsWindow_AnswerArea_8); box2.TextChanged += (_, _) => draft = (decision.Id, box2.Text); Key(box2, "text"); stack.Children.Add(box2);
+        var send = Action(AppStrings.ApprovalsWindow_AnswerArea_10, ""); send.Margin = new Thickness(0, 8, 0, 0); send.HorizontalAlignment = HorizontalAlignment.Left;
         send.Click += (_, _) => { var text = box2.Text.Trim(); if (text.Length > 0) Ask(decision, null, null, text); }; stack.Children.Add(Key(send, "send-text"));
     }
 
@@ -716,22 +716,22 @@ internal sealed class ApprovalsPage : Grid
     {
         var decision = SelectedId is { } id ? Known(id) : null; var panel = decision is null ? null : Approvals.LinkPanel(decision);
         var stack = new StackPanel { Margin = new Thickness(16, 16, 16, 18) };
-        stack.Children.Add(Row(ApprovalsLook.Glyph("link", 16, Violet), Spaced(Text("工程とのつながり", 16, Ink, FontWeights.Bold), 8)));
-        var lead = Text(panel?.Kind == "linked" ? (decision!.Status == "answered" ? "この決裁は、工程表の1つの工程でした。" : "この決裁は、工程表の1つの工程になっています。答えると、その工程が済みになります。") : "BellTeamの工程表とつながる決裁は、ここに前後の工程が出ます。", 12.5, Muted, null, TextWrapping.Wrap);
+        stack.Children.Add(Row(ApprovalsLook.Glyph("link", 16, Violet), Spaced(Text(AppStrings.ApprovalsWindow_LinksColumn_1, 16, Ink, FontWeights.Bold), 8)));
+        var lead = Text(panel?.Kind == "linked" ? (decision!.Status == "answered" ? AppStrings.ApprovalsWindow_LinksColumn_2 : AppStrings.ApprovalsWindow_LinksColumn_3) : AppStrings.ApprovalsWindow_LinksColumn_4, 12.5, Muted, null, TextWrapping.Wrap);
         lead.Margin = new Thickness(0, 6, 0, 12); stack.Children.Add(lead);
         if (panel is null) { }
         else if (panel.Kind == "connecting") stack.Children.Add(Neutral(panel.Title, []));
         else if (panel.Kind == "unlinked") stack.Children.Add(Neutral(panel.Title, panel.Lines));
         else
         {
-            foreach (var item in panel.Previous) stack.Children.Add(Mini(item, "前の工程", panel));
-            var self = new Border { Child = Row(ApprovalsLook.Glyph("inbox", 16, Violet), Spaced(new StackPanel { Children = { Text(panel.Task?.Title ?? "", 13.5, Ink, FontWeights.Bold, TextWrapping.Wrap), Text(decision!.Status == "answered" ? "済み" : "この決裁の工程", 11.5, Violet) } }, 10)),
+            foreach (var item in panel.Previous) stack.Children.Add(Mini(item, AppStrings.ApprovalsWindow_LinksColumn_5, panel));
+            var self = new Border { Child = Row(ApprovalsLook.Glyph("inbox", 16, Violet), Spaced(new StackPanel { Children = { Text(panel.Task?.Title ?? "", 13.5, Ink, FontWeights.Bold, TextWrapping.Wrap), Text(decision!.Status == "answered" ? AppStrings.ApprovalsWindow_Toolbar_10 : AppStrings.ApprovalsWindow_LinksColumn_7, 11.5, Violet) } }, 10)),
                 CornerRadius = new CornerRadius(12), Padding = new Thickness(12, 9, 12, 9), Margin = new Thickness(0, 0, 0, 8), Background = Brush(Violet, 0x14), BorderBrush = Brush(Violet), BorderThickness = new Thickness(1.6) };
             System.Windows.Automation.AutomationProperties.SetAutomationId(self, "approvals-self"); stack.Children.Add(self);
-            foreach (var item in panel.Next) stack.Children.Add(Mini(item, "次の工程", panel));
+            foreach (var item in panel.Next) stack.Children.Add(Mini(item, AppStrings.ApprovalsWindow_LinksColumn_8, panel));
             var sentence = Text(panel.Sentence, 13, Ink, null, TextWrapping.Wrap); sentence.Margin = new Thickness(0, 6, 0, 10); System.Windows.Automation.AutomationProperties.SetAutomationId(sentence, "approvals-sentence"); stack.Children.Add(sentence);
-            if (panel.Ids is { } ids) { var open = Action("工程表の工程を開く", "", true); open.HorizontalAlignment = HorizontalAlignment.Left; open.Click += (_, _) => hub.OpenChart?.Invoke(ids.ProjectId, ids.CardId); stack.Children.Add(Key(open, "chart2")); }
-            if (panel.Chart.Length > 0) { var chart = Text($"工程表は「{panel.Chart}」です。", 12, Muted); chart.Margin = new Thickness(0, 8, 0, 0); stack.Children.Add(chart); }
+            if (panel.Ids is { } ids) { var open = Action(AppStrings.ApprovalsWindow_LinksColumn_9, "", true); open.HorizontalAlignment = HorizontalAlignment.Left; open.Click += (_, _) => hub.OpenChart?.Invoke(ids.ProjectId, ids.CardId); stack.Children.Add(Key(open, "chart2")); }
+            if (panel.Chart.Length > 0) { var chart = Text(AppStrings.ApprovalsWindow_LinksColumn_10(panel.Chart), 12, Muted); chart.Margin = new Thickness(0, 8, 0, 0); stack.Children.Add(chart); }
         }
         var glass = Glass(Scroll(stack, new Thickness(0)), 22, new Thickness(0), 0xC7); glass.Margin = new Thickness(6, 4, 16, 16); System.Windows.Automation.AutomationProperties.SetAutomationId(glass, "approvals-links"); return glass;
     }
@@ -749,6 +749,6 @@ internal sealed class ApprovalsPage : Grid
         row.Children.Add(new StackPanel { Children = { Text(item.Title ?? "", 13.5, Ink, FontWeights.SemiBold, TextWrapping.Wrap), Text($"{label} · {info.Badge}", 11.5, Muted) } });
         var frame = new Border { Child = row, CornerRadius = new CornerRadius(12), Padding = new Thickness(10, 8, 10, 8), Margin = new Thickness(0, 0, 0, 8), Background = Brush(Colors.White, 0xB0), BorderBrush = Brush(Line), BorderThickness = new Thickness(1) };
         if (panel.Ids is not { } ids || item.CardId is not { Length: > 0 } card) return frame;
-        var button = Plain(frame, $"{item.Title}、工程表で開く"); button.HorizontalContentAlignment = HorizontalAlignment.Stretch; button.Click += (_, _) => hub.OpenChart?.Invoke(ids.ProjectId, card); return Key(button, "n:" + card);
+        var button = Plain(frame, AppStrings.ApprovalsWindow_Mini_1(item.Title)); button.HorizontalContentAlignment = HorizontalAlignment.Stretch; button.Click += (_, _) => hub.OpenChart?.Invoke(ids.ProjectId, card); return Key(button, "n:" + card);
     }
 }

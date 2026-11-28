@@ -10,8 +10,8 @@ public class EditorWindow : Window
 {
     protected readonly StackPanel Body = new() { Margin = new Thickness(24) };
     protected readonly TextBlock Status = new() { TextWrapping = TextWrapping.Wrap, Foreground = Brushes.Firebrick, Margin = new Thickness(8), FontSize = 14 };
-    protected readonly Button SaveButton = new() { Content = "保存" };
-    protected readonly Button CloseButton = new() { Content = "キャンセル" };
+    protected readonly Button SaveButton = new() { Content = AppStrings.EditorForm_SaveLabel_1 };
+    protected readonly Button CloseButton = new() { Content = AppStrings.EditorForm_CloseLabel_1 };
     protected readonly StackPanel Actions = new() { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
     protected Func<Task<bool>>? SaveAction;
     protected bool Busy { get; set; }
@@ -56,8 +56,8 @@ public class EditorWindow : Window
         var close = false;
         try { close = await operation(); }
         catch (OperationCanceledException) when (Token.IsCancellationRequested) { }
-        catch (Exception error) { Status.Text = error is Core.BellApiException { Status: not null } ? error.Message : "操作の結果を確認できませんでした。現在の状態を確認してください。\n" + error.Message; }
-        finally { Busy = false; Actions.IsEnabled = true; Body.IsEnabled = SaveButton.IsEnabled = !Saved; CloseButton.IsEnabled = true; if (Saved) CloseButton.Content = "閉じる"; }
+        catch (Exception error) { Status.Text = error is Core.BellApiException { Status: not null } ? error.Message : AppStrings.EditorWindow_RunAsync_1(error.Message); }
+        finally { Busy = false; Actions.IsEnabled = true; Body.IsEnabled = SaveButton.IsEnabled = !Saved; CloseButton.IsEnabled = true; if (Saved) CloseButton.Content = AppStrings.ApprovalsWindow_NotUsable_1; }
         if (close) { if (closePage is { } returnToHost) returnToHost(); else Close(); }
     }
     protected void Heading(string label) => Body.Children.Add(new TextBlock { Text = label, FontSize = 20, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 18, 0, 10) });

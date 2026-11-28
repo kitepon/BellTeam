@@ -129,7 +129,7 @@ internal sealed class ApprovalsEntryRow : Button
         var view = View; var pending = view.Pending > 0;
         var tile = new Border { Width = 40, Height = 40, CornerRadius = new CornerRadius(12), Background = pending ? Brush(Violet) : Brush(Muted, 0x2E), Child = ApprovalsLook.Glyph("inbox", 20, pending ? Colors.White : Muted) };
         var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 8, 0) };
-        text.Children.Add(Text("決裁箱", 15, Ink, FontWeights.SemiBold)); text.Children.Add(Text(view.Sub, 12, Muted));
+        text.Children.Add(Text(AppStrings.ApprovalsHub_Paint_1, 15, Ink, FontWeights.SemiBold)); text.Children.Add(Text(view.Sub, 12, Muted));
         var dock = new DockPanel();
         if (pending)
         {

@@ -46,7 +46,7 @@ public sealed class AvatarActionsView : Grid, IDisposable
     public Task Ready { get; private set; } = Task.CompletedTask;
     public AvatarActionsView(Workspace workspace, ConversationEntry entry, AvatarVariant variant, AvatarImageSession session, IInspectorHost host)
     {
-        this.workspace = workspace; this.entry = entry; bot = entry.Bot ?? throw new ArgumentException("メンバーを選んでください。"); this.variant = variant; this.session = session; this.host = host;
+        this.workspace = workspace; this.entry = entry; bot = entry.Bot ?? throw new ArgumentException(AppStrings.AvatarActions_AvatarActionsView_1); this.variant = variant; this.session = session; this.host = host;
         lifetime = CancellationTokenSource.CreateLinkedTokenSource(workspace.ConnectionToken);
         Background = (Brush)Application.Current.FindResource("ConversationBackground");
         session.Changed += Changed; Rebuild();
@@ -64,21 +64,21 @@ public sealed class AvatarActionsView : Grid, IDisposable
         void Add(UIElement element) { if (column.Children.Count != 0 && element is FrameworkElement item) item.Margin = new Thickness(0, 20, 0, 0); column.Children.Add(element); }
         Add(PreviewBox());
         var pending = Pending;
-        var change = InspectorUi.Prominent("画像変更"); change.IsEnabled = !(loading || unsupported || pending is not null); change.Click += async (_, _) => await ChangeAsync();
+        var change = InspectorUi.Prominent(AppStrings.AvatarActions_Rebuild_1); change.IsEnabled = !(loading || unsupported || pending is not null); change.Click += async (_, _) => await ChangeAsync();
         System.Windows.Automation.AutomationProperties.SetAutomationId(change, "profile-image-change"); Add(change);
-        var adjust = InspectorUi.Bordered("画像調整", wide: true); adjust.IsEnabled = !(loading || unsupported); adjust.Click += async (_, _) => await AdjustAsync();
+        var adjust = InspectorUi.Bordered(AppStrings.AvatarActions_Rebuild_2, wide: true); adjust.IsEnabled = !(loading || unsupported); adjust.Click += async (_, _) => await AdjustAsync();
         System.Windows.Automation.AutomationProperties.SetAutomationId(adjust, "profile-image-adjust"); Add(adjust);
-        if (loading) Add(InspectorUi.Progress("画像情報を確認しています…"));
+        if (loading) Add(InspectorUi.Progress(AppStrings.AvatarActions_Rebuild_3));
         if (session.Error(variant) is { } status) Add(InspectorUi.Note(status, Red));
         if (pending is not null)
         {
             Add(InspectorUi.Note(BotProfileText.PendingKept, Muted));
-            var confirm = InspectorUi.Bordered("保存結果を確認", wide: true); confirm.Click += async (_, _) => { if (await session.ConfirmAsync(workspace.Management, bot.Id, variant, version => workspace.AvatarVersion(bot.Id, version), workspace.RefreshForImageAsync, workspace.ConnectionToken)) host.CloseSheet(); }; Add(confirm);
-            var discard = InspectorUi.Bordered("選択を破棄", wide: true, destructive: true); discard.Click += (_, _) => session.Discard(variant); Add(discard);
+            var confirm = InspectorUi.Bordered(AppStrings.AvatarActions_Rebuild_4, wide: true); confirm.Click += async (_, _) => { if (await session.ConfirmAsync(workspace.Management, bot.Id, variant, version => workspace.AvatarVersion(bot.Id, version), workspace.RefreshForImageAsync, workspace.ConnectionToken)) host.CloseSheet(); }; Add(confirm);
+            var discard = InspectorUi.Bordered(AppStrings.AvatarActions_Rebuild_5, wide: true, destructive: true); discard.Click += (_, _) => session.Discard(variant); Add(discard);
             Add(InspectorUi.Note(BotProfileText.ChangeBlocked, Muted));
         }
         if (settings is not null && pending is null && settings.AdjustmentImage(variant).Source.Length == 0) Add(InspectorUi.Note(BotProfileText.NoSourceNote, Muted));
-        if (settings is null && errorText is not null) { var reload = InspectorUi.Bordered("画像情報を再読込", wide: true); reload.Click += async (_, _) => await LoadSettingsAsync(); Add(reload); }
+        if (settings is null && errorText is not null) { var reload = InspectorUi.Bordered(AppStrings.AvatarActions_Rebuild_6, wide: true); reload.Click += async (_, _) => await LoadSettingsAsync(); Add(reload); }
         if (errorText is not null) Add(InspectorUi.Note(errorText, Red));
         Children.Clear(); Children.Add(new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = column });
         var key = pending?.Render ?? "current";
@@ -93,7 +93,7 @@ public sealed class AvatarActionsView : Grid, IDisposable
         var box = new Border { Width = side, Height = side, CornerRadius = new CornerRadius(radius), HorizontalAlignment = HorizontalAlignment.Center, Background = new LinearGradientBrush(Color.FromArgb(190, accent.R, accent.G, accent.B), accent, 45) };
         if (previewImage is not null) box.Background = new ImageBrush(previewImage) { Stretch = Stretch.UniformToFill };
         else if (previewFailed) box.Child = new TextBlock { Text = System.Globalization.StringInfo.GetNextTextElement(bot.Name.Length == 0 ? "B" : bot.Name), FontSize = 72, FontWeight = FontWeights.Bold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-        System.Windows.Automation.AutomationProperties.SetName(box, previewImage is null ? "画像の表示待ち" : variant == AvatarVariant.Small ? "現在の小画像" : "現在の大画像");
+        System.Windows.Automation.AutomationProperties.SetName(box, previewImage is null ? AppStrings.AvatarActions_PreviewBox_1 : variant == AvatarVariant.Small ? AppStrings.AvatarActions_PreviewBox_2 : AppStrings.AvatarActions_PreviewBox_3);
         System.Windows.Automation.AutomationProperties.SetAutomationId(box, "profile-image-preview-" + (variant == AvatarVariant.Small ? "small" : "large"));
         return box;
     }
@@ -118,7 +118,7 @@ public sealed class AvatarActionsView : Grid, IDisposable
     private static async Task<BitmapSource> DecodeAsync(string dataUrl)
     {
         var comma = dataUrl.IndexOf(',');
-        if (comma < 0 || !dataUrl.StartsWith("data:image/", StringComparison.Ordinal)) throw new InvalidDataException("画像の形式が一致しません。");
+        if (comma < 0 || !dataUrl.StartsWith("data:image/", StringComparison.Ordinal)) throw new InvalidDataException(AppStrings.AvatarActions_DecodeAsync_1);
         return await ImageCodec.DecodeAsync(Convert.FromBase64String(dataUrl[(comma + 1)..]));
     }
 
@@ -138,17 +138,17 @@ public sealed class AvatarActionsView : Grid, IDisposable
         }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { return false; }
         catch (BellApiException error) when (error.RequiresLogin) { return false; }
-        catch (Exception error) { if (!session.Saving && !lifetime.IsCancellationRequested) errorText = "画像情報を読み込めませんでした。\n" + error.Message; return false; }
+        catch (Exception error) { if (!session.Saving && !lifetime.IsCancellationRequested) errorText = AppStrings.AvatarActions_LoadSettingsAsync_1(error.Message); return false; }
         finally { loading = false; if (!lifetime.IsCancellationRequested) Rebuild(); }
     }
 
     private async Task ChangeAsync()
     {
         if (!await LoadSettingsAsync()) return;
-        var dialog = new OpenFileDialog { Filter = "画像|*.png;*.jpg;*.jpeg;*.webp;*.gif", Title = variant.Label() + "を選ぶ" };
+        var dialog = new OpenFileDialog { Filter = AppStrings.AvatarActions_ChangeAsync_1, Title = AppStrings.AvatarActions_ChangeAsync_2(variant.Label()) };
         if (dialog.ShowDialog(host.OwnerWindow) != true) return;
         try { await CropAsync((await ImageCodec.ReadAsync(dialog.FileName)).Preview, null); }
-        catch (Exception) { errorText = "画像を読み込めませんでした。"; Rebuild(); }
+        catch (Exception) { errorText = AppStrings.AvatarActions_ChangeAsync_3; Rebuild(); }
     }
 
     private async Task AdjustAsync()
@@ -158,7 +158,7 @@ public sealed class AvatarActionsView : Grid, IDisposable
         if (Pending is { } kept) { data = kept.Source; initial = kept.Crop; }
         else { var current = settings.AdjustmentImage(variant); data = current.Source.Length == 0 ? current.Render : current.Source; initial = current.Source.Length == 0 ? null : current.Crop; }
         try { await CropAsync(await DecodeAsync(data), initial); }
-        catch (Exception) { errorText = Pending is not null ? "保持中の画像を読み込めませんでした。" : "画像を読み込めませんでした。"; Rebuild(); }
+        catch (Exception) { errorText = Pending is not null ? AppStrings.AvatarActions_AdjustAsync_1 : AppStrings.AvatarActions_ChangeAsync_3; Rebuild(); }
     }
 
     // The crop sheet opens over this one; "使用する" closes this sheet and the save reports in the inspector, as on the Mac.

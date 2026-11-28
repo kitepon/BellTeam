@@ -30,13 +30,13 @@ public sealed class DesktopAccess
     {
         try
         {
-            using var source = new HwndSource(new HwndSourceParameters("BellTeamログイン情報の読み取り") { Width = 1, Height = 1, WindowStyle = unchecked((int)0x80000000), ExtendedWindowStyle = 0x08000000 });
+            using var source = new HwndSource(new HwndSourceParameters(AppStrings.AccessLogin_WithBrowserAsync_1) { Width = 1, Height = 1, WindowStyle = unchecked((int)0x80000000), ExtendedWindowStyle = 0x08000000 });
             var environment = await createEnvironment(ProfileDirectory);
             var controller = await environment.CreateCoreWebView2ControllerAsync(source.Handle);
             try { controller.IsVisible = false; await operation(controller.CoreWebView2); }
             finally { controller.Close(); }
             }
-        catch (Exception) { throw new BellApiException("ログイン情報を開けませんでした。WebView2 Runtimeと接続先を確認して、開き直してください。"); }
+        catch (Exception) { throw new BellApiException(AppStrings.AccessLogin_WithBrowserAsync_2); }
     }
     public async Task<bool> CopyCookiesAsync(CoreWebView2 browser, Uri origin)
     {
@@ -50,7 +50,7 @@ public sealed class DesktopAccess
 public sealed class AccessLoginView : DockPanel, IDisposable
 {
     private readonly WebView2 browser = new();
-    private readonly TextBlock status = new() { Text = "ログイン画面を開いています…", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(12) };
+    private readonly TextBlock status = new() { Text = AppStrings.AccessLogin_status_1, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(12) };
     private bool checking;
     private bool closed;
     private bool started;
@@ -68,7 +68,7 @@ public sealed class AccessLoginView : DockPanel, IDisposable
             started = true;
             try
             {
-                if (origin.Scheme != "https") throw new BellApiException("外部ログインにはHTTPSの接続先を指定してください。");
+                if (origin.Scheme != "https") throw new BellApiException(AppStrings.AccessLogin_AccessLoginView_1);
                 var environment = await CoreWebView2Environment.CreateAsync(userDataFolder: access.ProfileDirectory);
                 if (closed) return;
                 await browser.EnsureCoreWebView2Async(environment);
@@ -76,9 +76,9 @@ public sealed class AccessLoginView : DockPanel, IDisposable
                 browser.CoreWebView2.NavigationCompleted += async (_, _) => await CheckAsync();
                 browser.CoreWebView2.NewWindowRequested += (_, args) => { args.Handled = true; browser.CoreWebView2.Navigate(args.Uri); };
                 browser.CoreWebView2.Navigate(new Uri(origin, "api/session").AbsoluteUri);
-                status.Text = "Cloudflare Accessでログインしてください。完了すると自動で接続します。";
+                status.Text = AppStrings.AccessLogin_AccessLoginView_2;
             }
-            catch (Exception) { if (!closed) status.Text = "ログイン画面を開けませんでした。WebView2 Runtimeと接続先を確認して、開き直してください。"; }
+            catch (Exception) { if (!closed) status.Text = AppStrings.AccessLogin_AccessLoginView_3; }
         };
     }
     public void Dispose() { if (closed) return; closed = true; lifetime.Cancel(); lifetime.Dispose(); browser.Dispose(); }
@@ -94,7 +94,7 @@ public sealed class AccessLoginView : DockPanel, IDisposable
             if (session.Authenticated && !closed) loggedIn();
         }
         catch (BellApiException error) when (error.RequiresLogin) { }
-        catch (Exception) { if (!closed) status.Text = "ログイン後の接続を確認できませんでした。閉じて接続先を確認してください。"; }
+        catch (Exception) { if (!closed) status.Text = AppStrings.AccessLogin_CheckAsync_1; }
         finally { checking = false; }
     }
 }

@@ -16,8 +16,11 @@ namespace BellTeam.App;
 /// </summary>
 internal sealed class LatticeReminderModel : IDisposable
 {
-    internal const string Loading = "設定を読み込んでいます。", Saving = "設定を保存しています。", SaveFailure = "設定を保存できませんでした。",
-        OldServer = "このサーバーでは催促の設定を変更できません。", Forbidden = "催促の設定を読む権限がありません。";
+    internal static string Loading  => AppStrings.LatticeReminders_Loading_1;
+    internal static string Saving  => AppStrings.LatticeReminders_Saving_1;
+    internal static string SaveFailure  => AppStrings.LatticeReminders_SaveFailure_1;
+    internal static string OldServer  => AppStrings.LatticeReminders_OldServer_1;
+    internal static string Forbidden  => AppStrings.LatticeReminders_Forbidden_1;
     private sealed record Setting(string Schema, string ProjectId, bool? Enabled);
 
     private readonly BellApi api;
@@ -106,13 +109,13 @@ internal sealed class LatticeReminderModel : IDisposable
             {
                 var reason = error switch
                 {
-                    BellApiException { Status: HttpStatusCode.ServiceUnavailable } => "サーバーが応答できません。",
-                    BellApiException { Status: null } => "サーバーから届いた設定を読み取れません。",
-                    HttpRequestException => "サーバーに接続できません。",
-                    OperationCanceledException => "サーバーの応答が時間内に届きませんでした。",
-                    _ => "サーバーから設定を読み込めませんでした。"
+                    BellApiException { Status: HttpStatusCode.ServiceUnavailable } => AppStrings.LatticeReminders_ReadAsync_1,
+                    BellApiException { Status: null } => AppStrings.LatticeReminders_ReadAsync_2,
+                    HttpRequestException => AppStrings.LatticeReminders_ReadAsync_3,
+                    OperationCanceledException => AppStrings.LatticeReminders_ReadAsync_4,
+                    _ => AppStrings.LatticeReminders_ReadAsync_5
                 };
-                Show(reason + " 再試行します。", retry: true);
+                Show(AppStrings.LatticeReminders_ReadAsync_6(reason), retry: true);
             }
             using var wait = CancellationTokenSource.CreateLinkedTokenSource(Token);
             backoff = wait;
@@ -126,7 +129,7 @@ internal sealed class LatticeReminderModel : IDisposable
     {
         Token.ThrowIfCancellationRequested();
         if (result.Schema != "bellteam.lattice-reminders.v1" || result.ProjectId != projectId || result.Enabled is not { } enabled)
-            throw new BellApiException("BellTeamからの催促設定の応答を読み取れませんでした。");
+            throw new BellApiException(AppStrings.LatticeReminders_Confirm_1);
         Confirmed = enabled;
     }
 
@@ -140,15 +143,16 @@ internal sealed class LatticeReminderModel : IDisposable
 /// <summary>The chart's 工程表の設定 sheet: a scrim over the chart page, the chart name, the 1分ごとの催促 switch and what is happening to it. Close works in every state.</summary>
 internal sealed class LatticeReminderSheet : Grid, IDisposable
 {
-    internal const string Heading = "工程表の設定", SwitchLabel = "1分ごとの催促";
+    internal static string Heading  => AppStrings.LatticeReminders_Heading_1;
+    internal static string SwitchLabel  => AppStrings.LatticeReminders_SwitchLabel_1;
     private readonly LatticeReminderModel model;
     private readonly LatticeChartFeed feed;
     private readonly ToggleButton toggle = SettingsUi.Switch("#34C759");
-    private readonly TextBlock value = Text("未確認", 14, Muted);
+    private readonly TextBlock value = Text(AppStrings.LatticeReminders_value_1, 14, Muted);
     private readonly TextBlock status = Text("", 13, Muted, wrap: TextWrapping.Wrap);
     private readonly TextBlock saveError = Text(LatticeReminderModel.SaveFailure, 13, Red, FontWeights.SemiBold, TextWrapping.Wrap);
-    private readonly Button retry = Action("読み直す", "");
-    private readonly Button list = Action("一覧へ戻る", "");
+    private readonly Button retry = Action(AppStrings.ApprovalsWindow_Toolbar_15, "");
+    private readonly Button list = Action(AppStrings.LatticeReminders_list_1, "");
     private LatticeConnection previous;
 
     public LatticeReminderSheet(BellApi api, string projectId, string chartName, LatticeChartFeed feed, CancellationToken connection, Action close, Action showList)
@@ -159,7 +163,7 @@ internal sealed class LatticeReminderSheet : Grid, IDisposable
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Cycle); KeyboardNavigation.SetControlTabNavigation(this, KeyboardNavigationMode.Cycle);
         System.Windows.Automation.AutomationProperties.SetAutomationId(this, "lattice-reminder-sheet");
 
-        var closeButton = Action("閉じる", ""); closeButton.Margin = new Thickness(0); closeButton.Click += (_, _) => close();
+        var closeButton = Action(AppStrings.ApprovalsWindow_NotUsable_1, ""); closeButton.Margin = new Thickness(0); closeButton.Click += (_, _) => close();
         System.Windows.Automation.AutomationProperties.SetAutomationId(closeButton, "lattice-reminder-close");
         retry.Click += (_, _) => model.Refresh(); list.Click += (_, _) => showList();
         System.Windows.Automation.AutomationProperties.SetAutomationId(retry, "lattice-reminder-retry");
@@ -183,7 +187,7 @@ internal sealed class LatticeReminderSheet : Grid, IDisposable
         body.Children.Add(head);
         body.Children.Add(Text(chartName, 14, Muted, FontWeights.SemiBold));
         body.Children.Add(switchRow);
-        var note = Text("着手できる工程や作業中の工程があるとき、手が空いている担当に知らせます。", 12.5, Muted, wrap: TextWrapping.Wrap); note.Margin = new Thickness(0, 10, 0, 0); body.Children.Add(note);
+        var note = Text(AppStrings.LatticeReminders_LatticeReminderSheet_2, 12.5, Muted, wrap: TextWrapping.Wrap); note.Margin = new Thickness(0, 10, 0, 0); body.Children.Add(note);
         saveError.Margin = new Thickness(0, 12, 0, 0); status.Margin = new Thickness(0, 12, 0, 0);
         body.Children.Add(saveError); body.Children.Add(status);
         var actions = Row(retry, list); actions.Margin = new Thickness(0, 10, 0, 0); body.Children.Add(actions);
@@ -210,7 +214,7 @@ internal sealed class LatticeReminderSheet : Grid, IDisposable
     private void Draw()
     {
         toggle.IsChecked = model.Confirmed == true; toggle.IsEnabled = model.Ready;
-        value.Text = model.Confirmed switch { true => "オン", false => "オフ", null => "未確認" };
+        value.Text = model.Confirmed switch { true => AppStrings.LatticeReminders_Draw_1, false => AppStrings.LatticeReminders_Draw_2, null => AppStrings.LatticeReminders_value_1 };
         System.Windows.Automation.AutomationProperties.SetHelpText(toggle, value.Text);
         status.Text = model.Status; status.Visibility = model.Status.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         saveError.Visibility = model.SaveFailed ? Visibility.Visible : Visibility.Collapsed;
