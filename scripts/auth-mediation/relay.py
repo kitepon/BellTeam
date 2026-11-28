@@ -2,7 +2,7 @@
 """Socket relay of the authentication module. Runs as the seat uid (1000), because only that uid can read a seat's cwd
 and can own the main-server user's host.sock. It frames one request line per connection, adds the peer's identity,
 asks the body over one unix socket and returns the body's one reply line unchanged. It holds no policy and no secret."""
-import hashlib, json, os, signal, socket, struct, sys, threading, uuid
+import hashlib, json, os, signal, socket, struct, sys, threading, time, uuid
 
 DIR = os.environ.get("AUTH_RELAY_DIR", "/srv/bellteam/shared/tools/auth-mediation")
 BODY = os.environ.get("AUTH_RELAY_BODY", "/srv/bellteam/state/auth-mediation-relay.sock")
@@ -18,6 +18,7 @@ RESTRICTED = {"bellteam-push": 0o660}
 
 # A client line can be 13 MiB and every connection has its own thread: what clients hold in memory at one moment is capped (64 MiB of unfinished request lines) and so are the open run streams (8).
 # Beyond it the caller gets "busy" and may retry; nothing is lost or half done. Stops many slow big lines from filling the relay's memory.
+TOTAL_SECONDS = int(os.environ.get("AUTH_RELAY_TOTAL_SECONDS", 30))
 MAX_PENDING_BYTES, MAX_STREAMS = int(os.environ.get("AUTH_RELAY_MAX_PENDING", 64 << 20)), 8
 pending, pending_lock, streams = 0, threading.Lock(), threading.BoundedSemaphore(MAX_STREAMS)
 
@@ -28,10 +29,13 @@ class Busy(Exception):
 
 def read_line(conn, limit, seconds, charge=False):
     global pending
-    conn.settimeout(seconds)
-    data, held = b"", 0
+    data, held, deadline = b"", 0, time.monotonic() + (TOTAL_SECONDS if charge else seconds * 10)  # a total deadline: a client that trickles bytes cannot keep its share of the cap for ever
     try:
         while b"\n" not in data:
+            left = deadline - time.monotonic()
+            if left <= 0:
+                raise ValueError("too slow")
+            conn.settimeout(min(seconds, left))
             chunk = conn.recv(65536)
             if not chunk:
                 raise ValueError("closed")

@@ -138,3 +138,18 @@ test('relay: unfinished request lines are capped in memory; beyond the cap a cal
     assert.equal(JSON.parse(ok).outcome, 'granted')
   } finally { holders.forEach(c => c.destroy()); relay.kill('SIGTERM'); body.close() }
 })
+
+test('relay: a client that trickles a request line is cut at the total deadline and frees its share of the cap', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'relay-')), bodyPath = join(dir, 'body.sock')
+  const relay = spawn(RELAY, [], { env: { ...process.env, AUTH_RELAY_DIR: join(dir, 'share'), AUTH_RELAY_BODY: bodyPath, AUTH_RELAY_SEAT_UID: String(process.getuid()), AUTH_RELAY_MAX_PENDING: '100000', AUTH_RELAY_TOTAL_SECONDS: '1' } })
+  let trickle
+  try {
+    await new Promise(resolve => relay.stdout.once('data', resolve))
+    const slow = connect(join(dir, 'share', 'container.sock')); let closed = false; slow.on('close', () => { closed = true }); slow.on('error', () => {})
+    await new Promise(r => slow.on('connect', r)); slow.write('x'.repeat(90000)); trickle = setInterval(() => slow.write('y'), 200)
+    await new Promise(r => setTimeout(r, 2200))
+    assert.ok(closed) // cut at 1 s although bytes kept coming
+    const ask = () => new Promise((resolve, reject) => { const c = connect(join(dir, 'share', 'container.sock')); let out = ''; c.on('connect', () => c.write(line({ op: 'exec', command: ['a'], cwd: '/' }))); c.on('data', d => { out += d }); c.on('end', () => resolve(out)); c.on('error', reject) })
+    assert.doesNotMatch(await ask(), /busy/u) // the share is free again (no body here: module not running, not busy)
+  } finally { clearInterval(trickle); relay.kill('SIGTERM') }
+})
