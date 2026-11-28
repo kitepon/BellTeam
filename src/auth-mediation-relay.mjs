@@ -18,6 +18,9 @@ const absolute = value => typeof value === 'string' && value.startsWith('/') && 
 // The client's http line -> the child's http params (the transport fills who is calling).
 const httpParams = request => ({ name: request.name, method: request.method, path: request.path, ...(request.headers === undefined ? {} : { headers: request.headers }),
   ...(request.body === undefined ? {} : { body: request.body }), ...(request.timeout_sec === undefined ? {} : { timeoutSec: request.timeout_sec }) })
+// The client's key-use line -> the child's keyuse params (the transport fills who is calling).
+const KEY_OPS = ['wrap', 'unwrap', 'sign']
+const keyParams = request => ({ action: request.op, name: request.name, data: request.data, ...(request.aad === undefined ? {} : { aad: request.aad }) })
 const program = value => value === undefined || value === null || (typeof value === 'object' && absolute(value.path) && /^[a-f0-9]{64}$/u.test(value.sha256) && typeof value.sealed === 'boolean')
 
 // One relay frame -> one answer. Pure over the facade, so the mapping is testable without sockets.
@@ -27,9 +30,9 @@ export async function relayAnswer(frame, facade) {
   if (!request || typeof request !== 'object' || Array.isArray(request)) return bad()
   if (frame.via === 'caller-socket') {
     // A container product's own socket: its path is its identity (named by the relay, never by the client's line). Key use only; no exec, no admin.
-    if (!absolute(frame.unit) || (peer !== null && peer !== undefined) || !['wrap', 'unwrap', 'http'].includes(request.op)) return bad()
+    if (!absolute(frame.unit) || (peer !== null && peer !== undefined) || !['wrap', 'unwrap', 'sign', 'http'].includes(request.op)) return bad()
     if (request.op === 'http') return facade.http({ ...httpParams(request), via: 'caller-socket', unit: frame.unit })
-    return facade.keyuse({ action: request.op, name: request.name, data: request.data, ...(request.aad === undefined ? {} : { aad: request.aad }), unit: frame.unit })
+    return facade.keyuse({ ...keyParams(request), via: 'caller-socket', unit: frame.unit })
   }
   const container = frame.via === 'container-socket'
   if (container) {
@@ -42,6 +45,11 @@ export async function relayAnswer(frame, facade) {
     if (container) return facade.containerSocket({ command: request.command, cwd: peer.cwd })
     if (!absolute(request.cwd)) return bad()
     return facade.hostSocket({ command: request.command, cwd: request.cwd, unit: request.cwd })
+  }
+  if (KEY_OPS.includes(request.op)) {
+    if (container) return facade.keyuse({ ...keyParams(request), via: 'container-socket', cwd: peer.cwd })
+    if (!absolute(request.cwd)) return bad()
+    return facade.keyuse({ ...keyParams(request), via: 'host-socket', cwd: request.cwd, unit: request.cwd })
   }
   if (request.op === 'http') {
     if (container) return facade.http({ ...httpParams(request), via: 'container-socket', cwd: peer.cwd })

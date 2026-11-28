@@ -75,7 +75,7 @@ test('caller-socket frames reach the facade as key use only, with the relay-name
   const seen = []; const facade = { keyuse: async p => (seen.push(p), { outcome: 'granted', data: 'AA==' }), containerSocket: async () => assert.fail(), hostSocket: async () => assert.fail(), admin: async () => assert.fail() }
   const frame = request => ({ via: 'caller-socket', unit: UNIT, peer: null, request })
   assert.deepEqual(await relayAnswer(frame({ op: 'wrap', name: 'mm-v1', data: 'AA==', aad: 'l1', unit: '/claimed' }), facade), { outcome: 'granted', data: 'AA==' })
-  assert.deepEqual(seen[0], { action: 'wrap', name: 'mm-v1', data: 'AA==', aad: 'l1', unit: UNIT })
+  assert.deepEqual(seen[0], { action: 'wrap', name: 'mm-v1', data: 'AA==', aad: 'l1', via: 'caller-socket', unit: UNIT })
   const bad = { outcome: 'error', error: 'Bad request.' }
   for (const f of [frame({ op: 'exec', command: ['a'], cwd: '/x' }), frame({ op: 'admin', verb: 'show' }), { ...frame({ op: 'wrap' }), unit: 'rel' }, { ...frame({ op: 'wrap' }), unit: undefined }, { ...frame({ op: 'wrap' }), peer: { uid: 1000, cwd: '/x' } }])
     assert.deepEqual(await relayAnswer(f, facade), bad)
@@ -84,7 +84,7 @@ test('caller-socket frames reach the facade as key use only, with the relay-name
 test('protocol: key use takes exactly its fields; a result carries only outcome, error and data', () => {
   const ctx = { generation: 'g1' }, ok = { action: 'unwrap', name: 'mm-v1', data: 'AAAA', unit: UNIT }
   assert.doesNotThrow(() => validateAuthMediationRequest('keyuse', { ...ok, aad: 'l1' }, ctx))
-  for (const bad of [{ ...ok, action: 'sign' }, { ...ok, data: 'not base64!' }, { ...ok, unit: 'rel' }, { ...ok, name: '../x' }, { ...ok, extra: 1 }, { ...ok, aad: 'x'.repeat(257) }, { action: 'wrap', name: 'a', data: 'AA==' }])
+  for (const bad of [{ ...ok, action: 'verify' }, { ...ok, data: 'not base64!' }, { ...ok, unit: 'rel' }, { ...ok, name: '../x' }, { ...ok, extra: 1 }, { ...ok, aad: 'x'.repeat(257) }, { action: 'wrap', name: 'a', data: 'AA==' }])
     assert.throws(() => validateAuthMediationRequest('keyuse', bad, ctx), /AUTH_MEDIATION_INVALID/u)
   assert.doesNotThrow(() => validateAuthMediationResult('keyuse', { outcome: 'granted', data: 'AA==' }))
   assert.throws(() => validateAuthMediationResult('keyuse', { outcome: 'granted', data: 'AA==', env: {} }))

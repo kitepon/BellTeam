@@ -9,7 +9,8 @@
     "auth-admin (stop, resume, show, flush, audit, token, entry-set)",
     "grant entry (grant, revoke only from the registered entry program, with the decision record)",
     "key use (wrap, unwrap inside the module on a caller socket per container product; the key is never returned)",
-    "http (the module makes the request with the credential added; only the response leaves)"
+    "http (the module makes the request with the credential added; only the response leaves)",
+    "sign (a signature or MAC made inside the module; the key never leaves)"
   ],
   "uses": [
     {
