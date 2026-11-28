@@ -5,7 +5,7 @@
     <UseWPF>true</UseWPF>
     <AssemblyName>BellTeam</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>0.9.9</Version>
+    <Version>0.9.10</Version>
     <ApplicationIcon>Assets/BellTeam.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
@@ -24,7 +24,7 @@
     </AssemblyAttribute>
     <InternalsVisibleTo Include="BellTeam.UiChecks" />
     <ProjectReference Include="../BellTeam.Core/BellTeam.Core.csproj" />
-    <PackageReference Include="Kitepon.ApprovalBox.Client" Version="0.7.0" />
+    <PackageReference Include="Kitepon.ApprovalBox.Client" Version="0.8.0" />
     <!-- The native engine of the package's peer adapter (libdatachannel, library name "datachannel"): the host ships it (windows/native/README.md). -->
     <None Include="../native/prebuilt/win-x64/datachannel.dll" Condition="'$(RuntimeIdentifier)' != 'win-arm64'" Link="datachannel.dll" CopyToOutputDirectory="PreserveNewest" />
     <PackageReference Include="Markdig" Version="1.4.0" />

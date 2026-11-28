@@ -5,7 +5,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import nodeDataChannel from "node-datachannel";
-import { b64url, bindingTag, checkBindingTag, equal, fingerprint, fromB64url, fromJson, generateSealKey, generateSigningKey, join as lpJoin, keyId, parseBody, parseQrText, parseTypedCode, signSnapshot, snapshotHash, toJson, utf8, type DeviceEntry, type SnapshotBody } from "@kitepon/peer-channel";
+import { b64url, bindingTag, checkBindingTag, deviceAdmission, equal, fingerprint, fromB64url, fromJson, generateSealKey, generateSigningKey, join as lpJoin, keyId, parseBody, parseQrText, parseTypedCode, signSnapshot, snapshotHash, toJson, utf8, type DeviceEntry, type SnapshotBody } from "@kitepon/peer-channel";
 import { startPairingBinding, verifyIdOf } from "@kitepon/peer-channel/pairing";
 import { TestDevice } from "@kitepon/peer-channel/testing";
 import { makeDevice, parentAdd, type Device } from "../../server/test/keyhole-signer.ts";
@@ -112,6 +112,26 @@ const routes: Record<string, (b: any) => Promise<unknown>> = {
       const admit = utf8(JSON.stringify({ v: "pc/1", purpose: "admit", join_nonce: j.nonce, account: hb.account, registry_version: body.version, registry_hash: b64url(snapshotHash(fromJson(snap))), approver_key_id: b64url(sign.id), approver_sig_pub: b64url(sign.pub), expires_at: at + 5 * 60000 }));
       device.socket.send({ type: "signal", verify_id: verifyId, to: joined.peer, env: { dir: "approver", nonce: starter.env.nonce, payload: b64url(admit), tag: b64url(bindingTag(secret, "approver", nonce, lpJoin(joinPayload, admit))) } });
       return { admitted: true, key_id: e.key_id, platform: e.platform, registry_version: body.version };
+    } finally { device.close(); }
+  },
+  // A (a keyholes parent, an approver) answers a keyhole device's offer with no scan (contract 0.8.0, device carry step 3): device.available -> next snapshot -> registry -> device.done
+  "POST /carry-admit": async () => {
+    const device = await openA();
+    try {
+      device.socket.send({ type: "join" });
+      let offer: any;
+      while (!offer) {
+        const m = await Promise.race([device.nextSignal(), new Promise<never>((_, no) => setTimeout(() => no(Object.assign(new Error("no device offer"), { code: "no_offer" })), 60000).unref())]);
+        if (m.type === "device.available") offer = m.offer; else if (m.type === "waits" && m.devices?.length) offer = m.devices[0];
+      }
+      const hb = headBody();
+      const body = deviceAdmission(offer, { body: hb, hash: snapshotHash(fromJson(head)) }, sign.id);
+      if (!body) throw Object.assign(new Error("offer refused"), { code: "offer_refused" });
+      const snap = toJson(signSnapshot(body, sign));
+      await need("registry", asA("PUT", "/pc/v1/registry", snap), [204]); head = snap;
+      device.socket.send({ type: "device.done", sig_pub: offer.sig_pub, registry_hash: b64url(snapshotHash(fromJson(snap))) });
+      await new Promise((r) => setTimeout(r, 500)); // let the frame leave before the socket closes
+      return { admitted: true, key_id: b64url(keyId(fromB64url(offer.sig_pub))), platform: offer.platform, label: offer.label, registry_version: body.version };
     } finally { device.close(); }
   },
   // A removes the child: out of the registry (tombstone), then its keyhole (keys/others)

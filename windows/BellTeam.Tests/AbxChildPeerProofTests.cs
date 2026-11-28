@@ -10,7 +10,7 @@ namespace BellTeam.Tests;
 
 // abx-peer-proof-windows, the keyhole-child part (Nayuta 2026-11-26): the packaged client 0.5.4 as BellTeam's window runs it, a CHILD of a keyholes parent (docs/client-component.md 9), on the peer path only.
 // Lab: windows/BellTeam.Tests/e2e/abxchild-lab.ts (see AbxPeerProofTests for the Approval Box checkout and the dev server). The lab parent A starts a new entry (keys/start), makes the registry, pairs and approves the connector,
-// signs the lbk1 add for this child, admits the child's peer offer and removes it. The child is PRE-SEEDED: its key is made here (Windows CNG, a name of its own, never BellTeam's real child key), it sends the add (keys/accept) and
+// signs the lbk1 add for this child, signs the child's device offer (device carry, client 0.8.0: no QR, no code) and removes it. The child is PRE-SEEDED: its key is made here (Windows CNG, a name of its own, never BellTeam's real child key), it sends the add (keys/accept) and
 // the "joined" marker is written. The real join (a provider sign-in and the parent's LAN reply) is NOT run here (covered by the production join on 2026-11-24). The form is ours (ChildJoinOptions.Form) over the same Desktop library the shipped form uses.
 // PC_E2E_ABX_PEER_URL = the dev server, PC_E2E_ABX_CHILD_LAB = the lab control server (http://127.0.0.1:8798), PC_E2E_ABX_PEER_LOG = optional step log. Without them this test does nothing.
 public class AbxChildPeerProofTests
@@ -79,24 +79,15 @@ public class AbxChildPeerProofTests
             await using var source = new ClientApprovalSource(client);
             Assert.Equal(JoinStatus.Joined, client.JoinState.Status); Log("a join state Joined (marker + key); the real QR join with a provider sign-in is not run here");
 
-            // b. peer path: start -> NeedsApproval -> RequestApproval -> Waiting -> A's peer device admits the offer -> Live.
+            // b. peer path, device carry (client 0.8.0, contract 0.8.0): start -> NeedsApproval -> the package sends device.offer by itself -> A (an approver) signs the next snapshot -> Live. No RequestApproval, no QR, no code.
             await client.StartAsync();
             await WaitFor("NeedsApproval", () => client.State.Status == ClientStatus.NeedsApproval);
             Log("b start: NeedsApproval (reason " + client.State.Reason + ")");
-            client.RequestApproval();
-            await WaitFor("Waiting with an offer", () => client.State.Status == ClientStatus.Waiting && client.State.Offer is not null);
-            var offer = client.State.Offer!; Log("b request approval: Waiting, QR payload " + offer.QrPayload.Split(':')[0]);
-            JsonElement admitted = default; var attempts = 0;
-            while (true)
-            {
-                attempts++;
-                using var r = await http.PostAsJsonAsync(lab + "/admit", new { text = offer.QrPayload }); var body = await r.Content.ReadAsStringAsync();
-                if (r.IsSuccessStatusCode) { admitted = JsonDocument.Parse(body).RootElement.Clone(); break; }
-                Log("b admit attempt " + attempts + ": " + body); Assert.True(body.Contains("unknown_verify") && attempts < 40, body); await Task.Delay(250);
-            }
+            var admitted = await Lab("/carry-admit");
             var keyId = admitted.GetProperty("key_id").GetString()!;
-            Log("b admit by the keyholes parent succeeded on attempt " + attempts + " (platform " + admitted.GetProperty("platform").GetString() + ", registry v" + admitted.GetProperty("registry_version").GetInt32() + ")");
+            Log("b carry: A admitted the device offer '" + admitted.GetProperty("label").GetString() + "' (platform " + admitted.GetProperty("platform").GetString() + ", registry v" + admitted.GetProperty("registry_version").GetInt32() + ")");
             await WaitFor("Live", () => client.State.Status == ClientStatus.Live); Log("b state Live");
+            Assert.Null(client.State.Offer);   // nobody scanned or typed anything
 
             var filed = await Lab("/request", new { title = "child peer proof", context = "windows", options = new[] { new { id = "go", label = "go" }, new { id = "wait", label = "wait" } }, images = new[] { new { name = "p.png", type = "image/png", data = Convert.ToBase64String(Png) } } });
             var id = filed.GetProperty("decision_id").GetString()!;
