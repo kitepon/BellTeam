@@ -55,6 +55,8 @@ export function createConversationFacade({ getController, context, memberScoped 
     require: id => { const room = projection.get(id); if (!room) throw new Error(`ROOM_NOT_FOUND: ${id}`); return room },
     create: (input, options) => readRoom('room.create', pick(input, ['name', 'purpose', 'memberIds', 'representativeId', 'avatar']), options),
     update: (roomId, changes, options) => readRoom('room.update', { roomId, changes }, options),
+    invite: (roomId, botId, options) => readRoom('room.invite', { roomId, botId }, options),
+    leave: (roomId, botId, options) => readRoom('room.leave', { roomId, botId }, options),
     remove: (roomId, options) => invoke('room.remove', { roomId }, options, () => { projection.delete(roomId) }),
     removeBot: (botId, options) => invoke('member.removeFromRooms', { botId }, options, () => { projection.clear() }),
     listSchedules: (roomId, options) => invoke('room.schedules.list', { roomId }, options, value => value.schedules),

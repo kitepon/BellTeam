@@ -997,17 +997,24 @@ export class AitermTransport {
   // its turn, background work or a waited child keeps it until a later tick. Not the Bot's seat, so no changeSession.
   async closeOldSeats(bots) {
     const launches = await this.readRuntimeLaunches(), rows = (await this.client.call('pty_list')).structuredContent?.sessions ?? []
+    const localIds = new Set(rows.map(row => row?.session_id).filter(Boolean))
     const dormant = new Set(rows.filter(row => dormantSeats.has(row?.current_command)).map(row => row.session_id)), closed = []
+    const accountSeat = new RegExp(`^(.+)-(?:${ACCOUNT_SLOTS.join('|')})-[a-z0-9]+$`, 'u')
+    const belongsTo = (id, botId) => id === botId || accountSeat.exec(id)?.[1] === botId
     for (const bot of bots) {
       const current = this.session(bot)
       const old = id => typeof id === 'string' && id !== current && !dormant.has(id) && !/-fork-[0-9a-f]{12}$/u.test(id)
-        && (id === bot.id || id.startsWith(`${bot.id}-`))
-      const sessions = new Set([...Object.entries(launches).filter(([, seat]) => seat?.botId === bot.id).map(([id]) => id),
-        ...rows.map(row => row?.session_id)].filter(old))
+        && belongsTo(id, bot.id)
+      const sessions = new Set([...Object.entries(launches).filter(([id, seat]) => seat?.botId === bot.id && old(id)
+        && (Boolean(seat?.target) || !seat?.machine || localIds.has(id))).map(([id]) => id), ...[...localIds].filter(old)])
       for (const session_id of sessions) {
         try {
           const observation = (await this.client.call('pty_observe', { session_id })).structuredContent
-          if (observation?.exists !== true || !quietSession(observation)) continue
+          if (observation?.exists !== true) {
+            if (launches[session_id]?.route === 'remote') this.remoteSeats?.routes?.remove(session_id)
+            continue
+          }
+          if (!quietSession(observation)) continue
           await this.client.call('pty_close', { session_id })
           closed.push(session_id)
         } catch (error) { process.stderr.write(`BellTeam old seat: ${bot.id} ${session_id}: ${error?.code ?? error?.message}\n`) }
@@ -1354,7 +1361,8 @@ export class AitermTransport {
             return native
           }, error => {
             // a333: our own confirmed stop aborted this wait; the turn is interrupted, not unconfirmed (idle() would throw the abort).
-            job.nativeTerminal = error.turnCompleted === true || job.stopped === true
+            // anis-deliveries-stuck (wait-contract.md): AITERM_TURN_UNSETTLED releases SeatActivity even without turnCompleted.
+            job.nativeTerminal = error.turnCompleted === true || error.waitOutcome === 'unsettled' || job.stopped === true
             if (!job.nativeTerminal) {
               job.nativeUnconfirmed = error
               // control-details.md "受付後の追跡失敗の自己退役": the next valid read showing no turn on this session retires it.
@@ -1872,7 +1880,6 @@ export class AitermTransport {
         words = onInterim ? (botId, groupId, value) => this.conversationAdmission.invoke(conversationDelivery, 'delivery.words', { words: value }) : null
       } catch (error) { this.conversationAdmission.finish(operationLease); throw error }
     }
-    this.activity.beginWatch(watch)
     watch.completion = (async () => {
       // The observer's lifetime is registered before the first native waiter/interim read.
       await Promise.resolve()
@@ -1910,6 +1917,7 @@ export class AitermTransport {
         this.activity.endWatch(watch)
       }
     })()
+    this.activity.beginWatch(watch)
     if (lease) { const release = lease.hold(); watch.completion.then(release, release) }
     if (conversationDelivery) {
       this.conversationAdmission.trackCompletion(conversationDelivery, watch.completion)
@@ -2576,7 +2584,10 @@ export class AitermTransport {
         if (this.recoveryDue(botId, seats)) return await this.recoverMember(bot, slot, seats)
         if ((this.accounts.seatSlot(botId) ?? '1st') === slot && !await this.accounts.renewDue(botId, 'claude', bot.model)) return
         if (this.isIdle(botId) && !this.activity.configurationChanges.has(botId)) return await this.switchAccount(bot)
-        await Promise.all(this.activity.of(botId).map(turn => (turn.nativeCompletion ?? turn.completion)?.catch(() => {})))
+        const active = this.activity.of(botId)
+        const unknown = active.find(turn => turn.nativeUnconfirmed)
+        if (unknown) throw unknown.nativeUnconfirmed
+        await Promise.all(active.map(turn => (turn.completion ?? turn.nativeCompletion)?.catch(() => {})))
         await this.activity.configurationChanges.get(botId)?.catch(() => {})
       }
     })().then(() => { this.moveFailures.delete(botId) }, error => {

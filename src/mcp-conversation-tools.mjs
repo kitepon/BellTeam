@@ -163,12 +163,14 @@ export async function callConversationTool({ name, args, from, registry, messeng
   if (name === 'invite_to_room') {
     const botId = args.botId ?? from
     requireBot(registry, botId)
+    if (typeof rooms.invite === 'function') return { room: await rooms.invite(args.roomId, botId) }
     const room = requireRoom(rooms, args.roomId)
     return { room: await rooms.update(args.roomId, { memberIds: [...new Set([...room.memberIds, botId])] }) }
   }
   if (name === 'leave_room') {
     const botId = args.botId ?? from
     requireBot(registry, botId)
+    if (typeof rooms.leave === 'function') return { room: await rooms.leave(args.roomId, botId) }
     const room = requireRoom(rooms, args.roomId)
     return { room: await rooms.update(args.roomId, {
       memberIds: room.memberIds.filter(id => id !== botId),

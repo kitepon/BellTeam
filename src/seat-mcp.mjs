@@ -70,8 +70,9 @@ export async function resolveInternalSeat(request, bots, forkSeat) {
 
 // A runtime claim captured at HTTP ingress, never a verified execution or a model argument.
 // sourceSession is the real Aiterm session name (an account seat keeps its suffix), not the Bot id.
-export function seatExecutionSource(request, bots) {
-  const sourceSession = seatBotId(request, bots) ? request.headers[SEAT_HEADER.toLowerCase()] : null
+export function seatExecutionSource(request, bots, resolvedBotId = null) {
+  const raw = request.headers[SEAT_HEADER.toLowerCase()]
+  const sourceSession = (resolvedBotId || seatBotId(request, bots)) && typeof raw === 'string' && raw ? raw : null
   const value = request.headers[LAUNCH_HEADER.toLowerCase()]
   const launch = sourceSession && typeof value === 'string' && /^[0-9a-f]{32}$/u.test(value)
     ? { session_id: sourceSession, launch_id: value } : null
@@ -231,7 +232,7 @@ export function createSeatMcp({ bots, tools, toolsForSource = () => ({}), runToo
       catch (error) { return reply(response, error.status ?? 502, { error: error.code ?? 'CALL_BRIDGE_UNAVAILABLE' }) }
       return relayCallBridge(request, response, { from, callBridge, relays, assertWorkAllowed: check })
     }
-    const executionSource = fork ? forkExecutionSource(request) : seatExecutionSource(request, bots)
+    const executionSource = fork ? forkExecutionSource(request) : seatExecutionSource(request, bots, from)
     // The session belongs to the seat that opened it: same seat name, Bot and fork.
     const seat = JSON.stringify([request.headers[SEAT_HEADER.toLowerCase()] ?? null, from, fork?.forkId ?? fork?.botId ?? null])
     const sessionId = request.headers['mcp-session-id']

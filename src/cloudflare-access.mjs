@@ -4,6 +4,14 @@ import { createRemoteJWKSet, errors, jwtVerify } from 'jose'
 // 一時的な失敗が多いので、少し待って1回だけやり直す（2026-10-04 21:39 JST の SERVER_HTTP_500）。
 const KEY_FETCH_RETRY_MS = 300
 
+// Token verification errors mean the caller's JWT is invalid/expired (-> 401); JWKS fetch timeouts and upstream 5xx/non-200 errors are transient (-> retry, then 5xx).
+const isTokenRejection = error => error instanceof errors.JWTExpired
+  || error instanceof errors.JWSSignatureVerificationFailed
+  || error instanceof errors.JWTClaimValidationFailed
+  || error instanceof errors.JWTInvalid
+  || error instanceof errors.JWSInvalid
+  || error instanceof errors.JWKSNoMatchingKey
+
 export function cloudflareAccessAuthorizer({ teamDomain, audience, keySet, retryDelayMs = KEY_FETCH_RETRY_MS } = {}) {
   if (!teamDomain || !audience) throw new Error('BELLTEAM_CLOUDFLARE_ACCESS_CONFIG_REQUIRED')
   const issuer = `https://${teamDomain}`
@@ -16,14 +24,13 @@ export function cloudflareAccessAuthorizer({ teamDomain, audience, keySet, retry
       try {
         await jwtVerify(assertion, keys, { issuer, audience })
       } catch (error) {
-        // 署名や期限の誤りはJOSEError。それ以外は鍵を取りに行く通信の失敗。
-        if (error instanceof errors.JOSEError) throw error
+        if (isTokenRejection(error)) throw error
         await new Promise(resolve => setTimeout(resolve, retryDelayMs))
         await jwtVerify(assertion, keys, { issuer, audience })
       }
       return true
     } catch (error) {
-      if (error instanceof errors.JOSEError) return false
+      if (isTokenRejection(error)) return false
       throw error
     }
   }

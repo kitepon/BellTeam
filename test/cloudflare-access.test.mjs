@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { generateKeyPair, SignJWT } from 'jose'
+import { errors, generateKeyPair, SignJWT } from 'jose'
 
 import { cloudflareAccessAuthorizer } from '../src/cloudflare-access.mjs'
 
@@ -68,4 +68,27 @@ test('署名が合わないJWTは、鍵の取得をやり直さずに拒む', as
   })
   assert.equal(await authorize({ headers: { 'cf-access-jwt-assertion': assertion } }), false)
   assert.equal(calls, 1)
+})
+
+test('JWKS取得のタイムアウトや非200応答のJOSEErrorは401にせずリトライし、続けば投げる', async () => {
+  const { publicKey, privateKey } = await generateKeyPair('RS256')
+  const assertion = await new SignJWT({}).setProtectedHeader({ alg: 'RS256' })
+    .setIssuer('https://team.cloudflareaccess.com').setAudience('bellteam-aud').setExpirationTime('1h').sign(privateKey)
+  const req = { headers: { 'cf-access-jwt-assertion': assertion } }
+
+  let calls = 0
+  const recovered = cloudflareAccessAuthorizer({
+    teamDomain: 'team.cloudflareaccess.com', audience: 'bellteam-aud', retryDelayMs: 1,
+    keySet: async () => { if (++calls === 1) throw new errors.JWKSTimeout(); return publicKey },
+  })
+  assert.equal(await recovered(req), true)
+  assert.equal(calls, 2)
+
+  let failedCalls = 0
+  const down = cloudflareAccessAuthorizer({
+    teamDomain: 'team.cloudflareaccess.com', audience: 'bellteam-aud', retryDelayMs: 1,
+    keySet: async () => { failedCalls += 1; throw new errors.JOSEError('Expected 200 OK from the JSON Web Key Set HTTP response') },
+  })
+  await assert.rejects(down(req), error => error instanceof errors.JOSEError)
+  assert.equal(failedCalls, 2)
 })

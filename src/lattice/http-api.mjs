@@ -67,6 +67,7 @@ export function createLatticeApi({ facade, internal, heartbeatMs = 15000 }) {
     if (!events) {
       try { return json(response, 200, await (id === undefined ? facade.charts() : facade.chart(id))) } catch (error) { return failed(response, error) }
     }
+    if (request.destroyed || response.destroyed) return
     // Snapshots pushed while the first one is read are held, then sent if newer than it.
     let held = [], last = null, heartbeat, closed = false
     const push = snapshot => {

@@ -625,7 +625,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     notifications, secretRequests, ownerQuestions, machineStream, bots, rooms,
     roomMessenger, messenger, store, transport, memory,
     ownerProfile, userRules, characterSheets, assets,
-    scheduler, diagnostics, diagnosticsModule, workGraph, workGraphModule, lattice, latticeModule, approvals, approvalsModule, authMediation, authMediationModule, accounts, terminals, terminalKeys, terminalKeyLoader, runningExclusions, seatApprovals, seatEntries, seatCredentials, userToolRelay, remoteSeatListener, bindSeatMcpSeen, credentialRefresh, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller,
+    scheduler, diagnostics, diagnosticsModule, workGraph, workGraphModule, lattice, latticeModule, approvals, approvalsModule, authMediation, authMediationModule, authMediationRelay, accounts, terminals, terminalKeys, terminalKeyLoader, runningExclusions, seatApprovals, seatEntries, seatCredentials, userToolRelay, remoteSeatListener, bindSeatMcpSeen, credentialRefresh, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller,
     // Saved direct input drains after listen (Z-c). Starting before the hold release is safe and needs no bound:
     // executionReady is false while held, and the release's hold.watch → requestDrain drains it.
     lifecycle: { ...execution?.lifecycle,
