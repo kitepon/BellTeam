@@ -438,6 +438,7 @@ public partial class App : Application
                     await Until(() => latticeScene switch { "not-found" => chart.Feed.Connection == LatticeConnection.NotFound, "reconnecting" => chart.Feed.Connection == LatticeConnection.Reconnecting, _ => chart.Feed.Snapshot is not null }, AppStrings.App_xaml_OnStartup_50);
                     latticeRoot.Measure(new Size(latticeWidth, latticeHeight)); latticeRoot.Arrange(new Rect(0, 0, latticeWidth, latticeHeight)); latticeRoot.UpdateLayout();
                     if (latticeScene is "detail" or "tree-detail") chart.OpenDetail("p1/t04", morph: false);
+                    if (latticeScene == "waiters") chart.OpenDetail("p1/t08", morph: false);   // 次の工程 with the waiters of other charts (Tronie 2026-11-28)
                     if (latticeScene == "owner") { chart.OpenDetail("p1/t11", morph: false); await Until(() => chart.Decisions.GetValueOrDefault("p1/t11") is not null, AppStrings.App_xaml_OnStartup_53); }
                     if (latticeScene == "connections-end") chart.ScrollWaitsToEnd();
                     // 工程表の設定: the sheet over the chart once its first read has an answer; -on and -save-fails change the switch once (the server answers 503 after keeping it).

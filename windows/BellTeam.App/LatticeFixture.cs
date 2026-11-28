@@ -50,7 +50,7 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
     private object[] Cards()
     {
         object Card(string id, string title, string state, string? producer, int depth, string done = "", string memo = "", double? started = null, string? reason = null, string? authored = null, double? finished = null, bool archived = false)
-            => new { id = $"p1/{id}", plan = "p1", taskId = id, title, state, phase = Phases.FirstOrDefault(phase => phase.Tasks.Contains(id)).Id is { } ph ? $"p1/{ph}" : null, parent = id == "t05" ? "p1/t04" : null, lane = scene == "authored" && authored is not null ? authored : producer, producer = scene == "authored" && authored is not null ? null : producer, depth, doneCondition = done, designMemo = memo, startedAt = started is { } at ? Ago(at) : null, changedAt = Ago(60), blockedReason = reason, doneAt = finished is { } doneAgo ? Ago(doneAgo) : null, archived, counted = id != "t03", connections = Joins(id) };
+            => new { id = $"p1/{id}", plan = "p1", taskId = id, title, state, phase = Phases.FirstOrDefault(phase => phase.Tasks.Contains(id)).Id is { } ph ? $"p1/{ph}" : null, parent = id == "t05" ? "p1/t04" : null, lane = scene == "authored" && authored is not null ? authored : producer, producer = scene == "authored" && authored is not null ? null : producer, depth, doneCondition = done, designMemo = memo, startedAt = started is { } at ? Ago(at) : null, changedAt = Ago(60), blockedReason = reason, doneAt = finished is { } doneAgo ? Ago(doneAgo) : null, archived, counted = id != "t03", connections = Joins(id), waiters = Waiters(id) };
         // 接続 (README: card `connections`, only open entries): a task of another chart (ref = its externals[] id), a priority (agent) and a schedule (ref = its id).
         object[] Joins(string id) => id switch
         {
@@ -59,6 +59,10 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
             "t09" => [new { kind = "schedule", state = "open", @ref = "sch-7f3a", reason = "夜間の控えが終わってから", since = Ago(40) }],
             _ => []
         };
+        // waiters (Tronie 2026-11-28): tasks of other charts that wait on this card, drawn under 次の工程 in 詳細 only (one read, one Lattice could not read).
+        object[] Waiters(string id) => id == "t08"
+            ? [new { @ref = "call-bridge:cb/release", reason = "橋の新しい版は、この部品が済んでから出す", since = Ago(30) }, new { @ref = "guide:g/intro", reason = (string?)null, since = Ago(10) }]
+            : [];
         return [
             Card("t01", "決定済み仕様の確認", "done", "bot-flora", 0, "仕様の要点を一覧にする", finished: 95),
             Card("t02", "Latticeの読取口の確認", "done", "bot-flora", 0, "読取の2つの入口を確かめる", finished: 60 * 27, archived: true),
