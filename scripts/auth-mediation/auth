@@ -84,6 +84,70 @@ def http_main(argv):
     return 22 if resp["status"] >= 400 else 0
 
 
+def run_main(argv):
+    """auth run NAME: the module runs the item's fixed command with its secrets; stdin goes in, stdout and stderr come back as they are, the exit code is the command's.
+    Exit: the command's code (124/125 = stopped by the module), 1 refused, 2 error."""
+    import struct, threading
+    if len(argv) != 1 or argv[0].startswith("-"):
+        sys.exit("usage: auth run NAME < input > output")
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    s.connect(SOCK)
+    s.sendall((json.dumps({"op": "run", "name": argv[0], "cwd": os.getcwd()}) + "\n").encode())
+    line = b""
+    while not line.endswith(b"\n"):  # one byte at a time: nothing after the answer line may be read here
+        c = s.recv(1)
+        if not c:
+            sys.exit("The authentication module is not running.")
+        line += c
+    resp = json.loads(line)
+    if resp.get("outcome") != "granted":
+        print(resp.get("error", "Refused."), file=sys.stderr)
+        return 2 if resp.get("outcome") == "error" else 1
+
+    def feed():
+        try:
+            while True:
+                chunk = sys.stdin.buffer.read1(65536)
+                if not chunk:
+                    break
+                s.sendall(chunk)
+        except OSError:
+            pass
+        try:
+            s.shutdown(socket.SHUT_WR)  # end of input; the output still comes back
+        except OSError:
+            pass
+
+    threading.Thread(target=feed, daemon=True).start()
+
+    def take(n):
+        data = b""
+        while len(data) < n:
+            chunk = s.recv(n - len(data))
+            if not chunk:
+                return None
+            data += chunk
+        return data
+
+    while True:
+        head = take(5)
+        if head is None:
+            print("The run ended without an exit code.", file=sys.stderr)
+            return 2
+        tag, size = head[0], struct.unpack(">I", head[1:])[0]
+        data = take(size) if size else b""
+        if data is None:
+            return 2
+        if tag == 1:
+            sys.stdout.buffer.write(data)
+            sys.stdout.buffer.flush()
+        elif tag == 2:
+            sys.stderr.buffer.write(data)
+            sys.stderr.buffer.flush()
+        elif tag == 3:
+            return int(data or b"2")
+
+
 def sign_main(argv):
     """auth sign NAME [--digest] [--data-file FILE|-]: the module signs the bytes (stdin by default) with the key of item "signkey NAME" and answers with the signature only;
     it is printed as base64 on stdout. The key never leaves the module. Exit: 0 signed, 1 refused, 2 error."""
@@ -343,6 +407,8 @@ def main():
         return ssh_main(sys.argv[2:])
     if len(sys.argv) >= 2 and sys.argv[1] == "sign":
         return sign_main(sys.argv[2:])
+    if len(sys.argv) >= 2 and sys.argv[1] == "run":
+        return run_main(sys.argv[2:])
     if len(sys.argv) >= 2 and sys.argv[1] == "http":
         return http_main(sys.argv[2:])
     if len(sys.argv) < 3 or sys.argv[1] != "exec":

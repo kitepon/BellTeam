@@ -69,3 +69,23 @@ test('a peer that is not the seat uid is unknown-caller on the container socket;
   try { assert.match(JSON.parse(await down.ask('host.sock', line({ op: 'exec', command: ['a'], cwd: '/' }))).error, /not running/u) }
   finally { down.stop() }
 })
+
+test('run: the relay joins the caller to the module child\'s stream socket and the real client pipes bytes in, frames out, with the command\'s exit code', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'relay-')), bodyPath = join(dir, 'body.sock'), seen = []
+  const body = createServer(c => { let buf = ''; c.on('data', d => { buf += d; if (!buf.includes('\n')) return
+    const frame = JSON.parse(buf); seen.push(frame); c.end(JSON.stringify({ outcome: 'granted' }) + '\n')
+    // the module child: joins the stream, uppercases what comes in, answers in frames, then the exit code
+    const s = connect({ path: frame.stream, allowHalfOpen: true }); const out = (tag, data) => { const h = Buffer.alloc(5); h[0] = tag; h.writeUInt32BE(data.length, 1); s.write(Buffer.concat([h, data])) }
+    s.on('data', d => out(1, Buffer.from(d.toString().toUpperCase()))); s.on('end', () => { out(2, Buffer.from('warn')); out(3, Buffer.from('7')); s.end() }) }) })
+  await new Promise(r => body.listen(bodyPath, r))
+  const relay = spawn(RELAY, [], { env: { ...process.env, AUTH_RELAY_DIR: join(dir, 'share'), AUTH_RELAY_BODY: bodyPath, AUTH_RELAY_SEAT_UID: String(process.getuid()) } })
+  try {
+    await new Promise(resolve => relay.stdout.once('data', resolve))
+    const AUTHC = new URL('../scripts/auth-mediation/auth', import.meta.url).pathname
+    const result = await new Promise(resolve => { const c = spawn('python3', ['-I', AUTHC, 'run', 'upper'], { env: { ...process.env, AUTH_SOCK: join(dir, 'share', 'container.sock') } }); let out = '', err = ''
+      c.stdout.on('data', d => { out += d }); c.stderr.on('data', d => { err += d }); c.on('close', code => resolve({ code, out, err })); c.stdin.end('hello stream') })
+    assert.deepEqual(result, { code: 7, out: 'HELLO STREAM', err: 'warn' })
+    assert.equal(seen[0].request.op, 'run'); assert.match(seen[0].stream, /\/share\/runs\/[0-9a-f-]{36}\.sock$/u); assert.equal(seen[0].via, 'container-socket')
+    assert.equal((await stat(join(dir, 'share', 'runs'))).mode & 0o777, 0o711)
+  } finally { relay.kill('SIGTERM'); body.close() }
+})

@@ -25,6 +25,8 @@ export function createAuthMediationFacade({ controller, bots }) {
     mail: params => call('mail', clean(params)).catch(error => error?.code === 'AUTH_MEDIATION_INVALID' ? { outcome: 'error', error: 'request invalid' } : { outcome: 'error', error: NOT_RUNNING }),
     // Gmail: fixed Gmail API calls with the item's OAuth secrets; Google's status and body come back unchanged.
     gmail: params => call('gmail', clean(params)).catch(error => error?.code === 'AUTH_MEDIATION_INVALID' ? { outcome: 'error', error: 'request invalid' } : { outcome: 'error', error: NOT_RUNNING }),
+    // Run: the item's fixed command runs inside the module; its bytes travel on the stream socket the relay named (never through this channel).
+    run: params => call('run', clean(params)).catch(error => error?.code === 'AUTH_MEDIATION_INVALID' ? { outcome: 'error', error: 'request invalid' } : { outcome: 'error', error: NOT_RUNNING }),
     // Http: the module makes the request with the credential added and returns the response only.
     http: params => call('http', clean(params)).catch(error => error?.code === 'AUTH_MEDIATION_INVALID' ? { outcome: 'error', error: 'request invalid' } : { outcome: 'error', error: NOT_RUNNING }),
     status: () => call('status', {}).catch(() => ({ state: 'unavailable' })),
