@@ -4,6 +4,7 @@ import CryptoKit
 import Foundation
 import LoginBilling
 import Observation
+import UIKit
 
 /// What a write came to: the screen shows a sentence for each (draft and choice stay on anything but `.accepted`).
 enum ApprovalWriteOutcome: Equatable {
@@ -30,6 +31,8 @@ final class ApprovalBoxLink: ObservableObject, ChildJoinSource {
         /// Not joined: the window shows the child-join screen (joinState says which state of it).
         case join
         case joining, live, reconnecting, notEntitled, updateRequired
+        /// The peer path: this device is not in the Owner's registry yet; the parent app adds it by device carry (no code, no QR), so the window only waits.
+        case adding
     }
 
     static let origin = URL(string: "https://approval-box.kitepon.dev")!
@@ -54,11 +57,22 @@ final class ApprovalBoxLink: ObservableObject, ChildJoinSource {
         // hostAppId: Approval Box's open button on the return link comes back to this app (login-billing 1.62).
         if let made = try? ChildJoin.make(baseURL: origin, identifiers: identifiers, anchor: anchor, hostAppId: bundleId) {
             join = made.join
-            client = ApprovalBoxClient(baseURL: origin, signer: made.signer, join: made.join)
+            client = ApprovalBoxClient(baseURL: origin, signer: made.signer, join: made.join, peer: Self.peerConfiguration)
         } else {
             join = nil; client = nil
             joinState = .failed(code: "not_configured")
         }
+    }
+
+    /// Without this the component stays on /v1 whatever the server selects (diagnostic peer_unavailable). The history lives under Application Support; the keys under this app's own Keychain service.
+    private static var peerConfiguration: PeerConfiguration {
+        #if targetEnvironment(macCatalyst)
+        let platform = "macos"
+        #else
+        let platform = UIDevice.current.userInterfaceIdiom == .pad ? "ipados" : "ios"
+        #endif
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appending(path: "ApprovalBoxPeer", directoryHint: .isDirectory)
+        return PeerConfiguration(historyDirectory: base, deviceLabel: "BellTeam (\(UIDevice.current.model))", platform: platform, keyService: "dev.kitepon.bellbot.approvalbox.peer")
     }
 
     // MARK: ChildJoinSource (the port: join / cancelJoin / leave)
@@ -92,6 +106,7 @@ final class ApprovalBoxLink: ObservableObject, ChildJoinSource {
     /// 「アカウントを削除」の2段目: what this device held of the decisions.
     func deleteLocalData() async {
         publishing?.cancel(); latest = nil; decisions = []; blobs = [:]; published = false
+        try? FileManager.default.removeItem(at: Self.peerConfiguration.historyDirectory) // the peer path keeps decisions here
     }
 
     // MARK: Answers
@@ -139,6 +154,7 @@ final class ApprovalBoxLink: ObservableObject, ChildJoinSource {
         case .reconnecting: state = .reconnecting
         case .notEntitled: state = .notEntitled
         case .updateRequired: state = .updateRequired
+        case .needsApproval, .waiting: state = .adding
         default: state = .joining
         }
     }
@@ -195,4 +211,5 @@ enum ApprovalBoxWords {
     static let notEntitled = "Approval Boxの契約が必要です。契約はApproval Boxのアプリで行います。"
     static let checkAgain = "確かめ直す"
     static let updateRequired = "この版では、決裁箱をまだ使えません。アプリを更新してください。"
+    static let adding = "決裁箱への追加を待っています。決裁箱のアプリが開いていると、自動で追加されます。"
 }
