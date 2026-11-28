@@ -54,7 +54,9 @@ final class NetworkRecoveryTests: XCTestCase {
         await store.bootstrap()
         if case .signIn = store.phase {} else { XCTFail("起動時の期限切れからログイン画面へ進む") }
         XCTAssertTrue(store.openLoginAutomatically)
-        XCTAssertEqual(scenario.count("/api/session"), 1)
+        // bootstrap probes /api/home/session first; its Access redirect already ends the start-up
+        XCTAssertEqual(scenario.count("/api/home/session"), 1)
+        XCTAssertEqual(scenario.count("/api/session"), 0)
     }
 
     func testAccessRedirectDuringEventsOpensWebLoginAutomatically() async {

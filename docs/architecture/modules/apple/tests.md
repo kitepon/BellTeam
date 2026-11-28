@@ -1192,3 +1192,7 @@ TerminalsUITestsの`call(_:)`は`fixtureCall`へ委譲し、`launch(_:)`は`fixt
 設定ホームの一行と札（`SettingsSummary`の純関数：AIの最も悪い段階と行き先、通知の4状態、端末の台数と鍵、1Password、要約のAI、全体停止、規範、更新）と、`UserRulesDocument.parse`（SECTION/RULE/節・続きの行・FORMATの説明・形式でない箇条書き）。
 
 - `BellBotTests/ApprovalsTests.swift`：決裁箱の契約の見本（`test/fixtures/approvals`）の読み取り・出どころ（BellTeam／外部／出どころ不明は外部として描く）・確認の文・届いたかの文・エラー本文の読み分け（403 not_entitled・409 not_connected・409 conflict・503）・並び。画面は`BellBotUITests/ApprovalsUITests.swift`と`test/helpers/approvals-ui-server.mjs`（`BELLTEAM_APPROVALS_FIXTURE_URL`）で状態ごとに写真に撮る。
+
+## 単体試験の実行（1回の呼び出し）
+
+`scripts/apple-unit-tests.sh [xcodebuild引数]`：iOSシミュレータでBellBotTestsを実行する。席のentitlement（App Group・Keychain）が要る試験があるため、署名なし（`CODE_SIGNING_ALLOWED=NO`）ではなくad-hoc署名（`CODE_SIGN_IDENTITY=-`）で走らせる。`BELLTEAM_AUTH_TYPED_URL`が要るAuthSetupOrderingTestsのため、[auth-ui-server.mjs](../../../../test/helpers/auth-ui-server.mjs)を起動して`TEST_RUNNER_BELLTEAM_AUTH_TYPED_URL`に渡し、終了時に止める。以前の失敗7件の原因は、署名なしでentitlementが無い（AccountDeletion・アバター保存の2件）、fixture未起動（AuthSetupOrdering 4件）、bootstrapの先頭要求が`/api/home/session`になった後も`/api/session`を数えていた試験（NetworkRecovery 1件）。
