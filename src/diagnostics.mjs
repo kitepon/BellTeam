@@ -50,7 +50,7 @@ const reports = {
   SECRET_CREDENTIAL_REFRESH_FAILED: ['warn', '秘密情報の認証更新に失敗した'],
   UPDATE_CATALOG_CHECK_FAILED: ['warn', '更新カタログの確認に失敗した'],
   OLRW_MANAGEMENT_UNAVAILABLE: ['warn', 'OLRW管理機能が利用できなかった'],
-  TERMINAL_KEY_HOLDER_EXITED: ['high', '端末鍵保持プロセスが予期せず終了した'],
+  TERMINAL_KEY_HOLDER_EXITED: ['warn', '端末鍵保持プロセスが予期せず終了した（自動で再起動する）'],
   TERMINAL_KEY_HOLDER_FAILED: ['high', '端末鍵保持プロセスが失敗した'],
   IOS_PUSH_FAILED: ['warn', '端末の通知登録に失敗した', true],
 }
