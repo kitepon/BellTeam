@@ -57,10 +57,8 @@ export function createApprovalBoxExtensionEffects({ lattice, bots, credentials =
         if (typeof credentials?.erase !== 'function') throw unavailable()
         await credentials.erase(scope)
         return { ok: true }
-      // F9 (README section 5b): the Owner-lane filer files, reads and cancels only its own requests, through P1 (decision-port.md, origin lattice). P1 UNAVAILABLE reaches the child as a failed effect;
-      // REFUSED (a 4xx on one request) as APPROVALS_EFFECT_REFUSED so the child skips that card; GONE (Approval Box no longer knows the id) as the result status 'gone'.
-      case 'decisions.file': return viaP1(port => port.file({ title: params.title, context: params.context, options: params.options, requester: params.requester, session_label: params.sessionLabel, origin: 'lattice' }))
-      case 'decisions.read': return viaP1(port => port.read(params.decisionId), () => ({ status: 'gone' }))
+      // F9 withdrawal (README section 5b): the module cancels only the machine-written requests it once filed, through P1 (decision-port.md, origin lattice).
+      // REFUSED (already answered) reaches the child as APPROVALS_EFFECT_REFUSED; GONE (Approval Box no longer knows the id) as the result status 'gone'; P1 unavailable as a failed effect.
       case 'decisions.cancel': return viaP1(port => port.cancel(params.decisionId, params.reason), () => ({ status: 'gone' }))
       default: throw fail('APPROVAL_BOX_EXTENSION_EFFECT_INVALID', 400)
     }
