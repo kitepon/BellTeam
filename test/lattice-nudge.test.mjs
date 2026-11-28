@@ -39,13 +39,31 @@ test('nudge: in-progress and startable cards, ONE prompt per lane Bot that is no
   assert.deepEqual(x.sent.map(item => [item.from, item.target]), [['scheduler', 'bot-a'], ['scheduler', 'bot-c']], 'a working Bot is not prompted')
   const text = x.sent[0].message
   assert.ok(text.startsWith('Lattice: you are not running') && text.includes('Start at least one now.'))
-  assert.ok(text.includes('lattice todo predecessor add') && text.includes('--before <T>') && text.includes('lattice todo retract') && text.includes('lattice todo connect condition add') && text.includes('lattice todo block'))
-  assert.ok(text.indexOf('lattice todo block') > text.indexOf('lattice todo add') && text.includes('no AI can operate at all') && text.includes('as the last resort') && text.includes('--lane <member Bot id> --before <T>'), 'a stop is the last resort, only for what no AI can operate (Owner, task a58)')
+  assert.ok(text.includes('common rules SECTION waiting') && !text.includes('lattice todo predecessor add'), 'the head points to the common rules instead of repeating the CLI how-to (Tronie 2026-11-28)')
+  assert.ok(text.split('\nChart ')[0].trimEnd().split('\n').length === 2, 'the head is two lines')
   assert.ok(!text.includes('such as apple') && !text.includes('done yourself'))
   assert.ok(text.endsWith('\nChart alpha (lattice tool, project alpha):\n- p1/t1 「T1」: can start -> `lattice todo start --plan p1 --task t1`\n- p1/t2 「T2」: in progress'
     + '\nChart beta (lattice tool, project beta):\n- p1/t1 「T1」: can start -> `lattice todo start --plan p1 --task t1`'))
   assert.ok(!text.includes('t5') && !text.includes('t6') && !text.includes('t7') && !text.includes('t8'), 'stopped, waiting on prerequisites and finished cards are not prompted')
   assert.deepEqual(out, { charts: 3, prompted: 2, skipped: 1, failed: 0 })
+})
+
+test('nudge back-off: unchanged cards are re-prompted at 1, then 5, then 15 min; any change resets to 1 min (Tronie 2026-11-28)', async () => {
+  const sent = []; let t = 0
+  const effect = async (method, params) => method === 'turns.read' ? { turns: { 'bot-a': 'idle' } } : method === 'claude.load' ? {} : (sent.push(t), { delivery: 'running' })
+  const again = new Map(), cards = [card('t1', 'ready', 'bot-a')]
+  const tick = async min => { t = min * 60_000; await nudgeSweep([{ projectId: 'alpha', cards }], { laneOf: laneResolver(members), log() {}, effect, again, clock: () => t }) }
+  for (const min of [0, 1, 2, 6, 7, 11, 12, 20, 21, 36, 37, 50, 51]) await tick(min)
+  assert.deepEqual(sent.map(ms => ms / 60_000), [0, 1, 6, 21, 36, 51], 'gaps 1, 5, 15, 15, 15')
+  cards.push(card('t2', 'ready', 'bot-a'))
+  await tick(52)
+  assert.equal(sent.at(-1) / 60_000, 52, 'a card added resets: prompted at once')
+  await tick(53)
+  assert.equal(sent.at(-1) / 60_000, 53, 'and the gap is 1 min again')
+  cards.length = 0
+  await tick(54); cards.push(card('t1', 'ready', 'bot-a'), card('t2', 'ready', 'bot-a'))
+  await tick(55)
+  assert.equal(sent.at(-1) / 60_000, 55, 'a tick with no entry forgets the Bot')
 })
 
 // Owner 2026-11-28 rate-limit order: a Claude seat is started only while fewer than cap Claude seats work; fairest first; others and a failed read are not capped.
