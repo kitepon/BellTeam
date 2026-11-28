@@ -293,6 +293,8 @@ def serve_agent(recv, send, names, cwd):
         nonlocal tried
         tried = name
         resp = ask({"op": op, "name": name, "cwd": cwd, **extra})
+        if resp.get("outcome") != "granted":  # the module's or relay's own words (fixed texts, no data), so the log says denied / busy / not running
+            tried = f"{name} [{resp.get('outcome')}: {resp.get('error', '-')}]"
         return base64.b64decode(resp["data"]) if resp.get("outcome") == "granted" else None
 
     def read_exact(n):
