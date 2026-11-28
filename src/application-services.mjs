@@ -38,7 +38,7 @@ import { AiControl, stopRegisteredWork } from './ai-control.mjs'
 import { prepareModuleRelease } from './module-release.mjs'
 import { createDiagnosticsFacade } from './diagnostics-facade.mjs'
 import { createWorkGraphFacade, createWorkGraphEffects } from './work-graph-facade.mjs'
-import { createLatticeFacade, createLatticeEffects } from './lattice-facade.mjs'
+import { createLatticeFacade, createLatticeEffects, lateAnswerText } from './lattice-facade.mjs'
 import { createLatticeReminders } from './lattice/reminders.mjs'
 import { createLatticeDecisions } from './lattice-decisions.mjs'
 import { createApprovalBoxClientPort } from './approval-box-client.mjs'
@@ -537,13 +537,16 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   if (latticeFactory) {
     // Optional module like work-graph: the routes and the seat tool answer LATTICE_UNAVAILABLE until the child is available.
     // Each new child generation (start, restart, exchange) re-delivers unacked startable notices; the call waits until the child is ready.
-    latticeModule = latticeFactory({ root, exchangeMutex, prepareRelease: prepareLattice, onEffect: createLatticeEffects({ bots, messenger, transport,
+    const latticeEffects = createLatticeEffects({ bots, messenger, transport,
       decisions: createLatticeDecisions({ port: () => approvals?.decisions }),
-      runAs: (actor, send) => conversationAssembly ? conversationAssembly.run(actor, send) : send() }),
+      runAs: (actor, send) => conversationAssembly ? conversationAssembly.run(actor, send) : send() })
+    latticeModule = latticeFactory({ root, exchangeMutex, prepareRelease: prepareLattice, onEffect: latticeEffects,
       onGeneration: () => { void lattice?.deliver() },
       onModuleChildExit: moduleChildExitReporter.observe, onModuleRestartLimit: moduleChildExitReporter.observeRestartLimit, onState: () => updateCenter?.notify() })
     const reminders = createLatticeReminders(join(root, 'state/lattice-reminders.json'))
-    lattice = createLatticeFacade({ controller: latticeModule, reminders })
+    // Late answer (lattice-child.md): the real outcome of a write that was answered PENDING goes to its seat, through the notice send path.
+    lattice = createLatticeFacade({ controller: latticeModule, reminders,
+      onLate: late => latticeEffects('messages.send', { from: 'scheduler', target: late.from, message: lateAnswerText(late) }) })
     void latticeModule.start().catch(() => {})
   }
   // R5: Approval Box extension child (runtime/approval-box-extension-child.md). Optional like lattice; its routes answer APPROVALS_UNAVAILABLE until the child serves.

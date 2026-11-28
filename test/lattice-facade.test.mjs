@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createLatticeFacade, createLatticeEffects, MAX_WRITES, NUDGE_MS, QUEUE_WAIT_MS, SEAT_ANSWER_MS } from '../src/lattice-facade.mjs'
+import { createLatticeFacade, createLatticeEffects, lateAnswerText, MAX_WRITES, NUDGE_MS, QUEUE_WAIT_MS, SEAT_ANSWER_MS } from '../src/lattice-facade.mjs'
 
 const tick = () => new Promise(resolve => setImmediate(resolve))
 const snap = (projectId, version) => ({ schema: 'bellteam.lattice-chart.v1', projectId, epoch: 'e', version })
@@ -142,18 +142,18 @@ test('a write queued past the wait bound is never sent; the next write is sent a
 })
 
 // a162: the seat gets a definite answer before Claude Code aborts the MCP call at 60 s; the write slot follows the child, not the caller.
-function slowChild(now = Date.now) {
+function slowChild(now = Date.now, onLate = null) {
   const sent = [], finish = [], timers = []
   const controller = { request: (method, params) => {
     sent.push(params.args?.[1] ?? method)
     let end
     const completion = new Promise(resolve => { end = resolve })
-    const result = completion.then(() => ({ method, params }))
+    const result = completion.then(value => value ?? ({ method, params }))
     Object.defineProperty(result, 'completion', { value: completion })
     finish.push(end)
     return result
   } }
-  const facade = createLatticeFacade({ controller, now, setTimer: (run, ms) => { const timer = { run, ms }; timers.push(timer); return timer }, clearTimer: timer => { if (timer) timer.cleared = true } })
+  const facade = createLatticeFacade({ controller, now, onLate, setTimer: (run, ms) => { const timer = { run, ms }; timers.push(timer); return timer }, clearTimer: timer => { if (timer) timer.cleared = true } })
   const bounds = () => timers.filter(timer => timer.ms === SEAT_ANSWER_MS)
   return { facade, sent, finish, bounds }
 }
@@ -192,6 +192,27 @@ test('a queued seat write unanswered at the answer bound resolves PENDING, stays
   await tick(); await tick()
   assert.deepEqual(f.sent, ['note', 'start', 'done'])
   f.finish[2]()
+})
+
+test('late answer: a write answered PENDING gives its real outcome to onLate once, refusal included; a write answered in time gives none', async () => {
+  const late = []
+  const f = slowChild(Date.now, outcome => { late.push(outcome); throw new Error('a failing send is swallowed') })
+  const first = writeRun(f, 'note'), second = writeRun(f, 'start'), third = writeRun(f, 'done')
+  await tick()
+  f.finish[0]({ exitCode: 0, result: {} })
+  assert.equal((await first).exitCode, 0)
+  assert.deepEqual(late, [], 'answered in time: nothing late')
+  await tick(); await tick()
+  f.bounds()[1].run(); f.bounds()[2].run()
+  await Promise.all([second, third])
+  f.finish[1]({ exitCode: 1, result: { code: 'TODO_TRANSITION_REFUSED', message: 'enforced_witness_undeclared', next_action: 'declare it' } })
+  await tick(); await tick()
+  f.finish[2]({ exitCode: 0, result: {} })
+  await tick(); await tick()
+  assert.deepEqual(late.map(item => [item.from, item.projectId, item.args[1], item.value.exitCode]), [['bot-a', 'alpha', 'start', 1], ['bot-a', 'alpha', 'done', 0]])
+  assert.match(lateAnswerText(late[0]), /refused: TODO_TRANSITION_REFUSED enforced_witness_undeclared declare it/)
+  assert.match(lateAnswerText(late[1]), /-> landed\./)
+  assert.match(lateAnswerText({ projectId: 'alpha', args: ['todo', 'start'], error: { code: 'LATTICE_UNAVAILABLE' } }), /may not have landed/)
 })
 
 test('f30: the chart list carries the saved 催促 switch per chart; an unreadable setting or no store leaves the rows as the child sent them', async () => {
