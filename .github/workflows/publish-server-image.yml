@@ -41,6 +41,8 @@ on:
       - scripts/approval-box-extension-start.c
       - scripts/auth-mediation-start.c
       - scripts/auth-mediation/relay.py
+      - scripts/auth-mediation/grant
+      - scripts/terminal-key-load
       - scripts/server-start.c
       - scripts/install-sce-headers.py
       - scripts/import-call-bridge.mjs
