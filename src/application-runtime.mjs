@@ -180,6 +180,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
       idleSessions?.start()
       services.runningExclusions?.start()
       services.seatApprovals?.start()
+      services.seatEntries?.start()
       started = true
     } catch (error) {
       if (error?.code === 'STARTUP_INTERRUPTED') throw error // stop() closes after its shutdown contact
@@ -207,7 +208,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
         () => services.updateCenter.close(),
         () => webGatewayControl.close(),
         () => gateway?.close(),
-        () => scheduler.stop(), () => services.runningExclusions?.stop(), () => services.seatApprovals?.stop(), () => idleSessions?.stop(), () => selfTurns.stop(), () => seatTurns?.stop(),
+        () => scheduler.stop(), () => services.runningExclusions?.stop(), () => services.seatApprovals?.stop(), () => services.seatEntries?.close(), () => idleSessions?.stop(), () => selfTurns.stop(), () => seatTurns?.stop(),
         () => closeServer(server), () => closeServer(internalServer), () => closeServer(remoteSeatServer), () => features.close(),
         // Before the providers they call (usage, diagnostics, native client) close.
         () => services.credentialRefresh?.stop(), () => services.terminals?.close?.(),
