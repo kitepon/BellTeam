@@ -25,7 +25,7 @@ BellTeam は、同一コンテナ内（および接続したリモート端末�
 
 ## 通話ブリッジの接続
 
-通話を設定すると、BellTeam は Claude・Codex・Grok・Cursor の全 Bot へ `call-bridge` MCP を登録します。各 CLI は BellTeam 本体の内部入口（コンテナ内の loopback）へ HTTP で接続し、本体がメインサーバーの HTTP MCP へ中継します。Bearer 認証値と接続先は CLI 設定に書かず、本体が `/srv/bellteam/shared/tools/call-bridge/headers`（権限 600）から読んで付けます。接続先と合言葉は設定画面または案内役との会話で登録し、未設定時は無効になります。
+通話を設定すると、BellTeam は Claude・Codex・Grok・Cursor の全 Bot へ `call-bridge` MCP を登録します。各 CLI は BellTeam 本体の内部入口（コンテナ内の loopback）へ HTTP で接続し、本体がメインサーバーの HTTP MCP へ中継します。Bearer 認証値は CLI 設定にも BellTeam の設定にも置かず、本体が認証仲介の呼び出し元ソケット（項目 `http call-bridge-mcp-bellteam`）へ要求を渡し、認証仲介が付けます。接続先 URL は設定画面または案内役との会話で登録し、未設定時は無効になります。
 
 着信口は `BELLTEAM_CALL_BRIDGE_SOCKET` の UNIX ソケット（既定 `/srv/bellteam/shared/tools/call-bridge/bellteam.sock`）で、BellTeam が作成し、ブリッジ側は親ディレクトリを `/run/bellteam` へマウントして `CALL_BRIDGE_BELLTEAM_UNIX=/run/bellteam/bellteam.sock` で接続します。通話の公開操作は `grokbot-bridge` MCP に置き、BellTeam MCP へ通話ツールを追加しません。外部の通話相手は通話ブリッジ経由の送信者として表示し、ユーザーや BellTeam Bot の ID に置き換えません。
 

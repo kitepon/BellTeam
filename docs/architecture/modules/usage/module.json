@@ -54,10 +54,6 @@
       "port": "MCP tools (stdio)"
     },
     {
-      "module": "bridge",
-      "port": "connection export (call-bridge.connection.v1)"
-    },
-    {
       "module": "auth-mediation",
       "port": "sign (a signature or MAC made inside the module; the key never leaves)"
     }
@@ -79,7 +75,6 @@
     "src/cloudflare-access.mjs",
     "src/usage/http-api.mjs",
     "src/usage/application-features.mjs",
-    "src/usage/call-bridge-import.mjs",
     "src/usage/background-agent-settings.mjs",
     "src/usage/conversation-effects.mjs",
     "src/usage/mcp-tools.mjs",

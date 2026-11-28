@@ -118,9 +118,6 @@ CLIのログインは、この認証カード（各CLIが公開するログイ�
 ```mermaid
 flowchart TD
   Input["Owner設定 / Bot update_settings"] --> Validate
-  Export["橋の公開export（bd09）<br/>ホストで kite が export_connection.py --json"] --> Entry["本体の取込み口（bd10）<br/>docker exec -i bellteam node /app/scripts/import-call-bridge.mjs<br/>stdinは64 KiBまで、表示しない"]
-  Entry --> Import["callBridgeSettingsInput<br/>閉schemaを検証"]
-  Import -->|"loopback PATCH /api/settings/callBridge<br/>本体UIDのdocker exec = local = Owner"| Validate
   Validate["項目・型・値・入力元を検証"]
   Secret["提出済みbellteam-settings依頼"] --> Read["依頼Bot・提出状態を確認<br/>秘密入力の解決窓口から値を受け取る"]
   Read --> Validate
@@ -157,7 +154,6 @@ Ships apart (module-ipc.md "Records between halves that ship apart"): the body s
 | 設定正本 | `FeatureSettings.save` → `shared/tools/bellteam-settings/settings.json` | save後のonChange失敗でも設定は残る。`errors`はメモリ、公開値に適用失敗を付ける |
 | 必須項目（2026-11-11 Trony依頼・Admi合意） | `FeatureSettings.list` → `fields[].required` | 有効化に要る項目は`required:true`。`configured`の判定と同じ規則で、cloudflare.publicUrlだけfalse（旧APNs設定がある間のnotifications.relayUrlは2026-11-27に外した）。足りない項目は`required && !configured`。保存値・status・PATCHは変えない。旧本体の応答にkeyが無ければ画面は「不明」とし、何も主張しない |
 | 必須項目の親検証 | 親`usage/projection.mjs:usageSettingValid` | 親の閉検証は`required`を任意booleanとして受ける（旧子のkey無しも通す）。`settings`の行は閉じた一覧のままなので（`runtime/module-ipc.md`「Records between halves that ship apart」の残す拒否）、旧親は新子の行を拒否する。親の変更を含む本体releaseを新usage moduleより先に入れる |
-| 橋の接続の取込み（bd11、2026-11-14 Molly合意） | 本体の取込み口（bd10、Molly：`scripts/import-call-bridge.mjs`。stdinを64 KiBまで読み、値を表示せず、loopbackの`PATCH /api/settings/callBridge`で動いている本体へ渡す。Hostが127.0.0.1でコンテナ内の相手なので`authMode`はlocal、Owner扱い）→ `usage/call-bridge-import.mjs:callBridgeSettingsInput(stdinの書き出し)` → 動いている`FeatureSettings.update('callBridge', {enabled:true, values:{url}})` | 橋の`call-bridge.connection.v1`の`{schema,url,token}`の形を検証するが、`token`は読み捨てて何も保存しない（2026-11-28：BellTeamに合言葉を置かない。合言葉は認証仲介の項目`http call-bridge-mcp-bellteam`の中だけ）。形が違えば`CALL_BRIDGE_IMPORT_INVALID`で何も保存しない。socket/CLI登録は既onChange。席のMCP入口（本体の`relayCallBridge`、`src/seat-mcp.mjs`）は、要求を認証仲介の本体専用の呼び出し元ソケット（`callers/bellteam-body`、`http-stream`、項目`http call-bridge-mcp-bellteam`）へ渡し、合言葉は認証仲介が足す。`state/call-bridge/headers`は無い（残っていれば起動時に消す）。別processのFeatureSettingsで設定ファイルを書かない（動いている本体の値に上書きされる） |
 | 初期取込み | `initialize` | 保存済みJSON優先。無い時だけ環境から作る（旧APNs設定は読まない、2026-11-27）。橋が書いた認証ファイル（旧`shared/tools/call-bridge/headers`）は読まない（bd11）。callBridgeは`url`だけを持つ（旧い保存値の`token`は読み込みで捨てる、2026-11-28） |
 | 起動時適用 | `createApplicationFeatures.initialize` | diagnostics/callBridge/notificationsの各失敗を記録し、他の適用を続ける |
 | Cloudflare | `configureCloudflare/authMode/authorize` | localと公開JWT認証の選択。JWT検証は`cloudflareAccessAuthorizer` |
