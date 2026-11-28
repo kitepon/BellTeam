@@ -173,7 +173,7 @@ flowchart LR
 
 | Port (`provides`) | P1 method | Result / classified failure |
 | --- | --- | --- |
-| mount | `createTerminalsCore({stateRoot, credentials, report, seatProject?, keyReader?})`, exported from `src/bootstrap.mjs` (`keyReader`: [key reader](#key-reader-terminal-keys-via-authmed-strict-2026-11-27), default none) | `{registry, reachability, connection, maintenance, watch, close}`; `credentials` may be null until Mika's facade lands (targets are then `CREDENTIAL_UNAVAILABLE`). An extra `seatCredentials` option from the mount is ignored (no secret passes through terminals any more) |
+| mount | `createTerminalsCore({stateRoot, credentials, report, seatProject?, keyReader?})`, exported from `src/bootstrap.mjs` (`keyReader`: [key reader](#key-reader), default none) | `{registry, reachability, connection, maintenance, watch, close}`; `credentials` may be null until Mika's facade lands (targets are then `CREDENTIAL_UNAVAILABLE`). An extra `seatCredentials` option from the mount is ignored (no secret passes through terminals any more) |
 | `registry` | `list()`, `get(id)` (null if absent), `put(input)`, `remove(id)`; `ingressUrl` removed (Molly #793: seat MCP target is the container origin Aiterm rewrites; a legacy stored value is dropped on read, an input value is rejected) | Nonsecret projection with `lastCheck` (last check or null, in memory; see [last check](#last-check-on-the-list-trony-request-2026-11-11)) and `maintenance` (last `claude-code` C8 outcome or null, in memory; shape unchanged for Web/Apple); errors `{code, status, message}`: `INVALID_TERMINAL` 400, `TERMINAL_NOT_FOUND` 404, `TERMINAL_EXISTS` 409, `HOST_KEY_FINGERPRINT_MISMATCH` 409, `INVALID_TERMINAL_STORE` 500. Messages name the field, its expected form and the next action, and never echo the submitted value |
 | `registry` | `put({..., confirmHostKey: 'SHA256:...'})` | Owner's "confirm the new host key" (only after a changed key): Aiterm's `trust-confirm` scans once and writes only on an equal fingerprint, then the new trust revision is stored. Without it, a record with no trust gets first-use trust (below) |
 | first-use trust (accept-new) | save, SSH key applied, `check` — whenever the record has a binding and no `hostTrust` | Like OpenSSH `StrictHostKeyChecking accept-new` (Owner ruling 2026-11-11): bind the trust Aiterm already holds for the binding (never overwritten); if none, `ssh-keyscan -t ed25519` the target once, pass that fingerprint to `trust-confirm` (Aiterm's own scan must be equal) and store the revision. Scan or confirm failure leaves `hostTrust` missing (next save/check retries). Only a later key change stops (`HOST_KEY_MISMATCH` -> `TARGET_MISMATCH`, the Owner confirms the new key) |
@@ -630,26 +630,29 @@ Aiterm now offers the check/C8/folder operations on `remote`+`ssh` as two one-sh
 
 State: a terminal `binding` --`set_terminal_launch_input maintenance remote`--> `remote` requested --each C8/check/folder call whose conditions hold--> pinned-ssh CLIs; a condition that fails --> that call on the binding (reason in the evidence), the next call tries again; `set ... maintenance terminal` --> back to today. No guard is added: nothing is refused or stopped; every exit is the next call.
 
-## Key reader: a terminal's key loaded by the 認証仲介 loader, never by this parent (terminal-keys-via-authmed STRICT, Owner ruling B + Tronie 2026-11-27)
+## Key reader
 
-Why: Mika's `onepassword` source needs a service account, and BellTeam has none. The key must not reach this parent either, so `withResolved` cannot be replaced by another source that hands the bytes to the caller. Design of the whole route: Kiro's `terminal-keys-via-authmed-20261127.md`; execution's side is `loadTerminalKey` (same branch, Kiro).
+A terminal's SSH key held by the 認証仲介 module's ssh agent; the key never reaches this parent, Aiterm's store or a file (Owner ruling 2026-11-28, replacing the loader of 2026-11-27). Mika's `onepassword` source needs a service account and BellTeam has none. Design of the route: Kiro's `terminal-keys-module-agent-20261128.md`; execution owns the holder and the port.
 
 ```mermaid
 flowchart LR
   Body[body mount: createApplicationServices terminalKeyReader] -->|keyReader option| Core[createTerminalsCore]
-  Core --> Conn[connection.resolveBinding / loadKey]
+  Core --> Conn[connection.resolveBinding / loadKey / assembleRemote]
   Conn -->|available terminalId| Reader[keyReader port, Kiro]
-  Conn -->|load terminalId ref handle revision| Reader
-  Reader -->|exec terminal-key-load| Mod[認証仲介 module]
-  Mod -->|SSH_KEY in the loader's env only| Loader[loader: credential-load + ssh-add]
-  Loader -->|DTO| Reader
-  Conn -.->|no key bytes, no Mika call for this key| Mika[usage secrets]
+  Conn -->|agentSocket terminalId, on every call| Reader
+  Reader --> Holder[execution holder: auth ssh ... -- holder]
+  Holder --> Mod[認証仲介 module: agent with the keys]
+  Conn -->|remote.ssh.identity_agent = that socket| Aiterm[Aiterm remote calls]
+  Aiterm -->|ssh, agent signs| Term[terminal]
+  Conn -.->|no key bytes, no Mika call, no credential-load| Mika[usage secrets]
 ```
 
 | Piece | Contract |
 | --- | --- |
-| Port (Kiro owns it) | `{owns(terminalId): boolean (sync), available(terminalId): Promise<{available, revision >= 1}> (never throws; optimistic true unless the last load was refused), load({terminalId, memberId, ref, handle, revision}): Promise<aiterm.credential-load.v1 dto>}`. One `load` does the Aiterm `credential-load` and the per-terminal agent load |
-| Scope | Only a terminal with `keySource: 'secret'` that the reader `owns`, and only its `terminal.ssh` key. The optional sudo key, login passwords and every other terminal stay on Mika as before. No registry field changes: `sshKeyRef` stays the Aiterm handle label, `bindingRef` the binding |
+| Port (Kiro owns it) | `{owns(terminalId): boolean (sync), available(terminalId): Promise<{available, revision >= 1}> (never throws; available = the holder is up and this terminal's key is listed), agentSocket(terminalId): string | Promise<string> (the holder's current SSH_AUTH_SOCK)}` |
+| Scope | Only a terminal with `keySource: 'secret'` that the reader `owns`, and only its `terminal.ssh` key. The optional sudo key, login passwords and every other terminal stay on Mika as before. No registry field changes: `sshKeyRef` stays the label, `bindingRef` the binding |
 | `resolveBinding` | The gate `credential.available` comes from `keyReader.available` (a handle `{handle: sshKeyRef, revision, available}`), not Mika. Not available -> `CREDENTIAL_UNAVAILABLE` as today |
-| `loadKey` | Calls `keyReader.load({terminalId, memberId: null, ref: bindingRef, handle, revision})` instead of `withResolved` + `native.loadCredential` + `native.loadAgent`; success sets `extra.agent = {outcome: 'loaded'}`. Any failure -> `CREDENTIAL_NOT_LOADED` (no loader text is echoed); a registry change or dispose across the call -> `TERMINAL_UNAVAILABLE` |
-| Protections | Named: the SSH key (never in this parent, only the loader's env and the two stdins). No guard is added; a refused load ends at the next launch or check, which asks the reader again |
+| `loadKey` | A no-op for an owned terminal: nothing is loaded into Aiterm or an agent (the key already sits in the module's agent) |
+| `assembleRemote` | The one seam of launch, check, C8, folder and `remoteFor`. For an owned terminal "agent held" is `keyReader.available` (false -> `AGENT_EMPTY`), and `identity_agent` is `keyReader.agentSocket` read on every call, never cached; a throw or a non-string answers `AGENT_EMPTY`. The socket path is appended to the route `revision`, so a holder restart (new path) makes execution rebuild its route |
+| Binding path | Aiterm's own binding holds no key for an owned terminal, so a launch or open that falls back to the `terminal` input fails `CREDENTIAL_UNAVAILABLE` (fail closed); the owned terminals are switched to `remote` for launch and maintenance |
+| Protections | Named: the SSH key (never in this parent). No guard is added; a dead holder makes `available` false and the next launch or check asks again, which ends the state when execution's supervisor restarts the holder |
