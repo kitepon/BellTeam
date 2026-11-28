@@ -248,7 +248,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
     private async Task ShowDetailedSettingsAsync(BellTeam.Linux.SettingsPage? open)
     {
         if (!model.Connected) return;
-        var window = new SettingsWindow(model, () => { CloseAllPages(); ShowStartup(StartupPhase.Setup); }, new StoredNotificationSwitch(settings), async () => { CloseAllPages(); await PushRegistration.UnregisterAsync(model); await HomeSessionEnd.EndAsync(model, tokens); access.SignOut(); ShowList(); model.SignOut(); },
+        var window = new SettingsWindow(model, () => { CloseAllPages(); ShowStartup(StartupPhase.Setup); }, new StoredNotificationSwitch(settings), async () => { CloseAllPages(); await PushRegistration.UnregisterAsync(model); if (await HomeSessionEnd.EndAsync(model, tokens)) { access.SignOut(); ShowList(); model.SignOut(); } },
             // The app draws these itself (Google Play rows, the sign-in, the version); notifications are desktop (freedesktop) only.
             [BellTeam.Linux.SettingsPage.Connection, BellTeam.Linux.SettingsPage.Billing, BellTeam.Linux.SettingsPage.About, BellTeam.Linux.SettingsPage.Notifications]);
         window.Show(); await window.InitializeAsync();
@@ -402,7 +402,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
         if (!model.Connected) { ShowStartup(StartupPhase.Setup); return; }
         EndSettings();
         settingsLife = CancellationTokenSource.CreateLinkedTokenSource(model.ConnectionToken);
-        settingsBody = new PhoneSettingsPage(model, () => ShowStartup(StartupPhase.Setup), async () => { await PushRegistration.UnregisterAsync(model); await HomeSessionEnd.EndAsync(model, tokens); access.SignOut(); ShowList(); model.SignOut(); }, ShowDetailedSettings, settingsLife.Token); Grid.SetRow(settingsBody, 1); settingsPage.Children.Add(settingsBody);
+        settingsBody = new PhoneSettingsPage(model, () => ShowStartup(StartupPhase.Setup), async () => { await PushRegistration.UnregisterAsync(model); if (await HomeSessionEnd.EndAsync(model, tokens)) { access.SignOut(); ShowList(); model.SignOut(); } }, ShowDetailedSettings, settingsLife.Token); Grid.SetRow(settingsBody, 1); settingsPage.Children.Add(settingsBody);
         listPage.IsVisible = false; conversationPage.IsVisible = false; settingsPage.IsVisible = true;
     }
     // The page's reads end when it is left.

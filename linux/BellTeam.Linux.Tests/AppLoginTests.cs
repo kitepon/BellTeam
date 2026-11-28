@@ -12,7 +12,7 @@ public sealed class AppLoginTests
     // The home part of a server: the console code answers once, the session list has this app's own row.
     private sealed class Server : HttpMessageHandler
     {
-        public readonly List<string> Calls = []; public string? Authorization, ConsoleBody; public bool Refuse;
+        public readonly List<string> Calls = []; public string? Authorization, ConsoleBody; public bool Refuse; public TaskCompletionSource? Hold;
         private readonly HttpMessageInvoker rest = new(new FakeServer());
         private static HttpResponseMessage Json(string body, HttpStatusCode status = HttpStatusCode.OK) => new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
@@ -21,7 +21,7 @@ public sealed class AppLoginTests
             Authorization = request.Headers.Authorization?.ToString();
             if (path == "/api/home/session") return Json("""{"capability":"login-billing-home/1","bound":true,"enforced":true}""");
             if (path == "/api/home/login/console") { ConsoleBody = await request.Content!.ReadAsStringAsync(token); return ConsoleBody.Contains("GOOD") ? Json("""{"sessionId":"S1","token":"tok-console"}""") : Json("""{"error":"LOGIN_CODE_INVALID"}""", HttpStatusCode.Forbidden); }
-            if (path == "/api/home/sessions" && request.Method == HttpMethod.Get) return Json("""{"sessions":[{"id":"S0","kind":"console","current":false},{"id":"S1","kind":"app","appKind":"linux","current":true}]}""");
+            if (path == "/api/home/sessions" && request.Method == HttpMethod.Get) { if (Hold is { } hold) await hold.Task; return Json("""{"sessions":[{"id":"S0","kind":"console","current":false},{"id":"S1","kind":"app","appKind":"linux","current":true}]}"""); }
             if (path.StartsWith("/api/home/sessions/") && request.Method == HttpMethod.Delete) return Refuse ? Json("""{"error":"SESSION_STORE_UNAVAILABLE"}""", HttpStatusCode.ServiceUnavailable) : new HttpResponseMessage(HttpStatusCode.NoContent);
             return await rest.SendAsync(request, token);
         }
@@ -104,6 +104,37 @@ public sealed class AppLoginTests
         await HomeSessionEnd.EndAsync(workspace, tokens);
         Assert.Contains("DELETE /api/home/sessions/S1", server.Calls); Assert.DoesNotContain("DELETE /api/home/sessions/S0", server.Calls);
         Assert.Null(tokens.Load(origin)); Assert.Equal(refuse, workspace.ActionError is not null);
+    }
+
+    // A sign-out whose read is still pending when the user switches (or reconnects and logs in again) belongs to the old connection: it neither acts through the new one nor clears the new token, and nothing escapes.
+    [Theory]
+    [InlineData("http://localhost:2/", "tok-new", false)]   // switch to another address
+    [InlineData("http://localhost:1/", "tok-new", true)]    // reconnect to the same address after a new login
+    public async Task ADelayedSignOutDuringASwitchLeavesTheNewConnectionAlone(string next, string newToken, bool sameAddress)
+    {
+        var hold = new TaskCompletionSource(); var server = new Server { Hold = hold }; var tokens = new MemorySessionTokenStore(); var first = new Uri("http://localhost:1/"); var second = new Uri(next);
+        tokens.Save(first, "tok-old");
+        using var workspace = new LinuxWorkspace(o => new BellApi(o, server) { SessionToken = tokens.Load(o) });
+        await workspace.ConnectAsync("http://localhost:1/", listen: false);
+        var ending = HomeSessionEnd.EndAsync(workspace, tokens);   // pending on GET /api/home/sessions
+        server.Hold = null; tokens.Save(second, newToken);          // the user logs in at the new connection ...
+        await workspace.ConnectAsync(next, listen: false);          // ... and the workspace switches to it
+        hold.SetResult();                                           // only now the old read answers
+        Assert.False(await ending);                                  // the old connection is gone: the caller must not sign the new one out
+        Assert.DoesNotContain(server.Calls, call => call.StartsWith("DELETE"));
+        Assert.Equal(newToken, tokens.Load(second));                // the new connection's token is untouched
+        Assert.Equal(sameAddress ? newToken : null, tokens.Load(first));   // another address: the old token is forgotten; the same address: the newer login keeps its own
+        Assert.True(workspace.Connected); Assert.Null(workspace.ActionError);
+    }
+
+    // The ordinary sign-out is unchanged: the own row goes, the token goes, the caller may continue.
+    [Fact]
+    public async Task ANormalSignOutReportsThatTheConnectionIsStillCurrent()
+    {
+        var server = new Server(); var tokens = new MemorySessionTokenStore(); var origin = new Uri("http://localhost/"); tokens.Save(origin, "tok");
+        using var workspace = new LinuxWorkspace(o => new BellApi(o, server) { SessionToken = tokens.Load(o) });
+        await workspace.ConnectAsync("http://localhost/", listen: false);
+        Assert.True(await HomeSessionEnd.EndAsync(workspace, tokens)); Assert.Null(tokens.Load(origin)); Assert.Contains("DELETE /api/home/sessions/S1", server.Calls);
     }
 
     private sealed class Subscription(string body, HttpStatusCode status = HttpStatusCode.OK) : HttpMessageHandler
