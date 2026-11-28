@@ -10,7 +10,10 @@ SEAT_UID = int(os.environ.get("AUTH_RELAY_SEAT_UID", "1000"))
 MAX_REQUEST, MAX_REPLY, READ_SECONDS, BODY_SECONDS = 13 << 20, 17 << 20, 10, 45  # a request may carry a 9 MiB http body as base64, a reply an 11 MiB response (mail read: 1 MiB)
 SOCKETS = (("container-socket", "container.sock", 0o666), ("host-socket", "host.sock", 0o600))
 # One socket per container caller of key use (wrap / unwrap): callers/<name>/<name>.sock. Whoever can open it is that caller. A new caller is a body train, on purpose.
-CALLERS = ("mmobank", "auctionbot", "reminderbot", "reminderbot-public", "yuihome", "forklore-web", "forklore-mcp", "poly-daily", "ip-mcp", "call-bridge", "x-article-mcp", "bingo")
+CALLERS = ("mmobank", "auctionbot", "reminderbot", "reminderbot-public", "yuihome", "forklore-web", "forklore-mcp", "poly-daily", "ip-mcp", "call-bridge", "x-article-mcp", "bingo", "bellteam-push")
+# A caller whose socket only its own service account may open: socket 0660 and the folder is NOT re-chmodded (the host prepares it once: group = the service group, setgid, 0750;
+# a socket made there inherits that group). Unprepared, the folder is 0750 owned by the relay's uid: only that uid can open it.
+RESTRICTED = {"bellteam-push": 0o660}
 
 
 def read_line(conn, limit, seconds):
@@ -159,10 +162,12 @@ def main():
     os.chmod(DIR, 0o711)
     paths = [os.path.join(DIR, name) for _, name, _ in SOCKETS]
     callers = [os.path.join(DIR, "callers", name, name + ".sock") for name in CALLERS]
-    for path in callers:  # folders 0755 (a container mounts the caller's folder, so the socket survives a relay restart)
-        os.makedirs(os.path.dirname(path), mode=0o755, exist_ok=True)
-        os.chmod(os.path.dirname(os.path.dirname(path)), 0o755)
-        os.chmod(os.path.dirname(path), 0o755)
+    for name, path in zip(CALLERS, callers):  # folders 0755 (a container mounts the caller's folder, so the socket survives a relay restart)
+        folder = os.path.dirname(path)
+        os.makedirs(folder, mode=0o750 if name in RESTRICTED else 0o755, exist_ok=True)
+        os.chmod(os.path.dirname(folder), 0o755)
+        if name not in RESTRICTED:
+            os.chmod(folder, 0o755)
     paths += callers
 
     def stop(*_):
@@ -177,8 +182,8 @@ def main():
     signal.signal(signal.SIGINT, stop)
     for (via, _, mode), path in zip(SOCKETS, paths):
         threading.Thread(target=serve, args=(via, path, mode), daemon=True).start()
-    for path in callers:
-        threading.Thread(target=serve, args=("caller-socket", path, 0o666, path), daemon=True).start()
+    for name, path in zip(CALLERS, callers):
+        threading.Thread(target=serve, args=("caller-socket", path, RESTRICTED.get(name, 0o666), path), daemon=True).start()
     print("auth-mediation relay ready", flush=True)
     signal.pause()
 
