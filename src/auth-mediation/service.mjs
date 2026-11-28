@@ -66,6 +66,7 @@ export function createAuthMediationService({ policyPath, auditPath, opExe, first
     keyuse: (params, effect) => within(effect, () => core.keyuse(params)),
     http: (params, effect) => within(effect, () => core.http(params)),
     mail: (params, effect) => within(effect, () => core.mail(params)),
+    gmail: (params, effect) => within(effect, () => core.gmail(params)),
     status: (params, effect) => within(effect, async () => ({ state: (await effect('secret.get', {})).unavailable ? 'no-token' : 'ready' })),
   }
 }

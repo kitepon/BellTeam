@@ -192,6 +192,38 @@ def ssh_main(argv):
         shutil.rmtree(d, ignore_errors=True)
 
 
+def gmail_main(argv):
+    """auth gmail list|get|modify NAME [--q Q] [--max-results N] [--page-token T] [--id ID] [--format full|metadata|minimal] [--add-labels A,B] [--remove-labels C]
+    The module holds the OAuth secrets and makes the fixed Gmail API call; Google's body is printed on stdout unchanged, exit 0 for status < 400, 22 for >= 400 (status on stderr), 1 refused, 2 error."""
+    import argparse
+    p = argparse.ArgumentParser(prog="auth gmail")
+    p.add_argument("action", choices=["list", "get", "modify"])
+    p.add_argument("name")
+    for opt in ("q", "page-token", "id", "format", "add-labels", "remove-labels"):
+        p.add_argument("--" + opt)
+    p.add_argument("--max-results", type=int)
+    a = p.parse_args(argv)
+    request = {"op": "gmail-" + a.action, "name": a.name, "cwd": os.getcwd()}
+    for key, value in (("q", a.q), ("max_results", a.max_results), ("page_token", a.page_token), ("id", a.id), ("format", a.format)):
+        if value is not None:
+            request[key] = value
+    for key, value in (("add_labels", a.add_labels), ("remove_labels", a.remove_labels)):
+        if value:
+            request[key] = value.split(",")
+    try:
+        resp = ask(request)
+    except (OSError, ValueError):
+        sys.exit("The authentication module is not running.")
+    if resp.get("outcome") != "granted":
+        print(resp.get("error", "Refused."), file=sys.stderr)
+        return 2 if resp.get("outcome") == "error" else 1
+    sys.stdout.write(resp.get("body", ""))
+    if resp["status"] >= 400:
+        print(f"HTTP {resp['status']}", file=sys.stderr)
+        return 22
+    return 0
+
+
 def mail_main(argv):
     """auth mail read NAME [--folders] [--mailbox M|*] [--unseen] [--since D] [--before D] [--from X] [--search-subject X] [--order newest|oldest] [--limit N] [--fetch none|headers|text|raw] [--uid N]
     reads read-only (nothing is marked seen) and prints one JSON line {folders|messages, truncated?}.
@@ -270,6 +302,8 @@ def mail_main(argv):
 
 
 def main():
+    if len(sys.argv) >= 2 and sys.argv[1] == "gmail":
+        return gmail_main(sys.argv[2:])
     if len(sys.argv) >= 2 and sys.argv[1] == "mail":
         return mail_main(sys.argv[2:])
     if len(sys.argv) >= 2 and sys.argv[1] == "ssh":
