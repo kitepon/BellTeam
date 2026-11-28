@@ -28,8 +28,9 @@ function target(fields, request) {
   if (!METHODS.includes(request.method) || !methods.includes(request.method)) throw refuse('This method is not allowed for this key.')
   // An encoded slash, backslash, NUL or dot could be read as a separator by the server but not by the URL check below: a path that hides a separator is refused outright.
   if (!/^\/[^\s#\\]*$/u.test(request.path) || /%(?:2f|5c|00|2e|3f|23)/iu.test(request.path.split('?')[0])) throw refuse('The path is not usable.')
-  const exact = request.path === '/' && base.pathname !== '/' // the base URL carries a path (a webhook): '/' means exactly that URL, so the caller never learns the path
+  const exact = request.path.split('?')[0] === '/' && base.pathname !== '/' // the base URL carries a path (a webhook): '/' (with its own query, e.g. ?wait=true) means exactly that URL, so the caller never learns the path
   const url = exact ? new URL(base) : new URL(request.path, base)
+  if (exact) url.search = request.path.includes('?') ? request.path.slice(request.path.indexOf('?')) : ''
   const prefix = base.pathname.replace(/\/$/u, '')
   if (url.origin !== base.origin || (url.pathname + '/').slice(0, prefix.length + 1) !== prefix + '/') throw refuse('The path leaves the key\'s API.')
   // Per-method path limits: "GET:/messages/,POST:/" = a method listed here may only be used under its paths (relative to the base path). A method not listed is limited only by http_methods.
@@ -333,7 +334,7 @@ export async function callHttp(fields, request, fetchImpl = fetch, rotation = nu
     }
     else added = addCredential(fields, url, headers, request) // after the caller's headers, so it always wins
     secrets = [...added.secrets, ...proxySecrets]
-    if (request.path === '/') { const b = new URL(fields.http_base); if (b.pathname !== '/') secrets = [...secrets, ...b.pathname.split('/').filter(p => p.length >= 16)] } // an exact-base answer must not echo the secret part of the URL
+    if (request.path.split('?')[0] === '/') { const b = new URL(fields.http_base); if (b.pathname !== '/') secrets = [...secrets, ...b.pathname.split('/').filter(p => p.length >= 16)] } // an exact-base answer must not echo the secret part of the URL
     if (added.form) {
       // OAuth-style token exchange: the module appends its fields to the caller's urlencoded body (never to another content type)
       const type = (headers['content-type'] ?? 'application/x-www-form-urlencoded').split(';')[0].trim().toLowerCase()
