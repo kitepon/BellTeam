@@ -19,6 +19,28 @@ const need = condition => { if (!condition) invalid() }
 export const OUTCOMES = Object.freeze(['granted', 'denied', 'stopped', 'unknown-caller', 'not-registered', 'error'])
 const VIAS = ['mcp', 'container-socket', 'host-socket']
 
+// The mail request: the fields that belong to each action, nothing else. Values that reach a server command line (mailbox, search, keywords) carry no control character.
+const MAIL_FIELDS = { send: ['to', 'subject', 'text', 'html', 'from_name', 'reply_to'], read: ['mailbox', 'search', 'order', 'limit', 'fetch', 'uid', 'folders'], sort: ['uid', 'uidvalidity', 'add', 'archive'], check: ['protocol'] }
+const noControl = value => text(value, 200) && !/[\x00-\x1f\x7f]/u.test(value)
+const MAIL_RULES = {
+  send: p => Array.isArray(p.to) && p.to.length >= 1 && p.to.length <= 10 && p.to.every(a => text(a, 254)) && str(p.subject) && p.subject.length <= 256 && str(p.text) && p.text.length <= 32768
+    && (p.html === undefined || str(p.html) && p.html.length <= 32768) && (p.from_name === undefined || text(p.from_name, 100)) && (p.reply_to === undefined || text(p.reply_to, 254)),
+  read: p => (p.mailbox === undefined || noControl(p.mailbox)) && (p.order === undefined || ['newest', 'oldest'].includes(p.order))
+    && (p.limit === undefined || Number.isInteger(p.limit) && p.limit >= 1 && p.limit <= 50) && (p.fetch === undefined || ['none', 'headers', 'text', 'raw'].includes(p.fetch))
+    && (p.uid === undefined || Number.isInteger(p.uid) && p.uid >= 1) && (p.folders === undefined || typeof p.folders === 'boolean')
+    && (p.search === undefined || authMediationObject(p.search, [], ['unseen', 'since', 'before', 'from', 'subject']) && (p.search.unseen === undefined || typeof p.search.unseen === 'boolean')
+      && ['since', 'before', 'from', 'subject'].every(k => p.search[k] === undefined || text(p.search[k], 100))),
+  sort: p => Number.isInteger(p.uid) && p.uid >= 1 && Number.isInteger(p.uidvalidity) && p.uidvalidity >= 1 && (p.archive === undefined || typeof p.archive === 'boolean')
+    && (p.add === undefined || Array.isArray(p.add) && p.add.length <= 8 && p.add.every(k => str(k) && /^\$?[A-Za-z0-9_]{1,40}$/u.test(k))),
+  check: p => ['imap993', 'smtp465', 'smtp587-starttls'].includes(p.protocol),
+}
+function mailRequestOk(params) {
+  const allowed = MAIL_FIELDS[params.action]
+  return Boolean(allowed) && authMediationObject(params, ['action', 'name', 'via'], [...allowed, 'cwd', 'unit']) && text(params.name, 128) && /^[A-Za-z0-9][A-Za-z0-9._-]*$/u.test(params.name)
+    && ['container-socket', 'host-socket', 'caller-socket'].includes(params.via) && (params.via === 'caller-socket' ? params.unit !== undefined : params.cwd !== undefined)
+    && (params.cwd === undefined || path(params.cwd)) && (params.unit === undefined || path(params.unit)) && MAIL_RULES[params.action](params)
+}
+
 export function validateAuthMediationRequest(method, params, context) {
   const check = condition => { if (!condition) throw authMediationError('AUTH_MEDIATION_INVALID') }
   check(authMediationObject(context, ['generation']) && validAuthMediationGeneration(context.generation) && AUTH_MEDIATION_METHODS.includes(method))
@@ -39,21 +61,7 @@ export function validateAuthMediationRequest(method, params, context) {
     && (params.cwd === undefined || path(params.cwd)) && (params.unit === undefined || path(params.unit))
     && ((params.via === undefined || params.via === 'caller-socket') ? params.unit !== undefined : params.cwd !== undefined)
     && (params.aad === undefined || text(params.aad, 256)))
-  else if (method === 'mail') check(authMediationObject(params, ['action', 'name', 'via'], ['to', 'subject', 'text', 'html', 'from_name', 'reply_to', 'mailbox', 'search', 'order', 'limit', 'fetch', 'uid', 'folders', 'cwd', 'unit'])
-    && ['send', 'read'].includes(params.action) && text(params.name, 128) && /^[A-Za-z0-9][A-Za-z0-9._-]*$/u.test(params.name)
-    && ['container-socket', 'host-socket', 'caller-socket'].includes(params.via) && (params.via === 'caller-socket' ? params.unit !== undefined : params.cwd !== undefined)
-    && (params.cwd === undefined || path(params.cwd)) && (params.unit === undefined || path(params.unit))
-    && (params.action === 'send'
-      ? Array.isArray(params.to) && params.to.length >= 1 && params.to.length <= 10 && params.to.every(a => text(a, 254)) && str(params.subject) && params.subject.length <= 256
-        && str(params.text) && params.text.length <= 32768 && (params.html === undefined || str(params.html) && params.html.length <= 32768)
-        && (params.from_name === undefined || text(params.from_name, 100)) && (params.reply_to === undefined || text(params.reply_to, 254))
-        && ['mailbox', 'search', 'order', 'limit', 'fetch', 'uid', 'folders'].every(k => params[k] === undefined)
-      : ['to', 'subject', 'text', 'html', 'from_name', 'reply_to'].every(k => params[k] === undefined)
-        && (params.mailbox === undefined || text(params.mailbox, 200) && !/[\x00-\x1f\x7f]/u.test(params.mailbox)) && (params.order === undefined || ['newest', 'oldest'].includes(params.order))
-        && (params.limit === undefined || Number.isInteger(params.limit) && params.limit >= 1 && params.limit <= 50) && (params.fetch === undefined || ['none', 'headers', 'text', 'raw'].includes(params.fetch))
-        && (params.uid === undefined || Number.isInteger(params.uid) && params.uid >= 1) && (params.folders === undefined || typeof params.folders === 'boolean')
-        && (params.search === undefined || authMediationObject(params.search, [], ['unseen', 'since', 'before', 'from', 'subject']) && (params.search.unseen === undefined || typeof params.search.unseen === 'boolean')
-          && ['since', 'before', 'from', 'subject'].every(k => params.search[k] === undefined || text(params.search[k], 100)))))
+  else if (method === 'mail') check(mailRequestOk(params))
   else if (method === 'http') check(authMediationObject(params, ['name', 'method', 'path', 'via'], ['headers', 'body', 'timeoutSec', 'cwd', 'unit', 'botId'])
     && text(params.name, 128) && /^[A-Za-z0-9][A-Za-z0-9._-]*$/u.test(params.name) && ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(params.method)
     && text(params.path, 2048) && params.path.startsWith('/') && ['container-socket', 'host-socket', 'caller-socket'].includes(params.via)
@@ -126,7 +134,7 @@ export function validateAuthMediationResult(method, value) {
     && (value.lines === undefined || list(value.lines, str)))
   else if (method === 'keyuse') need(authMediationObject(value, ['outcome'], ['error', 'data']) && OUTCOMES.includes(value.outcome) && (value.error === undefined || str(value.error))
     && (value.data === undefined || str(value.data) && value.data.length <= 4096))
-  else if (method === 'mail') need(authMediationObject(value, ['outcome'], ['error', 'message_id', 'folders', 'messages', 'truncated']) && OUTCOMES.includes(value.outcome) && (value.error === undefined || str(value.error)) && (value.message_id === undefined || str(value.message_id))
+  else if (method === 'mail') need(authMediationObject(value, ['outcome'], ['error', 'message_id', 'folders', 'messages', 'truncated', 'flagged', 'moved', 'tls_verified']) && OUTCOMES.includes(value.outcome) && (value.error === undefined || str(value.error)) && (value.message_id === undefined || str(value.message_id))
     && (value.folders === undefined || Array.isArray(value.folders) && value.folders.length <= 500) && (value.messages === undefined || Array.isArray(value.messages) && value.messages.length <= 50)
     && (value.truncated === undefined || typeof value.truncated === 'boolean') && JSON.stringify(value).length <= 4 * 1024 * 1024)
   else if (method === 'http') need(authMediationObject(value, ['outcome'], ['error', 'status', 'headers', 'body', 'truncated']) && OUTCOMES.includes(value.outcome) && (value.error === undefined || str(value.error))
