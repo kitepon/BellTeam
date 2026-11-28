@@ -318,7 +318,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
       while (pending.size) await Promise.allSettled([...pending])
     })()
     // The successor queues its activity saves after this engine's in-flight one, so a stale write never lands last.
-    return Object.assign(result, { activity: transport.activity, released, activityQueue: transport.workState.activityQueue })
+    return Object.assign(result, { activity: transport.activity, unconfirmedJobs: transport.unconfirmedJobs, released, activityQueue: transport.workState.activityQueue })
   }
   if (handoff) {
     const m = handoff.metadata
@@ -328,6 +328,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
       // sessionChanges; keep this engine's own map then (2026-11-08: undefined broke every wake with a TypeError).
       for (const key of ['sessions', 'stopVersions', 'stopSessions', 'sessionChanges'])
         if (m[key] instanceof Map) transport.sessionState[key] = transport[key] = m[key]
+      if (handoff.unconfirmedJobs instanceof Map) transport.unconfirmedJobs = handoff.unconfirmedJobs
     } else for (const key of ['sessions', 'stopVersions', 'stopSessions']) for (const entry of m[key]) transport.sessionState[key].set(...entry)
     Object.assign(requests, m.requests, { restoring: Promise.resolve() })
     administration.applications = m.applications

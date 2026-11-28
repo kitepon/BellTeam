@@ -187,6 +187,7 @@ export function createAuthMediationRelay({ root, facade, relayScript = RELAY_SCR
     status: () => ({ listening: server !== null, relay: child !== null }),
     async close() {
       closed = true
+      recovery.close()
       for (const connection of open) connection.destroy()
       const current = server; server = null
       if (current) await new Promise(resolve => current.close(resolve))

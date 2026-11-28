@@ -91,6 +91,7 @@
     "src/harness-accounts.mjs",
     "src/claude-limit-text.mjs",
     "src/remote-seats.mjs",
+    "src/remote-route.mjs",
     "src/current-work.mjs",
     "src/running-exclusions.mjs",
     "src/retired-harness.mjs",

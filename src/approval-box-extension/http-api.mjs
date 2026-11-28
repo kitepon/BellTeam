@@ -68,6 +68,7 @@ export function createApprovalsApi({ facade, internal, heartbeatMs = 15000 }) {
     }
     if (first === 'events' && !second) {
       if (method !== 'GET') return wrongMethod()
+      if (request.destroyed || response.destroyed) return
       let closed = false, heartbeat
       const unsubscribe = facade.subscribe(({ event, data }) => { if (!closed) response.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`) })
       const cleanup = () => { closed = true; clearInterval(heartbeat); unsubscribe() }

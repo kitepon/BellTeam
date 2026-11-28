@@ -62,6 +62,25 @@ test('更新の知らせは内容が変わった時だけ、updates topic だけ
   handlers.close()
 })
 
+test('seat_approvals topic は targeted イベントのまま流し、all: true に昇格しない', async () => {
+  let fire
+  const written = [], handlers = {}
+  const events = createMessageEvents({
+    store: { async watch() { return () => {} } },
+    seatApprovals: { watch(listener) { fire = listener; return () => {} } },
+    eventKeepalive: 60000, messageEventWindow: 0,
+  })
+  events.connect({ on(name, handler) { handlers[name] = handler } }, { writeHead() {}, write(chunk) { written.push(chunk) }, writableEnded: false })
+  await events.startMessageWatch()
+  fire({ all: false, topics: ['seat_approvals'], botIds: ['bot-1'], roomIds: [] })
+  await new Promise(resolve => setTimeout(resolve, 10))
+  const payloads = written.filter(chunk => chunk.startsWith('event: messages')).map(chunk => JSON.parse(chunk.slice(chunk.indexOf('data: ') + 6)))
+  assert.equal(payloads.length, 1)
+  assert.deepEqual([payloads[0].all, payloads[0].topics, payloads[0].botIds, payloads[0].roomIds], [false, ['seat_approvals'], ['bot-1'], []])
+  events.stopWatching()
+  handlers.close()
+})
+
 
 test('completion during a jobs read survives coalescing without repeating ordinary invalidations', async t => {
   const data = { jobs: [{ jobId: 'j1', state: 'ready' }] }, written = [], handlers = {}

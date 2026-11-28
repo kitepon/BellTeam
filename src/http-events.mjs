@@ -9,6 +9,7 @@ export function createMessageEvents({ store, secretRequests, ownerQuestions, mac
   let pendingNotify = null
   let updateRead = null, updatePending = false
   const connect = (request, response) => {
+    if (request.destroyed || response.destroyed) return
     response.writeHead(200, {
       'content-type': 'text/event-stream',
       'cache-control': 'no-cache, no-transform',
@@ -29,7 +30,7 @@ export function createMessageEvents({ store, secretRequests, ownerQuestions, mac
   const notifyNow = data => writeEvent({ at: new Date().toISOString(), topics: data.type ? [data.type] : [], botIds: [], roomIds: [], ...data, all: true })
   const startMessageWatch = async () => {
     if (closeWatch) return
-    const knownTopics = new Set(['timeline', 'queue', 'bots', 'rooms', 'owner', 'settings', 'requests', 'questions', 'ai-control', 'setup', 'schedules'])
+    const knownTopics = new Set(['timeline', 'queue', 'bots', 'rooms', 'owner', 'settings', 'requests', 'questions', 'ai-control', 'setup', 'schedules', 'seat_approvals'])
     let changes = null
     const notify = change => {
       changes ??= { all: false, topics: new Set(), botIds: new Set(), roomIds: new Set() }
@@ -47,7 +48,7 @@ export function createMessageEvents({ store, secretRequests, ownerQuestions, mac
           if (typeof id !== 'string' || !id) changes.all = true
           else changes[name].add(id)
         }
-        if (change.topics.some(topic => ['timeline', 'queue', 'requests', 'questions', 'schedules'].includes(topic))
+        if (change.topics.some(topic => ['timeline', 'queue', 'requests', 'questions', 'schedules', 'seat_approvals'].includes(topic))
           && !change.botIds.length && !change.roomIds.length) changes.all = true
       }
       if (pendingNotify) return

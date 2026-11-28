@@ -13,6 +13,7 @@ export function createWorkGraphApi({ facade, internal, heartbeatMs = 15000 }) {
     }
     const frame = (event, data, id) => response.write(`event: ${event}\n${id ? `id: ${id}\n` : ''}data: ${JSON.stringify(data)}\n\n`)
     const batch = data => frame('change', data, `${data.epoch}:${data.version}`)
+    if (request.destroyed || response.destroyed) return
     // Batches arriving while the snapshot is read are held, then sent if newer than it.
     let held = [], heartbeat, closed = false
     const unsubscribe = facade.subscribe(data => held ? held.push(data) : batch(data))
@@ -28,7 +29,7 @@ export function createWorkGraphApi({ facade, internal, heartbeatMs = 15000 }) {
     if (closed) return
     response.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache, no-transform', connection: 'keep-alive' })
     frame('snapshot', snapshot)
-    for (const data of held) if (data.version > snapshot.version) batch(data)
+    for (const data of held) if (data.epoch === snapshot.epoch && data.version > snapshot.version) batch(data)
     held = null
     heartbeat = setInterval(() => response.write(': hb\n\n'), heartbeatMs)
   }

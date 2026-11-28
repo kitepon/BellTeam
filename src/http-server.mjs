@@ -152,7 +152,7 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
         const { botId, fork } = internal ? await resolveInternalSeat(request, bots, forkSeat) : { botId: null, fork: null }
         if (internal && request.method === 'POST' && ['/api/deliveries/direct', '/api/deliveries/fork'].includes(url.pathname)) await bindAskerSeat(request, fork)
         const actor = internal ? (botId ? { kind: 'bot', botId } : null) : { kind: 'owner' }
-        return await conversationAssembly.run(actor, dispatchApi, internal && botId ? { executionSource: fork ? forkExecutionSource(request) : seatExecutionSource(request, bots) } : undefined)
+        return await conversationAssembly.run(actor, dispatchApi, internal && botId ? { executionSource: fork ? forkExecutionSource(request) : seatExecutionSource(request, bots, botId) } : undefined)
       }
       if (url.pathname.startsWith('/api/')) return await dispatchApi()
 
