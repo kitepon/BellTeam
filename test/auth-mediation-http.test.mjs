@@ -53,6 +53,13 @@ test('http: the path cannot leave the item\'s origin and prefix; the method must
   assert.equal((await ask(setup({ item: { ...ITEM, http_secret: undefined } }))).outcome, 'error')
 })
 
+test('http: the response never shows the credential: not in the body (raw or base64) nor in a Location header; only request-id style x- headers pass', async () => {
+  const basic = setup({ item: { ...ITEM, http_auth: 'basic', http_secret: 'user:password1' }, answer: () => new Response('b64 ' + Buffer.from('user:password1').toString('base64') + ' raw user:password1', { headers: { location: 'https://api.example.com/v1/x?k=user:password1' } }) })
+  const r = await ask(basic, { headers: { 'x-http-method-override': 'DELETE', 'x-request-id': 'r1' } })
+  assert.equal(text(r), 'b64 [redacted] raw [redacted]'); assert.equal(r.headers.location, 'https://api.example.com/v1/x?k=[redacted]')
+  assert.deepEqual(Object.keys(basic.seen[0].headers).sort(), ['authorization', 'x-request-id'])
+})
+
 test('http: a response is cut at 256 KiB and any copy of the credential in it is replaced; the audit never holds headers, bodies or the credential', async () => {
   const big = setup({ answer: () => new Response('a'.repeat(300000)) }); const r = await ask(big)
   assert.equal(r.truncated, true); assert.equal(Buffer.from(r.body, 'base64').length, 262144)
