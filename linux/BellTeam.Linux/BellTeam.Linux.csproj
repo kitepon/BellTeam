@@ -16,7 +16,7 @@
     <InternalsVisibleTo Include="BellTeam.Linux.Tests" />
     <ProjectReference Include="../../windows/BellTeam.Core/BellTeam.Core.csproj" />
     <!-- The 決裁箱 reads through the Approval Box client component (client-v0.5; .NET form, Indivilia): /v1 and the peer channel behind one object. Its native engine (libdatachannel) is the host's: linux/native/README.md (x64 only). -->
-    <PackageReference Include="Kitepon.ApprovalBox.Client" Version="0.7.0" />
+    <PackageReference Include="Kitepon.ApprovalBox.Client" Version="0.8.0" />
     <None Include="../native/prebuilt/linux-x64/libdatachannel.so" Condition="'$(RuntimeIdentifier)' == '' or '$(RuntimeIdentifier)' == 'linux-x64'" Link="libdatachannel.so" CopyToOutputDirectory="PreserveNewest" />
     <PackageReference Include="Avalonia" Version="12.1.6" />
     <PackageReference Include="Avalonia.Desktop" Version="12.1.6" />
