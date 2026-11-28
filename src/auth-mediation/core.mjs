@@ -4,6 +4,7 @@ import { posix } from 'node:path'
 import { authorize, importV1 } from './policy.mjs'
 import { envReturn, runEnv } from './env.mjs'
 import { botForCwd, callerKey } from './identity.mjs'
+import { useKey } from './keyuse.mjs'
 
 const NOT_REGISTERED = 'This command is not registered.'
 const ENTRY_ONLY = ['grant', 'revoke', 'import'], DECISION_KEYS = ['id', 'role', 'record', 'need', 'reason']
@@ -76,5 +77,19 @@ export function createAuthCore({ store, items, audit, roots, now = () => new Dat
     record(base(), verb, { target: args.bot ?? args.unit, expires: args.expires, grant_cwd: args.cwd, decision, entry: verb === 'entry.set' ? policy.entry : undefined })
     return { outcome: 'ok', ...result }
   }
-  return { resolve, admin }
+  // Key use: the module uses the key inside itself and returns only the result (wrap or unwrap). Caller = the unit of the caller socket the relay named.
+  // Same authorize and audit as resolve; the grant command is "wrapkey <name> wrap" or "wrapkey <name> unwrap"; the item is "wrapkey <name>" (field wrap_key).
+  async function keyuse(request) {
+    const at = now(), policy = await store.read()
+    const caller = { kind: 'unit', folder: request.unit }, name = `wrapkey ${request.name} ${request.action}`
+    const rec = { time: at.toISOString(), request_id: randomUUID(), caller: callerKey(caller), item: name, via: 'caller-socket', cwd: request.unit, aad: request.aad }
+    const verdict = authorize(policy, caller, name, request.unit, at.getTime())
+    if (verdict !== 'granted') { if (verdict === 'stopped') items.flush(`wrapkey ${request.name}`); record(rec, verdict); return { outcome: verdict, error: REFUSALS[verdict] } }
+    const found = await items.get(`wrapkey ${request.name}`, policy.vault, policy.cache_seconds)
+    if (!found) { record(rec, 'not-registered'); return { outcome: 'not-registered', error: NOT_REGISTERED } }
+    const cache = found.hit ? 'hit' : 'miss'
+    try { const data = useKey(request.action, found.fields, request.data, request.aad ?? ''); record(rec, 'granted', { cache }); return { outcome: 'granted', data } }
+    catch { record(rec, 'error', { cache }); return { outcome: 'error', error: `Cannot ${request.action}.` } }
+  }
+  return { resolve, admin, keyuse }
 }

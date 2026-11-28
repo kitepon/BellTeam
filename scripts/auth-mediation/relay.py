@@ -9,6 +9,8 @@ BODY = os.environ.get("AUTH_RELAY_BODY", "/srv/bellteam/state/auth-mediation-rel
 SEAT_UID = int(os.environ.get("AUTH_RELAY_SEAT_UID", "1000"))
 MAX_REQUEST, MAX_REPLY, READ_SECONDS, BODY_SECONDS = 65536, 1 << 20, 10, 45
 SOCKETS = (("container-socket", "container.sock", 0o666), ("host-socket", "host.sock", 0o600))
+# One socket per container caller of key use (wrap / unwrap): callers/<name>/<name>.sock. Whoever can open it is that caller. A new caller is a body train, on purpose.
+CALLERS = ("mmobank",)
 
 
 def read_line(conn, limit, seconds):
@@ -56,7 +58,7 @@ def program_of(pid):
         return None
 
 
-def handle(conn, via):
+def handle(conn, via, unit=None):
     with conn:
         try:
             request = json.loads(read_line(conn, MAX_REQUEST, READ_SECONDS))
@@ -80,14 +82,17 @@ def handle(conn, via):
             body.settimeout(BODY_SECONDS)
             body.connect(BODY)
             with body:
-                body.sendall(json.dumps({"via": via, "peer": peer, "request": request}).encode() + b"\n")
+                frame = {"via": via, "peer": peer, "request": request}
+                if unit:
+                    frame["unit"] = unit  # the caller socket's own path: its identity
+                body.sendall(json.dumps(frame).encode() + b"\n")
                 line = read_line(body, MAX_REPLY, BODY_SECONDS)
             conn.sendall(line + b"\n")
         except (OSError, ValueError):
             reply(conn, {"outcome": "error", "error": "The authentication module is not running."})
 
 
-def serve(via, path, mode):
+def serve(via, path, mode, unit=None):
     if os.path.exists(path):
         os.unlink(path)
     s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -96,7 +101,7 @@ def serve(via, path, mode):
     s.listen(32)
     while True:
         conn, _ = s.accept()
-        threading.Thread(target=handle, args=(conn, via), daemon=True).start()
+        threading.Thread(target=handle, args=(conn, via, unit), daemon=True).start()
 
 
 def main():
@@ -104,6 +109,12 @@ def main():
     os.makedirs(DIR, mode=0o711, exist_ok=True)
     os.chmod(DIR, 0o711)
     paths = [os.path.join(DIR, name) for _, name, _ in SOCKETS]
+    callers = [os.path.join(DIR, "callers", name, name + ".sock") for name in CALLERS]
+    for path in callers:  # folders 0755 (a container mounts the caller's folder, so the socket survives a relay restart)
+        os.makedirs(os.path.dirname(path), mode=0o755, exist_ok=True)
+        os.chmod(os.path.dirname(os.path.dirname(path)), 0o755)
+        os.chmod(os.path.dirname(path), 0o755)
+    paths += callers
 
     def stop(*_):
         for p in paths:
@@ -117,6 +128,8 @@ def main():
     signal.signal(signal.SIGINT, stop)
     for (via, _, mode), path in zip(SOCKETS, paths):
         threading.Thread(target=serve, args=(via, path, mode), daemon=True).start()
+    for path in callers:
+        threading.Thread(target=serve, args=("caller-socket", path, 0o666, path), daemon=True).start()
     print("auth-mediation relay ready", flush=True)
     signal.pause()
 

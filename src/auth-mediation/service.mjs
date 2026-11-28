@@ -63,6 +63,7 @@ export function createAuthMediationService({ policyPath, auditPath, opExe, first
       }
       return core.admin(params.botId, params.verb, params.args ?? {}, input.program)
     })),
+    keyuse: (params, effect) => within(effect, () => core.keyuse(params)),
     status: (params, effect) => within(effect, async () => ({ state: (await effect('secret.get', {})).unavailable ? 'no-token' : 'ready' })),
   }
 }
