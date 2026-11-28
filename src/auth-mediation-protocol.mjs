@@ -72,11 +72,12 @@ export function validateAuthMediationRequest(method, params, context) {
       : ['q', 'max_results', 'page_token', 'format'].every(k => params[k] === undefined) && params.id !== undefined))
   else if (method === 'run') check(authMediationObject(params, ['name', 'via', 'stream'], ['cwd', 'unit', 'botId']) && text(params.name, 128) && /^[A-Za-z0-9][A-Za-z0-9._-]*$/u.test(params.name) && ['container-socket', 'host-socket', 'caller-socket'].includes(params.via)
     && /^\/[^\0]{1,400}\/runs\/[a-f0-9-]{36}\.sock$/u.test(params.stream) && (params.via === 'caller-socket' ? params.unit !== undefined : params.cwd !== undefined) && (params.cwd === undefined || path(params.cwd)) && (params.unit === undefined || path(params.unit)) && (params.botId === undefined || botId(params.botId)))
-  else if (method === 'http') check(authMediationObject(params, ['name', 'method', 'path', 'via'], ['headers', 'body', 'timeoutSec', 'cwd', 'unit', 'botId'])
+  else if (method === 'http') check(authMediationObject(params, ['name', 'method', 'path', 'via'], ['headers', 'body', 'timeoutSec', 'cwd', 'unit', 'botId', 'stream'])
     && text(params.name, 128) && /^[A-Za-z0-9][A-Za-z0-9._-]*$/u.test(params.name) && ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(params.method)
     && text(params.path, 2048) && params.path.startsWith('/') && ['container-socket', 'host-socket', 'caller-socket'].includes(params.via)
     && (params.via === 'caller-socket' ? params.unit !== undefined : params.cwd !== undefined) && (params.cwd === undefined || path(params.cwd)) && (params.unit === undefined || path(params.unit))
     && (params.botId === undefined || botId(params.botId)) && (params.timeoutSec === undefined || Number.isInteger(params.timeoutSec) && params.timeoutSec >= 1 && params.timeoutSec <= 60)
+    && (params.stream === undefined || /^\/[^\0]{1,400}\/runs\/[a-f0-9-]{36}\.sock$/u.test(params.stream))
     && (params.body === undefined || text(params.body, 12583000) && /^[A-Za-z0-9+/]*={0,2}$/u.test(params.body))
     && (params.headers === undefined || params.headers && typeof params.headers === 'object' && !Array.isArray(params.headers) && Object.keys(params.headers).length <= 16
       && Object.entries(params.headers).every(([name, value]) => text(name, 64) && text(value, 1024))))

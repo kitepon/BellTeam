@@ -43,7 +43,8 @@ export async function relayAnswer(frame, facade) {
   if (!request || typeof request !== 'object' || Array.isArray(request)) return bad()
   if (frame.via === 'caller-socket') {
     // A container product's own socket: its path is its identity (named by the relay, never by the client's line). Key use only; no exec, no admin.
-    if (!absolute(frame.unit) || (peer !== null && peer !== undefined) || ![...KEY_OPS, 'http', 'run', ...MAIL_OPS, ...GMAIL_OPS].includes(request.op)) return bad()
+    if (!absolute(frame.unit) || (peer !== null && peer !== undefined) || ![...KEY_OPS, 'http', 'http-stream', 'run', ...MAIL_OPS, ...GMAIL_OPS].includes(request.op)) return bad()
+    if (request.op === 'http-stream') return facade.http({ ...httpParams(request), stream: frame.stream, via: 'caller-socket', unit: frame.unit })
     if (request.op === 'run') return facade.run({ ...runParams(request, frame), via: 'caller-socket', unit: frame.unit })
     if (GMAIL_OPS.includes(request.op)) return facade.gmail({ ...gmailParams(request), via: 'caller-socket', unit: frame.unit })
     if (MAIL_OPS.includes(request.op)) return facade.mail({ ...mailParams(request), via: 'caller-socket', unit: frame.unit })
@@ -76,6 +77,11 @@ export async function relayAnswer(frame, facade) {
     if (container) return facade.mail({ ...mailParams(request), via: 'container-socket', cwd: peer.cwd })
     if (!absolute(request.cwd)) return bad()
     return facade.mail({ ...mailParams(request), via: 'host-socket', cwd: request.cwd, unit: request.cwd })
+  }
+  if (request.op === 'http-stream') {
+    if (container) return facade.http({ ...httpParams(request), stream: frame.stream, via: 'container-socket', cwd: peer.cwd })
+    if (!absolute(request.cwd)) return bad()
+    return facade.http({ ...httpParams(request), stream: frame.stream, via: 'host-socket', cwd: request.cwd, unit: request.cwd })
   }
   if (request.op === 'run') {
     if (container) return facade.run({ ...runParams(request, frame), via: 'container-socket', cwd: peer.cwd })
