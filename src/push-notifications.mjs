@@ -1,7 +1,7 @@
 import { connect } from 'node:http2'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { importPKCS8, SignJWT } from 'jose'
+import { connect as netConnect } from 'node:net'
 import { isSupportedServerURL } from './server-address.mjs'
 import { UpdatePushAttempts, apnsReceipt, jstNow, updatePushReason } from './update-push-attempts.mjs'
 
@@ -270,43 +270,82 @@ export class NotificationRelayProvider {
   close() {}
 }
 
+const base64url = value => Buffer.from(value).toString('base64url')
+
+// The auth-mediation module signs; the relay never holds the key (2026-11-28). It speaks the module's caller-socket line protocol itself:
+// {"op":"sign","name":<item>,"data":<base64 bytes>} -> {"outcome":"granted","data":<base64 raw r||s>}. "denied" / "unknown-caller" / "not-registered" = refused,
+// any other answer, no answer within the timeout, or a signature that is not 64 bytes = failed.
+export const AUTH_CALLER_SOCKET = '/home/kite/BellTeam/runtime/data/shared/tools/auth-mediation/callers/bellteam-push/bellteam-push.sock'
+export function authSign({ socket = process.env.BELLTEAM_AUTH_CALLER_SOCKET ?? AUTH_CALLER_SOCKET, timeoutMs = 10000 } = {}) {
+  return (name, bytes) => new Promise((resolve, reject) => {
+    const done = (error, value) => { clearTimeout(timer); connection.destroy(); error ? reject(pushError(error)) : resolve(value) }
+    const connection = netConnect(socket)
+    const timer = setTimeout(() => done('APNS_SIGN_FAILED'), timeoutMs)
+    let line = ''
+    connection.setEncoding('utf8')
+    connection.on('error', () => done('APNS_SIGN_FAILED'))
+    connection.on('close', () => done('APNS_SIGN_FAILED'))
+    connection.on('connect', () => connection.write(JSON.stringify({ op: 'sign', name, data: Buffer.from(bytes).toString('base64') }) + '\n'))
+    connection.on('data', chunk => {
+      line += chunk
+      if (line.length > 4096) return done('APNS_SIGN_FAILED')
+      if (!line.includes('\n')) return
+      let answer
+      try { answer = JSON.parse(line.split('\n')[0]) } catch { return done('APNS_SIGN_FAILED') }
+      if (['denied', 'unknown-caller', 'not-registered'].includes(answer?.outcome)) return done('APNS_SIGN_REFUSED')
+      const signature = answer?.outcome === 'granted' && typeof answer.data === 'string' ? Buffer.from(answer.data, 'base64') : null
+      if (signature?.length !== 64) return done('APNS_SIGN_FAILED')
+      done(null, signature)
+    })
+  })
+}
+
 export class APNsProvider {
-  // Only the operator relay builds this (services/notifications): keys.<env> is {keyId, file}, a .p8 beside config.json.
-  static async create(config, directory) {
+  // Only the operator relay builds this (services/notifications): keys.<env> is {keyId, sign}, the name of the auth-mediation item whose key signs the JWT.
+  static async create(config, { sign = authSign(), now = () => Math.floor(Date.now() / 1000) } = {}) {
     if (!/^[A-Z0-9]{10}$/u.test(config.teamId ?? '') || !/^[\w.-]+$/u.test(config.topic ?? ''))
       throw new Error('APNS_CONFIG_INVALID')
     const entries = ['development', 'production'].filter(environment => config.keys?.[environment]).map(environment => [environment, config.keys[environment]])
     for (const [, item] of entries) {
-      if (!/^[A-Z0-9]{10}$/u.test(item.keyId ?? '') || Object.keys(item).sort().join() !== 'file,keyId' || !/^[\w.-]+\.p8$/u.test(item.file ?? '')) throw new Error('APNS_CONFIG_INVALID')
+      if (!/^[A-Z0-9]{10}$/u.test(item.keyId ?? '') || Object.keys(item).sort().join() !== 'keyId,sign' || !/^\w[\w. -]{0,99}$/u.test(item.sign ?? '')) throw new Error('APNS_CONFIG_INVALID')
     }
     if (!entries.length) throw new Error('APNS_CONFIG_INVALID')
-    const keys = new Map()
-    for (const [environment, item] of entries) keys.set(environment, { keyId: item.keyId, key: await importPKCS8(await readFile(join(directory, item.file), 'utf8'), 'ES256') })
-    return new APNsProvider(config, keys)
+    const provider = new APNsProvider(config, new Map(entries.map(([environment, item]) => [environment, { keyId: item.keyId, name: item.sign }])), { sign, now })
+    // The first token proves the grant at start; a refusal stops the start (the unit retries).
+    for (const environment of provider.keys.keys()) await provider.token(environment)
+    return provider
   }
 
-  constructor(config, keys, { open = host => connect(`https://${host}`), idleTimeout = APNS_IDLE_TIMEOUT_MS } = {}) {
+  constructor(config, keys, { sign, now = () => Math.floor(Date.now() / 1000), open = host => connect(`https://${host}`), idleTimeout = APNS_IDLE_TIMEOUT_MS } = {}) {
     this.config = config
     this.keys = keys
+    this.sign = sign
+    this.now = now
     this.environments = [...keys.keys()]
     this.connections = new Map()
     this.open = open
     this.idleTimeout = idleTimeout
   }
 
-  async send(device, payload, id) {
-    const key = this.keys.get(device.environment)
-    if (!key) throw pushError('PUSH_ENVIRONMENT_UNAVAILABLE')
-    const now = Math.floor(Date.now() / 1000)
+  token(environment) {
+    const key = this.keys.get(environment)
+    const now = this.now()
     // 端末の数だけ同時に呼ばれる。署名を待つ間に別の呼び出しがトークンを作り直すと、同じ接続へ違うトークンが続けて届き、
     // APNsが TooManyProviderTokenUpdates（429）で拒む。作るのは一度だけにして、同時の送信は同じトークンを待つ。
     if (!key.token || now - key.issuedAt > 3000) {
       key.issuedAt = now
-      key.token = new SignJWT({}).setProtectedHeader({ alg: 'ES256', kid: key.keyId })
-        .setIssuer(this.config.teamId).setIssuedAt(now).sign(key.key)
+      const input = `${base64url(JSON.stringify({ alg: 'ES256', kid: key.keyId }))}.${base64url(JSON.stringify({ iss: this.config.teamId, iat: now }))}`
+      key.token = this.sign(key.name, Buffer.from(input)).then(signature => `${input}.${base64url(signature)}`)
       key.token.catch(() => { key.token = null })
     }
-    const token = await key.token
+    return key.token
+  }
+
+  async send(device, payload, id) {
+    const key = this.keys.get(device.environment)
+    if (!key) throw pushError('PUSH_ENVIRONMENT_UNAVAILABLE')
+    const now = this.now()
+    const token = await this.token(device.environment)
     let connection = this.connections.get(device.environment)
     if (!connection || connection.closed || connection.destroyed) {
       const host = device.environment === 'production' ? 'api.push.apple.com' : 'api.sandbox.push.apple.com'

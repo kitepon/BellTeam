@@ -5,8 +5,10 @@ import { join } from 'node:path'
 import { EventEmitter, once } from 'node:events'
 import test from 'node:test'
 import { connect, createServer as createHttp2Server } from 'node:http2'
-import { generateKeyPair } from 'jose'
-import { APNsProvider, PushNotifications } from '../src/push-notifications.mjs'
+import { generateKeyPair, jwtVerify } from 'jose'
+import { createSign, generateKeyPairSync } from 'node:crypto'
+import { createServer as createNetServer } from 'node:net'
+import { APNsProvider, PushNotifications, authSign } from '../src/push-notifications.mjs'
 import { BellTeamMessenger } from '../src/messenger.mjs'
 import { SecretRequests } from '../src/secret-requests.mjs'
 import { createBellTeamServer } from '../src/http-server.mjs'
@@ -348,10 +350,16 @@ test('update receipt keeps preflight rejection and receipt-less relay acceptance
   assert.equal(result.devices[0].errorReason, 'APNS_RECEIPT_UNAVAILABLE')
 })
 
+// A stand-in for the auth module's sign: the same raw r||s ES256 signature, made with a test key.
+function signer() {
+  const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
+  const calls = []
+  const sign = async (name, bytes) => { calls.push([name, bytes.toString()]); return createSign('SHA256').update(bytes).sign({ key: privateKey, dsaEncoding: 'ieee-p1363' }) }
+  return { sign, calls, publicKey }
+}
 async function apnsProvider(options) {
-  const { privateKey } = await generateKeyPair('ES256')
   return new APNsProvider({ teamId: 'TEAM123456', topic: 'dev.example.bellteam' },
-    new Map([['production', { keyId: 'KEY1234567', key: privateKey }]]), options)
+    new Map([['production', { keyId: 'KEY1234567', name: 'apns-test' }]]), { sign: signer().sign, ...options })
 }
 
 test('APNsの接続は使わない間に閉じ、次の通知は新しい接続で送る', async t => {
@@ -379,18 +387,74 @@ test('同時に送る通知は同じ認証トークンを使い、期限まで�
   assert.equal(new Set(tokens).size, 1)
 })
 
-test('operator relay APNs keys are {keyId, file} only: a 1Password reference, two sources or a bad shape is refused', async t => {
-  const { exportPKCS8 } = await import('jose')
-  const root = await mkdtemp(join(tmpdir(), 'bellteam-apns-keys-'))
-  t.after(() => rm(root, { recursive: true, force: true }))
-  await writeFile(join(root, 'dev.p8'), await exportPKCS8((await generateKeyPair('ES256', { extractable: true })).privateKey))
-  const config = keys => ({ teamId: 'TEAM123456', topic: 'dev.example.bellteam', keys })
-  const reference = `op://${'v'.repeat(26)}/${'i'.repeat(26)}/notesPlain`
-  const provider = await APNsProvider.create(config({ development: { keyId: 'KEY1234567', file: 'dev.p8' } }), root)
+const apnsConfig = keys => ({ teamId: 'TEAM123456', topic: 'dev.example.bellteam', keys })
+
+test('relay APNs keys are {keyId, sign} only: a file, a reference, two sources or a bad shape is refused', async () => {
+  const { sign } = signer()
+  const provider = await APNsProvider.create(apnsConfig({ development: { keyId: 'KEY1234567', sign: 'apns-dev' } }), { sign })
   assert.deepEqual(provider.environments, ['development'])
   provider.close()
-  for (const bad of [{ keyId: 'KEY7654321', reference }, { keyId: 'KEY7654321', file: 'dev.p8', reference }, { keyId: 'KEY7654321' }, 'dev.p8']) {
-    await assert.rejects(APNsProvider.create(config({ production: bad }), root), /APNS_CONFIG_INVALID/u)
+  for (const bad of [{ keyId: 'KEY7654321', file: 'dev.p8' }, { keyId: 'KEY7654321', sign: 'x', file: 'dev.p8' }, { keyId: 'KEY7654321' }, { sign: 'x' }, { keyId: 'KEY7654321', sign: '-x' }, { keyId: 'KEY7654321', sign: '' }, 'dev.p8']) {
+    await assert.rejects(APNsProvider.create(apnsConfig({ production: bad }), { sign }), /APNS_CONFIG_INVALID/u)
   }
 })
 
+test('the JWT is built by the relay and signed by the module: header, claims and signature verify, one sign per environment until it expires', async () => {
+  const { sign, calls, publicKey } = signer()
+  let clock = 1000000
+  const provider = await APNsProvider.create(apnsConfig({ production: { keyId: 'KEY1234567', sign: 'apns-test' } }), { sign, now: () => clock })
+  assert.equal(calls.length, 1) // the first token is made at start, which proves the grant
+  assert.equal(calls[0][0], 'apns-test')
+  const token = await provider.token('production')
+  const verified = await jwtVerify(token, publicKey, { algorithms: ['ES256'] })
+  assert.deepEqual(verified.protectedHeader, { alg: 'ES256', kid: 'KEY1234567' })
+  assert.deepEqual(verified.payload, { iss: 'TEAM123456', iat: clock })
+  await Promise.all([1, 2, 3].map(() => provider.token('production')))
+  assert.equal(calls.length, 1)
+  clock += 3001
+  const next = await provider.token('production')
+  assert.equal(calls.length, 2); assert.notEqual(next, token)
+  assert.equal((await jwtVerify(next, publicKey)).payload.iat, clock)
+})
+
+test('a refused sign stops the start; a sign that fails later fails that send only and the next send signs again', async () => {
+  await assert.rejects(APNsProvider.create(apnsConfig({ production: { keyId: 'KEY1234567', sign: 'apns-test' } }), { sign: async () => { throw Object.assign(new Error('APNS_SIGN_REFUSED'), { code: 'APNS_SIGN_REFUSED' }) } }), { code: 'APNS_SIGN_REFUSED' })
+  const { sign, calls } = signer()
+  let failing = false, clock = 1000000
+  const provider = await APNsProvider.create(apnsConfig({ production: { keyId: 'KEY1234567', sign: 'apns-test' } }),
+    { sign: async (...args) => { if (failing) throw Object.assign(new Error('APNS_SIGN_FAILED'), { code: 'APNS_SIGN_FAILED' }); return sign(...args) }, now: () => clock })
+  clock += 3001; failing = true
+  await assert.rejects(provider.send({ ...device, token: 'a'.repeat(64) }, { aps: {} }, 'x'), { code: 'APNS_SIGN_FAILED' })
+  failing = false
+  assert.ok(await provider.token('production'))
+  assert.equal(calls.length, 2)
+})
+
+test('authSign speaks the caller-socket line protocol and maps every answer to a fixed code', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'bellteam-auth-sign-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const path = join(dir, 'caller.sock')
+  let reply = null, seen = null
+  const server = createNetServer(connection => {
+    let line = ''
+    connection.on('data', chunk => { line += chunk; if (line.includes('\n')) { seen = JSON.parse(line); if (reply !== 'hang') connection.end(reply + '\n') } })
+  })
+  await new Promise(resolve => server.listen(path, resolve))
+  t.after(() => server.close())
+  const sign = authSign({ socket: path, timeoutMs: 200 })
+  const good = Buffer.alloc(64, 7)
+  reply = JSON.stringify({ outcome: 'granted', data: good.toString('base64') })
+  assert.deepEqual(await sign('apns-test', Buffer.from('header.claims')), good)
+  assert.deepEqual(seen, { op: 'sign', name: 'apns-test', data: Buffer.from('header.claims').toString('base64') })
+  for (const outcome of ['denied', 'unknown-caller', 'not-registered']) {
+    reply = JSON.stringify({ outcome, error: 'PRIVATE TEXT' })
+    await assert.rejects(sign('apns-test', Buffer.from('x')), { code: 'APNS_SIGN_REFUSED', message: 'APNS_SIGN_REFUSED' })
+  }
+  for (const bad of [JSON.stringify({ outcome: 'error', error: 'Cannot sign.' }), JSON.stringify({ outcome: 'granted', data: Buffer.alloc(63).toString('base64') }), 'not json', JSON.stringify({ outcome: 'granted' })]) {
+    reply = bad
+    await assert.rejects(sign('apns-test', Buffer.from('x')), { code: 'APNS_SIGN_FAILED' })
+  }
+  reply = 'hang'
+  await assert.rejects(sign('apns-test', Buffer.from('x')), { code: 'APNS_SIGN_FAILED' })
+  await assert.rejects(authSign({ socket: join(dir, 'missing.sock') })('apns-test', Buffer.from('x')), { code: 'APNS_SIGN_FAILED' })
+})
