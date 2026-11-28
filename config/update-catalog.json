@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-28T06:10:20Z",
-  "expiresAt": "2026-12-05T06:10:20Z",
+  "publishedAt": "2026-11-28T06:52:33Z",
+  "expiresAt": "2026-12-05T06:52:33Z",
   "releases": [
     {
       "componentId": "usage",
@@ -489,8 +489,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "4491da4b8b8f2c5e0ad881e1dd31169466f3a67e",
-      "versionId": "cf6db38d174044bc5bee48ab41cfdf7566dfae553e119246aa8a7c5aa236b1ca",
+      "sourceCommit": "9874c94a1364a2cc140f3f363fd3b6d532bc9575",
+      "versionId": "ef807ccca95ead2cd09df7baeda87fde7bbf5a0bf98259dce896128db60e881f",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -498,16 +498,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T230459Z/execution-4491da4b8b8f2c5e0ad881e1dd31169466f3a67e-linux-amd64.tar.gz",
-          "bytes": 3882343,
-          "sha256": "cf6db38d174044bc5bee48ab41cfdf7566dfae553e119246aa8a7c5aa236b1ca"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T065200Z/execution-9874c94a1364a2cc140f3f363fd3b6d532bc9575-linux-amd64.tar.gz",
+          "bytes": 3882600,
+          "sha256": "ef807ccca95ead2cd09df7baeda87fde7bbf5a0bf98259dce896128db60e881f"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T230459Z/execution-4491da4b8b8f2c5e0ad881e1dd31169466f3a67e-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11036,
-          "sha256": "171de82aeb846cefaf127dbb6cda433799aaf35e43febf88f9430674ac441efa"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T065200Z/execution-9874c94a1364a2cc140f3f363fd3b6d532bc9575-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11083,
+          "sha256": "aa6d44f7aacacbfaea8a6e32614a881a14e5a05c92978ba90c92bed2fa3c1eeb"
         },
-        "signerCommit": "4491da4b8b8f2c5e0ad881e1dd31169466f3a67e"
+        "signerCommit": "9874c94a1364a2cc140f3f363fd3b6d532bc9575"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -517,13 +517,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "遠隔の席の起動で、使われない転送ポートの設定と、決裁箱の扉の受け渡しが消えます。"
+        "遠隔の席の転送の準備に、接続先を渡すようになり、fox・macbook・rabbit の席が起動できます。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "4491da4b8b8f2c5e0ad881e1dd31169466f3a67e",
-      "versionId": "6d5e8098b721dca0975a8f1c61ae7d41cb6eb02d72bf61025e31be5c598bbaf6",
+      "sourceCommit": "9874c94a1364a2cc140f3f363fd3b6d532bc9575",
+      "versionId": "43fbb53ea6737243efdeed7e4d5e444b109e753bd1b3539011c6b2aa8ae72b43",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -531,16 +531,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T230459Z/execution-4491da4b8b8f2c5e0ad881e1dd31169466f3a67e-linux-arm64.tar.gz",
-          "bytes": 3882343,
-          "sha256": "6d5e8098b721dca0975a8f1c61ae7d41cb6eb02d72bf61025e31be5c598bbaf6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T065200Z/execution-9874c94a1364a2cc140f3f363fd3b6d532bc9575-linux-arm64.tar.gz",
+          "bytes": 3882600,
+          "sha256": "43fbb53ea6737243efdeed7e4d5e444b109e753bd1b3539011c6b2aa8ae72b43"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T230459Z/execution-4491da4b8b8f2c5e0ad881e1dd31169466f3a67e-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10973,
-          "sha256": "32639e020364666ed85e01060a31f083431a6272c34039a392c8479ea6e27cf6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T065200Z/execution-9874c94a1364a2cc140f3f363fd3b6d532bc9575-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10993,
+          "sha256": "ad825197586665daa73f600b8256f19835dcc1e57c2607620f305b7e0430aec4"
         },
-        "signerCommit": "4491da4b8b8f2c5e0ad881e1dd31169466f3a67e"
+        "signerCommit": "9874c94a1364a2cc140f3f363fd3b6d532bc9575"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -550,7 +550,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "遠隔の席の起動で、使われない転送ポートの設定と、決裁箱の扉の受け渡しが消えます。"
+        "遠隔の席の転送の準備に、接続先を渡すようになり、fox・macbook・rabbit の席が起動できます。"
       ]
     },
     {
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "2cb9f6037b4a2a3986864c09a649395a9e89aa60",
-      "versionId": "sha256:039d18fa707290db59c390300c06157669ab606859b4befbdbd3d0e7c4f06a35",
+      "sourceCommit": "c677866782eb38907fce94770aa53461f9ce43dc",
+      "versionId": "sha256:c7156bff443f3dfbf69f7d335870a5ed41b42bfcfc52908987ac101c36940c29",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:039d18fa707290db59c390300c06157669ab606859b4befbdbd3d0e7c4f06a35"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c7156bff443f3dfbf69f7d335870a5ed41b42bfcfc52908987ac101c36940c29"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -722,22 +722,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席の端末（fox、macbook、rabbit）の鍵が、モジュールの ssh エージェントから取られるようになります（古い鍵の読み込み処理は無くなります）。",
-        "認証仲介が、Gmail の呼び出しと、社内向けの HTTP の呼び出しを、鍵を渡さずにモジュールの中で行えるようになります。中継の呼び出し元が増えます。",
-        "メールや Gmail が失敗したときの答えに、理由が付くようになります。"
+        "新しく作ったコンテナでも、fox・macbook・rabbit の席が、モジュールの ssh エージェントの鍵で起動できるようになります（鍵の置き場のフォルダを作る、転送の準備に接続先を渡す）。",
+        "認証仲介に、決まったコマンドを項目の秘密付きで動かす通路、HTTP の追加の認証方式と大きな返答、AWS の署名、プッシュ用の呼び出し元が加わります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "2cb9f6037b4a2a3986864c09a649395a9e89aa60",
-      "versionId": "sha256:039d18fa707290db59c390300c06157669ab606859b4befbdbd3d0e7c4f06a35",
+      "sourceCommit": "c677866782eb38907fce94770aa53461f9ce43dc",
+      "versionId": "sha256:c7156bff443f3dfbf69f7d335870a5ed41b42bfcfc52908987ac101c36940c29",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:039d18fa707290db59c390300c06157669ab606859b4befbdbd3d0e7c4f06a35"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c7156bff443f3dfbf69f7d335870a5ed41b42bfcfc52908987ac101c36940c29"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,9 +745,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席の端末（fox、macbook、rabbit）の鍵が、モジュールの ssh エージェントから取られるようになります（古い鍵の読み込み処理は無くなります）。",
-        "認証仲介が、Gmail の呼び出しと、社内向けの HTTP の呼び出しを、鍵を渡さずにモジュールの中で行えるようになります。中継の呼び出し元が増えます。",
-        "メールや Gmail が失敗したときの答えに、理由が付くようになります。"
+        "新しく作ったコンテナでも、fox・macbook・rabbit の席が、モジュールの ssh エージェントの鍵で起動できるようになります（鍵の置き場のフォルダを作る、転送の準備に接続先を渡す）。",
+        "認証仲介に、決まったコマンドを項目の秘密付きで動かす通路、HTTP の追加の認証方式と大きな返答、AWS の署名、プッシュ用の呼び出し元が加わります。"
       ]
     },
     {
@@ -893,8 +891,8 @@
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "2cb9f6037b4a2a3986864c09a649395a9e89aa60",
-      "versionId": "e7aa3e58a25b134d830134e8161c5bcaf9263e68ab8a634b6dd076504289c8d4",
+      "sourceCommit": "c677866782eb38907fce94770aa53461f9ce43dc",
+      "versionId": "1013ab135dfdbda494fb252a7f05608dd12c524e5e005e84c8b4bd503084ae09",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -902,16 +900,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T060907Z/auth-mediation-2cb9f6037b4a2a3986864c09a649395a9e89aa60-linux-amd64.tar.gz",
-          "bytes": 3724903,
-          "sha256": "e7aa3e58a25b134d830134e8161c5bcaf9263e68ab8a634b6dd076504289c8d4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T065011Z/auth-mediation-c677866782eb38907fce94770aa53461f9ce43dc-linux-amd64.tar.gz",
+          "bytes": 3732749,
+          "sha256": "1013ab135dfdbda494fb252a7f05608dd12c524e5e005e84c8b4bd503084ae09"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T060907Z/auth-mediation-2cb9f6037b4a2a3986864c09a649395a9e89aa60-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11320,
-          "sha256": "c13482727f0ccfe0f8d3de6da257c388620dafcc7385babb268e4a998c96b9c0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T065011Z/auth-mediation-c677866782eb38907fce94770aa53461f9ce43dc-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10991,
+          "sha256": "2d2400b99e126da42d27645152a8af898b79a8b836a87abd990aa6ff0707b6b4"
         },
-        "signerCommit": "2cb9f6037b4a2a3986864c09a649395a9e89aa60"
+        "signerCommit": "c677866782eb38907fce94770aa53461f9ce43dc"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -923,13 +921,13 @@
         }
       },
       "changes": [
-        "Gmail の 3 つの固定の呼び出し、社内向けの HTTP（平文、素通りの経路、フォーム認証）、メールの STARTTLS の確認、失敗の理由を、モジュールの中で行えるようになります。HTTP は、区切りを隠した経路を断ります。"
+        "決まったコマンドを項目の秘密付きで動かす通路、HTTP の追加の認証方式と大きな返答、Threads の長期トークンの更新、AWS の署名を、モジュールの中で行えるようになります。"
       ]
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "2cb9f6037b4a2a3986864c09a649395a9e89aa60",
-      "versionId": "e39f684f02c18ad01697313387c494defbb296091abaadb606de6803a046288f",
+      "sourceCommit": "c677866782eb38907fce94770aa53461f9ce43dc",
+      "versionId": "d9924cc594e37a185ae736284384853f6271636e8057dbf7b4a5b476eab24dd6",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -937,16 +935,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T060907Z/auth-mediation-2cb9f6037b4a2a3986864c09a649395a9e89aa60-linux-arm64.tar.gz",
-          "bytes": 3724903,
-          "sha256": "e39f684f02c18ad01697313387c494defbb296091abaadb606de6803a046288f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T065011Z/auth-mediation-c677866782eb38907fce94770aa53461f9ce43dc-linux-arm64.tar.gz",
+          "bytes": 3732749,
+          "sha256": "d9924cc594e37a185ae736284384853f6271636e8057dbf7b4a5b476eab24dd6"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T060907Z/auth-mediation-2cb9f6037b4a2a3986864c09a649395a9e89aa60-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11124,
-          "sha256": "01e7493fef3a39f67ee28bec4a71710e54676967257db4920785615925fec732"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T065011Z/auth-mediation-c677866782eb38907fce94770aa53461f9ce43dc-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10897,
+          "sha256": "1cd9c0f5d53421dd5db5e4e9cfdb1ca259f6d54d692796b3c0137dddc0243acf"
         },
-        "signerCommit": "2cb9f6037b4a2a3986864c09a649395a9e89aa60"
+        "signerCommit": "c677866782eb38907fce94770aa53461f9ce43dc"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -958,7 +956,7 @@
         }
       },
       "changes": [
-        "Gmail の 3 つの固定の呼び出し、社内向けの HTTP（平文、素通りの経路、フォーム認証）、メールの STARTTLS の確認、失敗の理由を、モジュールの中で行えるようになります。HTTP は、区切りを隠した経路を断ります。"
+        "決まったコマンドを項目の秘密付きで動かす通路、HTTP の追加の認証方式と大きな返答、Threads の長期トークンの更新、AWS の署名を、モジュールの中で行えるようになります。"
       ]
     }
   ],
