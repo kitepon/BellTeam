@@ -27,9 +27,9 @@ packages:
     url: https://github.com/kitepon/login-billing.git
     exactVersion: 0.26.0
   ApprovalBoxClient:
-    # The tarball of client-v0.8.1 (sha256 1980758ba616d13376c4d815502f45bc77805295784300104b3460bd7a6a090a) is this revision (0.8.1: login-billing exact 0.26.0; keys/accept and keys/leave go under /v1, 0.8.0 and earlier posted them to the bare base and got 404); SwiftPM cannot read the client-v<semver> tag.
+    # client-v0.9.0 (device carry: a child with no registry copy offers itself, the parent admits it with no QR) is this revision (login-billing exact 0.26.0, peer-channel a5e47a3); SwiftPM cannot read the client-v<semver> tag.
     url: https://github.com/kitepon/approval-box-apps.git
-    revision: 9eb0755217646c0ea2f77b3143b6e3c19c4801a1
+    revision: 7d687cc4d98f57740de141174eafe24e65326025
 targets:
   BellTeam:
     type: application
