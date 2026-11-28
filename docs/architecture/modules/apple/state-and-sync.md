@@ -156,3 +156,17 @@ flowchart TD
 - 本体内部の状態writer、SSE発行とHTTP受付後の処理、実際の配送・停止完了。
 - 実行時の競合・取消タイミング、複数window、長時間background、OSのcookie/cacheの保持。ビルド・試験は未実行。
 - 関連XCTestのassertion・fixture本文。索引の試験対応は宣言だけの確認。
+
+## 生きた接続の付け替え（監査 H-09）
+
+作業グラフ（`WorkGraphView`）・Lattice一覧（`LatticeHomeView`）・Lattice工程表（`LatticeChartScreen`）の`.task`は、前面かどうか・`store.serverURL`・トークンの有無をまとめたidで動く。どれかが変わると旧SSEを閉じて新しい接続先・資格で張り直す。
+
+```mermaid
+flowchart TD
+  Ev["前面/背面 ・ serverURL変更 ・ サインアウト（トークン消去） ・ 再ログイン"] --> Id["task id = 前面-serverURL-トークン有無"]
+  Id -->|"id変更"| Cancel["旧taskを取消し、旧SSE（model.run / list.run）を閉じる"]
+  Cancel -->|"前面でない"| Idle["何もしない"]
+  Cancel -->|"前面"| Run["新しいtaskが現在のapi（baseURL・トークン）でSSEを張る"]
+```
+
+旧接続先・旧トークンのSSEは、id変更の取消で必ず終わる。再ログインで同じ接続先に戻っても、トークン有無が変わるので張り直す。

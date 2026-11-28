@@ -518,7 +518,7 @@ final class BellAPI {
     }
 }
 
-private final class SecretRedirectDelegate: NSObject, URLSessionTaskDelegate {
+final class SecretRedirectDelegate: NSObject, URLSessionTaskDelegate {
     func urlSession(_ session: URLSession, task: URLSessionTask,
                     willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest,
                     completionHandler: @escaping (URLRequest?) -> Void) {

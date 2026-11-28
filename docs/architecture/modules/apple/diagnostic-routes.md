@@ -35,3 +35,24 @@ flowchart TD
 確認済み（直接試験）：3本のGETの失敗が、値を含まない経路の型・module・操作名で送られる。`/api/harness-auth/<種類>/input` など、表にない経路は従来どおり `/api/other`。
 
 未確認：過去の記録（f6c057c6・88564ff5）の原因や経路は、この修理で後から決めない。iPhone・iPad・Macの実画面。
+
+## 診断送信のBearer（監査 H-08）
+
+`BellAPI.sessionToken`の`didSet`が`BellDiagnostics.updateSessionToken`へ同じ値を渡す。診断は`send`が`serverURL`と`sessionToken`を同じ錠の中で一緒に読み、`BellDiagnostics.request(baseURL:token:)`が`<設定した接続先>/api/diagnostics`へのPOSTを作る。トークンがあれば`Authorization: Bearer`を付ける。
+
+```mermaid
+flowchart TD
+  Tok["BellAPI.sessionToken 変更<br/>（ログイン・サインアウト・接続先変更・401）"] -->|didSet| Upd["BellDiagnostics.updateSessionToken"]
+  Srv["AppStore.setServerAddress / changeServer<br/>BellDiagnostics.configure(serverURL:)"] -->|"接続先が前と違う（nilを含む）"| Drop["sessionTokenを捨てる"]
+  Srv -->|"初回 nil→url"| Keep["復元済みのトークンを残す"]
+  Upd --> Send["BellDiagnostics.send<br/>serverURLとtokenを同じ錠で読む"]
+  Drop --> Send
+  Keep --> Send
+  Send --> Req["request(baseURL:token:)<br/>POST 設定した接続先/api/diagnostics"]
+  Req --> Net["URLSession.shared + SecretRedirectDelegate"]
+  Net -->|"リダイレクト"| Refuse["拒否（completionHandler(nil)）。別オリジンへ再送しない"]
+  Net -->|"202"| Done["完了"]
+```
+
+- トークンが出る先は、設定した接続先のオリジンだけ。接続先の変更・サインアウトでは`BellAPI`が先にトークンを消し（`AppStore`の接続先変更は`api.sessionToken = nil`の後に`configure`）、`configure`も前と違う接続先でトークンを捨てる。リダイレクトは`SecretRedirectDelegate`が拒否するので、302の先へ`Authorization`が付くことはない。
+- 試験：`BellDiagnosticsTests.testDiagnosticsBearerStaysOnTheConfiguredOrigin`。

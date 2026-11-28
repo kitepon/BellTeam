@@ -274,7 +274,7 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
     private let lock = NSLock()
     private let logger = Logger(subsystem: "app.bellteam.bellbot", category: "diagnostics")
     private var serverURL: URL?
-    private var sessionToken: String?
+    private(set) var sessionToken: String?
     private var started = false
     private var deviceType = ""
     private var appState = "inactive"
@@ -303,6 +303,8 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
         let mayRegister = true
         #endif
         lock.lock()
+        // The token belongs to one server: a switch drops it so it can never reach another origin (cold start nil->url keeps it).
+        if let old = self.serverURL, old != reportingURL { sessionToken = nil }
         self.serverURL = reportingURL
         #if targetEnvironment(macCatalyst)
         deviceType = "Mac"
@@ -437,6 +439,15 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
         }
     }
 
+    /// The bearer goes only to the configured origin's /api/diagnostics; a redirect is refused by SecretRedirectDelegate.
+    static func request(baseURL: URL, token: String?) -> URLRequest {
+        var request = URLRequest(url: baseURL.appending(path: "/api/diagnostics"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
+        return request
+    }
+
     private func send(code: String, module: String, version: String, severity: String? = nil, log: String) {
         if let onReport { onReport(code, module, version, log); return }
         lock.lock()
@@ -446,11 +457,8 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
         guard let baseURL else { return }
         Task {
             do {
-                let url = baseURL.appending(path: "/api/diagnostics")
-                var request = URLRequest(url: url)
-                request.httpMethod = "POST"
-                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
+                var request = Self.request(baseURL: baseURL, token: token)
+                let url = request.url!
                 var payload: [String: Any] = [
                     "code": code, "module": module, "app_version": version,
                     "diagnostic_log": log
@@ -460,7 +468,7 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
                 if let cookies = HTTPCookieStorage.shared.cookies(for: url), !cookies.isEmpty {
                     request.setValue(HTTPCookie.requestHeaderFields(with: cookies)["Cookie"], forHTTPHeaderField: "Cookie")
                 }
-                let (_, response) = try await URLSession.shared.data(for: request)
+                let (_, response) = try await URLSession.shared.data(for: request, delegate: SecretRedirectDelegate())
                 guard let http = response as? HTTPURLResponse, http.statusCode == 202 else {
                     logger.error("診断の送信に失敗: 応答が不正")
                     return
