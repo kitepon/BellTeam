@@ -78,6 +78,14 @@ test('mail: STARTTLS mode upgrades before AUTH; an item or a request that could 
   assert.equal(connects, 0)
 })
 
+test('mail: mail_allowed_to limits the recipients to the listed addresses (exact, any case); a stranger, or one stranger among several, is refused before any connection; set but empty refuses all; unset changes nothing', async () => {
+  const only = { ...ITEM, mail_allowed_to: 'Owner@example.org, other@example.org' }
+  assert.equal((await send({}, only, { ...REQUEST, to: ['owner@EXAMPLE.org'] })).result instanceof Error, false)
+  for (const to of [['visitor@example.org'], ['owner@example.org', 'visitor@example.org']]) { const r = await send({}, only, { ...REQUEST, to }); assert.equal(r.result.code, MAIL_REJECTED); assert.equal(r.result.why, 'recipient'); assert.equal(r.s.seen.commands.length, 0) }
+  const empty = await send({}, { ...ITEM, mail_allowed_to: ' , ' }); assert.equal(empty.result.code, MAIL_REJECTED); assert.equal(empty.s.seen.commands.length, 0)
+  assert.equal((await send()).result instanceof Error, false)
+})
+
 test('mail check: a login-only probe on 465 or 587 stops after AUTH: no MAIL FROM, no DATA, nothing sent; a wrong password is MAIL_REJECTED', async () => {
   const s = await fakeSmtp(); const ok = await sendMail(ITEM, {}, { connect: s.connect, checkOnly: true }); s.close()
   assert.deepEqual(ok, { tls_verified: true }); assert.deepEqual(s.seen.commands.map(c => c.split(' ')[0]), ['EHLO', 'AUTH', 'QUIT'])

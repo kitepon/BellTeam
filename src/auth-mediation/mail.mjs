@@ -30,6 +30,8 @@ export async function sendMail(fields, request, { connect = defaultConnect, now 
   const { to, subject, text, html, from_name: fromName, reply_to: replyTo } = request
   if (!checkOnly && (!Array.isArray(to) || to.length < 1 || to.length > 10 || !to.every(a => clean(a, 254) && ADDRESS.test(a)) || !clean(subject, 256) || typeof text !== 'string' || Buffer.byteLength(text) > 32768
     || (html !== undefined && (typeof html !== 'string' || Buffer.byteLength(html) > 32768)) || (fromName !== undefined && !clean(fromName, 100)) || (replyTo !== undefined && !(clean(replyTo, 254) && ADDRESS.test(replyTo))))) throw fail(MAIL_REJECTED, 'request')
+  // mail_allowed_to (comma list of exact addresses, case-insensitive): when the item sets it, every recipient must be on it; set but empty refuses all (fail closed).
+  if (!checkOnly && fields.mail_allowed_to !== undefined) { const allowed = String(fields.mail_allowed_to).split(',').map(a => a.trim().toLowerCase()).filter(Boolean); if (!to.every(a => allowed.includes(a.toLowerCase()))) throw fail(MAIL_REJECTED, 'recipient') }
   const messageId = `<${randomUUID()}@${fromAddress.split('@')[1]}>`
   const body = checkOnly ? '' : buildMessage({ fromAddress, fromName, to, replyTo, subject, text, html, messageId, date: now() })
   let socket, buffer = '', waiter = null, ended = false, sent = false
