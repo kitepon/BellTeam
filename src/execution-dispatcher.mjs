@@ -69,7 +69,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     configurationStorage: ['root', 'trustedAnchor', 'ownerUid'],
     access: ['assertWorkAllowed', 'admitWork', 'requireMember', 'requireAccess', 'assertInput'],
     storage: ['prepareStartup', 'updateSession', 'updateFastMode', 'deliveryAnchor'],
-    seat: ['waitProcess', 'handoffContext', 'writeTemporaryImage', 'removeTemporaryImage', 'tempRoot'],
+    seat: ['waitProcess', 'handoffContext', 'seatActivity', 'writeTemporaryImage', 'removeTemporaryImage', 'tempRoot'],
     observer: ['appendInterimWords', 'emitQueue', 'report'], diagnostics: ['record', 'goalError'],
     continuation: ['models', 'harnessAuth', 'messenger'],
     terminals: ['connection', 'watch'], ingress: ['seatCredential', 'seatMcp', 'userTools'], harnessCli: ['installed', 'watch', 'recheck'], seatStream: ['cursor', 'ingest', 'displayFromStream'],

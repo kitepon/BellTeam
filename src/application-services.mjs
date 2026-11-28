@@ -33,7 +33,7 @@ import { acquireConfigurationStateAnchor } from './configuration-state-anchor.mj
 import { ConfigurationRequests } from './configuration-requests.mjs'
 import { createManagedTransport } from './aiterm-transport.mjs'
 import { runWaitProcess } from './aiterm-wait-process.mjs'
-import { completedThroughlineTurns, latestThroughlineHandoffContext } from './throughline-context.mjs'
+import { completedThroughlineTurns, latestThroughlineHandoffContext, throughlineActivity } from './throughline-context.mjs'
 import { AiControl, stopRegisteredWork } from './ai-control.mjs'
 import { prepareModuleRelease } from './module-release.mjs'
 import { createDiagnosticsFacade } from './diagnostics-facade.mjs'
@@ -253,6 +253,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     writeTemporaryImage: (path, bytes) => seatRuntime.writeTemporaryImage(path, bytes),
     removeTemporaryImage: path => seatRuntime.removeTemporaryImage(path),
     handoffContext: project => latestThroughlineHandoffContext(project, { seatCommands: true }),
+    seatActivity: project => throughlineActivity(project, { seatCommands: true }),
     waitProcess: (process, signal) => runWaitProcess(process, signal, { seatProject: root }),
   } : {}
   const requireMember = async (bot, context) => {

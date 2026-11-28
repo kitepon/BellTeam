@@ -11,7 +11,7 @@ import { sendStopOperations, sendText, withoutImageText, imagePaths, plainLine }
 import { sendSessionStop, confirmedSessionClosure } from './session-interruption.mjs'
 import { mcpRequestContext } from './mcp-request-context.mjs'
 import { AitermClient, textResult } from './aiterm-client.mjs'
-import { latestThroughlineHandoffContext } from './throughline-context.mjs'
+import { latestThroughlineHandoffContext, NIGHTLY_RESTART_TURNS } from './throughline-context.mjs'
 import { runWaitProcess } from './aiterm-wait-process.mjs'
 import { BotSessionState } from './bot-session-state.mjs'
 import { DeliveryJob } from './delivery-job.mjs'
@@ -50,6 +50,8 @@ const INTERIM_INTERVAL_MS = 3000
 const STREAM_IDLE_SETTLE_MS = 120_000
 // remote-seat.md "Resume after the route came back": a failed resume is tried again after this, never given up.
 const RESUME_RETRY_MS = 60_000
+// Claude's prompt cache lives one hour after the last turn.
+const PROMPT_CACHE_MS = 60 * 60_000
 // pty_close {hibernate:true} answers about the seat itself (background work, no resume recipe): asking again before it works is futile.
 const SEAT_REFUSALS = new Set(['AGENT_BUSY', 'AGENT_HIBERNATE_UNAVAILABLE'])
 // pty_list current_command of a listed seat that is not running (Aiterm agent lifecycle/resume states and "vanished").
@@ -184,7 +186,7 @@ const resumedRunningFastKept = (bot, receipt) => bot.fastMode === true && receip
   && receipt.startup?.reason === 'turn_running' && receipt.fast_error?.code === 'FAST_MODE_UNCONFIRMED'
 
 export class AitermTransport {
-  constructor({ resolveBot = null, backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, assertInputAllowed = () => {}, activeId = randomUUID, activityPath = null, captureRuntime = captureSelectedRuntime, runtimeLaunchesPath = null, runningExclusionsPath = null, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {}, accounts = null, remoteSeats = null, seatMcpSeen = null, configurationLock = null, harnessCli = null, seatStream = null, refastRetry = 30_000, launchGate = null } = {}) {
+  constructor({ resolveBot = null, backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, seatActivity = null, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, assertInputAllowed = () => {}, activeId = randomUUID, activityPath = null, captureRuntime = captureSelectedRuntime, runtimeLaunchesPath = null, runningExclusionsPath = null, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {}, accounts = null, remoteSeats = null, seatMcpSeen = null, configurationLock = null, harnessCli = null, seatStream = null, refastRetry = 30_000, launchGate = null } = {}) {
     this.launchGate = launchGate
     this.backgroundSummary = backgroundSummary
     this.summaryJobs = new Set()
@@ -205,6 +207,7 @@ export class AitermTransport {
     this.waitProcess = waitProcess
     this.reportError = reportError
     this.handoffContext = handoffContext
+    this.seatActivity = seatActivity
     this.prepareStartup = prepareStartup
     this.updateSession = updateSession
     this.updateFastMode = updateFastMode
@@ -485,6 +488,8 @@ export class AitermTransport {
       ? await this.remoteSeats.handoffContext(bot.id) : await this.handoffContext(bot.project)
     await this.prepareStartup(bot, shortTermMemory, { membersLease })
     this.membersAdmission.assertLease(membersLease)
+    // Owner 2026-11-28 (fresh-wake-after-cache): a hibernated Claude seat idle past its 1-hour prompt cache with a long conversation starts fresh from Throughline memory.
+    if (!execution && !sessionName && harness === 'claude-code') await this.discardStaleHibernated(bot, version)
     const runtime = await this.captureLaunchRuntime()
     // Protects the wrong target: a terminal-bound member never starts in the server folder. Exit: an engine with the
     // terminals ports (next body start) drains the same queued ID.
@@ -633,6 +638,21 @@ export class AitermTransport {
     // configuration-lock.md: a new launch has no Aiterm lock; the Owner's switch is read fresh, a failure only logs.
     if ((this.resolveBot?.(bot.id) ?? bot).configurationLocked === true) await this.setConfigurationLock(bot, true)
     return session
+  }
+
+  // Closes (discards) the hibernated record so the launch below starts fresh. Any unknown (no record, unreadable observation or
+  // Throughline, no time) leaves the record for the ordinary resume: nothing here can keep a seat from waking.
+  async discardStaleHibernated(bot, version) {
+    if (isRemoteBot(bot) || !this.seatActivity) return
+    let stale = false
+    try {
+      stale = (await this.observe(bot))?.state === 'hibernated' && await this.seatActivity(bot.project).then(({ turns, lastCompletedAt }) =>
+        turns >= NIGHTLY_RESTART_TURNS && Number.isFinite(lastCompletedAt) && Date.parse(this.now()) - lastCompletedAt > PROMPT_CACHE_MS)
+    } catch {}
+    if (!stale) return
+    this.requireStopVersion(bot.id, version)
+    process.stderr.write(`BellTeam Aiterm: hibernated seat past its prompt cache, starting fresh: ${bot.id}\n`)
+    await this.changeSession(bot, 'pty_close', { session_id: this.session(bot) })
   }
 
   // configuration-delivery.md (a469g): Aiterm 0.70.81 resumes a fast seat that already runs a turn without restoring fast. The turn is
