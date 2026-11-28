@@ -40,7 +40,7 @@ struct WorkGraphView: View {
             .overlay(alignment: .top) { pill.padding(.top, proxy.safeAreaInsets.top + 12) }
             .ignoresSafeArea()
         }
-        .task(id: scenePhase == .active) {
+        .task(id: "\(scenePhase == .active)-\(store.serverURL?.absoluteString ?? "")-\(store.api.sessionToken != nil)") {
             // 背景へ回る・窓を閉じる時は接続を閉じ、戻ったら接続してsnapshotとの差分を描く。
             guard scenePhase == .active else { return }
             model.baseSide = Self.baseSide

@@ -71,7 +71,8 @@ final class LatticeChartModel: ObservableObject {
 
     init(projectId: String) { self.projectId = projectId }
 
-    var path: String { "/api/lattice/charts/\(projectId)/events" }
+    private var encodedProjectId: String { projectId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? projectId }
+    var path: String { "/api/lattice/charts/\(encodedProjectId)/events" }
     var stale: Bool { connection == .reconnecting && snapshot != nil }
 
     enum StreamError: Error { case silent }
@@ -180,7 +181,7 @@ final class LatticeChartModel: ObservableObject {
 
     private func chartMissing(api: BellAPI) async -> Bool {
         do {
-            let _: LatticeChartSnapshot = try await api.get("/api/lattice/charts/\(projectId)")
+            let _: LatticeChartSnapshot = try await api.get("/api/lattice/charts/\(encodedProjectId)")
             return false
         } catch BellAPIError.httpStatus(404, let code, _) {
             return code == "LATTICE_CHART_NOT_FOUND"

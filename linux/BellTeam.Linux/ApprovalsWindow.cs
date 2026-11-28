@@ -200,7 +200,7 @@ internal sealed partial class ApprovalsWindow : Window, IPageBack
     }
     private static bool OpenUrl(string url)
     {
-        try { Process.Start(new ProcessStartInfo("xdg-open", url) { UseShellExecute = false }); return true; }
+        try { ExternalLink.Launch(new Uri(url)); return true; }
         catch (Exception) { return false; }
     }
     internal static bool OpenWebLink(string url) => (url.StartsWith("https://", StringComparison.Ordinal) || url.StartsWith("http://", StringComparison.Ordinal)) && OpenUrl(url);

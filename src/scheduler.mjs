@@ -84,17 +84,22 @@ export class BotScheduler {
       await this.registry.refresh(options)
       const bots = botIds ? botIds.map(id => this.registry.get(id)).filter(Boolean) : [...this.registry.values()]
       for (const bot of bots) {
-        for (const schedule of await this.registry.listSchedules(bot.id, options)) {
-          if (schedule.kind !== 'after_turn' || !schedule.enabled) continue
-          const observedTurn = this.transport.currentTurn(bot.id)
-          if (observedTurn.state === 'unknown') continue
-          const check = this.admitWork()
-          check()
-          const claimed = await this.registry.claimAfterTurn({ botId: bot.id, scheduleId: schedule.id,
-            expectedRevision: scheduleRevision(schedule), expectedAfterTurn: schedule.afterTurn, observedTurn, ranAt: new Date().toISOString() }, options)
-          if (!claimed) continue
-          check()
-          await this.dispatchBotSchedule(bot, claimed, options)
+        try {
+          for (const schedule of await this.registry.listSchedules(bot.id, options)) {
+            if (schedule.kind !== 'after_turn' || !schedule.enabled) continue
+            const observedTurn = this.transport.currentTurn(bot.id)
+            if (observedTurn.state === 'unknown') continue
+            const check = this.admitWork()
+            check()
+            const claimed = await this.registry.claimAfterTurn({ botId: bot.id, scheduleId: schedule.id,
+              expectedRevision: scheduleRevision(schedule), expectedAfterTurn: schedule.afterTurn, observedTurn, ranAt: new Date().toISOString() }, options)
+            if (!claimed) continue
+            check()
+            await this.dispatchBotSchedule(bot, claimed, options)
+          }
+        } catch (error) {
+          if (error.code === 'AI_GLOBAL_PAUSED' || error.code === 'MEMBERS_NOT_ACCEPTED') return
+          reportError(error)
         }
       }
     })
@@ -272,10 +277,10 @@ export class BotScheduler {
   }
 
   // After the schedule is durably removed (BotRegistry.onScheduleRemoved): close its 接続; idempotent in Lattice.
-  async releaseConnection(botId, schedule) {
+  async releaseConnection(botId, schedule, options) {
     const { project, plan, task } = schedule.connect
     const removed = await this.runLattice(botId, project, ['todo', 'connect', 'condition', 'remove', '--plan', plan, '--task', task, '--to', `schedule:${schedule.id}`, '--reason', 'schedule removed'])
-    if (!removed.ok) await this.notifyLane(botId, schedule.connect, `[BellTeam schedule ${schedule.id}] 予定「${schedule.name || schedule.command}」を削除したが、接続（${plan}/${task}）を外せなかった（${removed.reason}）。接続は開いたまま。`)
+    if (!removed.ok) await this.notifyLane(botId, schedule.connect, `[BellTeam schedule ${schedule.id}] 予定「${schedule.name || schedule.command}」を削除したが、接続（${plan}/${task}）を外せなかった（${removed.reason}）。接続は開いたまま。`, options)
   }
 
   // Lattice write through the parent facade. Never throws: ok=false covers no facade, a refusal, and an unsent or still-pending write.
@@ -291,10 +296,11 @@ export class BotScheduler {
   }
 
   // The task's lane Bot only (never the Owner); the schedule's owner when the lane is not a Bot.
-  async notifyLane(ownerId, { project, plan, task }, message) {
+  async notifyLane(ownerId, { project, plan, task }, message, options) {
     const shown = await this.runLattice(ownerId, project, ['todo', 'show', '--plan', plan, '--task', task])
     const lane = shown.value?.result?.task?.lane
-    await this.messenger.sendmessage({ from: 'scheduler', target: this.registry.get?.(lane) ? lane : ownerId, message })
+    const input = { from: 'scheduler', target: this.registry.get?.(lane) ? lane : ownerId, message }
+    await (options ? this.messenger.sendmessage(input, options) : this.messenger.sendmessage(input))
   }
 
   async disableSchedule(bot, schedule) {

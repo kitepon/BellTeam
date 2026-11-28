@@ -106,7 +106,7 @@ struct LatticeChartScreen: View {
         }
         .onChange(of: store.serverURL) { _, _ in showingSettings = false }
         .onChange(of: store.owner?.name, initial: true) { _, name in LatticePerson.ownerName = name }
-        .task(id: scenePhase == .active) {
+        .task(id: "\(scenePhase == .active)-\(store.serverURL?.absoluteString ?? "")-\(store.api.sessionToken != nil)") {
             // 背景へ回る・窓を閉じる時は接続を閉じ、戻ったら最新の一枚から描き直す。
             guard scenePhase == .active else { return }
             model.coordinator = coordinatorId

@@ -164,7 +164,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
     public string? ConnectionError { get => connectionError; private set { connectionError = value; Changed(); } }
     // a485: what the server said about app sessions on the last read (null = a server without them: today's login path). When it enforces them, a missing or refused session is answered by the server's own login (LoginFlow), not by Access.
     public LoginInfo? Login { get; private set; }
-    public bool SessionLoginRequired => Login?.Enforced == true;
+    public bool SessionLoginRequired => Login is { Capability: true };
     public bool NeedsLogin { get => needsLogin; private set { needsLogin = value; Changed(); } }
     public string ConnectionStatus { get => connectionStatus; private set { connectionStatus = value; Changed(); } }
     public ConversationEntry? Selected => selected;
@@ -283,15 +283,22 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
         ActionError = null;
         ConnectionStatus = CoreStrings.Workspace_ConnectAsync_2;
         var current = api;
-        current.AuthenticationRequired += () => { if (api == current) NeedsLogin = true; };
+        var probing = false; // the home probe is optional: Access refusing it is "not a home server", not a lost sign-in
+        current.AuthenticationRequired += () => { if (api == current && !probing) NeedsLogin = true; };
         var token = connection.Token;
         try
         {
             if (prepareConnection is not null) await prepareConnection(origin);
             token.ThrowIfCancellationRequested();
+            // GET /api/session carries no login block any more: the home part's own probe says whether this server takes a console-code login (app-sessions.md section 4).
+            probing = true;
+            HomeProbe? home;
+            try { home = await HomeLoginApi.ProbeAsync(current, token); } finally { probing = false; }
             var session = await current.GetAsync<SessionInfo>("/api/session", token);
-            AuthMode = session.AuthMode; Login = session.Login; Changed(nameof(AuthMode)); Changed(nameof(Login));
+            AuthMode = session.AuthMode; Login = home is null ? null : new LoginInfo { Capability = true, Bound = home.Bound, Enforced = home.Enforced }; Changed(nameof(AuthMode)); Changed(nameof(Login));
             if (!session.Authenticated) { ConnectionRetryable = false; NeedsLogin = session.AuthMode == "cloudflare" || SessionLoginRequired; throw new BellApiException(SessionLoginRequired ? CoreStrings.Workspace_ConnectAsync_3 : NeedsLogin ? CoreStrings.BellApi_RawAsync_1 : CoreStrings.Workspace_ConnectAsync_5); }
+            // A home server that has no owner yet is bound by the first console code: with no token held, the app asks for the code first.
+            if (Login is { Bound: false } && current.SessionToken is null) { ConnectionRetryable = false; NeedsLogin = true; throw new BellApiException(CoreStrings.Workspace_ConnectAsync_3); }
             await RefreshAsync(current, token);
             ready = true; Changed(nameof(Connected));
             ConnectionStatus = CoreStrings.Workspace_ConnectAsync_6;
@@ -682,7 +689,7 @@ public class Workspace<TImage> : INotifyPropertyChanged, IDisposable
     public Task RefreshForImageAsync() => api is null || connection is null ? Task.CompletedTask : RefreshAsync(api, connection.Token);
     public Task<TImage> AvatarAsync(string url)
     {
-        if (avatars.TryGetValue(url, out var existing)) return existing;
+        if (avatars.TryGetValue(url, out var existing) && !existing.IsFaulted && !existing.IsCanceled) return existing;
         async Task<TImage> Load() => await codec.DecodeAsync(await (api ?? throw new BellApiException(CoreStrings.Workspace_connectionStatus_1)).ImageAsync(url, ConnectionToken));
         var task = Load(); avatars[url] = task; return task;
     }

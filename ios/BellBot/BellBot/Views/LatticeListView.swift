@@ -262,7 +262,7 @@ struct LatticeHomeView: View {
                 }
         }
         .tint(BellTheme.violet)
-        .task(id: scenePhase == .active) {
+        .task(id: "\(scenePhase == .active)-\(store.serverURL?.absoluteString ?? "")-\(store.api.sessionToken != nil)") {
             guard scenePhase == .active else { return }
             await list.run(api: store.api)
         }

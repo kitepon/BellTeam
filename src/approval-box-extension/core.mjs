@@ -1,5 +1,6 @@
 // Approval Box extension: the child core (README F1-F7). Roots are the contract's calls; `refresh` is the engine tick, because effects exist only
 // inside a root call. The extension copies no decision: ids and state go to links.json, everything else is read from Approval Box on demand.
+import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { createApprovalBoxClient } from './client.mjs'
@@ -16,7 +17,7 @@ const fail = (code, status) => approvalsError(code, status)
 const ROW_KEEP_MS = 30 * 86_400_000, RING = 200, PER_TICK = 5, CATCH_UP_MS = 5 * 60_000, ROSTER_MS = 60_000, OWNER_SCAN_MS = 60_000
 const fileOps = {
   read: async path => readFile(path, 'utf8').catch(error => (error.code === 'ENOENT' ? null : Promise.reject(error))),
-  write: async (path, text) => { await mkdir(join(path, '..'), { recursive: true, mode: 0o700 }); await writeFile(`${path}.tmp`, text, { mode: 0o600 }); await rename(`${path}.tmp`, path) },
+  write: async (path, text) => { await mkdir(join(path, '..'), { recursive: true, mode: 0o700 }); const temp = `${path}.${process.pid}.${randomUUID()}.tmp`; await writeFile(temp, text, { mode: 0o600 }); await rename(temp, path) },
 }
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 const JST = 9 * 3_600_000
@@ -93,6 +94,7 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
   const ready = async effect => { await loadSession(effect); await adoptPairing(effect); await saveSession(effect); if (sessionInvalid) await dropSession(effect) }
 
   const abx = async (effect, method, path, options) => {
+    if (!session) throw fail('APPROVALS_NOT_CONNECTED', 409)
     const response = await client.call(session.token, method, path, options)
     if (response.status === 401) { await dropSession(effect); throw fail('APPROVALS_NOT_CONNECTED', 409) }
     return response

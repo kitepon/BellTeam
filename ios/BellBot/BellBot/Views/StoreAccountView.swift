@@ -61,6 +61,7 @@ struct StoreAccountCard: View {
     private struct Content: View {
         @ObservedObject var account: LocalAccount
         @State private var scanning = false
+        @State private var pendingPayload: String?
         @State private var deleting = false
         @State private var pasted = ""
         @EnvironmentObject private var appStore: AppStore
@@ -90,10 +91,14 @@ struct StoreAccountCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(20).bellCard()
             .task { await account.start() }
-            .sheet(isPresented: $scanning) {
+            .sheet(isPresented: $scanning, onDismiss: {
+                guard let payload = pendingPayload else { return }
+                pendingPayload = nil
+                Task { await account.approve(payload) }
+            }) {
                 #if os(iOS) && !targetEnvironment(macCatalyst)
                 NavigationStack {
-                    QRScannerView { payload in scanning = false; Task { await account.approve(payload) } }
+                    QRScannerView { payload in pendingPayload = payload; scanning = false }
                         .ignoresSafeArea()
                         .navigationTitle("QRを読み取る").navigationBarTitleDisplayMode(.inline)
                         .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("閉じる") { scanning = false } } }

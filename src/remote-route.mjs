@@ -4,6 +4,7 @@
 
 // The seat listener's own port, the same value as remote-seat-port.mjs (not imported: that file is not in the execution artifact).
 const KEEP_MS = 60_000 // Aiterm holds a forward without a binding for 120 s from each ensure_forward call (Elegg 2026-11-23)
+const LAUNCH_GRACE_MS = 60_000 // Do not evict a newly registered remote session while its SSH agent_launch is still in flight.
 const AGENT_EMPTY_TRIES = 3
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -35,6 +36,7 @@ export class RemoteRoutes {
     this.client = null // set by RemoteSeats.route(): the Aiterm client the calls go through
     this.routes = new Map() // terminalId -> {remote, forward, revision}
     this.sessions = new Map() // session -> terminalId
+    this.addedAt = new Map() // session -> ms when add() registered it (launch grace against 5 s views() eviction)
     this.resolving = new Map() // terminalId -> promise (overlapping remoteFor calls share one)
     this.kept = new Map() // terminalId -> ms of the last ensure_forward
     this.viewing = new Map() // terminalId -> promise of the pty_list in flight (one reader per machine)
@@ -45,11 +47,12 @@ export class RemoteRoutes {
   add(session, terminalId, route) {
     this.routes.set(terminalId, { remote: route.remote, forward: route.forward, revision: route.revision ?? null })
     this.sessions.set(session, terminalId)
+    this.addedAt.set(session, this.now())
     this.kept.set(terminalId, this.now())
     if (route.readyAt) this.readyAt.set(terminalId, route.readyAt)
   }
 
-  remove(session) { this.sessions.delete(session) }
+  remove(session) { this.sessions.delete(session); this.addedAt.delete(session) }
 
   // terminals' remoteFor, one call per terminal at a time; AGENT_EMPTY (the key is being loaded again) is retried.
   resolve(terminalId) {
@@ -145,8 +148,10 @@ export class RemoteRoutes {
           const result = await this.client.call('pty_list', { remote: route.remote, include: ['turn', 'own_work'] }, meta ? { meta } : {})
           const seen = viewRows(result?.structuredContent?.sessions)
           // A valid answer without a session: the seat is gone from that machine, so it leaves the table (no turn can run).
+          // Keep sessions added within LAUNCH_GRACE_MS so an in-flight SSH agent_launch / forkInquiry is never evicted mid-start.
           const listed = new Set([...seen.rows.map(row => row.session_id), ...seen.unread])
-          for (const session of sessions) if (!listed.has(session)) this.remove(session)
+          const cutoff = this.now() - LAUNCH_GRACE_MS
+          for (const session of sessions) if (!listed.has(session) && (this.addedAt.get(session) ?? 0) < cutoff) this.remove(session)
           // route_since = the keeper's ready_at (null/absent while not ready): the lost-route resume (remote-seat.md) reads it from the row.
           const since = this.readyAt.get(terminalId)
           return { rows: seen.rows.filter(row => sessions.includes(row.session_id)).map(row => since ? { ...row, route_since: since } : row), unread: seen.unread.filter(id => sessions.includes(id)) }

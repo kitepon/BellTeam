@@ -86,9 +86,11 @@ public sealed class SignalSocket : IAsyncDisposable
         var builder = new UriBuilder(new Uri(a.Url, "/pc/v1/signal")) { Scheme = a.Url.Scheme == "https" ? "wss" : "ws" };
         await ws.ConnectAsync(builder.Uri, ct);
         var s = new SignalSocket(ws);
-        s.reader = s.ReadLoop();
         return s;
     }
+
+    // The read loop starts only here, after the owner attached Message and Closed: a frame or close that arrives first would otherwise be dropped.
+    public void Start() => reader ??= ReadLoop();
 
     private async Task ReadLoop()
     {
@@ -110,8 +112,8 @@ public sealed class SignalSocket : IAsyncDisposable
                 Message?.Invoke(doc);
             }
         }
-        catch (Exception error) when (error is WebSocketException or OperationCanceledException) { /* a failed socket closes; the owner reconnects with backoff (13) */ }
-        Closed?.Invoke();
+        catch (Exception) { /* a failed socket closes; the owner reconnects with backoff (13) */ }
+        finally { Closed?.Invoke(); }
     }
 
     public async Task SendAsync(string json, CancellationToken ct)

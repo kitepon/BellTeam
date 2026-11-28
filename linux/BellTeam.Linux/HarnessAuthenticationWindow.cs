@@ -64,7 +64,7 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
             return;
         }
         var details = Section(LinuxStrings.HarnessAuthenticationWindow_Render_2);
-        details.Children.Add(CardBody(Authentication?.Status switch { "waiting" => LinuxStrings.HarnessAuthenticationWindow_Render_3, "authenticated" => LinuxStrings.HarnessAuthenticationWindow_Render_4, "blocked" => LinuxStrings.HarnessAuthenticationWindow_Render_5, "failed" => LinuxStrings.HarnessAuthenticationWindow_Render_6, null => LinuxStrings.HarnessAuthenticationWindow_Render_7, _ => throw new BellApiException(LinuxStrings.HarnessAuthenticationWindow_Render_8) }));
+        details.Children.Add(CardBody(Authentication?.Status switch { "waiting" => LinuxStrings.HarnessAuthenticationWindow_Render_3, "authenticated" => LinuxStrings.HarnessAuthenticationWindow_Render_4, "blocked" => LinuxStrings.HarnessAuthenticationWindow_Render_5, "failed" => LinuxStrings.HarnessAuthenticationWindow_Render_6, null => LinuxStrings.HarnessAuthenticationWindow_Render_7, _ => LinuxStrings.HarnessAuthenticationWindow_Render_8 }));
         if (Authentication is { } auth)
         {
             if (!string.IsNullOrEmpty(auth.Message)) details.Children.Add(CardBody(auth.Message));

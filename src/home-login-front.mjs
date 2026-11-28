@@ -103,6 +103,7 @@ export function createHomeFront({ call, enabled = true, markerPath, print = line
   return {
     route, judge, tick, accept, get row() { return row },
     trackStream(sessionId, response) {
+      if (response.destroyed || response.writableEnded) return
       const set = streams.get(sessionId) ?? new Set()
       set.add(response); streams.set(sessionId, set)
       response.once('close', () => { set.delete(response); if (!set.size && streams.get(sessionId) === set) streams.delete(sessionId) })

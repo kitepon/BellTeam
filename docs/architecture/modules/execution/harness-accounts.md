@@ -1,7 +1,7 @@
 # Harness accounts: 1st/2nd slots, limit failover and return
 
 Owner: Kiro (execution). Requested by the Owner via Trony, 2026-11-08 20:1x JST. Status: implemented (execution #674); one login per slot designed 2026-11-11 (this revision). Limit-driven only (Owner ruling 2026-11-09 06:3x JST via Trony): there are no preference rules and no 「Fableを2ndアカウントで使う」 switch.
-Scope: Claude only. The shape is keyed by harness, so another harness can add slots later without a new contract; nothing Codex-specific is built.
+The account registry manages Claude slots. The launch policy can temporarily select Codex for a Claude seat.
 
 Names in every UI and contract: 「1stアカウント」 (`slot: '1st'`, primary) and 「2ndアカウント」 (`slot: '2nd'`, fallback). No e-mail address is hard-coded. The Owner logs each slot in once from the app.
 
@@ -18,7 +18,8 @@ One login per slot (Trony request 2026-11-11, Owner: 「何度も何度もログ
 | Limit detection | execution | wait result (trigger) + usage reading (reset time) |
 | Signed-out detection and renewal | execution | wait result `failure.category:'authentication'` (E6) is only the trigger: the slot is signed out only when its own token is rejected by the API (token probe, below) at its current mtime. Exits: the token file changes, a seat on that same token finishes a turn after the mark, or the token probe accepts the token (10-minute re-read; needs no seat on the slot) |
 | Slot selection at launch / model change | execution | launch option `claudeLogin` (the slot, every slot, every launch incl. resume and fork); the seat-side launcher puts that slot's token into the CLI env |
-| Failover after a limit, return after reset | execution | existing reconfigure (apply at the next turn boundary) + capacity continuation message |
+| Failover after a limit, return after reset | execution | the account review moves the session pointer at a turn boundary; the next delivery launches it. The existing keyed capacity continuation can start the interrupted work once. |
+| Temporary provider selection | execution | Opus → `gpt-6.2-sol` high, Sonnet → `gpt-6.2-sol` medium, Fable → `gpt-6.2-astra` and Haiku → `gpt-6.1-terra` at their saved efforts, via the existing `agent_launch` port when both Claude slots have confirmed limits for that model. |
 | Account-card data and slot-aware login contacts | usage (Mika) | typed auth/account-card data built from `accounts.list()` |
 | Routes, private port injection, SSE, Bot DTO | Molly | `accounts.list` route, `account` in Bot items, SSE topic `settings` |
 | Rendering: card rows, banner, member card | Admi (Web), Apple and Windows owners | the data contacts above |
@@ -69,6 +70,22 @@ flowchart TD
   Return --> Back[seats whose effective slot is now the 1st: switch back at next idle boundary]
   Registry --> List[accounts.list / seatAccount] --> UI[settings card, member card, both-limited banner]
 ```
+
+## Temporary Codex seat
+
+```mermaid
+stateDiagram-v2
+  [*] --> Claude
+  Claude --> Codex: Both slots confirmed limited for the model, next turn boundary
+  Codex --> Claude: A limit clears or evidence is unavailable, next turn boundary
+  Claude --> Claude: A usable slot or unconfirmed usage
+```
+
+Selection uses the existing per-model limit registry and its reset and usage re-read. Missing, unclassified or expired limit evidence keeps the seat on Claude. A confirmed limit with no reset time can still be cleared by the usage re-read or a successful Claude turn. Remote seats use this policy only in the terminal's Owner account domain, from the existing terminal target port.
+
+An implicit Claude model uses the Sonnet mapping only when both slots have account-wide limits. The member's configured harness, model, effort and fast setting remain saved. A Codex launch takes the mapped model and effort at ordinary speed. Its session uses the existing account-session shape, with a `codex` prefix on the final token of the `1st` name; this names the seat for existing callers and does not pass a Claude login. The member's session pointer therefore retains the effective provider across execution exchanges. Launch and resume never pass a Claude token to this seat. An idle provider change follows the normal account move and launches only on demand. Earlier sessions follow the existing idle cleanup. Native history stays with its own provider, and Throughline supplies the handoff context.
+
+An interrupted Claude turn uses the existing limit-end continuation and its durable key on either the available Claude slot or the temporary Codex seat. If availability changes before delivery, the next launch takes the current policy. Codex turns update the member's last accepted input and do not count as Claude limit or recovery evidence. Forks use the main session's provider. Explicit execution bindings retain their reserved session and provider.
 
 ## Storage
 
@@ -141,7 +158,7 @@ Usable slots = the slots that are logged in (token present and not signed out at
 | An (S, scope) entry ends | Each seat whose effective slot changes because of it (back to the 1st) switches at its next idle boundary. |
 | A seat's turn ends `failure.category:'authentication'` (E6) on S with a token | The seat user probes S's token (`seatFiles('probe')`: `GET https://api.anthropic.com/v1/models` with that token, 20 s; the token never leaves that process; the verdict carries the mtime of the token it sent, read through one open handle). A verdict counts only for the stamp it names: a token changed before the probe read it is `unknown` for the recorded stamp. 401 at the recorded stamp = rejected: record `signedOut` for S at the token's current stamp (one stderr line with the text, never a token); S stops being usable at once: the failed seat moves exactly like a limit (new seat on the effective slot + continuation message) when another slot is usable; otherwise it stays and is added to the entry's `seats`. Other running seats on S move at their next idle boundary (same as a limit). 200, any other status or no answer = not proven: nothing is marked and only the failed seat renews on S (`stale`), with one stderr line. Legacy 1st is not marked (no stamp; today's behaviour until the 1st token exists). |
 | S's token file gets a new stamp (a new login in the card), or the token probe accepts S's token | The self-exit of `signedOut`: `accounts.list()` (the card's status call reads it) compares the stamp; the 10-minute re-read compares the stamp and probes the token of each entry still at its stamp (200 for that same stamp = the token works). Either removes the entry and saves. It needs no seat on S: a signed-out slot holds none, so a seat-based proof alone could never come (2026-11-14, the 2nd stayed signed out from 11-13 18:51 JST while its token answered). Its `seats` then get a new seat on their effective slot at the next idle boundary, also when that slot is S (renewal: a running CLI keeps the old env token, so only a new launch reads the new one). Seats that are not running read the new token at their next launch or resume (E7). |
-| Both slots limited for a scope | `accounts.list()` lists that scope in `allLimited:[{scope, earliestResetAt}]`. Mika shows it on the AIの認証 card and in the status banner. Seats keep running as described above. A limit-ended member keeps its limit hold; nothing is sent until a slot frees. |
+| Both slots limited for a scope | `accounts.list()` lists that scope in `allLimited:[{scope, earliestResetAt}]`. Mika shows it on the AIの認証 card and in the status banner. Seats keep running as described above. With confirmed limits on both slots for the member’s model, a limit-ended member uses the temporary Codex seat and the existing keyed continuation. |
 | A self-started turn (no BellTeam delivery) ends on a limit | The watch sees the limit as an `error` interim word. It records the (S, scope) entry like a wait result. Aiterm 0.70.26 closes the limit-ended turn (seat idle, span closed), so the watch ends; before it, the span stayed running and the member never moved (production 2026-11-11 21:51 JST, Elegg). |
 
 ### All slots limited: limit end and account recovery (Trony/Owner 2026-11-11/12, any number of slots; Aiterm 0.70.26 contract)
@@ -215,7 +232,7 @@ Production 2026-11-22 15:06:33-15:07:37Z: the 2nd account's weekly limit (both s
 | running | the turn ends any other way (error, closed, not taken) | failed (unchanged) | 配達失敗 |
 | not accepted | the seat could not be started or typed into | failed (unchanged) | 配達失敗 |
 
-What keeps the work: nothing new. `recordAccountLimit` still writes the limit into the registry, Aiterm's `limit_end` (`at`, `continued: false`) on that seat still arms the one continuation, and the registry timer clearing the limit at `resetAt` (or any slot becoming free) runs `reviewAccounts` -> `recoverMember`, which sends ONE continuation message (`（継続キー: <limit_end.at>）`) to every seat whose last turn is that limit end. So an Owner message that arrived while both slots were limited is continued by the seat after the reset, not lost and not to be re-sent.
+What keeps the work: nothing new. `recordAccountLimit` still writes the limit into the registry, Aiterm's `limit_end` (`at`, `continued: false`) on that seat still arms the one continuation, and the registry timer clearing the limit at `resetAt` (or any slot becoming free) runs `reviewAccounts` -> `recoverMember`, which sends ONE continuation message (`（継続キー: <limit_end.at>）`) to every seat whose last turn is that limit end. An Owner message that arrived while both slots were limited gets a continuation on the temporary Codex seat when the limits are confirmed, or on Claude when a slot becomes usable.
 
 ```mermaid
 stateDiagram-v2

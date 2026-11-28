@@ -35,6 +35,7 @@ public sealed class DeviceAdmission
         var inbox = Channel.CreateUnbounded<JsonDocument>();
         socket.Message += doc => inbox.Writer.TryWrite(doc);
         socket.Closed += () => inbox.Writer.TryComplete();
+        socket.Start();
         async Task<JsonDocument> Next(Func<JsonElement, bool> match)
         {
             while (true)

@@ -18,7 +18,7 @@ import { DeliveryJob } from './delivery-job.mjs'
 import { SeatActivity, SeatTurnWatch } from './seat-activity.mjs'
 import { executionFailureReport, reportExecutionFailure } from './execution-failure-report.mjs'
 import { continuationKeyOf, recoverableTurnFailure } from './capacity-continuation.mjs'
-import { isLimitText } from './claude-limit-text.mjs'
+import { isLimitText, modelScope } from './claude-limit-text.mjs'
 import { ACCOUNT_SLOTS } from './harness-accounts.mjs'
 import { quietSession } from './idle-sessions.mjs'
 import { LaunchGate } from './launch-gate.mjs'
@@ -44,6 +44,18 @@ const HARNESS = new Map([
   ['grok', 'grok-cli'],
   ['cursor', 'cursor-cli'],
 ])
+const codexAccountSession = (botId, session) => typeof session === 'string' && session.startsWith(`${botId}-1st-codex`)
+  && /^[a-z0-9]+$/u.test(session.slice(botId.length + '-1st-codex'.length))
+const accountSessionName = (botId, slot, codex) => `${botId}-${slot}-${codex ? 'codex' : ''}${Date.now().toString(36)}`
+const CODEX_ACCOUNT_MODELS = {
+  opus: { model: 'gpt-6.2-sol', reasoningEffort: 'high' },
+  sonnet: { model: 'gpt-6.2-sol', reasoningEffort: 'medium' },
+  fable: { model: 'gpt-6.2-astra' },
+  haiku: { model: 'gpt-6.1-terra' },
+}
+const codexAccountBot = bot => ({
+  ...bot, ...CODEX_ACCOUNT_MODELS[modelScope(bot.model) ?? 'sonnet'], harness: 'codex', fastMode: false,
+})
 // 合間の言葉を取りに行く間隔。Aitermのpty_observeは画面本文を読まない軽い呼び出し。
 const INTERIM_INTERVAL_MS = 3000
 // A delivery's wait ends when the seat's own stream has said "idle, nothing pending" this long while Aiterm still reports the turn running.
@@ -499,6 +511,11 @@ export class AitermTransport {
     const version = this.captureStopVersion(bot)
     await this.requireAccess({ setupTest, botId: bot.id })
     await mkdir(bot.project, { recursive: true })
+    const currentSession = this.session(bot)
+    const boundSession = execution?.reservation.target.session_id ?? sessionName
+    const fallback = boundSession ? codexAccountSession(bot.id, boundSession) : await this.accountFallback(bot)
+    if (fallback) bot = codexAccountBot(bot)
+    const crossedProvider = !boundSession && Boolean(fallback) !== codexAccountSession(bot.id, currentSession)
     const harness = HARNESS.get(bot.harness)
     if (!harness) throw Object.assign(new Error(retiredHarness(bot.harness) ? RETIRED_HARNESS_NOTICE : `HARNESS_UNSUPPORTED: ${bot.harness}`),
       { code: retiredHarness(bot.harness) ? 'HARNESS_RETIRED' : 'HARNESS_UNSUPPORTED', effect: 'not_started' })
@@ -509,7 +526,7 @@ export class AitermTransport {
     await this.prepareStartup(bot, shortTermMemory, { membersLease })
     this.membersAdmission.assertLease(membersLease)
     // Owner 2026-11-28 (fresh-wake-after-cache): a hibernated Claude seat idle past its 1-hour prompt cache with a long conversation starts fresh from Throughline memory.
-    if (!execution && !sessionName && harness === 'claude-code') await this.discardStaleHibernated(bot, version)
+    if (!boundSession && !crossedProvider && harness === 'claude-code') await this.discardStaleHibernated(bot, version)
     const runtime = await this.captureLaunchRuntime()
     // Protects the wrong target: a terminal-bound member never starts in the server folder. Exit: an engine with the
     // terminals ports (next body start) drains the same queued ID.
@@ -530,8 +547,8 @@ export class AitermTransport {
         harness,
         cwd: bot.project,
         // An account seat (harness-accounts.md) keeps its own name; any other fresh launch uses the Bot id as before.
-        session_name: execution?.reservation.target.session_id ?? sessionName
-          ?? (this.session(bot).startsWith(`${bot.id}-`) ? this.session(bot) : bot.id),
+        session_name: boundSession ?? (crossedProvider ? accountSessionName(bot.id, account?.slot ?? '1st', Boolean(fallback))
+          : currentSession.startsWith(`${bot.id}-`) ? currentSession : bot.id),
         trust_project: true,
         ...(bot.model ? { model: bot.model } : {}),
         ...(bot.reasoningEffort ? { reasoning_effort: bot.reasoningEffort } : {}),
@@ -603,6 +620,8 @@ export class AitermTransport {
       else this.machineNotices.delete(bot.id)
       machineLaunched = isMachineLaunch(launchArgs) && !machineSkipped
       if (account) void this.accounts.setSeat(bot.id, account.slot, account.stamp ?? null).catch(() => {})
+      else if (fallback && this.accounts && !this.accounts.seatSlot(bot.id))
+        void this.accounts.setSeat(bot.id, '1st', null).catch(() => {})
     } catch (error) {
       if (counted) this.launchGate.abandon?.(counted)
       // a451 N5: a local launch Aiterm answered with a failure while usage says installed: the CLI may be gone, so usage looks again once.
@@ -643,7 +662,7 @@ export class AitermTransport {
       this.membersAdmission.assertLease(membersLease)
       // Aitermは、ファストモードにできなかった席も通常の速度で起こし、実際の状態を返す（利用枠が尽きた時など）。
       // 保存が「有効」のまま実際は通常の速度、という食い違いを残さないよう、保存を実際へ合わせる。
-      if (resumedRunningFastKept(bot, launch.structuredContent)) this.refastAfterResume(bot, session)
+      if (!fallback && resumedRunningFastKept(bot, launch.structuredContent)) this.refastAfterResume(bot, session)
       else if (bot.fastMode === true && launch.structuredContent.fast === false) {
         const reason = launch.structuredContent.fast_error?.code
         process.stderr.write(`BellTeam Aiterm: ファストモードで起こせなかったため、通常の速度で起こしました: ${bot.id}${typeof reason === 'string' ? `（${reason}）` : ''}\n`)
@@ -724,7 +743,7 @@ export class AitermTransport {
     if (isRemoteBot(bot)) return null
     // A working seat that cannot be resumed here is not left down: the typed refusal sends it the fresh continuation.
     const notResumable = () => Object.assign(new Error('RESUME_CAPABILITY_UNAVAILABLE'), { code: 'RESUME_CAPABILITY_UNAVAILABLE', effect: 'not_started' })
-    if (!['claude-code', 'codex-cli'].includes(reference.harness) || HARNESS.get(bot.harness) !== reference.harness
+    if (!['claude-code', 'codex-cli'].includes(reference.harness) || this.seatHarness(bot) !== reference.harness
       || this.session(bot) !== reference.sessionId) throw notResumable()
     await this.client.environmentReady?.(bot.project)
     return this.memberOperation(bot, async membersLease => {
@@ -760,7 +779,7 @@ export class AitermTransport {
         await this.recordDeliveryFailure(bot.id, reference.launchId, 'RESTART_RESUME_UNCONFIRMED')
       this.seatHarnesses.set(bot.id, { session: reference.sessionId, harness: reference.harness })
       if (machine) this.machineStreams.start(bot, reference.sessionId)
-      if (resumedRunningFastKept(this.resolveBot?.(bot.id) ?? bot, receipt)) this.refastAfterResume(bot, reference.sessionId)
+      if (!codexAccountSession(bot.id, reference.sessionId) && resumedRunningFastKept(this.resolveBot?.(bot.id) ?? bot, receipt)) this.refastAfterResume(bot, reference.sessionId)
       if ((this.resolveBot?.(bot.id) ?? bot).configurationLocked === true) await this.setConfigurationLock(bot, true)
       return { sessionId: receipt.session_id, resumedAt: this.now() }
     })
@@ -997,17 +1016,24 @@ export class AitermTransport {
   // its turn, background work or a waited child keeps it until a later tick. Not the Bot's seat, so no changeSession.
   async closeOldSeats(bots) {
     const launches = await this.readRuntimeLaunches(), rows = (await this.client.call('pty_list')).structuredContent?.sessions ?? []
+    const localIds = new Set(rows.map(row => row?.session_id).filter(Boolean))
     const dormant = new Set(rows.filter(row => dormantSeats.has(row?.current_command)).map(row => row.session_id)), closed = []
+    const accountSeat = new RegExp(`^(.+)-(?:${ACCOUNT_SLOTS.join('|')})-[a-z0-9]+$`, 'u')
+    const belongsTo = (id, botId) => id === botId || accountSeat.exec(id)?.[1] === botId
     for (const bot of bots) {
       const current = this.session(bot)
       const old = id => typeof id === 'string' && id !== current && !dormant.has(id) && !/-fork-[0-9a-f]{12}$/u.test(id)
-        && (id === bot.id || id.startsWith(`${bot.id}-`))
-      const sessions = new Set([...Object.entries(launches).filter(([, seat]) => seat?.botId === bot.id).map(([id]) => id),
-        ...rows.map(row => row?.session_id)].filter(old))
+        && belongsTo(id, bot.id)
+      const sessions = new Set([...Object.entries(launches).filter(([id, seat]) => seat?.botId === bot.id && old(id)
+        && (Boolean(seat?.target) || !seat?.machine || localIds.has(id))).map(([id]) => id), ...[...localIds].filter(old)])
       for (const session_id of sessions) {
         try {
           const observation = (await this.client.call('pty_observe', { session_id })).structuredContent
-          if (observation?.exists !== true || !quietSession(observation)) continue
+          if (observation?.exists !== true) {
+            if (launches[session_id]?.route === 'remote') this.remoteSeats?.routes?.remove(session_id)
+            continue
+          }
+          if (!quietSession(observation)) continue
           await this.client.call('pty_close', { session_id })
           closed.push(session_id)
         } catch (error) { process.stderr.write(`BellTeam old seat: ${bot.id} ${session_id}: ${error?.code ?? error?.message}\n`) }
@@ -1337,7 +1363,7 @@ export class AitermTransport {
         // harness-accounts.md "later turn, durable": survives the seat's row (a closed seat has none).
         // Recorded only once Aiterm accepted it; a failed write is logged by the registry and stays visible to this engine.
         if (inputFrom) void this.accounts.recordInput(bot.id, inputFrom).catch(() => {})
-        job.restartActivity = this.workState.startedActivity(bot.id, HARNESS.get(bot.harness), delivery.session, delivery.receipt)
+        job.restartActivity = this.workState.startedActivity(bot.id, this.seatHarness(bot), delivery.session, delivery.receipt)
         job.nativeSession = delivery.session
         this.startWorkSummary(job, delivery, summaryAuthority, recoveryVersion)
         this.startRequestSummary(job, summaryAuthority)
@@ -1354,7 +1380,8 @@ export class AitermTransport {
             return native
           }, error => {
             // a333: our own confirmed stop aborted this wait; the turn is interrupted, not unconfirmed (idle() would throw the abort).
-            job.nativeTerminal = error.turnCompleted === true || job.stopped === true
+            // anis-deliveries-stuck (wait-contract.md): AITERM_TURN_UNSETTLED releases SeatActivity even without turnCompleted.
+            job.nativeTerminal = error.turnCompleted === true || error.waitOutcome === 'unsettled' || job.stopped === true
             if (!job.nativeTerminal) {
               job.nativeUnconfirmed = error
               // control-details.md "受付後の追跡失敗の自己退役": the next valid read showing no turn on this session retires it.
@@ -1504,8 +1531,9 @@ export class AitermTransport {
     result.admissionCompletion = admissionCompletion
     job.completion.then(() => {
       this.continuation?.succeeded(bot.id, info.groupId ?? job.id)
-      this.accountTurnDone(bot)
+      if (!codexAccountSession(bot.id, delivery?.session)) this.accountTurnDone(bot)
     }, error => {
+      if (codexAccountSession(bot.id, job.nativeSession)) return
       const accountLimit = this.recordAccountLimit(bot, error) ?? this.recordAccountSignedOut(bot, error)
       // An account limit continues on the other account even without Aiterm's terminal-failure proof (harness-accounts.md).
       if (!(error?.recoveryFailure || accountLimit) || job.stopped || job.stopRequested
@@ -1668,7 +1696,8 @@ export class AitermTransport {
     const session = this.session(bot), seat = this.seatHarnesses.get(bot.id)
     if (seat?.session === session) return seat.harness
     const recorded = this.runtimeLaunches?.[session]?.harness
-    return [...HARNESS.values()].includes(recorded) ? recorded : HARNESS.get(bot.harness)
+    return [...HARNESS.values()].includes(recorded) ? recorded
+      : this.claudeAccountBot(bot) && codexAccountSession(bot.id, session) ? 'codex-cli' : HARNESS.get(bot.harness)
   }
 
   async #seatTurns(bots, client) {
@@ -1872,14 +1901,14 @@ export class AitermTransport {
         words = onInterim ? (botId, groupId, value) => this.conversationAdmission.invoke(conversationDelivery, 'delivery.words', { words: value }) : null
       } catch (error) { this.conversationAdmission.finish(operationLease); throw error }
     }
-    this.activity.beginWatch(watch)
     watch.completion = (async () => {
       // The observer's lifetime is registered before the first native waiter/interim read.
       await Promise.resolve()
       const say = words ? async value => {
         // harness-accounts.md: a self-started turn's limit reaches BellTeam only as this word (no wait result).
-        const limit = this.claudeAccountBot(bot) ? value.find(word => word.kind === 'error' && isLimitText(word.text)) : null
-        if (limit) void this.accounts.recordLimit({ harness: 'claude', slot: this.accounts.seatSlot(bot.id) ?? '1st', model: bot.model, text: limit.text }).catch(() => {})
+        const limit = value.find(word => word.kind === 'error' && isLimitText(word.text))
+        if (limit && !codexAccountSession(bot.id, session))
+          this.recordAccountLimit(bot, { waitOutcome: 'rate_limited', limitText: limit.text })
         await words(bot.id, watch.info.groupId, value)
         watch.shown.words.push(...value.filter(word => word.kind !== 'error').map(word => word.text.trim()).filter(Boolean))
       } : null
@@ -1910,6 +1939,7 @@ export class AitermTransport {
         this.activity.endWatch(watch)
       }
     })()
+    this.activity.beginWatch(watch)
     if (lease) { const release = lease.hold(); watch.completion.then(release, release) }
     if (conversationDelivery) {
       this.conversationAdmission.trackCompletion(conversationDelivery, watch.completion)
@@ -2003,8 +2033,9 @@ export class AitermTransport {
       if (membersLease) this.membersAdmission.assertLease(membersLease)
     }
     try { check() } catch (error) { finishDelivery(); throw error }
-    const harness = HARNESS.get(bot.harness)
     const main = this.session(bot)
+    if (codexAccountSession(bot.id, main)) bot = codexAccountBot(bot)
+    const harness = HARNESS.get(bot.harness)
     const sessionName = `${main}-fork-${createHash('sha256').update(forkId).digest('hex').slice(0, 12)}`
     const startedAt = this.now()
     const row = { id: sessionName, botId: bot.id, botName: bot.displayName ?? bot.name ?? bot.id, status: 'running', startedAt,
@@ -2138,6 +2169,18 @@ export class AitermTransport {
       check()
       let session = this.session(bot)
       let result
+      if (this.claudeAccountBot(bot) && !executionJob?.execution) {
+        const fallback = await this.accountFallback(bot)
+        if (Boolean(fallback) !== codexAccountSession(bot.id, session)) {
+          const observed = await this.observeForDispatch(bot, check)
+          if (observed && (observed.exists === false || ['idle', 'hibernated'].includes(observed.state))
+            && !(observed.pending_child_deliveries > 0) && !this.activity.of(bot.id).some(turn => turn !== executionJob)) {
+            const moved = await this.switchAccount(bot, { admissionCheck: check, membersLease })
+            check()
+            session = moved.session
+          }
+        }
+      }
       // remote-seat.md "Target revision": every member update path (HTTP administration or members' MCP update_bot) reaches
       // this delivery, so the move happens here. An idle seat on another terminal/folder (or local <-> remote) is closed
       // and woken on the new target; a running turn keeps today's delivery and the next delivery moves it.
@@ -2380,12 +2423,26 @@ export class AitermTransport {
 
   claudeAccountBot(bot) { return Boolean(this.accounts && bot && HARNESS.get(bot.harness) === 'claude-code') }
 
+  async ownerAccountDomain(bot) {
+    if (!isRemoteBot(bot)) return true
+    const target = await this.remoteSeats?.terminals?.connection?.target?.({
+      terminalId: bot.terminalId, memberId: bot.id, projectRoot: bot.projectRoot, harness: 'claude-code',
+    }).catch(() => null)
+    return target?.accountOwner === 'owner'
+  }
+
+  async accountFallback(bot) {
+    return this.claudeAccountBot(bot) && this.accounts.bothLimited?.(bot.model) === true
+      && await this.ownerAccountDomain(bot) && this.accounts.bothLimited(bot.model)
+  }
+
   // A seat's own limit signal -> registry entry for the slot it runs on. Returns {slot, recorded} or null.
   recordAccountLimit(bot, error) {
     if (!this.claudeAccountBot(bot) || !(error?.waitOutcome === 'rate_limited' || error?.failureCategory === 'rate_limited'
       || error?.recoveryFailure?.category === 'rate_limited')) return null
     const slot = this.accounts.seatSlot(bot.id) ?? '1st'
-    const recorded = this.accounts.recordLimit({ harness: 'claude', slot, model: bot.model, text: error.limitText ?? error.message })
+    const mark = () => this.accounts.recordLimit({ harness: 'claude', slot, model: bot.model, text: error.limitText ?? error.message })
+    const recorded = isRemoteBot(bot) ? this.ownerAccountDomain(bot).then(owner => owner ? mark() : null) : mark()
     recorded.catch(() => {})
     return { slot, recorded }
   }
@@ -2408,7 +2465,7 @@ export class AitermTransport {
   // remote-seat.md "Launch notice": the latest not-started remote launch of this member, or null.
   seatLaunch(botId) {
     const wait = this.cliWaits.get(botId)
-    return this.remoteSeats?.launchNotice(this.resolveBot?.(botId)) ?? (wait?.action ? { ...wait } : null) ?? this.machineNotices.get(botId) ?? null
+    return this.remoteSeats?.launchNotice(this.resolveBot?.(botId)) ?? (wait?.action ? { code: wait.code, action: wait.action, terminalId: wait.terminalId, at: wait.at } : null) ?? this.machineNotices.get(botId) ?? null
   }
 
   // remote-seat.md "Claude machine mode": the seat started the old way; the one step is Aiterm's, named plainly. Cleared by the next machine launch.
@@ -2426,7 +2483,7 @@ export class AitermTransport {
     const wait = harnessCliWait(this.harnessCli, bot.harness)
     if (!wait) { this.clearCliWait(bot.id); return }
     const held = this.cliWaits.get(bot.id)
-    this.cliWaits.set(bot.id, { code: HARNESS_NOT_INSTALLED, action: wait.notice, terminalId: null, at: held?.action === wait.notice ? held.at : new Date().toISOString() })
+    this.cliWaits.set(bot.id, { harness: bot.harness, code: HARNESS_NOT_INSTALLED, action: wait.notice, terminalId: null, at: held?.action === wait.notice ? held.at : new Date().toISOString() })
     if (held?.action !== wait.notice) this.activity.emitChange({ all: false, topics: ['bots'], botIds: [], roomIds: [] })
     throw harnessCliRefusal(bot.harness, wait)
   }
@@ -2447,8 +2504,9 @@ export class AitermTransport {
   cliChanged(change) {
     for (const botId of [...this.cliWaits.keys()]) {
       const bot = this.resolveBot?.(botId)
-      if (!bot || bot.harness !== change?.harness) continue
-      const wait = harnessCliWait(this.harnessCli, bot.harness)
+      const harness = this.cliWaits.get(botId)?.harness ?? bot?.harness
+      if (!bot || harness !== change?.harness) continue
+      const wait = harnessCliWait(this.harnessCli, harness)
       if (wait) { const held = this.cliWaits.get(botId); this.cliWaits.set(botId, { ...held, action: wait.notice }); this.activity.emitChange({ all: false, topics: ['bots'], botIds: [], roomIds: [] }); continue }
       this.clearCliWait(botId)
       this.emitQueue({ bot: { id: botId } })
@@ -2458,25 +2516,33 @@ export class AitermTransport {
   seatAccount(botId) {
     const bot = this.resolveBot?.(botId), slot = this.claudeAccountBot(bot) ? this.accounts.seatSlot(botId) : null
     // shortcut: preferredSlot is always '1st' (no rules); drop it once Web, Apple and Windows stop reading it.
-    return slot ? { harness: 'claude', slot, preferredSlot: '1st' } : null
+    return slot && !codexAccountSession(botId, this.session(bot)) ? { harness: 'claude', slot, preferredSlot: '1st' } : null
   }
 
   // harness-accounts.md: a new seat on the selected slot; the old seat is left as it is (Owner 2026-11-09, "1stは放置").
   // It cannot use its limited slot anyway; its background processes keep running until closeOldSeats sees it quiet (a48).
-  switchAccount(bot, { admissionCheck } = {}) {
+  switchAccount(bot, { admissionCheck, membersLease: lease } = {}) {
+    const version = this.captureStopVersion(bot)
     const run = () => this.memberOperation(bot, async membersLease => {
+      this.requireStopVersion(bot.id, version)
       admissionCheck?.()
-      const account = await this.accounts.selection('claude', bot.model)
-      if ((this.accounts.seatSlot(bot.id) ?? '1st') === account.slot && !await this.accounts.renewDue(bot.id, 'claude', bot.model))
-        return { botId: bot.id, session: this.session(bot), slot: account.slot }
-      const session = `${bot.id}-${account.slot}-${Date.now().toString(36)}`
+      const fallback = await this.accountFallback(bot)
+      const current = this.session(bot)
+      const wasFallback = codexAccountSession(bot.id, current)
+      const account = fallback ? null : await this.accounts.selection('claude', bot.model)
+      const slot = account?.slot ?? null
+      if ((fallback && wasFallback) || (!fallback && !wasFallback && (this.accounts.seatSlot(bot.id) ?? '1st') === slot
+        && !await this.accounts.renewDue(bot.id, 'claude', bot.model))) return { botId: bot.id, session: current, slot }
+      const session = accountSessionName(bot.id, slot ?? '1st', Boolean(fallback))
+      this.requireStopVersion(bot.id, version)
+      admissionCheck?.()
       // The move only names the new seat; the member's next delivery launches it. Launching here put a second seat beside every
       // idle member at a limit reset (2026-11-26 04:00 JST: 50 seats at once, the box ran out of memory).
-      this.sessions.set(bot.id, session)
       await this.updateSession(bot.id, session, { membersLease })
-      await this.accounts.setSeat(bot.id, account.slot, account.stamp ?? null).catch(() => {})
-      return { botId: bot.id, session, slot: account.slot }
-    })
+      this.sessions.set(bot.id, session)
+      if (account) await this.accounts.setSeat(bot.id, slot, account.stamp ?? null).catch(() => {})
+      return { botId: bot.id, session, slot }
+    }, { membersLease: lease })
     const previous = this.activity.configurationChanges.get(bot.id) ?? Promise.resolve()
     return this.activity.configurationChanges.track(bot.id, previous.then(run, run))
   }
@@ -2506,7 +2572,9 @@ export class AitermTransport {
       // Every recorded seat, also one launched by an earlier engine (the session map starts empty after an exchange).
       if (!this.claudeAccountBot(bot) || this.accountMoves.has(botId)) continue
       const seats = ends.get(botId) ?? []
-      if (this.recoveryDue(botId, seats) || (this.accounts.seatSlot(botId) ?? '1st') !== await effectiveSlot(bot.model)
+      if (this.recoveryDue(botId, seats)
+        || Boolean(await this.accountFallback(bot)) !== codexAccountSession(botId, this.session(bot))
+        || (this.accounts.seatSlot(botId) ?? '1st') !== await effectiveSlot(bot.model)
         || await this.accounts.renewDue(botId, 'claude', bot.model)) this.moveAtBoundary(botId, seats)
       else this.moveFailures.delete(botId)
     }
@@ -2569,15 +2637,29 @@ export class AitermTransport {
         // A handed-over engine (quiescing) stops here: its registry copy is stale, and the successor reviews the member itself
         // (production 2026-11-12 01:14 JST: the retiring dc4b63be engine launched a second seat for Elegg next to the successor's).
         if (!this.claudeAccountBot(bot) || this.accountRecoveryAllowed?.() === false) return
-        // No usable slot is free: nothing moves. A hold continues at its own reset, a move would only leave it behind,
-        // and the next registry change reviews again.
-        const slot = await this.accounts.freeSlot('claude', bot.model)
-        if (!slot) return
-        if (this.recoveryDue(botId, seats)) return await this.recoverMember(bot, slot, seats)
-        if ((this.accounts.seatSlot(botId) ?? '1st') === slot && !await this.accounts.renewDue(botId, 'claude', bot.model)) return
-        if (this.isIdle(botId) && !this.activity.configurationChanges.has(botId)) return await this.switchAccount(bot)
-        await Promise.all(this.activity.of(botId).map(turn => (turn.nativeCompletion ?? turn.completion)?.catch(() => {})))
+        const fallback = await this.accountFallback(bot)
+        const wasFallback = codexAccountSession(botId, this.session(bot))
+        const providerChanged = Boolean(fallback) !== wasFallback
+        const slot = fallback ? null : await this.accounts.freeSlot('claude', bot.model)
+        const recover = (slot || fallback) && this.recoveryDue(botId, seats)
+        if (recover && !wasFallback) return await this.recoverMember(bot, slot, seats)
+        if (!recover && !providerChanged && (!slot || ((this.accounts.seatSlot(botId) ?? '1st') === slot
+          && !await this.accounts.renewDue(botId, 'claude', bot.model)))) return
+        if (this.isIdle(botId) && !this.activity.configurationChanges.has(botId) && !this.activity.waking.has(botId)) {
+          if (providerChanged) {
+            const observed = await this.observe(bot).catch(() => null)
+            if (observed?.state === 'busy' || observed?.pending_child_deliveries > 0)
+              throw Object.assign(new Error('Seat has a running turn'), { code: 'AGENT_BUSY' })
+            if (!this.isIdle(botId) || this.activity.configurationChanges.has(botId) || this.activity.waking.has(botId)) continue
+          }
+          return recover ? await this.recoverMember(bot, slot, seats) : await this.switchAccount(bot)
+        }
+        const active = this.activity.of(botId)
+        const unknown = active.find(turn => turn.nativeUnconfirmed)
+        if (unknown) throw unknown.nativeUnconfirmed
+        await Promise.all(active.map(turn => (turn.completion ?? turn.nativeCompletion)?.catch(() => {})))
         await this.activity.configurationChanges.get(botId)?.catch(() => {})
+        await this.activity.waking.get(botId)?.catch(() => {})
       }
     })().then(() => { this.moveFailures.delete(botId) }, error => {
       process.stderr.write(`BellTeam accounts: seat move unconfirmed: ${botId} ${error?.code ?? 'UNKNOWN'}\n`)
@@ -2629,9 +2711,10 @@ export class AitermTransport {
     await this.accounts.intendResume(bot.id, end.at)
     this.accountRecoveries.add(bot.id)
     try {
-      const move = (this.accounts.seatSlot(bot.id) ?? '1st') !== slot || await this.accounts.renewDue(bot.id, 'claude', bot.model)
+      const move = !slot || codexAccountSession(bot.id, this.session(bot)) || (this.accounts.seatSlot(bot.id) ?? '1st') !== slot
+        || await this.accounts.renewDue(bot.id, 'claude', bot.model)
       if (!allowed()) return
-      if (move) await this.switchAccount(bot)
+      if (move) ({ slot } = await this.switchAccount(bot))
       // A stop during the move ended that work: no send (the input boundary refuses a keyed delivery after it too).
       if (!allowed() || !this.continuationDue(bot.id, end)) return
       // The message names the member's original request, never an earlier continuation (CapacityContinuation keeps it as origin).

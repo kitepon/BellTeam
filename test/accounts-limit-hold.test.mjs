@@ -68,14 +68,15 @@ function aiterm(rows) {
 const END = (at, hold = 'armed', continued = false) => ({ at, reset_at: '2026-11-11T19:00:00.000Z', continued, hold })
 const row = (session_id, last_input_at, limit_end = null) => [session_id, { session_id, last_input_at, limit_end }]
 
-async function recovery(t, { limited = ['2nd'], rows }) {
+async function recovery(t, { limited = ['2nd'], rows, model = 'opus', secondUnknown = false }) {
   const now = { at: Date.UTC(2026, 10, 11, 16, 0) }
   const { accounts } = await registry(t, now)
   t.after(() => accounts.close())
-  for (const slot of limited) await accounts.recordLimit({ harness: 'claude', slot, model: 'opus', text: "You've hit your weekly limit · resets 7pm (UTC)" })
+  for (const slot of limited) await accounts.recordLimit({ harness: 'claude', slot, model,
+    text: secondUnknown && slot === '2nd' ? 'usage status unavailable' : "You've hit your weekly limit · resets 7pm (UTC)" })
   const bots = new Map([
-    ['bot-elegg', { id: 'bot-elegg', session: 'bot-elegg', harness: 'claude', model: 'opus' }],
-    ['bot-n102', { id: 'bot-n102', session: 'bot-n102-1st-new', harness: 'claude', model: 'opus' }],
+    ['bot-elegg', { id: 'bot-elegg', session: 'bot-elegg', harness: 'claude', model }],
+    ['bot-n102', { id: 'bot-n102', session: 'bot-n102-1st-new', harness: 'claude', model }],
   ])
   await accounts.setSeat('bot-elegg', '2nd'); await accounts.setSeat('bot-n102', '1st')
   const { client, calls, keys, rows: listed } = aiterm(new Map(rows))
@@ -83,7 +84,11 @@ async function recovery(t, { limited = ['2nd'], rows }) {
   transport.holdReleasePollMs = 1
   const switched = [], sent = [], hooks = { refuse: 0, input: true }
   let deliveries = 0, clock = Date.UTC(2026, 10, 11, 16, 20)
-  transport.switchAccount = async bot => { switched.push(bot.id); await accounts.setSeat(bot.id, '1st') }
+  const switchAccount = transport.switchAccount.bind(transport)
+  transport.switchAccount = async (bot, options) => {
+    switched.push(bot.id)
+    return switchAccount(bot, options)
+  }
   // The parent's direct delivery reaches the engine's input boundary (transport.claimContinuation) before any input; `sent`
   // lists what passed it. With hooks.input the seat records the input, as Aiterm does at pty_send.
   const deliver = async (input, id) => {
@@ -141,8 +146,8 @@ test('limit end: armed holds are pressed once each, then one continuation on the
   assert.equal(accounts.seatSlot('bot-elegg'), '1st')
 })
 
-test('limit end: every slot limited -> nothing pressed or sent; a freed slot then recovers once', async t => {
-  const { sent, review, keyed, accounts } = await recovery(t, { limited: ['1st', '2nd'], rows: [
+test('limit end: unknown second limit keeps Claude; a freed slot then recovers once', async t => {
+  const { sent, review, keyed, accounts } = await recovery(t, { limited: ['1st', '2nd'], secondUnknown: true, rows: [
     row('bot-n102', '2026-11-11T12:53:25.000Z', END('2026-11-11T12:53:29.000Z')),
   ] })
   await review()
@@ -151,6 +156,101 @@ test('limit end: every slot limited -> nothing pressed or sent; a freed slot the
   await review()
   assert.deepEqual(keyed(), [['bot-n102', 'Escape']])
   assert.deepEqual(sent.map(input => input.target), ['bot-n102'])
+})
+
+test('both Claude slots limited: one keyed Codex continuation, then the member returns to its saved Claude model', async t => {
+  const { sent, review, keyed, accounts, bots, transport } = await recovery(t, { limited: ['1st', '2nd'], rows: [
+    row('bot-n102', '2026-11-11T12:53:25.000Z', END('2026-11-11T12:53:29.000Z')),
+  ] })
+  const bot = bots.get('bot-n102')
+  await review()
+  await review()
+  assert.match(transport.session(bot), /^bot-n102-1st-codex[a-z0-9]+$/u)
+  assert.equal(transport.seatHarness(bot), 'codex-cli')
+  assert.deepEqual(keyed(), [['bot-n102', 'Escape']])
+  assert.equal(sent.length, 1)
+  assert.match(sent[0].message, /一時的に利用できるAIの席.*継続キー/u)
+  assert.equal(bot.harness, 'claude')
+  assert.equal(bot.model, 'opus')
+
+  await accounts.clear(accounts.limitFor('claude', '1st', bot.model)[0])
+  await review()
+  assert.match(transport.session(bot), /^bot-n102-1st-(?!codex)[a-z0-9]+$/u)
+  assert.equal(transport.seatHarness(bot), 'claude-code')
+  assert.equal(sent.length, 1)
+})
+
+test('cold normal wake maps all Claude families and keeps Claude for missing or unclassified limits', async t => {
+  const now = { at: Date.UTC(2026, 10, 11, 16, 0) }
+  const { home, accounts } = await registry(t, now)
+  const calls = []
+  const client = { launchOptions: async () => ({}), async call(name, args, options = {}) {
+    assert.equal(name, 'agent_launch')
+    calls.push({ ...args, login: options.claudeLogin ?? null })
+    return { structuredContent: { session_id: args.session_name, fast: false } }
+  } }
+  const transport = new AitermTransport({ client, accounts, handoffContext: async () => '',
+    captureRuntime: async () => ({}), updateFastMode: async () => assert.fail('temporary speed must stay local to the launch') })
+  t.after(() => transport.close())
+  const base = { harness: 'claude', project: home, reasoningEffort: 'low', fastMode: false }
+  const limit = (slot, text) => accounts.recordLimit({ harness: 'claude', slot, model: 'opus', text })
+  const limitText = "You've hit your weekly limit · resets 7pm (UTC)"
+  await limit('1st', limitText)
+  await transport.wake({ ...base, id: 'bot-one', model: 'claude-opus-4-8' })
+  await limit('2nd', 'usage status unavailable')
+  await transport.wake({ ...base, id: 'bot-unknown', model: 'claude-sonnet-4-6' })
+  await limit('2nd', limitText)
+  await transport.wake({ ...base, id: 'bot-opus', model: 'claude-opus-4-8', fastMode: true })
+  await transport.wake({ ...base, id: 'bot-sonnet', model: 'claude-sonnet-4-6' })
+  await transport.wake({ ...base, id: 'bot-fable', model: 'fable', reasoningEffort: 'medium' })
+  await transport.wake({ ...base, id: 'bot-haiku', model: 'claude-haiku-4-5', reasoningEffort: 'high' })
+  await transport.wake({ ...base, id: 'bot-default' })
+  assert.deepEqual(calls.map(({ harness, model, reasoning_effort, login }) => [harness, model, reasoning_effort, login]), [
+    ['claude-machine', 'claude-opus-4-8', 'low', '2nd'],
+    ['claude-machine', 'claude-sonnet-4-6', 'low', '1st'],
+    ['codex-cli', 'gpt-6.2-sol', 'high', null],
+    ['codex-cli', 'gpt-6.2-sol', 'medium', null],
+    ['codex-cli', 'gpt-6.2-astra', 'medium', null],
+    ['codex-cli', 'gpt-6.1-terra', 'high', null],
+    ['codex-cli', 'gpt-6.2-sol', 'medium', null],
+  ])
+})
+
+test('ordinary delivery changes provider before a dormant seat can auto-resume and restores Claude before the next send', async t => {
+  const now = { at: Date.UTC(2026, 10, 11, 16, 0) }
+  const { home, accounts } = await registry(t, now)
+  const bot = { id: 'bot-sonnet', harness: 'claude', model: 'sonnet', reasoningEffort: 'high', project: home }
+  const live = new Set([bot.id])
+  const calls = []
+  const client = { launchOptions: async () => ({}), async call(name, args) {
+    const session = args?.session_id ?? args?.session_name
+    if (name === 'agent_launch') {
+      live.add(session)
+      calls.push([name, args.harness, args.model, args.reasoning_effort])
+      return { structuredContent: { session_id: session, fast: false } }
+    }
+    if (name === 'pty_list') return { structuredContent: { sessions: [] } }
+    if (name === 'pty_observe') return { structuredContent: { schema: 'aiterm.pty-observe-result.v1',
+      session_id: session, exists: live.has(session), launch_id: live.has(session) ? '1'.repeat(32) : null, state: 'hibernated' } }
+    if (name === 'pty_send') {
+      if (!live.has(session)) throw Object.assign(Error('no seat'), { code: 'AGENT_SESSION_REQUIRED' })
+      calls.push([name, session])
+      return { structuredContent: { mode: 'agent_dispatch', event_cursor: 1, wait_process: {} } }
+    }
+    assert.fail(name)
+  } }
+  const transport = new AitermTransport({ client, accounts, handoffContext: async () => '', captureRuntime: async () => ({}) })
+  t.after(() => transport.close())
+  for (const slot of ['1st', '2nd']) await accounts.recordLimit({ harness: 'claude', slot, model: 'sonnet', text: 'Usage limit reached' })
+  const first = await transport.dispatch(bot, 'first', [])
+  assert.match(first.session, /^bot-sonnet-1st-codex[a-z0-9]+$/u)
+  await accounts.clear(accounts.limitFor('claude', '1st', bot.model)[0])
+  const next = await transport.dispatch(bot, 'next', [])
+  assert.match(next.session, /^bot-sonnet-1st-(?!codex)[a-z0-9]+$/u)
+  assert.deepEqual(calls, [
+    ['agent_launch', 'codex-cli', 'gpt-6.2-sol', 'medium'], ['pty_send', first.session],
+    ['agent_launch', 'claude-machine', 'sonnet', 'high'], ['pty_send', next.session],
+  ])
 })
 
 test('limit end: a hold still armed after its one Esc -> no second Esc and no continuation (two turns over one work)', async t => {

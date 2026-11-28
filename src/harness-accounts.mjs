@@ -348,6 +348,13 @@ export class HarnessAccounts {
     return this.state.limits.filter(entry => entry.harness === harness && entry.slot === slot && (entry.scope === 'all' || entry.scope === family))
   }
 
+  // Only positively identified limits may change the provider. The normal Claude slot policy also handles ambiguous reports.
+  bothLimited(model) {
+    return ACCOUNT_SLOTS.every(slot => this.limitFor('claude', slot, model).some(entry =>
+      (entry.scopeConfirmed === true || entry.resetSource === 'usage' || parseLimitText(entry.text).scope === entry.scope)
+      && (entry.resetAt === null || Date.parse(entry.resetAt) > this.now())))
+  }
+
   // Never refuses: with every slot limited for this scope, the earliest known reset wins.
   // Only logged-in slots are usable (a signed-out 1st never holds seats while the 2nd works); none: the 1st.
   async effectiveSlot(harness, model) {
@@ -376,8 +383,9 @@ export class HarnessAccounts {
       const row = full.find(value => value.scope === scope)
       if (!resetAt && row?.resetsAt && this.trusted(row.resetsAt)) { resetAt = row.resetsAt; resetSource = 'usage' }
     }
+    const scopeConfirmed = scope !== null
     scope ??= 'all'
-    const entry = { harness, slot, scope, since: new Date(this.now()).toISOString(), resetAt, resetSource, text: String(text ?? '').slice(0, 300) }
+    const entry = { harness, slot, scope, scopeConfirmed, since: new Date(this.now()).toISOString(), resetAt, resetSource, text: String(text ?? '').slice(0, 300) }
     this.log(`BellTeam accounts: ${harness} ${slot} limited for ${scope} until ${resetAt ?? 'unknown'} (source ${resetSource ?? 'none'}, zone ${parsed.zone}, parsed ${parsed.parsedAt ?? 'none'}): ${entry.text}`)
     await this.update(state => ({ ...state, limits: [...state.limits.filter(value => this.key(value) !== this.key(entry)), entry] }))
     this.arm(entry)

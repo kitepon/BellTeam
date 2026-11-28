@@ -123,7 +123,7 @@ flowchart LR
 flowchart LR
   m_aiterm["Aiterm/Steer / エレグ"]
   m_android["Androidアプリ / ネオン"]
-  m_apple["Appleアプリ / ベル"]
+  m_apple["Appleアプリ / ラピ"]
   m_approval_box["Approval Box / ナユタ"]
   m_approval_box_extension["決裁箱拡張 / デルタ"]
   m_auth_mediation["認証仲介 / ライ"]
@@ -185,7 +185,7 @@ flowchart LR
 | --- | --- | --- |
 | [Aiterm/Steer](modules/aiterm/README.md) | エレグ | MCP tools (stdio) / bin: aiterm-wait, aiterm-transcript-read / bin: aiterm-remote-terminal / exports: setup-node, setup-integrations, execution-parent-worker, execution-native-setup/server / exports: state-compat.json, resume-state-cli / exports: child-result / harness-entries (aiterm-setup) / Steer delivery (aiterm-steer-delivery) |
 | [Androidアプリ](modules/android/README.md) | ネオン | public |
-| [Appleアプリ](modules/apple/README.md) | ベル |  |
+| [Appleアプリ](modules/apple/README.md) | ラピ |  |
 | [Approval Box](modules/approval-box/README.md) | ナユタ | connection export (approval-box connection export --json) / version --json (capabilities) / harness-entries (approval-box) / connector /v1 (HTTP) / bellteam client (client session on /v1: decisions, attachments GET, events, /me; connector /v1 pairing) |
 | [決裁箱拡張](modules/approval-box-extension/README.md) | デルタ | approvals-app-contract (/api/approvals/*) / decision-task-link / approval-box-port (P1 approvals.decisions: file / read / cancel; decision-port.md) |
 | [認証仲介](modules/auth-mediation/README.md) | ライ | auth-exec (MCP auth_exec; container socket; main-server host socket) / auth-admin (stop, resume, show, flush, audit, token, entry-set) / grant entry (grant, revoke only from the registered entry program, with the decision record) / key use (wrap, unwrap inside the module on a caller socket per container product; the key is never returned) / http (the module makes the request with the credential added; only the response leaves) / sign (a signature or MAC made inside the module; the key never leaves) / ssh agent (the module signs for ssh; the client forwards agent requests; the key never leaves) / mail send (the module logs in to the SMTP server and sends; only the result leaves) / gmail (the module holds the OAuth refresh token and makes fixed Gmail API calls; only Google's answer leaves) |

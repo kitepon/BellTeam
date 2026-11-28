@@ -220,6 +220,44 @@ internal sealed class ServerSetupView : StartupBackdrop
     }
 }
 
+// app-sessions.md 7 (reading 3): a server that takes a console-code login. Apple's ServerLoginView: one code field and the way to change the server; the answer's token is kept by the caller.
+internal sealed class ServerCodeView : StartupBackdrop
+{
+    private readonly Func<string, Task<string?>> submit;
+    private readonly TextBox code = new() { Style = null, Background = Brushes.Transparent, BorderThickness = new Thickness(0), Padding = new Thickness(0), FontSize = 13, VerticalContentAlignment = VerticalAlignment.Center };
+    private readonly TextBlock error = MacUi.Text("", 10, MacUi.Red, margin: new Thickness(0, 22, 0, 0));
+    private bool busy;
+    public string Code { get => code.Text; set => code.Text = value; }
+    public string? ErrorText => error.Visibility == Visibility.Visible ? error.Text : null;
+    // submit returns the sentence to show when the code was refused, or null when the login went through (the caller then connects again and replaces this screen).
+    public ServerCodeView(Func<string, Task<string?>> submit, Action changeServer)
+    {
+        this.submit = submit; error.Visibility = Visibility.Collapsed;
+        var column = new StackPanel();
+        column.Children.Add(Portrait(106, 30));
+        column.Children.Add(MacUi.Text(AppStrings.StartupViews_ServerCodeView_1, 37, MacUi.Ink, FontWeights.Bold, new Thickness(0, 22, 0, 0)));
+        column.Children.Add(MacUi.Text(AppStrings.StartupViews_ServerCodeView_2, 13, MacUi.Ink, FontWeights.Bold, new Thickness(0, 30, 0, 0)));
+        var field = new Grid(); var placeholder = MacUi.Text(AppStrings.StartupViews_ServerCodeView_3, 13, new SolidColorBrush(Color.FromRgb(0xC4, 0xC4, 0xC8))); placeholder.IsHitTestVisible = false; placeholder.VerticalAlignment = VerticalAlignment.Center;
+        field.Children.Add(code); field.Children.Add(placeholder);
+        void ShowPlaceholder() => placeholder.Visibility = code.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+        code.TextChanged += (_, _) => ShowPlaceholder(); ShowPlaceholder();
+        System.Windows.Automation.AutomationProperties.SetName(code, AppStrings.StartupViews_ServerCodeView_3); System.Windows.Automation.AutomationProperties.SetAutomationId(code, "login-console-code");
+        code.KeyDown += (_, args) => { if (args.Key == System.Windows.Input.Key.Enter) { args.Handled = true; _ = SubmitAsync(); } };
+        var card = MacUi.Card(field, new Thickness(18)); card.Margin = new Thickness(0, 12, 0, 0); column.Children.Add(card);
+        column.Children.Add(error);
+        var enter = MacUi.Primary(AppStrings.StartupViews_ServerCodeView_4, () => _ = SubmitAsync()); enter.Margin = new Thickness(0, 22, 0, 0); column.Children.Add(enter);
+        var change = MacUi.Bordered(AppStrings.StartupViews_ServerCodeView_5, changeServer); change.Margin = new Thickness(0, 12, 0, 0); column.Children.Add(change);
+        Children.Add(Scroll(column, 460, new Thickness(30, 68, 30, 40)));
+    }
+    public async Task SubmitAsync()
+    {
+        if (busy || string.IsNullOrWhiteSpace(code.Text)) return;
+        busy = true; error.Visibility = Visibility.Collapsed;
+        try { if (await submit(code.Text) is { } refusal) { error.Text = refusal; error.Visibility = Visibility.Visible; } }
+        finally { busy = false; }
+    }
+}
+
 // Mac ServerInstallationGuide, shown in the shared sheet titled 「サーバーの導入ガイド」.
 // Windows has no share sheet: the Mac "share" buttons become "open the repository in the browser" and "copy the guide URL" (and the wash is the Mac BellBackground).
 internal sealed class ServerGuideView : ScrollViewer

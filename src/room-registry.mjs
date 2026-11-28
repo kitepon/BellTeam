@@ -87,6 +87,13 @@ export class RoomRegistry extends Map {
       merged.representativeId = null
     const room = normalizeRoom(merged, this.bots)
     await writeAtomic(join(this.roomPath(id), 'room.json'), { schema: 'bellteam.room.v1', ...room })
+    const removed = current.memberIds.filter(memberId => !room.memberIds.includes(memberId))
+    if (removed.length) {
+      await mutateSchedules(this, id, schedules => ({ schedules: schedules.map(schedule => ({
+        ...schedule,
+        targets: schedule.targets?.filter(memberId => !removed.includes(memberId)) ?? null,
+      })) }))
+    }
     await this.refresh()
     return this.get(id)
   }

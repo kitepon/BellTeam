@@ -40,7 +40,8 @@ public sealed class UpdateContent : UserControl, IDisposable
     }
     public bool Busy { get; private set; }
     public UpdateKind Kind => kind;
-    public void Dispose() { workspace.UpdatesChanged -= Changed; poll.Stop(); }
+    private bool disposed;
+    public void Dispose() { disposed = true; workspace.UpdatesChanged -= Changed; poll.Stop(); }
     public void ScrollToEnd() { scroller.ScrollToEnd(); scroller.UpdateLayout(); }
     private void Changed() { if (!Busy) _ = RefreshAsync(); }
     private CancellationToken Token => workspace.ConnectionToken;
@@ -169,6 +170,7 @@ public sealed class UpdateContent : UserControl, IDisposable
     // ---- sections ----
     private void Render()
     {
+        if (disposed) return;
         var requests = center.Requests;
         current = UpdateScreen.Current(inventory, requests);
         candidates = UpdateScreen.Candidates(inventory);

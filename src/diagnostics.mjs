@@ -46,13 +46,19 @@ const reports = {
   SERVER_PUSH_UNAVAILABLE: ['high', '通知の機能を開始できなかった'],
   SERVER_FEATURE_CONFIGURATION_FAILED: ['high', '起動時に機能の設定を反映できなかった'],
   SERVER_CALL_CONFIGURATION_FAILED: ['warn', '通話の設定をメンバーへ反映できなかった'],
+  TERMINAL_TARGET_MISMATCH: ['warn', '席の接続先が一致しなかった'],
+  SECRET_CREDENTIAL_REFRESH_FAILED: ['warn', '秘密情報の認証更新に失敗した'],
+  UPDATE_CATALOG_CHECK_FAILED: ['warn', '更新カタログの確認に失敗した'],
+  OLRW_MANAGEMENT_UNAVAILABLE: ['warn', 'OLRW管理機能が利用できなかった'],
+  TERMINAL_KEY_HOLDER_EXITED: ['warn', '端末鍵保持プロセスが予期せず終了した（自動で再起動する）'],
+  TERMINAL_KEY_HOLDER_FAILED: ['high', '端末鍵保持プロセスが失敗した'],
   IOS_PUSH_FAILED: ['warn', '端末の通知登録に失敗した', true],
 }
 const assessments = { info: '適切に処理した参考記録', warn: '影響あり', high: '影響あり', fatal: '影響あり' }
 const referenceGrounds = [/^user_impact=none$/mu, /^app_handling=\S/mu]
-const modules = new Set(['app', 'session', 'conversation', 'events', 'image', 'bots', 'rooms', 'owner', 'schedules', 'settings', 'queue', 'server', 'secrets', 'notifications', 'goals', 'execution'])
+const modules = new Set(['app', 'session', 'conversation', 'events', 'image', 'bots', 'rooms', 'owner', 'schedules', 'settings', 'queue', 'server', 'secrets', 'notifications', 'goals', 'execution', 'terminals', 'integration', 'update'])
 
-const exitComponents = ['conversation', 'usage', 'diagnostics', 'members', 'notifications', 'web-gateway']
+const exitComponents = ['conversation', 'usage', 'diagnostics', 'members', 'notifications', 'web-gateway', 'work-graph', 'lattice', 'approval-box-extension', 'auth-mediation']
 const exitSignals = ['SIGABRT', 'SIGBUS', 'SIGFPE', 'SIGHUP', 'SIGILL', 'SIGINT', 'SIGKILL', 'SIGPIPE', 'SIGQUIT', 'SIGSEGV', 'SIGTERM']
 const exitCodes = ['ERR_IPC_CHANNEL_CLOSED', 'ERR_OUT_OF_RANGE', 'ERR_WORKER_OUT_OF_MEMORY', 'ERR_MODULE_NOT_FOUND']
 // Same closed lists as module-child-restart observeModuleChild(); the conversation child's own exit-origin line.
@@ -64,7 +70,7 @@ const exactKeys = (value, keys) => value !== null && typeof value === 'object' &
   && Object.keys(value).sort().join(',') === keys
 const heapNumber = value => Number.isFinite(value) && value >= 0 && value <= 1e9
 
-const restartModules = new Set([...exitComponents, 'memory', 'execution'])
+const restartModules = new Set([...exitComponents, 'memory', 'execution', 'auth-mediation-relay'])
 export function validateModuleRestartLimitProblem(value) {
   if (!value || value.kind !== 'module_restart_limit' || !restartModules.has(value.moduleId)) return false
   if (exactKeys(value, 'cleared,kind,moduleId')) return value.cleared === true

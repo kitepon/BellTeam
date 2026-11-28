@@ -36,7 +36,7 @@ public sealed class HarnessInstallPanel : StackPanel
         Show(); if (Wants) _ = PollAsync();
     }
     // The server's busy flag, or an install of an absent CLI still running, keeps the reading going.
-    private bool Wants => !stopped && !lifetime.IsCancellationRequested && (Install.Busy || Install.State == "installing");
+    private bool Wants => !stopped && !lifetime.IsCancellationRequested && (Install.Busy || Install.State is "installing" or "checking");
     // A page that redraws puts the same panel under its new parent.
     public void MoveTo(Panel parent) { (Parent as Panel)?.Children.Remove(this); parent.Children.Add(this); }
     // The row that replaced this panel calls it, so its reading ends.
@@ -49,7 +49,7 @@ public sealed class HarnessInstallPanel : StackPanel
         var label = pressing ? LinuxStrings.HarnessInstallPanel_Show_1 : Install.ButtonLabel; var missing = Install.State is "not_installed" or "installing" or "failed";
         press.Content = label; AutomationProperties.SetName(press, name + " " + label);
         press.Background = missing ? SettingsUi.Violet : BellTheme.ButtonFill; press.Foreground = missing ? Brushes.White : SettingsUi.Ink;
-        spinner.IsVisible = Install.Busy || Install.State == "installing";
+        spinner.IsVisible = Install.Busy || Install.State is "installing" or "checking";
         press.IsVisible = Install.CanPress; press.IsEnabled = !pressing;
     }
     private void Apply(HarnessCliInstall next) { var changed = next != Install; Install = next; Show(); if (changed) Changed?.Invoke(next); }
@@ -78,6 +78,7 @@ public sealed class HarnessInstallPanel : StackPanel
                 await Task.Delay(wait, lifetime);
                 try { Apply((await api.InstallStatusAsync(harness, lifetime)).Install); Say(null); wait = Every; }
                 catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { return; }
+                catch (BellApiException error) when (error.RequiresLogin) { Say(LinuxStrings.HarnessInstallPanel_PollAsync_1(error.Message)); return; }
                 catch (Exception error) { Say(LinuxStrings.HarnessInstallPanel_PollAsync_1(error.Message)); wait = TimeSpan.FromTicks(Math.Min(Longest.Ticks, wait.Ticks * 2)); }
             }
         }

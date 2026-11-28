@@ -28,7 +28,7 @@ public static class ApprovalsApi
         catch (BellApiException error) when (error.RequiresLogin) { return new(401, null); }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
         // Network failure and the 30 s timeout both mean "no answer": the caller shows the reconnect view or keeps the answer for another press.
-        catch (Exception error) when (error is HttpRequestException or OperationCanceledException or BellApiException) { return new(0, null); }
+        catch (Exception error) when (error is HttpRequestException or IOException or OperationCanceledException or BellApiException) { return new(0, null); }
     }
 
     public static Task<ApprovalResponse> ApprovalConnectionAsync(this BellApi api, CancellationToken token = default) => CallAsync(api, HttpMethod.Get, "/api/approvals/connection", null, null, token);

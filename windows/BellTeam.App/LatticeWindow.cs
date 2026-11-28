@@ -586,7 +586,12 @@ internal sealed class LatticeChartPage : Grid
     private void LoadHistory()
     {
         if (api is not { } source || run is not { } running) return;
-        Dispatcher.BeginInvoke(new Action(() => _ = past.LoadAsync((before, token) => source.LatticeHistoryAsync(projectId, before, token), running.Token)));
+        var token = running.Token;
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (run != running || token.IsCancellationRequested) return;
+            _ = past.LoadAsync((before, ct) => source.LatticeHistoryAsync(projectId, before, ct), token);
+        }));
     }
     /// <summary>The selected card's ring and the member highlight on 過去ログ rows, as the tree and the lanes show them.</summary>
     private void ApplyHistory()

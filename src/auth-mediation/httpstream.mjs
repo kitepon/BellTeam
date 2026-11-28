@@ -28,7 +28,15 @@ export async function pipeHttpStream(result, { stream, controller, connect = net
     socket.write(frame(5, Buffer.from(JSON.stringify({ status: result.status, headers: result.headers }))))
     if (result.response.body) for await (const chunk of result.response.body) {
       const out = scrubber.push(Buffer.from(chunk))
-      if (out.length && !socket.write(frame(1, out))) await new Promise(resolve => socket.once('drain', resolve))
+      if (out.length && !socket.write(frame(1, out))) {
+        await new Promise((resolve, reject) => {
+          const done = () => { socket.off('drain', onDrain); socket.off('close', onEnd); socket.off('error', onEnd) }
+          const onDrain = () => { done(); resolve() }
+          const onEnd = () => { done(); reject(new Error('The caller is gone.')) }
+          if (socket.destroyed || socket.writableEnded) return onEnd()
+          socket.once('drain', onDrain); socket.once('close', onEnd); socket.once('error', onEnd)
+        })
+      }
     }
     const tail = scrubber.end(); if (tail.length) socket.write(frame(1, tail))
   } catch { code = '2'; try { const tail = scrubber.end(); if (tail.length) socket.write(frame(1, tail)) } catch {} } finally { clearInterval(beat); try { socket.write(frame(3, Buffer.from(code))); socket.end() } catch {} }

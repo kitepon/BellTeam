@@ -108,6 +108,32 @@ final class BellDiagnosticsTests: XCTestCase {
         add(attachment)
     }
 
+    @MainActor func testDiagnosticsBearerStaysOnTheConfiguredOrigin() throws {
+        let a = URL(string: "https://a.test.invalid")!, b = URL(string: "https://b.test.invalid")!
+        let request = BellDiagnostics.request(baseURL: a, token: "tokA")
+        XCTAssertEqual(request.url, URL(string: "https://a.test.invalid/api/diagnostics"))
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer tokA")
+        XCTAssertNil(BellDiagnostics.request(baseURL: a, token: nil).value(forHTTPHeaderField: "Authorization"))
+
+        // server change and sign-out: the token never survives to another origin
+        let diagnostics = BellDiagnostics(onReport: { _, _, _, _ in })
+        diagnostics.updateSessionToken("tokA")
+        diagnostics.configure(serverURL: a)
+        XCTAssertEqual(diagnostics.sessionToken, "tokA", "cold start keeps the restored token")
+        diagnostics.configure(serverURL: b)
+        XCTAssertNil(diagnostics.sessionToken)
+        diagnostics.updateSessionToken("tokB")
+        diagnostics.configure(serverURL: nil)
+        XCTAssertNil(diagnostics.sessionToken)
+
+        // a redirect (to any origin) is refused, so the Authorization header is never replayed
+        let task = URLSession(configuration: .ephemeral).dataTask(with: request)
+        let redirect = HTTPURLResponse(url: a, statusCode: 302, httpVersion: nil, headerFields: ["Location": b.absoluteString])!
+        var followed: URLRequest? = request
+        SecretRedirectDelegate().urlSession(.shared, task: task, willPerformHTTPRedirection: redirect, newRequest: URLRequest(url: b)) { followed = $0 }
+        XCTAssertNil(followed)
+    }
+
     func testServerErrorStoresOnlyThisResponsesDiagnosticReference() async throws {
         let fingerprint = String(repeating: "a", count: 64)
         let configuration = URLSessionConfiguration.ephemeral

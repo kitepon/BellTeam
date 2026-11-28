@@ -12,7 +12,7 @@ export const RELAY_SOCKET = 'auth-mediation-relay.sock'
 export const RELAY_SCRIPT = '/app/scripts/auth-mediation/relay.py'
 export const SEAT_UID = 1000
 const MAX_FRAME = 13 * 1024 * 1024, // an http line may carry a 9 MiB body as base64
-   FRAME_MS = 5000, ANSWER_MS = 40000, READY_MS = 15000, STOP_MS = 5000
+   FRAME_MS = 5000, ANSWER_MS = 75000, READY_MS = 15000, STOP_MS = 5000
 const bad = () => ({ outcome: 'error', error: 'Bad request.' })
 const words = value => Array.isArray(value) && value.length >= 1 && value.length <= 64 && value.every(word => typeof word === 'string' && word.length >= 1 && word.length <= 1024 && !word.includes('\0'))
 const absolute = value => typeof value === 'string' && value.startsWith('/') && value.length <= 4096 && !value.includes('\0')
@@ -187,6 +187,7 @@ export function createAuthMediationRelay({ root, facade, relayScript = RELAY_SCR
     status: () => ({ listening: server !== null, relay: child !== null }),
     async close() {
       closed = true
+      recovery.close()
       for (const connection of open) connection.destroy()
       const current = server; server = null
       if (current) await new Promise(resolve => current.close(resolve))

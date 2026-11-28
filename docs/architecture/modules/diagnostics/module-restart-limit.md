@@ -37,7 +37,7 @@ flowchart LR
 
 ## Exact input and output
 
-Active input has exactly `{kind:"module_restart_limit",moduleId,count,windowSeconds:1800,lastExit:{code,signal},lastReason}`. `moduleId` is one of `web-gateway`, `notifications`, `members`, `memory`, `usage`, `diagnostics`, `conversation`, `execution`. `count` is a safe integer >=5. `code` is a signed 32-bit integer or null; `signal` is a known OS signal name or null. Both null preserves absence of an observed OS exit. `lastReason` is `process_exit`, `ready_timeout`, `ready_probe_failed`, or `recovery_failed`.
+Active input has exactly `{kind:"module_restart_limit",moduleId,count,windowSeconds:1800,lastExit:{code,signal},lastReason}`. `moduleId` is one of `web-gateway`, `notifications`, `members`, `memory`, `usage`, `diagnostics`, `conversation`, `execution`, `work-graph`, `lattice`, `approval-box-extension`, `auth-mediation`, `auth-mediation-relay`. `count` is a safe integer >=5. `code` is a signed 32-bit integer or null; `signal` is a known OS signal name or null. Both null preserves absence of an observed OS exit. `lastReason` is `process_exit`, `ready_timeout`, `ready_probe_failed`, or `recovery_failed`.
 
 Clear input has exactly `{kind:"module_restart_limit",moduleId,cleared:true}`. No active evidence is invented on clear. Both inputs travel as `{problem}` over the additive closed method `recordModuleRestartLimit`. The public facade takes the DTO directly. Existing methods and storage compatibility values remain unchanged; parent/diagnostics releases must both support the new method before wiring it.
 
