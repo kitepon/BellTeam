@@ -192,7 +192,41 @@ def ssh_main(argv):
         shutil.rmtree(d, ignore_errors=True)
 
 
+def mail_main(argv):
+    """auth mail send NAME --to ADDR[,ADDR...] --subject TEXT [--from-name TEXT] [--reply-to ADDR] [--html-file FILE]  (the text body from stdin)
+    The module logs in to the item's SMTP server and sends; the password never reaches this process. Prints the message id. Exit: 0 sent, 1 refused, 2 error;
+    on error the class (MAIL_NOT_SUBMITTED: retry is safe, MAIL_REJECTED: do not retry, MAIL_UNKNOWN: never retry) is printed on stderr."""
+    import argparse
+    p = argparse.ArgumentParser(prog="auth mail")
+    p.add_argument("action", choices=["send"])
+    p.add_argument("name")
+    p.add_argument("--to", required=True)
+    p.add_argument("--subject", required=True)
+    p.add_argument("--from-name")
+    p.add_argument("--reply-to")
+    p.add_argument("--html-file")
+    a = p.parse_args(argv)
+    request = {"op": "mail-send", "name": a.name, "to": a.to.split(","), "subject": a.subject, "text": sys.stdin.read(), "cwd": os.getcwd()}
+    if a.from_name:
+        request["from_name"] = a.from_name
+    if a.reply_to:
+        request["reply_to"] = a.reply_to
+    if a.html_file:
+        request["html"] = open(a.html_file, encoding="utf-8").read()
+    try:
+        resp = ask(request)
+    except (OSError, ValueError):
+        sys.exit("The authentication module is not running.")
+    if resp.get("outcome") != "granted":
+        print(resp.get("error", "Refused."), file=sys.stderr)
+        return 2 if resp.get("outcome") == "error" else 1
+    print(resp.get("message_id", ""))
+    return 0
+
+
 def main():
+    if len(sys.argv) >= 2 and sys.argv[1] == "mail":
+        return mail_main(sys.argv[2:])
     if len(sys.argv) >= 2 and sys.argv[1] == "ssh":
         return ssh_main(sys.argv[2:])
     if len(sys.argv) >= 2 and sys.argv[1] == "sign":

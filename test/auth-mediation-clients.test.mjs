@@ -134,3 +134,13 @@ test('auth sign --digest: asks for sign-digest', async () => {
   assert.equal(r.code, 0); assert.equal(m.seen[0].op, 'sign-digest'); assert.equal(m.seen[0].name, 'android')
   m.close()
 })
+
+test('auth mail send: sends the text from stdin with the options, prints the message id; the failure class goes to stderr', async () => {
+  const m = await fakeModule(req => req.name === 'bad' ? { outcome: 'error', error: 'MAIL_UNKNOWN' } : { outcome: 'granted', message_id: '<1@x.yz>' })
+  const env = { AUTH_SOCK: m.path }
+  const ok = await run(AUTH, ['mail', 'send', 'contact', '--to', 'a@b.cd,e@f.gh', '--subject', 'Hi', '--from-name', 'Me', '--reply-to', 'r@s.tu'], env, 'body text')
+  assert.equal(ok.code, 0); assert.equal(ok.out.trim(), '<1@x.yz>')
+  assert.deepEqual(m.seen[0], { op: 'mail-send', name: 'contact', to: ['a@b.cd', 'e@f.gh'], subject: 'Hi', text: 'body text', cwd: process.cwd(), from_name: 'Me', reply_to: 'r@s.tu' })
+  const bad = await run(AUTH, ['mail', 'send', 'bad', '--to', 'a@b.cd', '--subject', 'x'], env, 't'); assert.equal(bad.code, 2); assert.match(bad.err, /MAIL_UNKNOWN/u)
+  m.close()
+})
