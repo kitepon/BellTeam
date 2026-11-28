@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-28T05:46:42Z",
-  "expiresAt": "2026-12-05T05:46:42Z",
+  "publishedAt": "2026-11-28T06:10:20Z",
+  "expiresAt": "2026-12-05T06:10:20Z",
   "releases": [
     {
       "componentId": "usage",
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "7a3002f271604b1c3be95f8256a123f327c742a3",
-      "versionId": "sha256:f0a8433720c8788b1d22391705c973494112d32b5acf1fc28310c4cb72bff031",
+      "sourceCommit": "2cb9f6037b4a2a3986864c09a649395a9e89aa60",
+      "versionId": "sha256:039d18fa707290db59c390300c06157669ab606859b4befbdbd3d0e7c4f06a35",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:f0a8433720c8788b1d22391705c973494112d32b5acf1fc28310c4cb72bff031"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:039d18fa707290db59c390300c06157669ab606859b4befbdbd3d0e7c4f06a35"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -723,20 +723,21 @@
       },
       "changes": [
         "席の端末（fox、macbook、rabbit）の鍵が、モジュールの ssh エージェントから取られるようになります（古い鍵の読み込み処理は無くなります）。",
-        "認証仲介が、Gmail の呼び出しを、鍵を渡さずにモジュールの中で行えるようになります。"
+        "認証仲介が、Gmail の呼び出しと、社内向けの HTTP の呼び出しを、鍵を渡さずにモジュールの中で行えるようになります。中継の呼び出し元が増えます。",
+        "メールや Gmail が失敗したときの答えに、理由が付くようになります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "7a3002f271604b1c3be95f8256a123f327c742a3",
-      "versionId": "sha256:f0a8433720c8788b1d22391705c973494112d32b5acf1fc28310c4cb72bff031",
+      "sourceCommit": "2cb9f6037b4a2a3986864c09a649395a9e89aa60",
+      "versionId": "sha256:039d18fa707290db59c390300c06157669ab606859b4befbdbd3d0e7c4f06a35",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:f0a8433720c8788b1d22391705c973494112d32b5acf1fc28310c4cb72bff031"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:039d18fa707290db59c390300c06157669ab606859b4befbdbd3d0e7c4f06a35"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +747,8 @@
       },
       "changes": [
         "席の端末（fox、macbook、rabbit）の鍵が、モジュールの ssh エージェントから取られるようになります（古い鍵の読み込み処理は無くなります）。",
-        "認証仲介が、Gmail の呼び出しを、鍵を渡さずにモジュールの中で行えるようになります。"
+        "認証仲介が、Gmail の呼び出しと、社内向けの HTTP の呼び出しを、鍵を渡さずにモジュールの中で行えるようになります。中継の呼び出し元が増えます。",
+        "メールや Gmail が失敗したときの答えに、理由が付くようになります。"
       ]
     },
     {
@@ -891,8 +893,8 @@
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "7a3002f271604b1c3be95f8256a123f327c742a3",
-      "versionId": "2c53c7ea5151f77c2165b7df008b38ce2bf756224b944164d6e102da0c4b6c2b",
+      "sourceCommit": "2cb9f6037b4a2a3986864c09a649395a9e89aa60",
+      "versionId": "e7aa3e58a25b134d830134e8161c5bcaf9263e68ab8a634b6dd076504289c8d4",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -900,16 +902,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T054538Z/auth-mediation-7a3002f271604b1c3be95f8256a123f327c742a3-linux-amd64.tar.gz",
-          "bytes": 3723688,
-          "sha256": "2c53c7ea5151f77c2165b7df008b38ce2bf756224b944164d6e102da0c4b6c2b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T060907Z/auth-mediation-2cb9f6037b4a2a3986864c09a649395a9e89aa60-linux-amd64.tar.gz",
+          "bytes": 3724903,
+          "sha256": "e7aa3e58a25b134d830134e8161c5bcaf9263e68ab8a634b6dd076504289c8d4"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T054538Z/auth-mediation-7a3002f271604b1c3be95f8256a123f327c742a3-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10983,
-          "sha256": "2713ceac73ae89014d7391f90d4fb394e7c18ec41413bad4fa02fe7a883f1b95"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T060907Z/auth-mediation-2cb9f6037b4a2a3986864c09a649395a9e89aa60-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11320,
+          "sha256": "c13482727f0ccfe0f8d3de6da257c388620dafcc7385babb268e4a998c96b9c0"
         },
-        "signerCommit": "7a3002f271604b1c3be95f8256a123f327c742a3"
+        "signerCommit": "2cb9f6037b4a2a3986864c09a649395a9e89aa60"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -921,13 +923,13 @@
         }
       },
       "changes": [
-        "Gmail の 3 つの固定の呼び出しを、項目の秘密を使って、モジュールの中で行えるようになります。メールの STARTTLS を、本物の TLS の切り替えで確かめるようになります。"
+        "Gmail の 3 つの固定の呼び出し、社内向けの HTTP（平文、素通りの経路、フォーム認証）、メールの STARTTLS の確認、失敗の理由を、モジュールの中で行えるようになります。HTTP は、区切りを隠した経路を断ります。"
       ]
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "7a3002f271604b1c3be95f8256a123f327c742a3",
-      "versionId": "47008e7c419215184c6d75ed36b72311029b987ff7e9cbd0f734e9a658ba6883",
+      "sourceCommit": "2cb9f6037b4a2a3986864c09a649395a9e89aa60",
+      "versionId": "e39f684f02c18ad01697313387c494defbb296091abaadb606de6803a046288f",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -935,16 +937,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T054538Z/auth-mediation-7a3002f271604b1c3be95f8256a123f327c742a3-linux-arm64.tar.gz",
-          "bytes": 3723688,
-          "sha256": "47008e7c419215184c6d75ed36b72311029b987ff7e9cbd0f734e9a658ba6883"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T060907Z/auth-mediation-2cb9f6037b4a2a3986864c09a649395a9e89aa60-linux-arm64.tar.gz",
+          "bytes": 3724903,
+          "sha256": "e39f684f02c18ad01697313387c494defbb296091abaadb606de6803a046288f"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T054538Z/auth-mediation-7a3002f271604b1c3be95f8256a123f327c742a3-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10850,
-          "sha256": "10ef38910664c8e5adb69d90a2e13311a93dd578fbaa010c4f0b1f451b317751"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T060907Z/auth-mediation-2cb9f6037b4a2a3986864c09a649395a9e89aa60-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11124,
+          "sha256": "01e7493fef3a39f67ee28bec4a71710e54676967257db4920785615925fec732"
         },
-        "signerCommit": "7a3002f271604b1c3be95f8256a123f327c742a3"
+        "signerCommit": "2cb9f6037b4a2a3986864c09a649395a9e89aa60"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -956,7 +958,7 @@
         }
       },
       "changes": [
-        "Gmail の 3 つの固定の呼び出しを、項目の秘密を使って、モジュールの中で行えるようになります。メールの STARTTLS を、本物の TLS の切り替えで確かめるようになります。"
+        "Gmail の 3 つの固定の呼び出し、社内向けの HTTP（平文、素通りの経路、フォーム認証）、メールの STARTTLS の確認、失敗の理由を、モジュールの中で行えるようになります。HTTP は、区切りを隠した経路を断ります。"
       ]
     }
   ],
