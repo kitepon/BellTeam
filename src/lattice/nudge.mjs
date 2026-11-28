@@ -3,14 +3,8 @@
 // A card whose lane is no Bot and not the Owner goes to the chart's creator Bot instead, asking it to reassign the card (a145).
 const LIMIT = 4000
 const HEAD = 'Lattice: you are not running, and you have tasks in progress or tasks that can start (every prerequisite is done). Start at least one now.\n'
-  // Owner settled 2026-11-13 20:0x JST (task a58), words 2026-11-15 (a161, Lattice 0.104.0): first link the member's EXISTING task (a Bot doing work has one),
-  // a task in its lane only when none exists; 前工程 = same chart, 他条件に接続 = another chart; ブロック is the last resort, only for what no AI can operate.
-  + 'If a task cannot move because it waits on a member\'s work, first find the task that member already has for that work (a Bot doing work has it on a chart) and link it: '
-  + 'on the same chart as its 前工程 (`lattice todo predecessor add --plan <P> --task <T> --after <plan>/<that task> --reason <why>`); '
-  + 'on another chart as a 他条件に接続 (`lattice todo connect condition add --plan <P> --task <T> --to task:<its chart id>/<plan>/<that task> --reason <why>`). '
-  + 'Only when that work has no task yet, add it in that member\'s lane (`lattice todo add --plan <P> --task <id> --title <what you wait for> --phase <phase of T> --lane <member Bot id> --before <T> --design-memo <what and why> --reason <why>`); it becomes the 前工程. '
-  + 'Then return the task to unstarted if it is in progress (`lattice todo retract --plan <P> --task <T> --reason <why>`); a task waiting on a 前工程 or an open 接続 is not prompted. '
-  + 'Only if it waits on something no AI can operate at all (an outside review such as Apple\'s), set a ブロック as the last resort, naming what it waits on (`lattice todo block --plan <P> --task <T> --reason <what it waits on>`); a blocked task is not prompted.'
+  // Owner-approved 2026-11-28 (Tronie): the CLI how-to lived here and repeated common rules SECTION waiting; two lines point there.
+  + 'If a task cannot move, link what it waits on as common rules SECTION waiting says (前工程, 他条件に接続, ブロック only as the last resort); never leave it stalled.\n'
 
 // Task a145 (Owner 2026-11-15 「こんなに工程があるのに、動いてるやつが少ない…催促で動くんじゃないんだっけ」): Lattice takes any lane id,
 // so a card whose lane is no roster Bot and not the Owner reaches nobody; the chart's creator is asked to give it to a member.
@@ -62,7 +56,9 @@ export function nudgeMessage(entries) {
 // and again only when the task changes (b25, Shiratsuru: three warnings in minutes, each delivery starting a turn). The in-prompt tasks repeat by
 // design (the Owner's nudge); only the creator warning is once. shortcut: kept in memory per child generation, so a child restart warns once more; upgrade if restarts get frequent.
 // `promptedAt`: when each Bot was last prompted (fairness among Claude seats under the cap; shortcut: per child generation, a restart forgets it).
-export async function nudgeSweep(charts, { laneOf, log, effect, warned = new Map(), news = null, promptedAt = new Map() }) {
+// `again`: per Bot {sig, count, at} of its last accepted prompt; unchanged cards are re-prompted after 1, 5, 15 min (Owner-approved 2026-11-28; shortcut: per child generation).
+export const AGAIN_MIN = [1, 5, 15]
+export async function nudgeSweep(charts, { laneOf, log, effect, warned = new Map(), news = null, promptedAt = new Map(), again = new Map(), clock = Date.now }) {
   const lanes = new Map(), orphans = new Set(), current = new Set(), out = { charts: charts.length, prompted: 0, skipped: 0, failed: 0 }
   const record = await news?.read().catch(error => (log(`lattice-news-record ${error?.code ?? 'FAILED'}`), null)) ?? null, seen = new Set()
   let recordDirty = false
@@ -98,6 +94,7 @@ export async function nudgeSweep(charts, { laneOf, log, effect, warned = new Map
   }
   for (const key of warned.keys()) if (!current.has(key)) warned.delete(key)
   for (const projectId of orphans) log(`lattice-nudge-lane ${projectId} no-creator`)
+  for (const bot of again.keys()) if (!lanes.has(bot)) again.delete(bot) // nothing to prompt it with: forgotten, so a new card starts at 1 min
   if (!lanes.size) { await flush(); return out }
   // Only 'working' proves the Bot is running (script/CI waits included, bellteam-running); unknown or a failed read is prompted.
   const turns = await effect('turns.read', { botIds: [...lanes.keys()] }).then(value => value.turns, () => ({}))
@@ -111,6 +108,8 @@ export async function nudgeSweep(charts, { laneOf, log, effect, warned = new Map
   let capped = 0
   for (const [bot, entries] of order) {
     if (turns[bot] === 'working') { out.skipped++; continue }
+    const sig = entries.map(entry => `${entry.projectId}/${entry.card.plan}/${entry.card.taskId}/${entry.card.state}/${entry.newsKey ?? ''}/${entry.reassign ? 'r' : ''}`).sort().join('\n'), last = again.get(bot)
+    if (last?.sig === sig && clock() - last.at < AGAIN_MIN[Math.min(last.count - 1, AGAIN_MIN.length - 1)] * 60_000 - 5000) { out.skipped++; continue }
     if (claude.has(bot) && places <= 0) { out.skipped++; capped++; continue }
     // The sends run one by one (a wake can take long), so the batch read above can be stale: a Bot that started a turn since then reads again just before its own send (a481, Mint 2026-11-21).
     const now = await effect('turns.read', { botIds: [bot] }).then(value => value.turns[bot], () => turns[bot])
@@ -118,7 +117,8 @@ export async function nudgeSweep(charts, { laneOf, log, effect, warned = new Map
     const value = await effect('messages.send', { from: 'scheduler', target: bot, message: nudgeMessage(entries) }).catch(() => null)
     if (['running', 'steered', 'queued', 'delivered', 'answered'].includes(value?.delivery)) {
       out.prompted++
-      promptedAt.set(bot, Date.now())
+      promptedAt.set(bot, clock())
+      again.set(bot, { sig, count: last?.sig === sig ? last.count + 1 : 1, at: clock() })
       if (claude.has(bot)) places--
       for (const entry of entries) { if (entry.key) warned.set(entry.key, bot); if (entry.newsKey) { record[entry.newsKey] = entry.next; recordDirty = true } }
       await flush()
