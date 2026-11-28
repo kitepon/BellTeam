@@ -164,24 +164,32 @@ const refreshKey = (item, fields) => createHash('sha256').update(JSON.stringify(
 async function oauthRefreshBearer(fields, item, state, fetchImpl, fresh) {
   const tokenUrl = fields.http_oauth_token_url ?? 'https://oauth2.googleapis.com/token'
   let url; try { url = new URL(tokenUrl) } catch { throw refuse('The key item has no usable token URL.') }
-  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || !fields.http_oauth_client_id || !fields.http_oauth_client_secret || !fields.http_secret) throw refuse('The key item has no credential.')
+  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || !fields.http_secret || Boolean(fields.http_oauth_client_id) !== Boolean(fields.http_oauth_client_secret)) throw refuse('The key item has no credential.')
   const key = refreshKey(item, fields), kept = accessTokens.get(key)
-  const secrets = [fields.http_oauth_client_secret, fields.http_secret]
+  const secrets = [fields.http_oauth_client_secret, fields.http_secret].filter(Boolean)
   if (!fresh && kept && kept.until > Date.now()) return { token: kept.token, secrets: [...secrets, kept.token], drop: () => accessTokens.delete(key) }
+  // one refresh at a time per item: a provider that rotates the refresh token (Plaud) would refuse the second of two parallel refreshes with the same old token
+  if (refreshing.has(key)) { const shared = await refreshing.get(key); if (!fresh || shared.fresh) return shared.value }
+  const task = oauthRefreshFetch(fields, item, state, fetchImpl, url, key, secrets).then(value => ({ value, fresh: true }))
+  refreshing.set(key, task); try { return (await task).value } finally { if (refreshing.get(key) === task) refreshing.delete(key) }
+}
+const refreshing = new Map()
+async function oauthRefreshFetch(fields, item, state, fetchImpl, url, key, secrets) {
   const itemBase = createHash('sha256').update(fields.http_secret).digest('hex')
   const refreshToken = state ? await state.update(async all => { const mine = all[item]; if (!mine || (mine.base !== '*' && mine.base !== itemBase)) all[item] = { base: itemBase, token: fields.http_secret }; else if (mine.base === '*') mine.base = itemBase; return all[item].token }) : fields.http_secret
-  const form = new URLSearchParams({ client_id: fields.http_oauth_client_id, client_secret: fields.http_oauth_client_secret, refresh_token: refreshToken, grant_type: 'refresh_token' })
+  const form = fields.http_oauth_client_id ? new URLSearchParams({ client_id: fields.http_oauth_client_id, client_secret: fields.http_oauth_client_secret, refresh_token: refreshToken, grant_type: 'refresh_token' }) : new URLSearchParams({ refresh_token: refreshToken }) // Plaud: the refresh token is the only field
   let response, parsed = null
   try {
-    response = await fetchImpl(url, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' }, body: form.toString(), redirect: 'manual', signal: AbortSignal.timeout(20000) })
+    const tokenHeaders = { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json', ...(/^[\x21-\x7e ]{1,200}$/u.test(fields.http_oauth_user_agent ?? '') ? { 'user-agent': fields.http_oauth_user_agent } : {}) }
+    response = await fetchImpl(url, { method: 'POST', headers: tokenHeaders, body: form.toString(), redirect: 'manual', signal: AbortSignal.timeout(30000) })
     parsed = JSON.parse((await response.text()).slice(0, TOKEN_BODY_MAX))
   } catch { throw Object.assign(new Error('The token request failed.'), { code: 'HTTP_FAILED' }) }
   if (!response.ok || typeof parsed?.access_token !== 'string' || !parsed.access_token) throw Object.assign(new Error('The token request failed.'), { code: 'HTTP_FAILED' })
   if (state && typeof parsed.refresh_token === 'string' && parsed.refresh_token && parsed.refresh_token !== refreshToken) await state.update(async all => { all[item] = { base: itemBase, token: parsed.refresh_token } })
-  let seconds = Number.isFinite(parsed.expires_in) ? Math.min(Math.max(parsed.expires_in - 120, 0), 3600) : 1800
+  let seconds = Number.isFinite(parsed.expires_in) ? Math.min(Math.max(parsed.expires_in - 120, 0), 86400) : 1800
   if (fields.cache_seconds !== undefined && Number.isFinite(Number(fields.cache_seconds))) seconds = Math.min(seconds, Number(fields.cache_seconds))
   if (seconds > 0) accessTokens.set(key, { token: parsed.access_token, until: Date.now() + seconds * 1000 })
-  return { token: parsed.access_token, secrets: [...secrets, refreshToken, parsed.access_token], drop: () => accessTokens.delete(key) }
+  return { token: parsed.access_token, secrets: [...secrets, refreshToken, parsed.access_token, ...(typeof parsed.refresh_token === 'string' ? [parsed.refresh_token] : [])], drop: () => accessTokens.delete(key) }
 }
 // A code exchange whose answer carries a refresh token: the module keeps it for the named refresh item and the caller only sees "[stored]" (re-consent, no secret reaches the caller).
 async function captureRefresh(fields, bodyBuffer, state) {
