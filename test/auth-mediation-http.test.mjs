@@ -271,17 +271,17 @@ test('http proxy: the module tunnels to the origin through the item\'s proxy (CO
   const dir = await mkdtemp(join(tmpdir(), 'px-')); execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', join(dir, 'k.pem'), '-out', join(dir, 'c.pem'), '-days', '2', '-subj', '/CN=origin.example.com', '-addext', 'subjectAltName=DNS:origin.example.com'], { stdio: 'ignore' })
   const cert = await readFile(join(dir, 'c.pem')), key = await readFile(join(dir, 'k.pem')), seen = []
   const origin = tlsServer({ cert, key }, (req, res) => { seen.push(req.method + ' ' + req.url + ' ' + (req.headers['proxy-authorization'] ?? '-')); res.setHeader('x-ratelimit-remaining', '3'); res.end('korea ' + 'pw-proxy-secret') }); await new Promise(r => origin.listen(0, r))
-  const proxy = httpServer(); proxy.on('connect', (req, socket) => { seen.push('CONNECT ' + req.url + ' ' + req.headers['proxy-authorization']); const up = net.connect(origin.address().port, '127.0.0.1', () => { socket.write('HTTP/1.1 200 OK\r\n\r\n'); up.pipe(socket); socket.pipe(up); socket.on('close', () => up.destroy()); up.on('close', () => socket.destroy()) }) }); await new Promise(r => proxy.listen(0, r))
+  const proxy = tlsServer({ cert, key }); proxy.on('connect', (req, socket) => { seen.push('CONNECT ' + req.url + ' ' + req.headers['proxy-authorization']); const up = net.connect(origin.address().port, '127.0.0.1', () => { socket.write('HTTP/1.1 200 OK\r\n\r\n'); up.pipe(socket); socket.pipe(up); socket.on('close', () => up.destroy()); up.on('close', () => socket.destroy()) }) }); await new Promise(r => proxy.listen(0, r))
   const fields = { http_base: 'https://origin.example.com:' + origin.address().port + '/api', http_auth: 'header:x-none', http_secret: 'unused-secret-1', http_methods: 'GET POST', http_proxy_host: '127.0.0.1', http_proxy_port: String(proxy.address().port), http_proxy_user: 'nord-user', http_proxy_password: 'pw-proxy-secret' }
   try {
-    const r = await callHttp(fields, { method: 'GET', path: '/api/items?x=1' }, async () => { throw new Error('no direct call') }, null, { tls: { ca: cert } })
+    const r = await callHttp(fields, { method: 'GET', path: '/api/items?x=1' }, async () => { throw new Error('no direct call') }, null, { tls: { ca: cert }, proxyTls: { ca: cert, checkServerIdentity: () => undefined } })
     assert.equal(r.status, 200); assert.equal(Buffer.from(r.body, 'base64').toString(), 'korea [redacted]'); assert.equal(r.headers['x-ratelimit-remaining'], '3')
     assert.equal(seen[0], 'CONNECT origin.example.com:' + origin.address().port + ' Basic ' + Buffer.from('nord-user:pw-proxy-secret').toString('base64')); assert.equal(seen[1], 'GET /api/items?x=1 -')
-    await assert.rejects(callHttp(fields, { method: 'POST', path: '/api/x' }, fetch, null, { tls: { ca: cert } }), /GET only/u)
+    await assert.rejects(callHttp(fields, { method: 'POST', path: '/api/x' }, fetch, null, { tls: { ca: cert }, proxyTls: { ca: cert, checkServerIdentity: () => undefined } }), /GET only/u)
     // discovery: a host outside nordvpn.com is never taken, the fixed host stays
     const discovered = []; const viaApi = { ...fields, http_proxy_discover: 'https://api.example.com/servers' }
     const fake = async url => { discovered.push(String(url)); return new Response(JSON.stringify([{ hostname: 'evil.example.org' }])) }
-    await callHttp(viaApi, { method: 'GET', path: '/api/items' }, async (u, o) => String(u).includes('/servers') ? fake(u) : (() => { throw new Error('direct') })(), null, { tls: { ca: cert } })
+    await callHttp(viaApi, { method: 'GET', path: '/api/items' }, async (u, o) => String(u).includes('/servers') ? fake(u) : (() => { throw new Error('direct') })(), null, { tls: { ca: cert }, proxyTls: { ca: cert, checkServerIdentity: () => undefined } })
     assert.equal(discovered.length, 1); assert.equal(seen.filter(l => l.startsWith('CONNECT')).length, 2) // still the fixed 127.0.0.1 proxy
   } finally { proxy.closeAllConnections(); origin.closeAllConnections(); proxy.close(); origin.close() }
 })
@@ -320,4 +320,11 @@ test('http oauth2-refresh: a stop drops the kept access token (resume fetches a 
   const file = join(await mkdtemp(join(tmpdir(), 'cap-')), 'http-tokens.json'), state = createTokenState(file)
   const exch = await callHttp({ http_base: 'https://oauth2.googleapis.com', http_auth: 'form', http_form_fields: 'client_id=c&client_secret=csecret-bbbbbb', http_methods: 'POST', http_capture_for: 'http stripe' }, { method: 'POST', path: '/', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: Buffer.from('code=1').toString('base64') }, async () => new Response('access_token=a&refresh_token=1%2FREFRESH-form-token-99&expires_in=3'), { state, item: 'http exchange' })
   assert.ok(!Buffer.from(exch.body, 'base64').toString().includes('REFRESH-form')) // the caller never sees it
+})
+
+test('http proxy discovery: krNNN.nordvpn.com becomes krNNN.proxy.nordvpn.com; anything else is not taken and the fixed host stays', async () => {
+  const { proxyChoice } = await import('../src/auth-mediation/http.mjs'); const base = { http_proxy_host: 'kr229.proxy.nordvpn.com', http_proxy_user: 'u', http_proxy_password: 'pw', http_proxy_discover: 'https://api.example.com/rec' }
+  const pick = hostname => proxyChoice(base, async () => new Response(JSON.stringify([{ hostname }]))).then(p => p.host)
+  assert.equal(await pick('kr202.nordvpn.com'), 'kr202.proxy.nordvpn.com'); assert.equal(await pick('kr7.proxy.nordvpn.com'), 'kr7.proxy.nordvpn.com')
+  for (const bad of ['evil.example.org', 'kr202.nordvpn.com.evil.org', 'x.y.nordvpn.com', 'kr202.nordvpn.com@evil']) assert.equal(await pick(bad), 'kr229.proxy.nordvpn.com', bad)
 })
