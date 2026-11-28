@@ -209,7 +209,7 @@ function switched(extra = {}) {
   return native
 }
 // A secret-handle key: the key bytes reach the agent, so the generic input can carry it.
-async function switchedSetup(t, { native, launchInput = 'remote', trustCopy = true } = {}) {
+async function switchedSetup(t, { native, launchInput = 'remote', trustCopy = true, keyReader = null } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'trust-copy-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const registry = createTerminalRegistry({ stateRoot: root })
@@ -217,7 +217,7 @@ async function switchedSetup(t, { native, launchInput = 'remote', trustCopy = tr
   if (launchInput) await registry.update('owner-macbook', { launchInput })
   if (trustCopy) await registry.setTrustCopy('owner-macbook', parseExport(exported({ ref: sshKeyRef }), sshKeyRef, 'now'), (await registry.target('owner-macbook')).revision)
   const secrets = { async withResolved(handle, context, consume) { return consume('KEY') }, credential: async handle => ({ handle, revision: 2, available: true }) }
-  const connection = createTerminalConnection({ registry, secrets, native, probeDelays: { first: 5, max: 10 } })
+  const connection = createTerminalConnection({ registry, secrets, native, keyReader, probeDelays: { first: 5, max: 10 } })
   t.after(() => connection.dispose())
   return { registry, connection }
 }
@@ -301,6 +301,35 @@ test('remoteFor: the remote input of a switched terminal by id, no launch, no C8
   assert.deepEqual(await off.remoteFor('owner-macbook'), { reason: 'NOT_SWITCHED' })
   const { connection: bare } = await switchedSetup(t, { native: switched(), trustCopy: false })
   assert.deepEqual(await bare.remoteFor('owner-macbook'), { reason: 'TRUST_COPY_MISSING' })
+})
+
+test('a key-reader terminal with agentSocket: the remote input takes the module agent per call on its own forward id; a dead holder or a non-string socket is AGENT_EMPTY', async t => {
+  const holder = { up: true, socket: '/tmp/bellteam-terminals/agent/module.sock' }
+  const keyReader = { owns: id => id === 'owner-macbook', available: async () => ({ available: holder.up, revision: 1 }), agentSocket: async () => holder.socket }
+  const native = switched({ async agentHeld() { throw new Error('Aiterm agent is not consulted') }, agentSocket() { throw new Error('Aiterm agent is not consulted') }, async loadAgent() { throw new Error('nothing is loaded') } })
+  const { connection } = await switchedSetup(t, { native, keyReader })
+  const first = await connection.remoteFor('owner-macbook')
+  assert.equal(first.remote.ssh.identity_agent, '/tmp/bellteam-terminals/agent/module.sock')
+  assert.deepEqual(first.forward, { id: 'module-owner-macbook', to: { host: '127.0.0.1' } }, 'a binding ref as forward id would make the keeper ignore remote')
+  holder.socket = 42
+  assert.deepEqual(await connection.remoteFor('owner-macbook'), { reason: 'AGENT_EMPTY' })
+  holder.socket = '/tmp/bellteam-terminals/agent/module.sock'; holder.up = false
+  assert.deepEqual(await connection.remoteFor('owner-macbook'), { reason: 'CREDENTIAL_UNAVAILABLE' }) // resolveBinding gates first
+})
+
+test('a key-reader terminal whose port has no agentSocket still loads through load() and uses Aiterm\'s agent', async t => {
+  const loads = []
+  const keyReader = { owns: () => true, available: async () => ({ available: true, revision: 1 }), async load(request) { loads.push(request); return {} } }
+  const native = switched()
+  const { connection } = await switchedSetup(t, { native, keyReader })
+  const result = await connection.remoteFor('owner-macbook')
+  assert.equal(result.remote.ssh.identity_agent, '/tmp/bellteam-terminals/agent/owner-macbook.sock')
+  assert.deepEqual(result.forward, { id: sshKeyRef, to: { host: '127.0.0.1' } })
+  let held = false
+  const empty = switched({ async agentHeld() { return held } })
+  const { connection: again } = await switchedSetup(t, { native: empty, keyReader: { ...keyReader, async load(request) { loads.push(request); held = true; return {} } } })
+  assert.ok((await again.remoteFor('owner-macbook')).remote)
+  assert.equal(loads.length, 1, 'the empty agent was loaded through load()')
 })
 
 test('remoteFor after a body restart: an empty agent gets the key again first; if it stays empty the reason is AGENT_EMPTY and nothing falls back', async t => {

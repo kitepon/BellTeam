@@ -47,12 +47,11 @@ test('target hands execution the Aiterm launch target and runs C8 once per Claud
   assert.equal(native.sessions.length, before + 1, 'concurrent launches share one upkeep run')
 })
 
-test('a key-reader terminal loads its key through the reader only: no Mika call, no value in the parent', async t => {
+test('a key-reader terminal needs no key load: availability comes from the reader, no Mika call, nothing loaded', async t => {
   const bindingRef = 'b1b2c3d4-1234-4234-8234-123456789abc'
   const sudoKeyRef = 'c1b2c3d4-1234-4234-8234-123456789abc'
-  const state = { available: true, loads: [] }
-  const keyReader = { owns: id => id === 'owner-macbook', available: async () => ({ available: state.available, revision: 4 }),
-    async load(request) { state.loads.push(request); if (state.refuse) throw Object.assign(new Error('x'), { code: 'TERMINAL_KEY_LOAD_REFUSED' }); return { schema: 'aiterm.credential-load.v1' } } }
+  const state = { available: true }
+  const keyReader = { owns: id => id === 'owner-macbook', available: async () => ({ available: state.available, revision: 4 }), agentSocket: () => '/tmp/bellteam-terminals/agent/module.sock' }
   const sudoCalls = []
   const secrets = { ...fakeSecrets(), credential(handle, context) { sudoCalls.push(context.purpose); return { handle, revision: 2, available: true } }, withResolved() { throw new Error('no value may be resolved here') } }
   const { connection, native } = setup(t, { target: { ...base, keySource: 'secret', bindingRef, sudoKeyRef }, secrets, keyReader })
@@ -60,10 +59,7 @@ test('a key-reader terminal loads its key through the reader only: no Mika call,
   assert.deepEqual(terminal.credential, { handle: sshKeyRef, revision: 4 })
   assert.deepEqual(sudoCalls, ['terminal.sudo'], 'only the optional sudo key still asks Mika')
   await connection.target(request)
-  assert.deepEqual(state.loads[0], { terminalId: 'owner-macbook', memberId: null, ref: bindingRef, handle: sshKeyRef, revision: 4 })
-  assert.equal(native.calls.some(call => call.op === 'loadCredential' || call.op === 'loadAgent'), false, 'the parent loads nothing itself')
-  state.refuse = true
-  await assert.rejects(connection.target(request), error => error.code === 'CREDENTIAL_NOT_LOADED' || error.effect === 'not_started')
+  assert.equal(native.calls.some(call => call.op === 'loadCredential' || call.op === 'loadAgent'), false, 'nothing is loaded into Aiterm or an agent')
   state.available = false
   await assert.rejects(connection.target(request), error => error.code === 'CREDENTIAL_UNAVAILABLE' || error.effect === 'not_started')
 })

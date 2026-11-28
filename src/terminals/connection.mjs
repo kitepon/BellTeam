@@ -170,9 +170,11 @@ export function createTerminalConnection({ registry, secrets, native, keyReader 
     return binding
   }
 
-  // keyReader (terminal-keys-via-authmed): an owned secret terminal's key is read and loaded by the 認証仲介 loader, never by this parent;
-  // availability is the reader's answer (no Mika source), the revision only a label for Aiterm.
+  // keyReader (terminals README "Key reader"): an owned secret terminal's key sits in the 認証仲介 module's ssh agent, never in this parent or Aiterm;
+  // availability and the agent socket are the reader's answers (no Mika source), the revision only a label.
   const mediated = target => target.keySource === 'secret' && keyReader?.owns?.(target.terminalId) === true
+  // A reader with agentSocket serves the module's agent; one without it still loads the key through load() (the loader of 2026-11-27).
+  const moduleAgent = target => mediated(target) && typeof keyReader.agentSocket === 'function'
 
   async function handleOf(handle, context) {
     if (context.purpose === 'terminal.ssh' && keyReader?.owns?.(context.terminalId) === true) {
@@ -184,7 +186,7 @@ export function createTerminalConnection({ registry, secrets, native, keyReader 
   // A handle key must be in Aiterm before its own open (aiterm-mcp 0.67.0 credential-load); execution loads it the same way
   // before a launch. The value exists only inside Mika's callback and goes to Aiterm's stdin.
   async function loadKey(target, binding, current, extra) {
-    if (!binding.credential) return
+    if (!binding.credential || moduleAgent(target)) return // the module's agent already holds the key: nothing to load
     if (mediated(target)) {
       try { await keyReader.load({ terminalId: target.terminalId, memberId: null, ref: binding.ref, ...binding.credential }) } catch { throw Object.assign(new Error('x'), { code: 'CREDENTIAL_NOT_LOADED' }) }
       if (!current()) throw failure('TERMINAL_UNAVAILABLE')
@@ -238,15 +240,20 @@ export function createTerminalConnection({ registry, secrets, native, keyReader 
     const copy = record.trustCopy
     if (!copy || copy.ref !== binding.ref || copy.revision !== record.hostTrust?.revision) return { reason: 'TRUST_COPY_MISSING' }
     if (!binding.credential) return { reason: 'KEY_NOT_IN_AGENT' } // a native key file stays in Aiterm; only a handle key reaches the agent
-    let file
+    let file, socket = null
+    if (moduleAgent(record)) { // read per call
+      try { socket = await keyReader.available(record.terminalId).then(state => state?.available === true ? keyReader.agentSocket(record.terminalId) : null) } catch {}
+      if (typeof socket !== 'string' || !socket) return { reason: 'AGENT_EMPTY' }
+    }
     try {
-      if (!(await native.agentHeld({ terminalId: record.terminalId }))) return { reason: 'AGENT_EMPTY' }
+      if (!socket && !(await native.agentHeld({ terminalId: record.terminalId }))) return { reason: 'AGENT_EMPTY' }
       file = await native.trustFile({ terminalId: record.terminalId, revision: copy.revision, lines: copy.lines })
     } catch { return { reason: 'TRUST_FILE_FAILED' } }
     return { fields: {
       remote: { host: record.host, user: record.user, port: record.port,
-        ssh: { known_hosts_file: file, ...(copy.alias ? { host_key_alias: copy.alias } : {}), identity_agent: native.agentSocket({ terminalId: record.terminalId }), strict_host_key: true } },
-      forward: { id: binding.ref, to: { host: '127.0.0.1' } }
+        ssh: { known_hosts_file: file, ...(copy.alias ? { host_key_alias: copy.alias } : {}), identity_agent: socket ?? native.agentSocket({ terminalId: record.terminalId }), strict_host_key: true } },
+      // A forward id that is a binding's ref makes Aiterm's keeper use that binding's (empty) agent and ignore `remote`: the module agent needs its own id.
+      forward: { id: socket ? `module-${record.terminalId}` : binding.ref, to: { host: '127.0.0.1' } }
     }, revision: `${record.revision}:${copy.revision}` }
   }
 
