@@ -162,6 +162,8 @@ Owner 2026-11-28: 「Lattice工程表に、俺のタスクを載せられるの�
 | O4 | a decision an AI files later with the same label | the existing L8/L10 path attaches it; a row already exists, so O1 files nothing | as L8 |
 | O5 | the Owner has no Approval Box connected or entitled (no F7 session, F6 not entitled), the host's Approval Box client is not set up (P1 `UNAVAILABLE`), the extension is off or absent | **nothing is filed and nothing is written**: the card stays on the chart as today, the hand-over (L18) behaves as today, no error, no retry loop beyond the next 60 s scan. A `REFUSED` for one card skips that card for this scan | none |
 
+Race, accepted (Flora 2026-11-28): Lattice's hand-over sweeps every 60 s and asks the chart creator for an Owner card that has no record yet; a card this module links later than that tick can be asked once. The creator's request carries the same `session_label`, and the seats and the body share one Approval Box connection, so the second request is adopted by the label, not doubled. The filer files first and links right after (a card is linked only once its request exists, so without a usable Approval Box nothing changes: O5). The lane is matched case-insensitively, as Lattice resolves it.
+
 The filer is bounded: at most 3 filings and 10 reads per scan (each P1 call is one short process), cards in chart order, so a chart with many Owner cards fills his 決裁箱 over a few scans. A card with a row (`dec-*` tasks the L1 path made, attached cards, filed cards) is never filed again. Ids and state only are kept (no title, no context, no answer text).
 
 ## 6. State it owns
