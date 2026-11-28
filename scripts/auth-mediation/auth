@@ -84,16 +84,17 @@ def http_main(argv):
 
 
 def sign_main(argv):
-    """auth sign NAME [--data-file FILE|-]: the module signs the bytes (stdin by default) with the key of item "signkey NAME" and answers with the signature only;
+    """auth sign NAME [--digest] [--data-file FILE|-]: the module signs the bytes (stdin by default) with the key of item "signkey NAME" and answers with the signature only;
     it is printed as base64 on stdout. The key never leaves the module. Exit: 0 signed, 1 refused, 2 error."""
     import argparse, base64
     p = argparse.ArgumentParser(prog="auth sign")
     p.add_argument("name")
     p.add_argument("--data-file")
+    p.add_argument("--digest", action="store_true", help="the input is a 32-byte SHA-256 digest (RSA key): sign it as it is")
     a = p.parse_args(argv)
     data = open(a.data_file, "rb").read() if a.data_file and a.data_file != "-" else sys.stdin.buffer.read()
     try:
-        resp = ask({"op": "sign", "name": a.name, "data": base64.b64encode(data).decode(), "cwd": os.getcwd()})
+        resp = ask({"op": "sign-digest" if a.digest else "sign", "name": a.name, "data": base64.b64encode(data).decode(), "cwd": os.getcwd()})
     except (OSError, ValueError):
         sys.exit("The authentication module is not running.")
     if resp.get("outcome") != "granted":

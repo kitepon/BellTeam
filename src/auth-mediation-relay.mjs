@@ -19,7 +19,7 @@ const absolute = value => typeof value === 'string' && value.startsWith('/') && 
 const httpParams = request => ({ name: request.name, method: request.method, path: request.path, ...(request.headers === undefined ? {} : { headers: request.headers }),
   ...(request.body === undefined ? {} : { body: request.body }), ...(request.timeout_sec === undefined ? {} : { timeoutSec: request.timeout_sec }) })
 // The client's key-use line -> the child's keyuse params (the transport fills who is calling).
-const KEY_OPS = ['wrap', 'unwrap', 'sign', 'ssh-identity', 'ssh-sign']
+const KEY_OPS = ['wrap', 'unwrap', 'sign', 'sign-digest', 'ssh-identity', 'ssh-sign']
 const keyParams = request => ({ action: request.op, name: request.name, ...(request.data === undefined ? {} : { data: request.data }), ...(request.aad === undefined ? {} : { aad: request.aad }), ...(request.flags === undefined ? {} : { flags: request.flags }) })
 const program = value => value === undefined || value === null || (typeof value === 'object' && absolute(value.path) && /^[a-f0-9]{64}$/u.test(value.sha256) && typeof value.sealed === 'boolean')
 

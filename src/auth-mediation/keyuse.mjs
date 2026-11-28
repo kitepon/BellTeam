@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, createHmac, createPrivateKey, randomBytes, sign } from 'node:crypto'
+import { constants, createCipheriv, createDecipheriv, createHmac, createPrivateKey, privateEncrypt, randomBytes, sign } from 'node:crypto'
 
 // Key use inside the module: the key never leaves, only the result does. One AES-256-GCM operation; no state, so rotation is the caller's (unwrap with the old name, wrap with the new).
 // Blob = base64(nonce 12 B | ciphertext | tag 16 B); aad (the caller's context, e.g. a ledger id) is authenticated, so a blob cannot be moved to another context.
@@ -46,4 +46,17 @@ export function signData(fields, data) {
   try { key = createPrivateKey(fields.sign_key) } catch { throw refuse() }
   if (key.asymmetricKeyType !== spec.type || (spec.curve && key.asymmetricKeyDetails?.namedCurve !== spec.curve)) throw refuse()
   return sign(spec.hash, input, spec.type === 'ec' ? { key, dsaEncoding: 'ieee-p1363' } : key).toString('base64')
+}
+
+// Sign a digest (F15): RSASSA-PKCS1-v1_5 over a SHA-256 digest the caller already computed, for tools whose signature provider hashes locally (Android jarsigner / apksigner).
+// Only an RS256 item takes it; the DigestInfo prefix is fixed here, so the caller cannot make the module sign anything but a 32-byte SHA-256 value.
+const SHA256_DIGEST_INFO = Buffer.from('3031300d060960864801650304020105000420', 'hex')
+export function signDigest(fields, data) {
+  if (fields?.sign_alg !== 'RS256' || !fields.sign_key || typeof data !== 'string' || !b64.test(data)) throw refuse()
+  const digest = Buffer.from(data, 'base64')
+  if (digest.length !== 32) throw refuse()
+  let key
+  try { key = createPrivateKey(fields.sign_key) } catch { throw refuse() }
+  if (key.asymmetricKeyType !== 'rsa') throw refuse()
+  return privateEncrypt({ key, padding: constants.RSA_PKCS1_PADDING }, Buffer.concat([SHA256_DIGEST_INFO, digest])).toString('base64')
 }

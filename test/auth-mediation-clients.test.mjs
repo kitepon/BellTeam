@@ -127,3 +127,10 @@ test('auth sign: sends stdin as base64 with the folder, prints only the signatur
   assert.equal((await run(AUTH, ['sign', 'no'], env, 'x')).code, 1); assert.equal((await run(AUTH, ['sign', 'bad'], env, 'x')).code, 2)
   m.close()
 })
+
+test('auth sign --digest: asks for sign-digest', async () => {
+  const m = await fakeModule(() => ({ outcome: 'granted', data: 'c2ln' }))
+  const r = await run(AUTH, ['sign', 'android', '--digest'], { AUTH_SOCK: m.path }, Buffer.alloc(32, 1))
+  assert.equal(r.code, 0); assert.equal(m.seen[0].op, 'sign-digest'); assert.equal(m.seen[0].name, 'android')
+  m.close()
+})
