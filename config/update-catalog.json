@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-27T23:05:44Z",
-  "expiresAt": "2026-12-04T23:05:44Z",
+  "publishedAt": "2026-11-28T01:40:36Z",
+  "expiresAt": "2026-12-05T01:40:36Z",
   "releases": [
     {
       "componentId": "usage",
@@ -555,8 +555,8 @@
     },
     {
       "componentId": "members",
-      "sourceCommit": "e0fd4c159e0640f1b8bd01d8225d49b82c92dba7",
-      "versionId": "6405d9c7e1b6e528c629f5f0b7aeb7e14a6c5bcef87d0c435233367d933d103b",
+      "sourceCommit": "c8ff5bce511ab95a4540d73e842c7ca12bec1e13",
+      "versionId": "bd0bc35f95634c65f5771348cf5e8ff65f84fcbefb301f9f562d4ade3443fa4e",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -564,16 +564,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T030210Z/members-e0fd4c159e0640f1b8bd01d8225d49b82c92dba7-linux-amd64.tar.gz",
-          "bytes": 4592302,
-          "sha256": "6405d9c7e1b6e528c629f5f0b7aeb7e14a6c5bcef87d0c435233367d933d103b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T013933Z/members-c8ff5bce511ab95a4540d73e842c7ca12bec1e13-linux-amd64.tar.gz",
+          "bytes": 4580048,
+          "sha256": "bd0bc35f95634c65f5771348cf5e8ff65f84fcbefb301f9f562d4ade3443fa4e"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T030210Z/members-e0fd4c159e0640f1b8bd01d8225d49b82c92dba7-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11282,
-          "sha256": "25b81d36967af65739dd43988c06dbfc778c220495974378dacb1abf0eaba2c7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T013933Z/members-c8ff5bce511ab95a4540d73e842c7ca12bec1e13-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11000,
+          "sha256": "a20df2c2f03e47fa68975f2446c5591ad743c442905d34180bd6476310f74a03"
         },
-        "signerCommit": "e0fd4c159e0640f1b8bd01d8225d49b82c92dba7"
+        "signerCommit": "c8ff5bce511ab95a4540d73e842c7ca12bec1e13"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -590,13 +590,13 @@
         }
       },
       "changes": [
-        "統括の席が読む「統括だけの目次」へ案内する共通規則（roles.coordinator）が、各席のAGENTS.mdに入ります。"
+        "共通規範に、正本の文書は現在の状態だけを書く（古い手順や裁定は archive へ移す）という規則が加わります。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "e0fd4c159e0640f1b8bd01d8225d49b82c92dba7",
-      "versionId": "dac1990fb2b7fd75b5994d8e1621a1ffe29e69f2056f50efe0c4ed9749d75564",
+      "sourceCommit": "c8ff5bce511ab95a4540d73e842c7ca12bec1e13",
+      "versionId": "62b4429852aa0924b18060389e3913b04ca35cd351b0831a6a0e8fbd2e6270d6",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -604,16 +604,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T030210Z/members-e0fd4c159e0640f1b8bd01d8225d49b82c92dba7-linux-arm64.tar.gz",
-          "bytes": 4592303,
-          "sha256": "dac1990fb2b7fd75b5994d8e1621a1ffe29e69f2056f50efe0c4ed9749d75564"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T013933Z/members-c8ff5bce511ab95a4540d73e842c7ca12bec1e13-linux-arm64.tar.gz",
+          "bytes": 4580048,
+          "sha256": "62b4429852aa0924b18060389e3913b04ca35cd351b0831a6a0e8fbd2e6270d6"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T030210Z/members-e0fd4c159e0640f1b8bd01d8225d49b82c92dba7-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11168,
-          "sha256": "6f6fac1712050a9757e998bb510bedced0f896129888d62fd8c69d819ebe14a7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T013933Z/members-c8ff5bce511ab95a4540d73e842c7ca12bec1e13-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11000,
+          "sha256": "53cafe9b1ca9ab332a47801fa6aaf0ec6d223170b501d62732c003a70255b0d7"
         },
-        "signerCommit": "e0fd4c159e0640f1b8bd01d8225d49b82c92dba7"
+        "signerCommit": "c8ff5bce511ab95a4540d73e842c7ca12bec1e13"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -630,7 +630,7 @@
         }
       },
       "changes": [
-        "統括の席が読む「統括だけの目次」へ案内する共通規則（roles.coordinator）が、各席のAGENTS.mdに入ります。"
+        "共通規範に、正本の文書は現在の状態だけを書く（古い手順や裁定は archive へ移す）という規則が加わります。"
       ]
     },
     {
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "4491da4b8b8f2c5e0ad881e1dd31169466f3a67e",
-      "versionId": "sha256:1a231dfd9b587b8a01b9021cfe28d416dfd93d4ded892e77f80b6493e0a9d962",
+      "sourceCommit": "57add5d10a6cfe22c70e09fe0cc02f71c22ab082",
+      "versionId": "sha256:bd476dd0496612c91d6609b13715b7f5cc3573b2017a6f1012b30c081dbbea92",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:1a231dfd9b587b8a01b9021cfe28d416dfd93d4ded892e77f80b6493e0a9d962"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:bd476dd0496612c91d6609b13715b7f5cc3573b2017a6f1012b30c081dbbea92"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -722,21 +722,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "閉じた席の、ツールの許可待ちの項目が閉じられ、決裁箱のカードも取り下げられます。",
-        "遠隔の席の起動で、使われない転送ポートの設定が渡されなくなります。"
+        "旦那の持ち場の工程（どの工程表のものでも）が、開いている間、決裁箱に1件ずつ申請として出るようになります。",
+        "工程につないだ予定が、その工程が終わった・取り下げられた・無くなった時に、自分で消えます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "4491da4b8b8f2c5e0ad881e1dd31169466f3a67e",
-      "versionId": "sha256:1a231dfd9b587b8a01b9021cfe28d416dfd93d4ded892e77f80b6493e0a9d962",
+      "sourceCommit": "57add5d10a6cfe22c70e09fe0cc02f71c22ab082",
+      "versionId": "sha256:bd476dd0496612c91d6609b13715b7f5cc3573b2017a6f1012b30c081dbbea92",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:1a231dfd9b587b8a01b9021cfe28d416dfd93d4ded892e77f80b6493e0a9d962"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:bd476dd0496612c91d6609b13715b7f5cc3573b2017a6f1012b30c081dbbea92"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -745,8 +745,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "閉じた席の、ツールの許可待ちの項目が閉じられ、決裁箱のカードも取り下げられます。",
-        "遠隔の席の起動で、使われない転送ポートの設定が渡されなくなります。"
+        "旦那の持ち場の工程（どの工程表のものでも）が、開いている間、決裁箱に1件ずつ申請として出るようになります。",
+        "工程につないだ予定が、その工程が終わった・取り下げられた・無くなった時に、自分で消えます。"
       ]
     },
     {
@@ -821,8 +821,8 @@
     },
     {
       "componentId": "approval-box-extension",
-      "sourceCommit": "f33bed637ffeff4bbe1b6637ef380b9db43243be",
-      "versionId": "d1150ed1a2b0b7e738424b9c7c10c81df229cb309cd353aeddd1197b62214a49",
+      "sourceCommit": "7f1fdbf16a3e6019bf7c5a110b00d7095f5c6d33",
+      "versionId": "6b24fa722a3fbcbeae76c0eec68e7a6df0920ed7c1eb440563bce278a0392972",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -830,16 +830,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T222738Z/approval-box-extension-f33bed637ffeff4bbe1b6637ef380b9db43243be-linux-amd64.tar.gz",
-          "bytes": 3716268,
-          "sha256": "d1150ed1a2b0b7e738424b9c7c10c81df229cb309cd353aeddd1197b62214a49"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T013257Z/approval-box-extension-7f1fdbf16a3e6019bf7c5a110b00d7095f5c6d33-linux-amd64.tar.gz",
+          "bytes": 3719023,
+          "sha256": "6b24fa722a3fbcbeae76c0eec68e7a6df0920ed7c1eb440563bce278a0392972"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T222738Z/approval-box-extension-f33bed637ffeff4bbe1b6637ef380b9db43243be-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11186,
-          "sha256": "32518d405361c8a2af6d072e83442b41a316110e41e6a2fde738f5c8ce81a172"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T013257Z/approval-box-extension-7f1fdbf16a3e6019bf7c5a110b00d7095f5c6d33-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11139,
+          "sha256": "15452a76539ab5fb088a6fc21faed9f14eafc6f7ebe50975cbc560e5b7d161ee"
         },
-        "signerCommit": "f33bed637ffeff4bbe1b6637ef380b9db43243be"
+        "signerCommit": "7f1fdbf16a3e6019bf7c5a110b00d7095f5c6d33"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -851,13 +851,13 @@
         }
       },
       "changes": [
-        "決裁箱拡張から、本体の常駐プロセスとの受け渡しと、ペアリングの経路が消えます。"
+        "旦那の持ち場の工程を決裁箱へ申請として出す処理（走査は60秒ごとに3件）が加わります。"
       ]
     },
     {
       "componentId": "approval-box-extension",
-      "sourceCommit": "f33bed637ffeff4bbe1b6637ef380b9db43243be",
-      "versionId": "28dad05c95ab89da3f7544c297f61f210cb8d895a4b725ae06c62ab7903ce89a",
+      "sourceCommit": "7f1fdbf16a3e6019bf7c5a110b00d7095f5c6d33",
+      "versionId": "4e6fe35a63504f9938da8b57929519ff4498bbc5602f6031f06406b53e8dcb95",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -865,16 +865,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T222738Z/approval-box-extension-f33bed637ffeff4bbe1b6637ef380b9db43243be-linux-arm64.tar.gz",
-          "bytes": 3716268,
-          "sha256": "28dad05c95ab89da3f7544c297f61f210cb8d895a4b725ae06c62ab7903ce89a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T013257Z/approval-box-extension-7f1fdbf16a3e6019bf7c5a110b00d7095f5c6d33-linux-arm64.tar.gz",
+          "bytes": 3719023,
+          "sha256": "4e6fe35a63504f9938da8b57929519ff4498bbc5602f6031f06406b53e8dcb95"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T222738Z/approval-box-extension-f33bed637ffeff4bbe1b6637ef380b9db43243be-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11280,
-          "sha256": "731488e4515eef189cdd96efca44d2b0d02ce5bb5f2914de9181699e47f2d03d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T013257Z/approval-box-extension-7f1fdbf16a3e6019bf7c5a110b00d7095f5c6d33-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11186,
+          "sha256": "f04b624f65d5a57c00712a98a295c4ee454465eef7e6bec62e5c02c2064eb3c0"
         },
-        "signerCommit": "f33bed637ffeff4bbe1b6637ef380b9db43243be"
+        "signerCommit": "7f1fdbf16a3e6019bf7c5a110b00d7095f5c6d33"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -886,7 +886,7 @@
         }
       },
       "changes": [
-        "決裁箱拡張から、本体の常駐プロセスとの受け渡しと、ペアリングの経路が消えます。"
+        "旦那の持ち場の工程を決裁箱へ申請として出す処理（走査は60秒ごとに3件）が加わります。"
       ]
     },
     {
