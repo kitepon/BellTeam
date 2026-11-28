@@ -285,3 +285,39 @@ test('http proxy: the module tunnels to the origin through the item\'s proxy (CO
     assert.equal(discovered.length, 1); assert.equal(seen.filter(l => l.startsWith('CONNECT')).length, 2) // still the fixed 127.0.0.1 proxy
   } finally { proxy.closeAllConnections(); origin.closeAllConnections(); proxy.close(); origin.close() }
 })
+
+test('http oauth2-refresh (Google style): the module gets the access token from the token URL, keeps it, adds the bearer; a returned refresh token is kept in the state file; a code exchange keeps its refresh token for the named item and shows [stored]', async () => {
+  const { mkdtemp, readFile } = await import('node:fs/promises'); const { tmpdir } = await import('node:os'); const { join } = await import('node:path')
+  const { createTokenState, forgetTokens } = await import('../src/auth-mediation/http.mjs'); const { createAuthCore } = await import('../src/auth-mediation/core.mjs'); forgetTokens()
+  const file = join(await mkdtemp(join(tmpdir(), 'oar-')), 'http-tokens.json'), seen = []
+  const fields = { http_base: 'https://www.googleapis.com/webmasters/v3', http_auth: 'oauth2-refresh', http_secret: 'refresh-token-old-123', http_oauth_client_id: 'cid-123', http_oauth_client_secret: 'csecret-abcdef', http_methods: 'GET POST' }
+  const answer = (url, o) => { seen.push({ url: String(url), body: o?.body ? String(o.body) : '', auth: o?.headers?.authorization }); return String(url).endsWith('/token') ? new Response(JSON.stringify({ access_token: 'access-aaaaaa-1', expires_in: 3599, refresh_token: 'refresh-token-NEW-456' })) : new Response('rows for csecret-abcdef') }
+  const t0 = setup({ item: fields }), core = createAuthCore({ store: t0.store, items: createItemCache({ runOp: async () => itemJson(fields) }), tokenState: createTokenState(file), audit: l => t0.lines.push(l), roots: () => ({ 'bot-a': CWD }), fetchImpl: async (u, o) => answer(u, o) })
+  const call = (path = '/webmasters/v3/sites/x/sitemaps') => core.http({ name: 'stripe', method: 'GET', path, via: 'host-socket', cwd: UNIT, unit: UNIT })
+  const r = await call(); await call()
+  assert.equal(Buffer.from(r.body, 'base64').toString(), 'rows for [redacted]'); assert.equal(seen.filter(x => x.url.endsWith('/token')).length, 1)
+  assert.equal(seen.find(x => x.url.endsWith('/token')).body, 'client_id=cid-123&client_secret=csecret-abcdef&refresh_token=refresh-token-old-123&grant_type=refresh_token'); assert.equal(seen.find(x => !x.url.endsWith('/token')).auth, 'Bearer access-aaaaaa-1')
+  assert.equal(JSON.parse(await readFile(file, 'utf8'))['http stripe'].token, 'refresh-token-NEW-456'); assert.ok(!JSON.stringify(t0.lines).includes('refresh-token'))
+  // a code exchange through a capture item keeps the refresh token for 'http stripe' and shows [stored]
+  const cap = { http_base: 'https://oauth2.googleapis.com', http_auth: 'form', http_form_fields: 'client_id=cid-123&client_secret=csecret-abcdef', http_methods: 'POST', http_capture_for: 'http stripe' }
+  const state = createTokenState(file), exch = await (await import('../src/auth-mediation/http.mjs')).callHttp(cap, { method: 'POST', path: '/token', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: Buffer.from('code=abc&grant_type=authorization_code').toString('base64') }, async () => new Response(JSON.stringify({ access_token: 'x', refresh_token: 'refresh-token-CONSENT-789' })), { state, item: 'http exchange' })
+  assert.match(Buffer.from(exch.body, 'base64').toString(), /"refresh_token":"\[stored\]"/u); assert.equal(JSON.parse(await readFile(file, 'utf8'))['http stripe'].token, 'refresh-token-CONSENT-789')
+})
+
+test('http oauth2-refresh: a stop drops the kept access token (resume fetches a new one); a changed refresh token or client secret is another key; a form-encoded code answer is stored too', async () => {
+  const { mkdtemp, readFile } = await import('node:fs/promises'); const { tmpdir } = await import('node:os'); const { join } = await import('node:path')
+  const { createTokenState, forgetTokens, callHttp } = await import('../src/auth-mediation/http.mjs'); forgetTokens()
+  const base = { http_base: 'https://api.example.com/v1', http_auth: 'oauth2-refresh', http_secret: 'refresh-aaaaaa', http_oauth_client_id: 'cid', http_oauth_client_secret: 'csecret-bbbbbb', http_methods: 'GET' }
+  const t = setup({ item: base, answer: u => String(u).endsWith('/token') ? new Response(JSON.stringify({ access_token: 'acc-' + Math.random().toString(36).slice(2, 10), expires_in: 3599 })) : new Response('ok') })
+  const tokenCalls = () => t.seen.filter(x => x.url.endsWith('/token')).length
+  await ask(t); await ask(t); assert.equal(tokenCalls(), 1)
+  t.store.policy.stopped = ['http stripe']; assert.equal((await ask(t)).outcome, 'stopped'); t.store.policy.stopped = []
+  await ask(t); assert.equal(tokenCalls(), 2) // resume: a new access token
+  const fx = async (url, o) => { t.seen.push({ url: String(url) }); return String(url).endsWith('/token') ? new Response('{"access_token":"x-yyyyyy"}') : new Response('ok') }
+  forgetTokens(); await callHttp(base, { method: 'GET', path: '/v1/a' }, fx); await callHttp(base, { method: 'GET', path: '/v1/a' }, fx); const n1 = tokenCalls()
+  await callHttp({ ...base, http_secret: 'refresh-CHANGED' }, { method: 'GET', path: '/v1/a' }, fx); assert.equal(tokenCalls(), n1 + 1)
+  await callHttp({ ...base, http_oauth_client_secret: 'csecret-CHANGED' }, { method: 'GET', path: '/v1/a' }, fx); assert.equal(tokenCalls(), n1 + 2)
+  const file = join(await mkdtemp(join(tmpdir(), 'cap-')), 'http-tokens.json'), state = createTokenState(file)
+  const exch = await callHttp({ http_base: 'https://oauth2.googleapis.com', http_auth: 'form', http_form_fields: 'client_id=c&client_secret=csecret-bbbbbb', http_methods: 'POST', http_capture_for: 'http stripe' }, { method: 'POST', path: '/', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: Buffer.from('code=1').toString('base64') }, async () => new Response('access_token=a&refresh_token=1%2FREFRESH-form-token-99&expires_in=3'), { state, item: 'http exchange' })
+  assert.ok(!Buffer.from(exch.body, 'base64').toString().includes('REFRESH-form')) // the caller never sees it
+})
