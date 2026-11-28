@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-28T02:09:32Z",
-  "expiresAt": "2026-12-05T02:09:32Z",
+  "publishedAt": "2026-11-28T03:52:24Z",
+  "expiresAt": "2026-12-05T03:52:24Z",
   "releases": [
     {
       "componentId": "usage",
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "57add5d10a6cfe22c70e09fe0cc02f71c22ab082",
-      "versionId": "sha256:bd476dd0496612c91d6609b13715b7f5cc3573b2017a6f1012b30c081dbbea92",
+      "sourceCommit": "f98a27532e148aa2a96b3f0b9ebc72d55964461e",
+      "versionId": "sha256:cfbe1756af6646c7d44ba41c22ba34e7b4bfbd492205c017e3018ce36ec4450f",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:bd476dd0496612c91d6609b13715b7f5cc3573b2017a6f1012b30c081dbbea92"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:cfbe1756af6646c7d44ba41c22ba34e7b4bfbd492205c017e3018ce36ec4450f"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -722,21 +722,22 @@
         "containerUpdate": 1
       },
       "changes": [
-        "旦那の持ち場の工程（どの工程表のものでも）が、開いている間、決裁箱に1件ずつ申請として出るようになります。",
-        "工程につないだ予定が、その工程が終わった・取り下げられた・無くなった時に、自分で消えます。"
+        "認証仲介が、鍵そのものを渡さずに、鍵を使った処理（署名・暗号化の包み・解き）と HTTP の呼び出しを、モジュールの中で行えるようになります（呼び出し元ごとの専用ソケット、鍵ごとの保持期間）。",
+        "工程表に、カードを足した Bot の記録、待っている工程の表示、接続の知らせが加わります（Lattice 0.115.0）。",
+        "決裁箱の席の登録ファイルが、入れた版に合わせて、また更新されるようになります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "57add5d10a6cfe22c70e09fe0cc02f71c22ab082",
-      "versionId": "sha256:bd476dd0496612c91d6609b13715b7f5cc3573b2017a6f1012b30c081dbbea92",
+      "sourceCommit": "f98a27532e148aa2a96b3f0b9ebc72d55964461e",
+      "versionId": "sha256:cfbe1756af6646c7d44ba41c22ba34e7b4bfbd492205c017e3018ce36ec4450f",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:bd476dd0496612c91d6609b13715b7f5cc3573b2017a6f1012b30c081dbbea92"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:cfbe1756af6646c7d44ba41c22ba34e7b4bfbd492205c017e3018ce36ec4450f"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -745,14 +746,15 @@
         "containerUpdate": 1
       },
       "changes": [
-        "旦那の持ち場の工程（どの工程表のものでも）が、開いている間、決裁箱に1件ずつ申請として出るようになります。",
-        "工程につないだ予定が、その工程が終わった・取り下げられた・無くなった時に、自分で消えます。"
+        "認証仲介が、鍵そのものを渡さずに、鍵を使った処理（署名・暗号化の包み・解き）と HTTP の呼び出しを、モジュールの中で行えるようになります（呼び出し元ごとの専用ソケット、鍵ごとの保持期間）。",
+        "工程表に、カードを足した Bot の記録、待っている工程の表示、接続の知らせが加わります（Lattice 0.115.0）。",
+        "決裁箱の席の登録ファイルが、入れた版に合わせて、また更新されるようになります。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "e6eca195de7a09b913ded939217c34f4dada23cb",
-      "versionId": "c40f168747770016a04921f23405be98d50ad0bab15c70ac46dd1f5bdff85e6c",
+      "sourceCommit": "3eb3b0be4be91040bcd719eac3a48cd089774241",
+      "versionId": "d3f0ca3b7b5d45c46cf525d1696e5a1644d24ba9b2bd4fa0170f258021c1d087",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -760,16 +762,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110338Z/lattice-e6eca195de7a09b913ded939217c34f4dada23cb-linux-amd64.tar.gz",
-          "bytes": 15367527,
-          "sha256": "c40f168747770016a04921f23405be98d50ad0bab15c70ac46dd1f5bdff85e6c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T034500Z/lattice-3eb3b0be4be91040bcd719eac3a48cd089774241-linux-amd64.tar.gz",
+          "bytes": 15369160,
+          "sha256": "d3f0ca3b7b5d45c46cf525d1696e5a1644d24ba9b2bd4fa0170f258021c1d087"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110338Z/lattice-e6eca195de7a09b913ded939217c34f4dada23cb-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10914,
-          "sha256": "9dd96f339ceba35c38a34f96232b52279e922863b72b10b8d16e277dec10ef5b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T034500Z/lattice-3eb3b0be4be91040bcd719eac3a48cd089774241-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10902,
+          "sha256": "7d38000ed0459bade86488a8e70d752d70bc0dfa5d18596cf39dea31e4be79cc"
         },
-        "signerCommit": "e6eca195de7a09b913ded939217c34f4dada23cb"
+        "signerCommit": "3eb3b0be4be91040bcd719eac3a48cd089774241"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -781,13 +783,13 @@
         }
       },
       "changes": [
-        "工程表の書き込みを、プロジェクトごとの列にします。lattice の子が、読み出し v2 から次の工程を取ります。Lattice CLI の固定を 0.114.3 に上げます。"
+        "Lattice が 0.115.0 になります（カードを足した Bot の記録、待っている工程の表示、接続の知らせ）。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "e6eca195de7a09b913ded939217c34f4dada23cb",
-      "versionId": "7e5184faaafddcb08a65bc920c3691e3f0ce52fe828e776548f652c5524e8f94",
+      "sourceCommit": "3eb3b0be4be91040bcd719eac3a48cd089774241",
+      "versionId": "33a577131de5f9736a93988b54ef650ab397ef94567e2e06d8408e4b541c4cc5",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -795,16 +797,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110338Z/lattice-e6eca195de7a09b913ded939217c34f4dada23cb-linux-arm64.tar.gz",
-          "bytes": 15367527,
-          "sha256": "7e5184faaafddcb08a65bc920c3691e3f0ce52fe828e776548f652c5524e8f94"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T034500Z/lattice-3eb3b0be4be91040bcd719eac3a48cd089774241-linux-arm64.tar.gz",
+          "bytes": 15369160,
+          "sha256": "33a577131de5f9736a93988b54ef650ab397ef94567e2e06d8408e4b541c4cc5"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261126T110338Z/lattice-e6eca195de7a09b913ded939217c34f4dada23cb-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10996,
-          "sha256": "e91b60f0d8aa450c7b7049cc125b6090ba9ac1162fb8de3f63d8f0e6216d77cb"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T034500Z/lattice-3eb3b0be4be91040bcd719eac3a48cd089774241-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11090,
+          "sha256": "ba6c936c18222f7ab9270fa016e31b11c4919549381ec4a37f5166dd0d8400dc"
         },
-        "signerCommit": "e6eca195de7a09b913ded939217c34f4dada23cb"
+        "signerCommit": "3eb3b0be4be91040bcd719eac3a48cd089774241"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -816,7 +818,7 @@
         }
       },
       "changes": [
-        "工程表の書き込みを、プロジェクトごとの列にします。lattice の子が、読み出し v2 から次の工程を取ります。Lattice CLI の固定を 0.114.3 に上げます。"
+        "Lattice が 0.115.0 になります（カードを足した Bot の記録、待っている工程の表示、接続の知らせ）。"
       ]
     },
     {
@@ -891,8 +893,8 @@
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "17953fb2e215f61a05ba7c9a46fb52fed5515a54",
-      "versionId": "d39ebd68fee49d7c1b00abcf17696da95f38c29ab5e0e92abb2e18af504ff664",
+      "sourceCommit": "f98a27532e148aa2a96b3f0b9ebc72d55964461e",
+      "versionId": "fe15a0759d15ff6c6fefd22a7a3fbbe58540ede679eafca4204592fb71f107ff",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -900,16 +902,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T105438Z/auth-mediation-17953fb2e215f61a05ba7c9a46fb52fed5515a54-linux-amd64.tar.gz",
-          "bytes": 3707750,
-          "sha256": "d39ebd68fee49d7c1b00abcf17696da95f38c29ab5e0e92abb2e18af504ff664"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T035128Z/auth-mediation-f98a27532e148aa2a96b3f0b9ebc72d55964461e-linux-amd64.tar.gz",
+          "bytes": 3711198,
+          "sha256": "fe15a0759d15ff6c6fefd22a7a3fbbe58540ede679eafca4204592fb71f107ff"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T105438Z/auth-mediation-17953fb2e215f61a05ba7c9a46fb52fed5515a54-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11265,
-          "sha256": "d539134e2d570290fd927b4ad3dd1f10058ed078d5575005a039708cf20a958b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T035128Z/auth-mediation-f98a27532e148aa2a96b3f0b9ebc72d55964461e-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11089,
+          "sha256": "8fa2fab962e52e53035fbdb66a54f4c1a2c0f34d07b68fec01f645222ef7451f"
         },
-        "signerCommit": "17953fb2e215f61a05ba7c9a46fb52fed5515a54"
+        "signerCommit": "f98a27532e148aa2a96b3f0b9ebc72d55964461e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -921,15 +923,13 @@
         }
       },
       "changes": [
-        "認証仲介の項目キャッシュは、読み出しのたびに現在の cache_seconds（新しい方針の既定は 3600 秒）で期限を判定します。",
-        "管理（grant/revoke/import）は、登録された入口プログラムからだけ受け付け、決裁の記録を監査に残します。",
-        "全消去が実行中の読み出しも消し、読み出しは自分の項目だけを消します。"
+        "鍵を使った処理（包み・解き）と HTTP の呼び出しを、鍵がモジュールの外へ出ないまま行えるようになります。"
       ]
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "17953fb2e215f61a05ba7c9a46fb52fed5515a54",
-      "versionId": "7ea4be8d259b1e56e66d7b8eb330ad8c497e099e46210ea2c4bd945b2056755f",
+      "sourceCommit": "f98a27532e148aa2a96b3f0b9ebc72d55964461e",
+      "versionId": "ed99a281454a7665d1911755abd25169b00302567ab38ae25dacca752645d9a7",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -937,16 +937,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T105438Z/auth-mediation-17953fb2e215f61a05ba7c9a46fb52fed5515a54-linux-arm64.tar.gz",
-          "bytes": 3707750,
-          "sha256": "7ea4be8d259b1e56e66d7b8eb330ad8c497e099e46210ea2c4bd945b2056755f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T035128Z/auth-mediation-f98a27532e148aa2a96b3f0b9ebc72d55964461e-linux-arm64.tar.gz",
+          "bytes": 3711198,
+          "sha256": "ed99a281454a7665d1911755abd25169b00302567ab38ae25dacca752645d9a7"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T105438Z/auth-mediation-17953fb2e215f61a05ba7c9a46fb52fed5515a54-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11316,
-          "sha256": "1a80cfb96ccf29fb940b507048f9b6d9be0ac328cd43bcc8cd829fb6ac06ae62"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T035128Z/auth-mediation-f98a27532e148aa2a96b3f0b9ebc72d55964461e-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11269,
+          "sha256": "205fd6baeb74742e293f4991767b9a5b40dfea52f77c9b7cfb2b13db687b9e54"
         },
-        "signerCommit": "17953fb2e215f61a05ba7c9a46fb52fed5515a54"
+        "signerCommit": "f98a27532e148aa2a96b3f0b9ebc72d55964461e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -958,9 +958,7 @@
         }
       },
       "changes": [
-        "認証仲介の項目キャッシュは、読み出しのたびに現在の cache_seconds（新しい方針の既定は 3600 秒）で期限を判定します。",
-        "管理（grant/revoke/import）は、登録された入口プログラムからだけ受け付け、決裁の記録を監査に残します。",
-        "全消去が実行中の読み出しも消し、読み出しは自分の項目だけを消します。"
+        "鍵を使った処理（包み・解き）と HTTP の呼び出しを、鍵がモジュールの外へ出ないまま行えるようになります。"
       ]
     }
   ],
