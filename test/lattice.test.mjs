@@ -381,6 +381,16 @@ test('core: a chart name is set by a seat, read beside the store, and a failed n
   assert.deepEqual((await x.chart()).degraded, [])
 })
 
+test('core: a name on a command of an existing chart is ignored; the command that makes the chart names it (Owner 2026-11-28)', async () => {
+  const x = rig()
+  x.cli.metas.alpha = { name: '元の名前' }
+  await x.core.run({ from: 'bot-a', projectId: 'alpha', args: ['status'], input: null, name: 'x' })
+  await x.core.run({ from: 'bot-a', projectId: 'alpha', args: ['todo', 'add'], input: null, name: 'x' })
+  assert.deepEqual([x.cli.metas.alpha.name, x.cli.named.some(([id]) => id === 'alpha')], ['元の名前', false], 'a placeholder on an ordinary call renames nothing')
+  await x.core.run({ from: 'bot-a', projectId: 'alpha', args: [], input: null, name: '付け直し' })
+  assert.equal(x.cli.metas.alpha.name, '付け直し', 'the rename form still renames')
+})
+
 test('core: the creator is recorded once and never follows a later plan (Trony finding 2026-11-12)', async () => {
   const x = rig()
   x.cli.charts = []
