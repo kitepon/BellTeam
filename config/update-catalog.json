@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-28T04:30:15Z",
-  "expiresAt": "2026-12-05T04:30:15Z",
+  "publishedAt": "2026-11-28T04:52:15Z",
+  "expiresAt": "2026-12-05T04:52:15Z",
   "releases": [
     {
       "componentId": "usage",
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "52425479ee5a1de1cb9e0e89f3f0298a081c6275",
-      "versionId": "sha256:6da9de7791e62320e1374e5842be3a5a7d75146f21579c321bd79aa042018a99",
+      "sourceCommit": "71947a9814aeb5aa7af80bfb068d7fdb5ab4502d",
+      "versionId": "sha256:43a0286c8d8a8245774e8d7e4f3ac77684bc4d55622aecdcd5f0b9cf89a74c5b",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6da9de7791e62320e1374e5842be3a5a7d75146f21579c321bd79aa042018a99"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:43a0286c8d8a8245774e8d7e4f3ac77684bc4d55622aecdcd5f0b9cf89a74c5b"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -722,20 +722,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "認証仲介が、鍵を渡さずに署名と MAC をモジュールの中で行い、鍵を使った処理がどの接続からでも使えるようになります。"
+        "認証仲介が、メールの送信（呼び出し元 auctionbot）と ssh エージェントの署名を、鍵を渡さずにモジュールの中で行えるようになります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "52425479ee5a1de1cb9e0e89f3f0298a081c6275",
-      "versionId": "sha256:6da9de7791e62320e1374e5842be3a5a7d75146f21579c321bd79aa042018a99",
+      "sourceCommit": "71947a9814aeb5aa7af80bfb068d7fdb5ab4502d",
+      "versionId": "sha256:43a0286c8d8a8245774e8d7e4f3ac77684bc4d55622aecdcd5f0b9cf89a74c5b",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6da9de7791e62320e1374e5842be3a5a7d75146f21579c321bd79aa042018a99"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:43a0286c8d8a8245774e8d7e4f3ac77684bc4d55622aecdcd5f0b9cf89a74c5b"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -744,7 +744,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "認証仲介が、鍵を渡さずに署名と MAC をモジュールの中で行い、鍵を使った処理がどの接続からでも使えるようになります。"
+        "認証仲介が、メールの送信（呼び出し元 auctionbot）と ssh エージェントの署名を、鍵を渡さずにモジュールの中で行えるようになります。"
       ]
     },
     {
@@ -889,8 +889,8 @@
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "52425479ee5a1de1cb9e0e89f3f0298a081c6275",
-      "versionId": "b6f5613bb65cca8204d35dff70984bac1b5200c544971d39cbc5669610748abf",
+      "sourceCommit": "fa3e9ae806040e453cd01938a2fd5cc5175d6d2a",
+      "versionId": "81e7f4f7f100ae6acfd3290e8b60d1ab239e8c85cb9ba734b3590f143450ea7b",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -898,16 +898,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T042924Z/auth-mediation-52425479ee5a1de1cb9e0e89f3f0298a081c6275-linux-amd64.tar.gz",
-          "bytes": 3711853,
-          "sha256": "b6f5613bb65cca8204d35dff70984bac1b5200c544971d39cbc5669610748abf"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T045125Z/auth-mediation-fa3e9ae806040e453cd01938a2fd5cc5175d6d2a-linux-amd64.tar.gz",
+          "bytes": 3716867,
+          "sha256": "81e7f4f7f100ae6acfd3290e8b60d1ab239e8c85cb9ba734b3590f143450ea7b"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T042924Z/auth-mediation-52425479ee5a1de1cb9e0e89f3f0298a081c6275-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10983,
-          "sha256": "b646729adcacb4d6b684066fc1c50e76858c459a7948474ad6c087d7aef34feb"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T045125Z/auth-mediation-fa3e9ae806040e453cd01938a2fd5cc5175d6d2a-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11030,
+          "sha256": "761e4c261a304bfe1013d53577a4a191854b3a21c74db2542d29607073818adf"
         },
-        "signerCommit": "52425479ee5a1de1cb9e0e89f3f0298a081c6275"
+        "signerCommit": "fa3e9ae806040e453cd01938a2fd5cc5175d6d2a"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -919,13 +919,13 @@
         }
       },
       "changes": [
-        "署名と MAC をモジュールの中で行い、鍵を使った処理がどの接続からでも使えるようになります。"
+        "鍵を渡さずに、ssh エージェントの署名、署名の digest（SHA-256/384/512）、メールの送信を、モジュールの中で行えるようになります。"
       ]
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "52425479ee5a1de1cb9e0e89f3f0298a081c6275",
-      "versionId": "7ee949887a72470d6466e7916bfcba1b6ea3d529e6c1ae9577530b3225b2609d",
+      "sourceCommit": "fa3e9ae806040e453cd01938a2fd5cc5175d6d2a",
+      "versionId": "81696a75510ed00d8af210817c31a2c2f211579064168fe1bd7a70279c7cda35",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -933,16 +933,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T042924Z/auth-mediation-52425479ee5a1de1cb9e0e89f3f0298a081c6275-linux-arm64.tar.gz",
-          "bytes": 3711853,
-          "sha256": "7ee949887a72470d6466e7916bfcba1b6ea3d529e6c1ae9577530b3225b2609d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T045125Z/auth-mediation-fa3e9ae806040e453cd01938a2fd5cc5175d6d2a-linux-arm64.tar.gz",
+          "bytes": 3716867,
+          "sha256": "81696a75510ed00d8af210817c31a2c2f211579064168fe1bd7a70279c7cda35"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T042924Z/auth-mediation-52425479ee5a1de1cb9e0e89f3f0298a081c6275-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11085,
-          "sha256": "b30bfc12e3ca698ec1cf00664423fbdf96bc892a10431e0a4b6fd0410aa2fcc9"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T045125Z/auth-mediation-fa3e9ae806040e453cd01938a2fd5cc5175d6d2a-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11026,
+          "sha256": "80200d5a518c1bdfe4005a70a335e44a2f7a301a4b79d2ac989931f152a8160d"
         },
-        "signerCommit": "52425479ee5a1de1cb9e0e89f3f0298a081c6275"
+        "signerCommit": "fa3e9ae806040e453cd01938a2fd5cc5175d6d2a"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -954,7 +954,7 @@
         }
       },
       "changes": [
-        "署名と MAC をモジュールの中で行い、鍵を使った処理がどの接続からでも使えるようになります。"
+        "鍵を渡さずに、ssh エージェントの署名、署名の digest（SHA-256/384/512）、メールの送信を、モジュールの中で行えるようになります。"
       ]
     }
   ],
