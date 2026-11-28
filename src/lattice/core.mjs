@@ -207,9 +207,10 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
       const ids = projectIds.filter(projectId => rows.has(projectId))
       if (!ids.length) return empty
       const memos = await syncAll(ids, effect, rows, tokensOf(rows))
-      const charts = ids.map((projectId, i) => ({ projectId, name: memos[i].content.name, createdBy: memos[i].content.createdBy, cards: memos[i].content.cards }))
+      const charts = ids.map((projectId, i) => ({ projectId, name: memos[i].content.name, createdBy: memos[i].content.createdBy, cards: memos[i].content.cards,
+        news: memos[i].projection?.news ?? [], verified: memos[i].content.state === 'verified' && !memos[i].content.degraded?.length }))
       const laneOf = laneResolver(roster), live = roster.filter(member => !member.deleting)
-      const out = await nudgeSweep(charts, { laneOf, log, effect, warned })
+      const out = await nudgeSweep(charts, { laneOf, log, effect, warned, news: { read: () => cli.readNewsRecord(), write: value => cli.writeNewsRecord(value) } })
       // Owner-lane filing (L18-L19); a failed record read or write ends this part of the tick, the next tick retries.
       let owner = { filed: 0, routed: 0 }
       try {

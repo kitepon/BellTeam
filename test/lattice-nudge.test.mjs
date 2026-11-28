@@ -199,3 +199,54 @@ test('nudge a509: a child answers the ticks of its first 3 minutes with the empt
   await core.nudge({ projectIds: ['alpha', 'beta'] }, effect).catch(() => {})
   assert.ok(calls.length > 0, 'at 3 minutes the sweep starts (it reaches for the CLI)')
 })
+
+// Connection news (README L26): first sight silent; a different state or content digest is ONE line in the lane's one message; the record advances only on an accepted send or an Owner lane.
+test('news: first sight is recorded silently; a state or content change is one line in the lane\'s one sweep message; the record advances only on an accepted send', async () => {
+  const record = { value: {} }, io = { read: async () => record.value, write: async value => { record.value = JSON.parse(JSON.stringify(value)) } }
+  const sent = [], accept = { value: 'running' }
+  const effect = async (method, params) => method === 'turns.read' ? { turns: { 'bot-a': 'idle', 'bot-b': 'idle' } } : (sent.push(params), { delivery: accept.value })
+  const item = (extra = {}) => ({ cardId: 'p1/t1', ref: 'other/q/x', kind: 'task', state: 'open', reason: null, content: 'c1', targetTitle: 'X', chartName: 'Other', ...extra })
+  const chart = (items, cards = [{ id: 'p1/t1', plan: 'p1', taskId: 't1', title: 'T1', state: 'pending', lane: 'bot-a' }], extra = {}) => ({ projectId: 'alpha', createdBy: 'bot-b', cards, news: items, verified: true, ...extra })
+  const go = items => nudgeSweep([chart(items)], { laneOf: laneResolver(members), log() {}, effect, news: io })
+  await go([item()])
+  assert.deepEqual([sent.length, record.value['alpha/p1/t1/other/q/x']], [0, { state: 'open', content: 'c1' }], 'first sight: recorded, nothing sent')
+  await go([item({ content: 'c1' })])
+  assert.equal(sent.length, 0, 'same state and digest: nothing')
+  accept.value = 'failed'
+  await go([item({ state: 'gone', reason: 'target_retired' })])
+  assert.equal(sent.length, 1)
+  assert.equal(record.value['alpha/p1/t1/other/q/x'].state, 'open', 'not accepted: the record has not advanced')
+  accept.value = 'running'
+  const out = await go([item({ state: 'gone', reason: 'target_retired' })])
+  assert.deepEqual([sent.length, sent[1].target, out.prompted], [2, 'bot-a', 1])
+  assert.ok(sent[1].message.startsWith('Lattice: something a task of yours is connected to has changed.\n') && sent[1].message.includes('- p1/t1 「T1」 is connected to other/q/x 「X」 (Other): the target was retired'), sent[1].message)
+  assert.ok(!sent[1].message.includes('can start now'), 'a pending card gets no start line')
+  assert.deepEqual(record.value['alpha/p1/t1/other/q/x'], { state: 'gone', content: 'c1' })
+  await go([item({ state: 'gone', reason: 'target_retired' })])
+  assert.equal(sent.length, 2, 'one line per change: the accepted record is not told again')
+  await go([item({ state: 'open', content: 'c2' })])
+  assert.equal(sent.length, 3)
+  assert.ok(sent[2].message.includes('the target was reopened: the task waits again; its content also changed'), sent[2].message)
+  await go([item({ state: 'open', content: 'c3' })])
+  assert.ok(sent[3].message.includes("the target's content changed (title, done condition, lane or split)") && !sent[3].message.includes('reopened'), sent[3].message)
+  await go([item({ state: 'open', content: null })])
+  assert.equal(sent.length, 4, 'a null digest (target unread) is no change and keeps the record\'s digest')
+  assert.equal(record.value['alpha/p1/t1/other/q/x'].content, 'c3')
+  const ready = [{ id: 'p1/t1', plan: 'p1', taskId: 't1', title: 'T1', state: 'ready', lane: 'bot-a' }]
+  await nudgeSweep([chart([item({ state: 'settled', reason: 'target_done', content: 'c3' })], ready)], { laneOf: laneResolver(members), log() {}, effect, news: io })
+  assert.ok(sent.at(-1).message.includes('the target is done -> it can start now: `lattice todo start --plan p1 --task t1`'), sent.at(-1).message)
+  assert.equal(sent.filter(message => message.message.startsWith('Lattice: you are not running')).length, 1, 'a ready card also gets its own sweep line, in the same one message')
+})
+
+test('news: an Owner lane advances silently, a lane that is no Bot goes to the creator, a verified read drops rows whose entry is gone', async () => {
+  const record = { value: { 'alpha/p1/t1/other/q/x': { state: 'open', content: null }, 'alpha/p1/t2/other/q/x': { state: 'open', content: null }, 'alpha/gone/t/other/q/x': { state: 'open', content: null }, 'beta/p/t/r': { state: 'open', content: null } } }
+  const io = { read: async () => record.value, write: async value => { record.value = JSON.parse(JSON.stringify(value)) } }
+  const sent = [], effect = async (method, params) => method === 'turns.read' ? { turns: { 'bot-b': 'idle' } } : (sent.push(params), { delivery: 'running' })
+  const item = cardId => ({ cardId, ref: 'other/q/x', kind: 'task', state: 'settled', reason: 'target_done', content: null, targetTitle: null, chartName: null })
+  const cards = [{ id: 'p1/t1', plan: 'p1', taskId: 't1', title: 'T1', state: 'pending', lane: 'owner' }, { id: 'p1/t2', plan: 'p1', taskId: 't2', title: 'T2', state: 'pending', lane: 'stranger' }]
+  const out = await nudgeSweep([{ projectId: 'alpha', createdBy: 'bot-b', cards, news: [item('p1/t1'), item('p1/t2')], verified: true }, { projectId: 'beta', createdBy: 'bot-b', cards: [], news: [], verified: false }], { laneOf: laneResolver(members), log() {}, effect, news: io })
+  assert.deepEqual([sent.map(message => message.target), out.prompted], [['bot-b'], 1])
+  assert.ok(sent[0].message.includes('p1/t2') && !sent[0].message.includes('p1/t1 '), 'the Owner lane is not sent')
+  assert.deepEqual(record.value, { 'alpha/p1/t1/other/q/x': { state: 'settled', content: null }, 'alpha/p1/t2/other/q/x': { state: 'settled', content: null }, 'beta/p/t/r': { state: 'open', content: null } },
+    'both rows advanced; the row of a gone entry on a verified chart is deleted; an unverified chart keeps its rows')
+})
