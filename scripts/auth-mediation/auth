@@ -104,55 +104,85 @@ def sign_main(argv):
     return 0
 
 
-def ssh_main(argv):
-    """auth ssh NAME[,NAME...] -- COMMAND...: runs the command with SSH_AUTH_SOCK set to a per-run agent socket. The socket only forwards the two agent requests
-    (list keys, sign) to the module, which holds the key; no key is in this process, a file or the command's environment. The socket is removed when the command ends."""
+def serve_agent(recv, send, names, cwd):
+    """The two ssh-agent requests a client needs (list keys 0x0b, sign 0x0d), answered by the module; everything else is a failure. recv(n) returns up to n bytes (b'' at the end), send(bytes) writes.
+    No key is ever here: only public key blobs and signatures come back from the module."""
     import base64, struct
-    if "--" not in argv or len(argv) < 3 or argv.index("--") != 1:
-        sys.exit("usage: auth ssh NAME[,NAME...] -- COMMAND...")
-    names, command = argv[0].split(","), argv[2:]
-    cwd = os.getcwd()
-    identities = {}  # public key blob -> name; filled when ssh asks for the list
+    identities = {}  # public key blob -> name; filled when the client asks for the list
 
     def key_ask(op, name, **extra):
         resp = ask({"op": op, "name": name, "cwd": cwd, **extra})
         return base64.b64decode(resp["data"]) if resp.get("outcome") == "granted" else None
 
+    def read_exact(n):
+        out = b""
+        while len(out) < n:
+            chunk = recv(n - len(out))
+            if not chunk:
+                return None
+            out += chunk
+        return out
+
+    while True:
+        head = read_exact(4)
+        if head is None:
+            return
+        size = struct.unpack(">I", head)[0]
+        if size > 262144:  # an agent request is small; refuse to buffer anything bigger
+            return
+        body = read_exact(size)
+        if body is None:
+            return
+        out = b"\x05"  # SSH_AGENT_FAILURE
+        try:
+            if body[:1] == b"\x0b":  # list identities
+                keys = []
+                for name in names:
+                    blob = key_ask("ssh-identity", name)
+                    if blob:
+                        identities[blob] = name
+                        keys.append(struct.pack(">I", len(blob)) + blob + struct.pack(">I", len(name)) + name.encode())
+                out = b"\x0c" + struct.pack(">I", len(keys)) + b"".join(keys)
+            elif body[:1] == b"\x0d":  # sign request: string key, string data, uint32 flags
+                n = struct.unpack(">I", body[1:5])[0]
+                blob = body[5:5 + n]
+                m = struct.unpack(">I", body[5 + n:9 + n])[0]
+                data = body[9 + n:9 + n + m]
+                flags = struct.unpack(">I", body[9 + n + m:13 + n + m])[0]
+                if blob in identities:
+                    sig = key_ask("ssh-sign", identities[blob], data=base64.b64encode(data).decode(), flags=flags)
+                    if sig:
+                        out = b"\x0e" + struct.pack(">I", len(sig)) + sig
+        except (OSError, ValueError, struct.error, KeyError):
+            out = b"\x05"
+        send(struct.pack(">I", len(out)) + out)
+
+
+def ssh_stdio_main(argv):
+    """auth ssh-stdio NAME[,NAME...]: the same agent on stdin and stdout, for a forced command (a restricted entry key on this host serves a remote machine that has no module socket).
+    The remote forwarder carries these bytes over the ssh connection and presents them to its ssh client as an agent."""
+    if len(argv) != 1 or not argv[0]:
+        sys.exit("usage: auth ssh-stdio NAME[,NAME...]")
+    stdin, stdout = sys.stdin.buffer, sys.stdout.buffer
+
+    def send(data):
+        stdout.write(data)
+        stdout.flush()
+
+    serve_agent(stdin.read1, send, argv[0].split(","), os.getcwd())
+    return 0
+
+
+def ssh_main(argv):
+    """auth ssh NAME[,NAME...] -- COMMAND...: runs the command with SSH_AUTH_SOCK set to a per-run agent socket. The socket only forwards the two agent requests
+    (list keys, sign) to the module, which holds the key; no key is in this process, a file or the command's environment. The socket is removed when the command ends."""
+    if "--" not in argv or len(argv) < 3 or argv.index("--") != 1:
+        sys.exit("usage: auth ssh NAME[,NAME...] -- COMMAND...")
+    names, command = argv[0].split(","), argv[2:]
+    cwd = os.getcwd()
     def serve(conn):
         with conn:
-            while True:
-                head = conn.recv(4)
-                if len(head) < 4:
-                    return
-                body = b""
-                while len(body) < struct.unpack(">I", head)[0]:
-                    chunk = conn.recv(struct.unpack(">I", head)[0] - len(body))
-                    if not chunk:
-                        return
-                    body += chunk
-                out = b"\x05"  # SSH_AGENT_FAILURE
-                try:
-                    if body[:1] == b"\x0b":  # list identities
-                        keys = []
-                        for name in names:
-                            blob = key_ask("ssh-identity", name)
-                            if blob:
-                                identities[blob] = name
-                                keys.append(struct.pack(">I", len(blob)) + blob + struct.pack(">I", len(name)) + name.encode())
-                        out = b"\x0c" + struct.pack(">I", len(keys)) + b"".join(keys)
-                    elif body[:1] == b"\x0d":  # sign request: string key, string data, uint32 flags
-                        n = struct.unpack(">I", body[1:5])[0]
-                        blob = body[5:5 + n]
-                        m = struct.unpack(">I", body[5 + n:9 + n])[0]
-                        data = body[9 + n:9 + n + m]
-                        flags = struct.unpack(">I", body[9 + n + m:13 + n + m])[0]
-                        if blob in identities:
-                            sig = key_ask("ssh-sign", identities[blob], data=base64.b64encode(data).decode(), flags=flags)
-                            if sig:
-                                out = b"\x0e" + struct.pack(">I", len(sig)) + sig
-                except (OSError, ValueError, struct.error, KeyError):
-                    out = b"\x05"
-                conn.sendall(struct.pack(">I", len(out)) + out)
+            serve_agent(lambda n: conn.recv(n), conn.sendall, names, cwd)
 
     d = scratch()
     path = os.path.join(d, "agent.sock")
@@ -302,6 +332,8 @@ def mail_main(argv):
 
 
 def main():
+    if len(sys.argv) >= 2 and sys.argv[1] == "ssh-stdio":
+        return ssh_stdio_main(sys.argv[2:])
     if len(sys.argv) >= 2 and sys.argv[1] == "gmail":
         return gmail_main(sys.argv[2:])
     if len(sys.argv) >= 2 and sys.argv[1] == "mail":
