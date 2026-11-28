@@ -32,8 +32,6 @@ export const EXECUTION_HARNESS_CLI = true
 export const EXECUTION_SEAT_STREAM = true
 // a471-chat-from-stream: this engine reads the port flag seatStream.displayFromStream; a parent passes it only to an engine that declares this.
 export const EXECUTION_SEAT_STREAM_DISPLAY = true
-// fresh-wake-after-cache (#2914): this engine accepts ports.seat.seatActivity; a parent passes it only to an engine that declares this.
-export const EXECUTION_SEAT_ACTIVITY = true
 const COMPATIBILITY = EXECUTION_STATE_COMPATIBILITY
 const failure = code => Object.assign(new Error(code), { code, effect: 'not_started', status: 503 })
 const asyncMethods = {

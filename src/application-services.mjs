@@ -401,9 +401,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
           ...(factory.supportsSeatMcpSeen === true ? { seatMcp: { seen: name => seatMcpSeen(name) } } : {}),
           ...(factory.supportsRemoteUserTools === true ? { userTools: { list: listUserToolsFor, callerReplace: aitermCallerReplaceSupported() } } : {}) } } : {}
       return Object.freeze({ ...factory, createExecutionDispatcher: input => {
-        const seat = factory.supportsSeatActivity === true || !input.ports.seat ? input.ports.seat
-          : (({ seatActivity: _ignored, ...rest }) => rest)(input.ports.seat)
-        input = { ...input, ports: { ...input.ports, ...(seat ? { seat } : {}), ...remote, ...harnessPort, ...streamPort } }
+        input = { ...input, ports: { ...input.ports, ...remote, ...harnessPort, ...streamPort } }
         if (factory.supportsRemoteSeats !== true) input.ports.native = refuseRemoteSeatLaunch({ native: input.ports.native, bots,
           botsRoot: join(root, 'bots'), versionId: factory.versionId, record: report => diagnostics.record(report) })
         if (supported) return factory.createExecutionDispatcher(input)

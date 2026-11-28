@@ -106,16 +106,3 @@ console.log('loaded');`
   const result = await promisify(execFile)(process.execPath, ['--input-type=module', '-e', source], { env: {} })
   assert.equal(result.stdout.trim(), 'loaded')
 })
-
-test('supportsSeatActivity is true only when the loaded engine declares EXECUTION_SEAT_ACTIVITY', async () => {
-  const loadOld = createExecutionFactoryLoader({
-    builtinIdentity: async () => sourceCommit,
-    importFactory: async () => ({ EXECUTION_STATE_COMPATIBILITY: state, createExecutionDispatcher: () => ({}) }),
-  })
-  const loadNew = createExecutionFactoryLoader({
-    builtinIdentity: async () => sourceCommit,
-    importFactory: async () => ({ EXECUTION_STATE_COMPATIBILITY: state, EXECUTION_SEAT_ACTIVITY: true, createExecutionDispatcher: () => ({}) }),
-  })
-  assert.equal((await loadOld()).supportsSeatActivity, false)
-  assert.equal((await loadNew()).supportsSeatActivity, true)
-})
