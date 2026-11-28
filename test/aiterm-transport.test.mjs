@@ -1533,3 +1533,27 @@ test('行は動いているのに追う手が無い席は、ターンごとに1�
   assert.deepEqual(lines.filter(line => line.includes('seat turn not watched')).map(line => line.trim()),
     ['BellTeam seat turn not watched: bot-a bot-a turn=turn-x reason=not_accepting codex=undefined interim_from=v1:900:b:900'])
 })
+
+test('fresh-wake-after-cache: 休止記録は、1時間超かつ20ターン以上の時だけ閉じ、分からない時は残す', async () => {
+  const NOW = Date.parse('2026-11-28T12:00:00Z'), cases = [
+    ['hibernated', { turns: 20, lastCompletedAt: NOW - 61 * 60_000 }, true],
+    ['hibernated', { turns: 20, lastCompletedAt: NOW - 59 * 60_000 }, false],
+    ['hibernated', { turns: 19, lastCompletedAt: NOW - 90 * 60_000 }, false],
+    ['hibernated', { turns: 20, lastCompletedAt: null }, false],
+    ['hibernated', new Error('THROUGHLINE'), false],
+    ['idle', { turns: 20, lastCompletedAt: NOW - 90 * 60_000 }, false],
+  ]
+  for (const [state, activity, closes] of cases) {
+    const closed = []
+    const client = { async call(name, args) {
+      if (name === 'pty_observe') return { structuredContent: { exists: true, state } }
+      if (name === 'pty_close') { closed.push(args); return {} }
+      throw new Error(`unexpected ${name}`)
+    } }
+    const seatActivity = async () => { if (activity instanceof Error) throw activity; return activity }
+    const transport = new AitermTransport({ client, seatActivity, now: () => new Date(NOW).toISOString() })
+    const bot = { id: 'bot-a', session: 's1', project: '/p' }
+    await transport.discardStaleHibernated(bot, transport.captureStopVersion(bot))
+    assert.equal(closed.length, closes ? 1 : 0, JSON.stringify([state, activity]))
+  }
+})
