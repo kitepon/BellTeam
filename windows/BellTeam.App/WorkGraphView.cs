@@ -207,7 +207,7 @@ public sealed class WorkGraphCanvas : FrameworkElement
 
     private static Rect R(GraphRect rect) => new(rect.X, rect.Y, Math.Max(0, rect.Width), Math.Max(0, rect.Height));
     private static Point P(GraphPoint point) => new(point.X, point.Y);
-    private static readonly Dictionary<(Color, byte), Brush> SolidCache = [];
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<(Color, byte), Brush> SolidCache = new();
     private static Brush Solid(Color color, double alpha = 1)
     {
         var key = (color, (byte)Math.Round(alpha * 255));

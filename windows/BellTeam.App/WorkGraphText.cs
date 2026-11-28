@@ -22,8 +22,8 @@ internal static class WorkGraphText
     public static double TextColumn(double tagWidth) => tagWidth - DetailSize - 22;
 
     // Measuring runs every frame for every chip and name; the text and its size only change with the string, the column and the DPI.
-    private static readonly Dictionary<(string, double, double), FormattedText> Labels = [];
-    private static readonly Dictionary<(string, double), double> NameWidths = [];
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<(string, double, double), FormattedText> Labels = new();
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<(string, double), double> NameWidths = new();
 
     /// <summary>A chip's text: 14 pt medium, lines exactly 16 pt high, wrapped at <paramref name="column"/> and never truncated.</summary>
     public static FormattedText Label(string text, double column, double dpi)

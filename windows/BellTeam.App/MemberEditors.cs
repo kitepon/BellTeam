@@ -155,7 +155,7 @@ public sealed class ModelPicker : Border
 public sealed class MemberEditorView : EditorFormView
 {
     private enum Outcome { Saved, Confirmed, Different, Unconfirmed }
-    private static readonly Brush Mint = new SolidColorBrush(Color.FromRgb(0x2E, 0xB3, 0x9E));
+    private static readonly Brush Mint = SecretCard.Frozen(Color.FromRgb(0x2E, 0xB3, 0x9E));
     private readonly Workspace workspace;
     private readonly string? id;
     private BotSettings original = new() { Name = "", Harness = "codex" };

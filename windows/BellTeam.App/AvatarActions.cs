@@ -54,8 +54,8 @@ public sealed class AvatarActionsView : Grid, IDisposable
     public void Dispose() { session.Changed -= Changed; lifetime.Cancel(); lifetime.Dispose(); }
     private void Changed() { BusyChanged?.Invoke(); Rebuild(); }
 
-    private static readonly Brush Muted = (Brush)Application.Current.FindResource("Muted");
-    private static readonly Brush Red = new SolidColorBrush(Color.FromRgb(255, 59, 48));
+    private static readonly Brush Muted = SecretCard.Frozen(Color.FromRgb(0x78, 0x7D, 0x91));
+    private static readonly Brush Red = SecretCard.Frozen(Color.FromRgb(255, 59, 48));
     private AvatarSelection? Pending => session.Pending(variant);
 
     private void Rebuild()
