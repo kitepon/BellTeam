@@ -42,6 +42,7 @@ src/conversation/requests.mjs
 src/conversation/restore.mjs
 src/conversation/results.mjs
 src/conversation/routing.mjs
+src/conversation/send-gate.mjs
 src/conversation/state-compatibility.mjs
 src/delivery-tracking.mjs
 src/execution-bridge.mjs
