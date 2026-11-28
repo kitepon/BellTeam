@@ -32,7 +32,7 @@ Owner 指示による本体分担の現行正本。機能を分離し、担当�
 | デルタ | 決裁箱拡張 | 決裁箱の決裁を工程表へつなぐ有料の追加機能（任意）。決裁箱の公開接点での読み・回答、決裁 1 件と工程 1 件の対応記録、`/api/approvals/*`、画面設計（決裁箱本体はナユタ、工程書込口はフローラ、セッション保管はミカ、親 facade・mount はモリー、描画は各アプリ担当） |
 
 クライアント・独立製品の担当：
-- クライアント：Apple（iPhone/iPad/Mac）＝ベル（一部画面ラピ）、Windows＝アニス、Linux / Android＝ネオン
+- クライアント：Apple（iPhone/iPad/Mac）＝ラピ、Windows＝アニス、Linux / Android＝ネオン
 - 外部・独立製品：Aiterm/Steer＝エレグ、Throughline＝リヴァリン、call-bridge＝リター、mcp-lazy＝レオナ、RTK＝ドリリー、testgate＝シラツル、BugHub＝フラジャイル、Approval Box＝ナユタ、Lattice（`@quolu/lattice`）＝スノーホワイト、Caveat＝ノア、OS・ホスト＝エマ等。各正本と公開接点は `modules/` の索引へ接続する。
 
 ## 混在箇所の分離と単独更新

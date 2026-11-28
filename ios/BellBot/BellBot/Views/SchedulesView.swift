@@ -9,6 +9,7 @@ struct SchedulesView: View {
     @State private var editing: ScheduledEntry?
     @State private var creating = false
     @State private var refreshState = ScheduleRefreshState()
+    @State private var runningScheduleIDs: Set<String> = []
 
     var body: some View {
         let botsByID = Dictionary(store.bots.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
@@ -202,6 +203,9 @@ struct SchedulesView: View {
     }
 
     private func run(_ entry: ScheduledEntry) async {
+        guard !runningScheduleIDs.contains(entry.id) else { return }
+        runningScheduleIDs.insert(entry.id)
+        defer { runningScheduleIDs.remove(entry.id) }
         do {
             try await store.billing.requirePaidAccess()
             let _: APIAcknowledgement = try await store.api.post(entry.path + "/run", body: ScheduleEmptyBody())

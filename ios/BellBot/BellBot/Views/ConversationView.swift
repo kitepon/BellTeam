@@ -405,7 +405,7 @@ private struct ConversationContent: View {
         } description: {
             Text("再読み込みしてください。")
         } actions: {
-            Button("再読み込み") { Task { await loadInitial() } }
+            Button("再読み込み") { Task { _ = await load() } }
         }
         .padding(.top, 60)
     }

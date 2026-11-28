@@ -132,6 +132,7 @@ final class LoopbackSocket {
     private var buffer = Data()
 
     init(port: Int, deadline: Date) throws {
+        guard (1...65535).contains(port) else { throw SSHHostKeyError.connection("port") }
         self.deadline = deadline
         descriptor = socket(AF_INET, SOCK_STREAM, 0)
         guard descriptor >= 0 else { throw SSHHostKeyError.connection("socket") }
