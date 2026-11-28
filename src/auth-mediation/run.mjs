@@ -3,10 +3,12 @@
 import { spawn as nodeSpawn } from 'node:child_process'
 import { connect as netConnect } from 'node:net'
 import { existsSync, readFileSync } from 'node:fs'
-import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 export const RUN_ROOT = '/run/bellteam-server/auth-run'
+export const STATE_ROOT = '/srv/bellteam/state/auth-mediation/run-state' // persistent, owned by the child
+export const SOCKET_ROOT = '/srv/bellteam/shared/tools/auth-mediation/run-sockets' // shared with the host: a service's unix socket here is reachable from main-server (relay.py makes it 1777)
 const HEARTBEAT_MS = 15000, MAX_RUNS = 4, STDERR_MAX = 65536, DEFAULT_SECONDS = 3600, MAX_SECONDS = 86400, DEFAULT_IN = 4 * 2 ** 30
 const PATH_ENV = '/srv/bellteam/shared/tools/age/bin:/srv/bellteam/shared/tools/cloudflared/bin:/usr/local/bin:/usr/bin:/bin'
 const refuse = message => Object.assign(new Error(message), { code: 'RUN_REFUSED' })
@@ -44,13 +46,15 @@ export function planRun(fields) {
   for (const secret of secrets) if (secret.length >= 6 && argv.some(a => a.includes(secret))) throw refuse('The key item puts a secret in the command line.') // argv is visible to every process
   const seconds = Number(fields.run_max_seconds ?? DEFAULT_SECONDS), bytesIn = Number(fields.run_max_bytes_in ?? DEFAULT_IN)
   if (!Number.isFinite(seconds) || seconds < 0 || seconds > MAX_SECONDS || !Number.isFinite(bytesIn) || bytesIn < 0) throw refuse('The key item has no usable limits.')
-  return { argv, env, files, sshKey: fields.run_ssh_key, prefix: fields.run_stdin_prefix, stdin: fields.run_stdin !== '0', seconds: seconds || 0, bytesIn, secrets: secrets.filter(s => s.length >= 6), parallel: fields.run_parallel === '1' }
+  const name = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/u
+  if ((fields.run_state_dir !== undefined && fields.run_state_dir !== '1') || (fields.run_socket_dir !== undefined && fields.run_socket_dir !== '1')) throw refuse('The key item has no usable folders.')
+  return { stateDir: fields.run_state_dir === '1', socketDir: fields.run_socket_dir === '1', folderName: name, argv, env, files, sshKey: fields.run_ssh_key, prefix: fields.run_stdin_prefix, stdin: fields.run_stdin !== '0', seconds: seconds || 0, bytesIn, secrets: secrets.filter(s => s.length >= 6), parallel: fields.run_parallel === '1' }
 }
 
 const frame = (tag, data) => { const head = Buffer.alloc(5); head[0] = tag; head.writeUInt32BE(data.length, 1); return Buffer.concat([head, data]) }
 
 // Starts the run and returns once the process is spawned and joined to the caller's stream; the end (exit code, counts) goes to onEnd.
-export async function startRun(plan, { item, stream, onEnd, spawn = nodeSpawn, connect = netConnect, root = RUN_ROOT }) {
+export async function startRun(plan, { item, stream, onEnd, spawn = nodeSpawn, connect = netConnect, root = RUN_ROOT, stateRoot = STATE_ROOT, socketRoot = SOCKET_ROOT }) {
   if (live.size >= MAX_RUNS) throw refuse('Too many runs are in progress.')
   if (!plan.parallel && [...live.values()].some(run => run.item === item)) throw refuse('This key is already in use.')
   await mkdir(root, { recursive: true, mode: 0o700 })
@@ -61,6 +65,11 @@ export async function startRun(plan, { item, stream, onEnd, spawn = nodeSpawn, c
   let socket
   try {
     const env = { PATH: PATH_ENV, HOME: dir, LANG: 'C.UTF-8', ...plan.env }
+    // Item-asked folders, named after the item (never after the caller): a persistent state folder (0700) and a socket folder (0755) the host can reach.
+    const folder = item.replace(/^run /u, '')
+    if (plan.stateDir || plan.socketDir) { if (!plan.folderName.test(folder)) throw refuse('The key item has no usable folders.') }
+    if (plan.stateDir) { env.STATE_DIR = join(stateRoot, folder); await mkdir(env.STATE_DIR, { recursive: true, mode: 0o700 }) }
+    if (plan.socketDir) { env.SOCKET_DIR = join(socketRoot, folder); await mkdir(env.SOCKET_DIR, { recursive: true, mode: 0o755 }); await chmod(env.SOCKET_DIR, 0o755) }
     for (const [name, value] of Object.entries(plan.files)) { const path = join(dir, name.toLowerCase()); await writeFile(path, value.endsWith('\n') ? value : value + '\n', { mode: 0o600 }); env[name] = path }
     if (plan.sshKey) {
       const sock = join(dir, 'agent.sock'), agent = spawn('ssh-agent', ['-D', '-a', sock], { stdio: 'ignore', env: { PATH: PATH_ENV } }); agents.push(agent)
