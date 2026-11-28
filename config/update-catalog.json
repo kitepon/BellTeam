@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-28T05:20:15Z",
-  "expiresAt": "2026-12-05T05:20:15Z",
+  "publishedAt": "2026-11-28T05:46:42Z",
+  "expiresAt": "2026-12-05T05:46:42Z",
   "releases": [
     {
       "componentId": "usage",
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "64a6477e6a378890bcfd0bf481b3d603aa106d7c",
-      "versionId": "sha256:18647257111809f0e48b00a9b0ffdd497cc61520863142242074775c758f27f4",
+      "sourceCommit": "7a3002f271604b1c3be95f8256a123f327c742a3",
+      "versionId": "sha256:f0a8433720c8788b1d22391705c973494112d32b5acf1fc28310c4cb72bff031",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:18647257111809f0e48b00a9b0ffdd497cc61520863142242074775c758f27f4"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:f0a8433720c8788b1d22391705c973494112d32b5acf1fc28310c4cb72bff031"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -722,20 +722,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "認証仲介が、メールの読み取り（IMAP、読み取り専用）、仕分け、ログイン確認を、鍵やパスワードを渡さずにモジュールの中で行えるようになります。"
+        "席の端末（fox、macbook、rabbit）の鍵が、モジュールの ssh エージェントから取られるようになります（古い鍵の読み込み処理は無くなります）。",
+        "認証仲介が、Gmail の呼び出しを、鍵を渡さずにモジュールの中で行えるようになります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "64a6477e6a378890bcfd0bf481b3d603aa106d7c",
-      "versionId": "sha256:18647257111809f0e48b00a9b0ffdd497cc61520863142242074775c758f27f4",
+      "sourceCommit": "7a3002f271604b1c3be95f8256a123f327c742a3",
+      "versionId": "sha256:f0a8433720c8788b1d22391705c973494112d32b5acf1fc28310c4cb72bff031",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:18647257111809f0e48b00a9b0ffdd497cc61520863142242074775c758f27f4"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:f0a8433720c8788b1d22391705c973494112d32b5acf1fc28310c4cb72bff031"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -744,7 +745,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "認証仲介が、メールの読み取り（IMAP、読み取り専用）、仕分け、ログイン確認を、鍵やパスワードを渡さずにモジュールの中で行えるようになります。"
+        "席の端末（fox、macbook、rabbit）の鍵が、モジュールの ssh エージェントから取られるようになります（古い鍵の読み込み処理は無くなります）。",
+        "認証仲介が、Gmail の呼び出しを、鍵を渡さずにモジュールの中で行えるようになります。"
       ]
     },
     {
@@ -889,8 +891,8 @@
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "64a6477e6a378890bcfd0bf481b3d603aa106d7c",
-      "versionId": "040c442699d7cbb324cebb56bf041fe52788fa04b442df602431392c0a0242ec",
+      "sourceCommit": "7a3002f271604b1c3be95f8256a123f327c742a3",
+      "versionId": "2c53c7ea5151f77c2165b7df008b38ce2bf756224b944164d6e102da0c4b6c2b",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -898,16 +900,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T051919Z/auth-mediation-64a6477e6a378890bcfd0bf481b3d603aa106d7c-linux-amd64.tar.gz",
-          "bytes": 3721602,
-          "sha256": "040c442699d7cbb324cebb56bf041fe52788fa04b442df602431392c0a0242ec"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T054538Z/auth-mediation-7a3002f271604b1c3be95f8256a123f327c742a3-linux-amd64.tar.gz",
+          "bytes": 3723688,
+          "sha256": "2c53c7ea5151f77c2165b7df008b38ce2bf756224b944164d6e102da0c4b6c2b"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T051919Z/auth-mediation-64a6477e6a378890bcfd0bf481b3d603aa106d7c-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11124,
-          "sha256": "c28be52ecba7ea27e1e35b0a9998c50cc306c96a4454f33bb4ab96ee8860e86f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T054538Z/auth-mediation-7a3002f271604b1c3be95f8256a123f327c742a3-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10983,
+          "sha256": "2713ceac73ae89014d7391f90d4fb394e7c18ec41413bad4fa02fe7a883f1b95"
         },
-        "signerCommit": "64a6477e6a378890bcfd0bf481b3d603aa106d7c"
+        "signerCommit": "7a3002f271604b1c3be95f8256a123f327c742a3"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -919,13 +921,13 @@
         }
       },
       "changes": [
-        "メールの読み取り（IMAP、読み取り専用）、仕分け（キーワードと保管）、ログイン確認を、モジュールの中で行えるようになります。"
+        "Gmail の 3 つの固定の呼び出しを、項目の秘密を使って、モジュールの中で行えるようになります。メールの STARTTLS を、本物の TLS の切り替えで確かめるようになります。"
       ]
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "64a6477e6a378890bcfd0bf481b3d603aa106d7c",
-      "versionId": "2eef873403e149e76547b5b150af0f54e4ab420308cf99898f81bcfc8f6d62e0",
+      "sourceCommit": "7a3002f271604b1c3be95f8256a123f327c742a3",
+      "versionId": "47008e7c419215184c6d75ed36b72311029b987ff7e9cbd0f734e9a658ba6883",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -933,16 +935,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T051919Z/auth-mediation-64a6477e6a378890bcfd0bf481b3d603aa106d7c-linux-arm64.tar.gz",
-          "bytes": 3721602,
-          "sha256": "2eef873403e149e76547b5b150af0f54e4ab420308cf99898f81bcfc8f6d62e0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T054538Z/auth-mediation-7a3002f271604b1c3be95f8256a123f327c742a3-linux-arm64.tar.gz",
+          "bytes": 3723688,
+          "sha256": "47008e7c419215184c6d75ed36b72311029b987ff7e9cbd0f734e9a658ba6883"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T051919Z/auth-mediation-64a6477e6a378890bcfd0bf481b3d603aa106d7c-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10936,
-          "sha256": "d62574a020b52d319c04fc66fd38d68ca95c07df4eca811f7ea6043cf0f1aae9"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T054538Z/auth-mediation-7a3002f271604b1c3be95f8256a123f327c742a3-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10850,
+          "sha256": "10ef38910664c8e5adb69d90a2e13311a93dd578fbaa010c4f0b1f451b317751"
         },
-        "signerCommit": "64a6477e6a378890bcfd0bf481b3d603aa106d7c"
+        "signerCommit": "7a3002f271604b1c3be95f8256a123f327c742a3"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -954,7 +956,7 @@
         }
       },
       "changes": [
-        "メールの読み取り（IMAP、読み取り専用）、仕分け（キーワードと保管）、ログイン確認を、モジュールの中で行えるようになります。"
+        "Gmail の 3 つの固定の呼び出しを、項目の秘密を使って、モジュールの中で行えるようになります。メールの STARTTLS を、本物の TLS の切り替えで確かめるようになります。"
       ]
     }
   ],
