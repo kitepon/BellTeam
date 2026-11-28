@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { mkdtemp, stat } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, stat } from 'node:fs/promises'
 import { connect, createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -87,5 +87,21 @@ test('run: the relay joins the caller to the module child\'s stream socket and t
     assert.deepEqual(result, { code: 7, out: 'HELLO STREAM', err: 'warn' })
     assert.equal(seen[0].request.op, 'run'); assert.match(seen[0].stream, /\/share\/runs\/[0-9a-f-]{36}\.sock$/u); assert.equal(seen[0].via, 'container-socket')
     assert.equal((await stat(join(dir, 'share', 'runs'))).mode & 0o777, 0o711)
+  } finally { relay.kill('SIGTERM'); body.close() }
+})
+
+test('caller sockets: an ordinary caller is 0666 in a 0755 folder; a restricted caller (bellteam-push) is 0660 and its prepared folder is left as the host made it; the unit is the socket path', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'relay-')), bodyPath = join(dir, 'body.sock'), frames = []
+  const body = createServer(c => { let buf = ''; c.on('data', d => { buf += d; if (buf.includes('\n')) { frames.push(JSON.parse(buf)); c.end(JSON.stringify({ outcome: 'granted', data: 'sig' }) + '\n') } }) })
+  await new Promise(r => body.listen(bodyPath, r))
+  const share = join(dir, 'share'), folder = join(share, 'callers', 'bellteam-push'); await mkdir(folder, { recursive: true, mode: 0o700 }); await chmod(folder, 0o2750) // what the host prepares once
+  const relay = spawn(RELAY, [], { env: { ...process.env, AUTH_RELAY_DIR: share, AUTH_RELAY_BODY: bodyPath, AUTH_RELAY_SEAT_UID: String(process.getuid()) } })
+  try {
+    await new Promise(resolve => relay.stdout.once('data', resolve))
+    const mode = async p => (await stat(p)).mode & 0o7777
+    assert.equal(await mode(join(share, 'callers', 'mmobank', 'mmobank.sock')), 0o666); assert.equal(await mode(join(share, 'callers', 'mmobank')), 0o755)
+    assert.equal(await mode(join(folder, 'bellteam-push.sock')), 0o660); assert.equal(await mode(folder), 0o2750)
+    const answer = await new Promise((resolve, reject) => { const c = connect(join(folder, 'bellteam-push.sock')); let out = ''; c.on('connect', () => c.write(line({ op: 'sign', name: 'apns', data: 'AA==' }))); c.on('data', d => { out += d }); c.on('end', () => resolve(out)); c.on('error', reject) })
+    assert.equal(JSON.parse(answer).outcome, 'granted'); assert.equal(frames[0].via, 'caller-socket'); assert.equal(frames[0].unit, join(share, 'callers', 'bellteam-push', 'bellteam-push.sock'))
   } finally { relay.kill('SIGTERM'); body.close() }
 })
