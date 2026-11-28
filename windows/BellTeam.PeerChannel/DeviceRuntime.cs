@@ -31,6 +31,7 @@ public sealed class DeviceRuntime : IAsyncDisposable
     private readonly HashSet<string> dialing = [];
     private CancellationTokenSource? run; private Task loop = Task.CompletedTask;
     private TaskCompletionSource kick = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private const int RefreshRequested = -1; // the close code a manual Refresh gives the waiting socket
     private TaskCompletionSource<int?>? activeClosed;
     public RuntimeState State { get; private set; } = new(RuntimeStatus.Stopped);
     public DecisionBook Book => s.Book;
@@ -46,7 +47,7 @@ public sealed class DeviceRuntime : IAsyncDisposable
         lock (gate)
         {
             var old = kick; kick = new(TaskCreationOptions.RunContinuationsAsynchronously); old.TrySetResult();
-            if (State.Status is RuntimeStatus.NotEntitled or RuntimeStatus.SignedOut) activeClosed?.TrySetResult(null);
+            if (State.Status is RuntimeStatus.NotEntitled or RuntimeStatus.SignedOut) activeClosed?.TrySetResult(RefreshRequested);
         }
     }
 
@@ -80,10 +81,14 @@ public sealed class DeviceRuntime : IAsyncDisposable
                     await using var socket = await SignalSocket.OpenAsync(access, ct);
                     socket.Closed += () => closed.TrySetResult(socket.CloseCode);
                     socket.Message += doc => Watch(doc, holder, access, cycle.Token);
+                    socket.Start();
                     await socket.SendAsync("{\"type\":\"join\"}", ct);
-                    Set(RuntimeStatus.Live); attempt = 0;
+                    // The server's refusal can arrive during the send; it stays the state (Refresh leaves it).
+                    lock (gate) if (State.Status == RuntimeStatus.Connecting) Set(RuntimeStatus.Live);
+                    attempt = 0;
                     var code = await closed.Task.WaitAsync(ct);
                     cycle.Cancel();
+                    if (code == RefreshRequested) continue;
                     if (code == SignalSocket.PassEnded) { Set(RuntimeStatus.SignedOut, "pass_ended"); await Pause(null, ct); attempt = 0; continue; }
                     if (code == SignalSocket.AccountDeleted) { Set(RuntimeStatus.SignedOut, "account_deleted"); await Pause(null, ct); attempt = 0; continue; }
                     reason = "socket_closed";
@@ -107,7 +112,7 @@ public sealed class DeviceRuntime : IAsyncDisposable
         {
             var root = doc.RootElement; var type = root.GetProperty("type").GetString();
             if (type == "waits") foreach (var w in root.GetProperty("waits").EnumerateArray()) Dial(new(w.GetProperty("wait_id").GetString()!, w.GetProperty("connection_id").GetString()!), holder, access, ct);
-            else if (type == "error" && root.TryGetProperty("of", out var of) && of.GetString() == "join" && root.TryGetProperty("code", out var code) && code.GetString() is "no_entitlement" or "not_entitled") Set(RuntimeStatus.NotEntitled, code.GetString());
+            else if (type == "error" && root.TryGetProperty("of", out var of) && of.GetString() == "join" && root.TryGetProperty("code", out var code) && code.GetString() is "no_entitlement" or "not_entitled") { lock (gate) Set(RuntimeStatus.NotEntitled, code.GetString()); }
             else if (type == "wait.available") Dial(new(root.GetProperty("wait_id").GetString()!, root.GetProperty("connection_id").GetString()!), holder, access, ct);
         }
     }
