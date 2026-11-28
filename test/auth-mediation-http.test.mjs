@@ -196,3 +196,33 @@ test('http oauth2-password: a stop flushes the kept token (the next request afte
   forgetTokens(); const never = tokenSetup(jpoAnswer(), { cache_seconds: '0' }); await ask(never, { path: '/api/a' }); await ask(never, { path: '/api/b' })
   assert.equal(never.seen.filter(s => s.url.endsWith('/auth/token')).length, 2)
 })
+
+test('http rotation: the module refreshes a long-lived token itself, keeps the newest in a 0600 state file, and an item value changed by Sakura wins', async () => {
+  const { mkdtemp, readFile, stat } = await import('node:fs/promises'); const { tmpdir } = await import('node:os'); const { join } = await import('node:path')
+  const { createTokenState } = await import('../src/auth-mediation/http.mjs'); const dir = await mkdtemp(join(tmpdir(), 'rot-')), file = join(dir, 'http-tokens.json')
+  const fields = { http_base: 'https://graph.example.com', http_auth: 'query:access_token', http_secret: 'old-token-aaaaaa', http_methods: 'GET', http_rotate_path: '/refresh_access_token', http_rotate_query: 'grant_type=th_refresh_token', http_rotate_days: '7' }
+  const answer = (url) => String(url).includes('/refresh_access_token') ? new Response(JSON.stringify({ access_token: 'new-token-bbbbbb', expires_in: 5184000 })) : new Response('seen ' + new URL(url).searchParams.get('access_token'))
+  const make = item => { const t = setup({ item, answer }); return t }
+  const t = make(fields); const { createAuthCore } = await import('../src/auth-mediation/core.mjs')
+  const core = createAuthCore({ store: t.store, items: createItemCache({ runOp: async () => itemJson(fields) }), tokenState: createTokenState(file), audit: l => t.lines.push(l), roots: () => ({ 'bot-a': CWD }), fetchImpl: async (url, o) => { t.seen.push({ url: String(url) }); return answer(url, o) } })
+  const call = () => core.http({ name: 'stripe', method: 'GET', path: '/v1/me', via: 'host-socket', cwd: UNIT, unit: UNIT })
+  const first = await call(); assert.equal(text(first), 'seen [redacted]'); assert.match(t.seen[0].url, /refresh_access_token\?grant_type=th_refresh_token&access_token=old-token-aaaaaa/u); assert.match(t.seen[1].url, /access_token=new-token-bbbbbb/u)
+  await call(); assert.equal(t.seen.filter(s => s.url.includes('refresh_access_token')).length, 1) // not again within 7 days
+  assert.equal(JSON.parse(await readFile(file, 'utf8'))['http stripe'].token, 'new-token-bbbbbb'); assert.equal((await stat(file)).mode & 0o777, 0o600)
+  assert.ok(!JSON.stringify(t.lines).includes('new-token-bbbbbb')); assert.ok(t.lines.some(l => l.outcome === 'rotated'))
+  // Sakura writes a new item value: it wins and is refreshed from, not the kept token
+  fields.http_secret = 'changed-token-cccccc'; const items2 = createItemCache({ runOp: async () => itemJson(fields) }); const core2 = createAuthCore({ store: t.store, items: items2, tokenState: createTokenState(file), audit: () => {}, roots: () => ({ 'bot-a': CWD }), fetchImpl: async (url) => { t.seen.push({ url: String(url) }); return answer(url) } })
+  await core2.http({ name: 'stripe', method: 'GET', path: '/v1/me', via: 'host-socket', cwd: UNIT, unit: UNIT }); assert.match(t.seen.at(-2).url, /refresh_access_token.*access_token=changed-token-cccccc/u)
+})
+
+test('http rotation: an http:// non-private base makes no network call at all (the token never goes out in clear); a broken state file is replaced', async () => {
+  const { mkdtemp, readFile, writeFile } = await import('node:fs/promises'); const { tmpdir } = await import('node:os'); const { join } = await import('node:path')
+  const { createTokenState } = await import('../src/auth-mediation/http.mjs'); const { createAuthCore } = await import('../src/auth-mediation/core.mjs')
+  const dir = await mkdtemp(join(tmpdir(), 'rot-')), file = join(dir, 'http-tokens.json')
+  const mk = fields => { const t = setup({ item: fields }); const core = createAuthCore({ store: t.store, items: createItemCache({ runOp: async () => itemJson(fields) }), tokenState: createTokenState(file), audit: () => {}, roots: () => ({ 'bot-a': CWD }), fetchImpl: async url => { t.seen.push({ url: String(url) }); return new Response(String(url).includes('refresh') ? '{"access_token":"fresh-token-dddd"}' : 'ok') } }); return { t, call: () => core.http({ name: 'stripe', method: 'GET', path: '/v1/me', via: 'host-socket', cwd: UNIT, unit: UNIT }) } }
+  const plain = mk({ http_base: 'http://graph.example.com/v1', http_auth: 'bearer', http_secret: 'old-token-aaaaaa', http_rotate_path: '/refresh_access_token' }); const r = await plain.call()
+  assert.equal(r.outcome, 'error'); assert.equal(plain.t.seen.length, 0)
+  await writeFile(file, '{broken'); const ok = mk({ http_base: 'https://graph.example.com', http_auth: 'bearer', http_secret: 'old-token-aaaaaa', http_rotate_path: '/refresh_access_token' })
+  assert.equal((await ok.call()).outcome, 'granted'); assert.equal(JSON.parse(await readFile(file, 'utf8'))['http stripe'].token, 'fresh-token-dddd')
+  const before = await readFile(file, 'utf8'); await ok.call(); assert.equal(await readFile(file, 'utf8'), before)
+})

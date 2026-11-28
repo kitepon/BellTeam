@@ -1,6 +1,8 @@
 // The credentialed request (README F14): the module makes the request and adds the credential; only the response leaves. The origin and path prefix come from the item
 // (written by Sakura in 1Password), never from the caller. Item fields are lower-case on purpose: the exec transports only return upper-case labels, so none of them ever leaves.
-import { createHash, sign as cryptoSign } from 'node:crypto'
+import { createHash, randomUUID, sign as cryptoSign } from 'node:crypto'
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { dirname } from 'node:path'
 const METHODS = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE']
 const SAFE_REQUEST_HEADER = /^(?:accept|accept-language|content-type|idempotency-key|if-match|if-none-match|if-modified-since|user-agent|stripe-version|x-request-id|x-correlation-id)$/u
 const SHOWN_RESPONSE_HEADERS = ['content-type', 'content-length', 'etag', 'location', 'retry-after', 'last-modified', 'cache-control', 'x-request-id', 'request-id']
@@ -93,12 +95,51 @@ async function bearerFor(fields, fetchImpl, fresh) {
 }
 export const forgetTokens = () => tokens.clear()
 
+// A long-lived token the provider lets you refresh (Threads: GET /refresh_access_token?grant_type=th_refresh_token&access_token=...): the module refreshes it itself and keeps the
+// newest one in a state file (0600, body-owned, same folder as policy.json). The item's own value wins as soon as someone changes it (the state records which item value it came from).
+// Item fields: http_rotate_path, http_rotate_query (fixed part), http_rotate_param (default access_token), http_rotate_days (default 30, 1..365).
+export function createTokenState(path) {
+  let tail = Promise.resolve()
+  const load = async () => { try { const all = JSON.parse(await readFile(path, 'utf8')); return all && typeof all === 'object' && !Array.isArray(all) ? all : {} } catch (error) { if (error.code === 'ENOENT' || error instanceof SyntaxError) return {}; throw error } } // a broken file is the same as none: the item's own value wins and a fresh file is written
+  const save = async all => { await mkdir(dirname(path), { recursive: true, mode: 0o700 }); const tmp = path + '.' + randomUUID(); await writeFile(tmp, JSON.stringify(all), { mode: 0o600 }); await rename(tmp, path) }
+  // One change at a time per file: two requests must not both refresh (the first refresh may retire the old token).
+  return { update: work => { const next = tail.then(async () => { const all = await load(), before = JSON.stringify(all), out = await work(all); if (JSON.stringify(all) !== before) await save(all); return out }); tail = next.catch(() => {}); return next } }
+}
+
+async function rotated(fields, item, state, fetchImpl, audit) {
+  const base = createHash('sha256').update(fields.http_secret ?? '').digest('hex')
+  const days = Math.min(Math.max(Number(fields.http_rotate_days) || 30, 1), 365)
+  return state.update(async all => {
+    let mine = all[item]; if (!mine || mine.base !== base) mine = all[item] = { base, token: fields.http_secret, next: 0 } // new or changed item value: it wins, and a refresh is tried now
+    if (Date.now() >= mine.next) {
+      const url = new URL(fields.http_rotate_path, new URL(fields.http_base).origin)
+      for (const [k, v] of new URLSearchParams(fields.http_rotate_query ?? '')) url.searchParams.set(k, v)
+      url.searchParams.set(fields.http_rotate_param ?? 'access_token', mine.token)
+      let fresh = null
+      try {
+        const response = await fetchImpl(url, { method: 'GET', headers: { accept: 'application/json' }, redirect: 'manual', signal: AbortSignal.timeout(20000) })
+        const parsed = response.ok ? JSON.parse((await response.text()).slice(0, TOKEN_BODY_MAX)) : null
+        if (typeof parsed?.access_token === 'string' && parsed.access_token) fresh = parsed.access_token
+      } catch {}
+      if (fresh) { mine.token = fresh; mine.next = Date.now() + days * 86400000 } else mine.next = Date.now() + 3600000 // keep the working token, try again in an hour
+      audit?.({ rotated: Boolean(fresh) })
+    }
+    return mine.token
+  })
+}
+
 // Replaces the credential and its base64 form (basic auth) wherever the response shows it.
 const scrubText = (text, secret) => secret.length < 6 ? text : [secret, Buffer.from(secret).toString('base64')].reduce((out, s) => out.split(s).join('[redacted]'), text)
 const scrubAll = (text, secrets) => secrets.reduce((out, s) => scrubText(out, s), text)
 const scrub = (buffer, secrets) => Buffer.from(scrubAll(buffer.toString('latin1'), secrets), 'latin1')
 
-export async function callHttp(fields, request, fetchImpl = fetch) {
+export async function callHttp(fields, request, fetchImpl = fetch, rotation = null) {
+  if (fields.http_rotate_path !== undefined) {
+    if (!rotation || !/^\/[^\s#?\\]*$/u.test(fields.http_rotate_path)) throw refuse('The key item cannot be refreshed here.')
+    let basePath; try { basePath = new URL(fields.http_base).pathname } catch { throw refuse('The key item has no usable base URL.') }
+    target({ ...fields, http_methods: 'GET' }, { method: 'GET', path: basePath }) // the same https / private-plain rule as the request itself, BEFORE the token is sent anywhere
+    fields = { ...fields, http_secret: await rotated(fields, rotation.item, rotation.state, fetchImpl, rotation.audit) }
+  }
   const url = target(fields, request)
   const headers = {}
   const allowed = (fields.http_allow_headers ?? '').split(',').map(h => h.trim().toLowerCase()).filter(h => /^[a-z0-9-]{1,64}$/u.test(h) && h !== 'authorization' && h !== 'host' && h !== 'content-length') // item-listed extra caller headers

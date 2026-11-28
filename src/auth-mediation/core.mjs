@@ -18,7 +18,7 @@ const ENTRY_ONLY = ['grant', 'revoke', 'import'], DECISION_KEYS = ['id', 'role',
 const REFUSALS = { stopped: 'This command is stopped by the operator.', denied: 'This command is not permitted.' }
 
 // store: {read, write}; items: createItemCache; audit: line => Promise; roots: () => {botId: absoluteRoot}.
-export function createAuthCore({ store, items: itemCache, audit, roots, now = () => new Date(), realpath = fsRealpath, fetchImpl = fetch, mailConnect, imapConnect }) {
+export function createAuthCore({ store, items: itemCache, tokenState = null, audit, roots, now = () => new Date(), realpath = fsRealpath, fetchImpl = fetch, mailConnect, imapConnect }) {
   // A flush (stop, revoke, flush, a new token) also drops the OAuth tokens the http op keeps in memory: the key is a hash of the item, so all of them go (cost: one new token).
   const items = { ...itemCache, get: (...a) => itemCache.get(...a), flush: name => { itemCache.flush(name); forgetTokens() } }
   // An audit failure never refuses a request (the diagnostic is the caller's); it is swallowed here by design.
@@ -116,7 +116,7 @@ export function createAuthCore({ store, items: itemCache, audit, roots, now = ()
     const found = await items.get(item, policy.vault, policy.cache_seconds)
     if (!found) { record(rec, 'not-registered'); return { outcome: 'not-registered', error: NOT_REGISTERED } }
     try {
-      const result = await callHttp(found.fields, request, fetchImpl)
+      const result = await callHttp(found.fields, request, fetchImpl, tokenState && { state: tokenState, item, audit: extra => record({ ...rec, request_id: randomUUID(), method: undefined, path: undefined }, extra.rotated ? 'rotated' : 'rotation-failed') })
       record(rec, 'granted', { cache: found.hit ? 'hit' : 'miss', status: result.status })
       return { outcome: 'granted', ...result }
     } catch (error) { record(rec, 'error', { cache: found.hit ? 'hit' : 'miss' }); return { outcome: 'error', error: error?.code?.startsWith?.('HTTP_') ? error.message : 'The request failed.' } }
