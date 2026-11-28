@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { appendFile, readFile } from 'node:fs/promises'
 import { createAuthCore } from './core.mjs'
-import { forgetTokens } from './http.mjs'
+import { createTokenState, forgetTokens } from './http.mjs'
 import { createItemCache, opRunner } from './items.mjs'
 import { botForCwd } from './identity.mjs'
 import { createPolicyStore } from './policy.mjs'
@@ -22,7 +22,7 @@ export function createAuthMediationService({ policyPath, auditPath, opExe, first
     return consume(got.value)
   }
   const items = createItemCache({ runOp: args => (runOp ?? opRunner({ exe: opExe, withToken }))(args) })
-  const core = createAuthCore({ realpath, store: createPolicyStore(policyPath, firstAdmins), items, roots: async () => (await current('members.roots', {})).roots,
+  const core = createAuthCore({ realpath, store: createPolicyStore(policyPath, firstAdmins), items, tokenState: createTokenState(policyPath.replace(/[^/]*$/u, 'http-tokens.json')), roots: async () => (await current('members.roots', {})).roots,
     audit: line => appendLine(auditPath, JSON.stringify(line) + '\n') })
   const within = (effect, work) => calls.run(effect, work)
   // Admin verbs read, change and rewrite policy.json, so they run one after another.
