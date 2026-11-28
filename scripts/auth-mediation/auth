@@ -193,19 +193,43 @@ def ssh_main(argv):
 
 
 def mail_main(argv):
-    """auth mail send NAME --to ADDR[,ADDR...] --subject TEXT [--from-name TEXT] [--reply-to ADDR] [--html-file FILE]  (the text body from stdin)
+    """auth mail read NAME [--folders] [--mailbox M|*] [--unseen] [--since D] [--before D] [--from X] [--search-subject X] [--order newest|oldest] [--limit N] [--fetch none|headers|text|raw] [--uid N]
+    reads read-only (nothing is marked seen) and prints one JSON line {folders|messages, truncated?}.
+    auth mail send NAME --to ADDR[,ADDR...] --subject TEXT [--from-name TEXT] [--reply-to ADDR] [--html-file FILE]  (the text body from stdin)
     The module logs in to the item's SMTP server and sends; the password never reaches this process. Prints the message id. Exit: 0 sent, 1 refused, 2 error;
     on error the class (MAIL_NOT_SUBMITTED: retry is safe, MAIL_REJECTED: do not retry, MAIL_UNKNOWN: never retry) is printed on stderr."""
     import argparse
     p = argparse.ArgumentParser(prog="auth mail")
-    p.add_argument("action", choices=["send"])
+    p.add_argument("action", choices=["send", "read"])
     p.add_argument("name")
-    p.add_argument("--to", required=True)
-    p.add_argument("--subject", required=True)
+    p.add_argument("--to")
+    p.add_argument("--subject")
+    for opt in ("mailbox", "order", "fetch", "since", "before", "from", "search-subject"):
+        p.add_argument("--" + opt)
+    p.add_argument("--limit", type=int)
+    p.add_argument("--uid", type=int)
+    p.add_argument("--unseen", action="store_true")
+    p.add_argument("--folders", action="store_true")
     p.add_argument("--from-name")
     p.add_argument("--reply-to")
     p.add_argument("--html-file")
     a = p.parse_args(argv)
+    if a.action == "read":
+        search = {k: v for k, v in (("since", a.since), ("before", a.before), ("from", getattr(a, "from")), ("subject", a.search_subject)) if v}
+        if a.unseen:
+            search["unseen"] = True
+        request = {"op": "mail-read", "name": a.name, "cwd": os.getcwd(), **{k: v for k, v in (("mailbox", a.mailbox), ("order", a.order), ("fetch", a.fetch), ("limit", a.limit), ("uid", a.uid), ("search", search or None), ("folders", True if a.folders else None)) if v is not None}}
+        try:
+            resp = ask(request)
+        except (OSError, ValueError):
+            sys.exit("The authentication module is not running.")
+        if resp.get("outcome") != "granted":
+            print(resp.get("error", "Refused."), file=sys.stderr)
+            return 2 if resp.get("outcome") == "error" else 1
+        print(json.dumps({k: resp[k] for k in ("folders", "messages", "truncated") if k in resp}))
+        return 0
+    if not a.to or not a.subject:
+        sys.exit("auth mail send needs --to and --subject")
     request = {"op": "mail-send", "name": a.name, "to": a.to.split(","), "subject": a.subject, "text": sys.stdin.read(), "cwd": os.getcwd()}
     if a.from_name:
         request["from_name"] = a.from_name

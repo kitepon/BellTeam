@@ -8,13 +8,14 @@ import { useKey, signData, signDigest } from './keyuse.mjs'
 import { callHttp } from './http.mjs'
 import { sshIdentity, sshSign } from './sshkey.mjs'
 import { sendMail } from './mail.mjs'
+import { LIMITS, listFolders, openImap, readFolder } from './imap.mjs'
 
 const NOT_REGISTERED = 'This command is not registered.'
 const ENTRY_ONLY = ['grant', 'revoke', 'import'], DECISION_KEYS = ['id', 'role', 'record', 'need', 'reason']
 const REFUSALS = { stopped: 'This command is stopped by the operator.', denied: 'This command is not permitted.' }
 
 // store: {read, write}; items: createItemCache; audit: line => Promise; roots: () => {botId: absoluteRoot}.
-export function createAuthCore({ store, items, audit, roots, now = () => new Date(), realpath = fsRealpath, fetchImpl = fetch, mailConnect }) {
+export function createAuthCore({ store, items, audit, roots, now = () => new Date(), realpath = fsRealpath, fetchImpl = fetch, mailConnect, imapConnect }) {
   // An audit failure never refuses a request (the diagnostic is the caller's); it is swallowed here by design.
   const record = (rec, outcome, extra = {}) => { void Promise.resolve(audit({ ...rec, outcome, ...extra })).catch(() => {}) }
 
@@ -115,6 +116,23 @@ export function createAuthCore({ store, items, audit, roots, now = () => new Dat
       return { outcome: 'granted', ...result }
     } catch (error) { record(rec, 'error', { cache: found.hit ? 'hit' : 'miss' }); return { outcome: 'error', error: error?.code?.startsWith?.('HTTP_') ? error.message : 'The request failed.' } }
   }
+  // Mail read (F17): the module logs in to the item's IMAP server, opens mailboxes read-only (EXAMINE, BODY.PEEK: nothing is ever marked seen) and answers with folders or messages.
+  async function readMail(fields, request) {
+    const client = await openImap(fields, imapConnect ? { connect: imapConnect } : {})
+    try {
+      const folders = await listFolders(client)
+      if (request.folders) return { folders }
+      const which = request.mailbox === '*' ? folders.map(f => f.name) : [request.mailbox ?? 'INBOX'], budget = { left: LIMITS.total }, limit = Math.min(request.limit ?? 20, LIMITS.messages), messages = []
+      for (const folder of which) {
+        if (budget.left <= 0) break
+        messages.push(...await readFolder(client, folder, { search: request.search, order: request.order, limit, fetch: request.fetch ?? 'none', uid: request.uid, budget }))
+      }
+      const by = (a, b) => (Date.parse(b.internaldate) || 0) - (Date.parse(a.internaldate) || 0)
+      if (which.length > 1) messages.sort(request.order === 'oldest' ? (a, b) => by(b, a) : by)
+      return { messages: messages.slice(0, limit), ...(budget.left <= 0 ? { truncated: true } : {}) }
+    } finally { client.close() }
+  }
+
   // Mail send (F17): the module logs in to the item's SMTP server and sends. Grant command "mail <name> send"; item "mail <name>". The audit keeps counts and the message id, never addresses or text.
   async function mail(request) {
     const at = now(), policy = await store.read(), caller = await identify(request), item = `mail ${request.name}`, name = `${item} ${request.action}`
@@ -125,8 +143,8 @@ export function createAuthCore({ store, items, audit, roots, now = () => new Dat
     const found = await items.get(item, policy.vault, policy.cache_seconds)
     if (!found) { record(rec, 'not-registered'); return { outcome: 'not-registered', error: NOT_REGISTERED } }
     try {
-      const result = await sendMail(found.fields, request, { now, ...(mailConnect ? { connect: mailConnect } : {}) })
-      record(rec, 'granted', { cache: found.hit ? 'hit' : 'miss', message_id: result.message_id })
+      const result = request.action === 'read' ? await readMail(found.fields, request) : await sendMail(found.fields, request, { now, ...(mailConnect ? { connect: mailConnect } : {}) })
+      record(rec, 'granted', { cache: found.hit ? 'hit' : 'miss', message_id: result.message_id, folders: result.folders?.length, messages: result.messages?.length })
       return { outcome: 'granted', ...result }
     } catch (error) { const code = error?.code?.startsWith?.('MAIL_') ? error.code : 'MAIL_NOT_SUBMITTED'; record(rec, 'error', { cache: found.hit ? 'hit' : 'miss', class: code, why: error?.why }); return { outcome: 'error', error: code } }
   }
