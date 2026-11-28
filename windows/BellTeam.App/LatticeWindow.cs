@@ -795,7 +795,7 @@ internal sealed class LatticeChartPage : Grid
             }
         }
         Links(body, AppStrings.ApprovalsWindow_LinksColumn_5, detail.Previous);
-        Links(body, AppStrings.ApprovalsWindow_LinksColumn_8, detail.Next);
+        Links(body, AppStrings.ApprovalsWindow_LinksColumn_8, detail.Next, detail.Waiting);
         var panel = Glass(new ScrollViewer { Content = body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }, 22, new Thickness(20, 16, 18, 18), 0xFA);
         panel.Width = 400; panel.VerticalAlignment = VerticalAlignment.Top; panel.MaxHeight = 4000;
         System.Windows.Automation.AutomationProperties.SetAutomationId(panel, "lattice-detail"); System.Windows.Automation.AutomationProperties.SetName(panel, LatticeChart.CardLabel(detail.Card, detail.Producer));
@@ -820,10 +820,10 @@ internal sealed class LatticeChartPage : Grid
         // Markdown shown as plain text (screen-spec: designMemo as plain text).
         body.Children.Add(new TextBox { Text = text, Style = Application.Current?.TryFindResource("SelectableBody") as Style, FontSize = 14, Foreground = Brush(Ink), TextWrapping = TextWrapping.Wrap, IsReadOnly = true, BorderThickness = new Thickness(0), Background = Brushes.Transparent });
     }
-    private void Links(StackPanel body, string heading, IReadOnlyList<LatticeLink> links)
+    private void Links(StackPanel body, string heading, IReadOnlyList<LatticeLink> links, IReadOnlyList<LatticeWaiter>? waiters = null)
     {
         var label = Text(heading, 12, Muted, FontWeights.SemiBold); label.Margin = new Thickness(0, 18, 0, 6); body.Children.Add(label);
-        if (links.Count == 0) { body.Children.Add(Text(AppStrings.LatticeWindow_Links_1, 13, Muted)); return; }
+        if (links.Count == 0 && waiters is not { Count: > 0 }) { body.Children.Add(Text(AppStrings.LatticeWindow_Links_1, 13, Muted)); return; }
         foreach (var link in links)
         {
             var row = new DockPanel();
@@ -834,6 +834,21 @@ internal sealed class LatticeChartPage : Grid
             var frame = new Border { Child = row, CornerRadius = new CornerRadius(12), Padding = new Thickness(10, 8, 10, 8), Margin = new Thickness(0, 0, 0, 6), Background = Brush(Colors.White, 0xB0), BorderBrush = Brush(Line), BorderThickness = new Thickness(1) };
             var button = Plain(frame, AppStrings.LatticeWindow_Links_3(link.Title, LatticeChart.StateInfo(link.State).Badge, LatticeChart.NameOf(link.Producer)));
             var id = link.Id; button.Click += (_, _) => GoTo(id);
+            body.Children.Add(button);
+        }
+        // 次の工程 of other charts (Tronie 2026-11-28): after the same-chart successors, no line and no chip; a tap opens that chart at that card.
+        foreach (var waiter in waiters ?? [])
+        {
+            var row = new DockPanel();
+            var glyph = StateGlyph(waiter.State.Length > 0 ? waiter.State : "pending", 15, waiter.Producer is { Known: true } ? Accent(waiter.Producer.Color) : Violet); glyph.Margin = new Thickness(0, 0, 10, 0); DockPanel.SetDock(glyph, Dock.Left); row.Children.Add(glyph);
+            var arrow = Icon("\uE76C", 11, Muted); DockPanel.SetDock(arrow, Dock.Right); row.Children.Add(arrow);
+            var lines = new StackPanel { Children = { Text(waiter.Title, 13.5, Ink, FontWeights.SemiBold), Text(waiter.Chart, 11.5, Muted),
+                Text(AppStrings.LatticeWindow_Links_2(LatticeChart.NameOf(waiter.Producer), waiter.StateText), 11.5, Muted) } };
+            if (waiter.Reason.Length > 0) lines.Children.Add(Text(waiter.Reason, 11.5, Muted, null, TextWrapping.Wrap));
+            row.Children.Add(lines);
+            var frame = new Border { Child = row, CornerRadius = new CornerRadius(12), Padding = new Thickness(10, 8, 10, 8), Margin = new Thickness(0, 0, 0, 6), Background = Brush(Colors.White, 0xB0), BorderBrush = Brush(Line), BorderThickness = new Thickness(1) };
+            var button = Plain(frame, waiter.Label); var target = waiter.External; button.Click += (_, _) => window.OpenCard(target.ProjectId, target.CardId);
+            System.Windows.Automation.AutomationProperties.SetAutomationId(button, "lattice-waiter");
             body.Children.Add(button);
         }
     }

@@ -72,6 +72,22 @@ public sealed class LatticeChartTests
     }
 
     [Fact]
+    public void ADetailListsTheWaitersOfOtherChartsAfterNextOldestFirstAndMissingMeansNone()
+    {
+        var snapshot = Snapshot([Card("1", "done", "bot-k"), Card("2", "ready", "bot-k")], [new("1", "2", true)]) with { Externals = [Other("o:a/b", "in-progress", "bot-k", "待つ工程", "A"), Other("o:c/d", "retired", "bot-k"), Other("o:e/f", "done", null, null, null)] };
+        snapshot.Cards[0] = snapshot.Cards[0] with { Waiters = [new("o:e/f", null, Now.AddMinutes(-1)), new("o:a/b", "橋が出てから", Now.AddMinutes(-9)), new("o:c/d", "x", Now.AddMinutes(-20)), new("x:y/z", "不明", Now.AddMinutes(-5)), new(null, "ref無し", null)] };
+        var detail = LatticeChart.Detail(snapshot, "1", Now)!;
+        Assert.Equal(["工程2"], detail.Next.Select(link => link.Title));   // the other charts never join the edges
+        Assert.Equal(["待つ工程", "ほかの工程表の工程", "ほかの工程表の工程"], detail.Waiting!.Select(waiter => waiter.Title));   // retired and ref-less are not sent; oldest first
+        var first = detail.Waiting![0];
+        Assert.Equal(("Aの工程表", "橋が出てから", new LatticeCardRef("o", "a/b"), "次の工程：「待つ工程」（Aの工程表）、" + first.StateText), (first.Chart, first.Reason, first.External, first.Label));
+        Assert.Equal(("ほかの工程表の工程表", LatticeChart.ExternalUnread), (detail.Waiting![1].Chart, detail.Waiting![1].StateText));   // an externals[] entry missing: words, 読めていません
+        Assert.Empty(LatticeChart.Detail(snapshot, "2", Now)!.Waiting!);
+        Assert.Empty(System.Text.Json.JsonSerializer.Deserialize<LatticeSnapshot>("""{"projectId":"proj","cards":[{"id":"p1/t01"}]}""", BellApi.Json)!.Cards[0].Waiters);
+        Assert.Equal(new("o:a/b", "r", null), System.Text.Json.JsonSerializer.Deserialize<LatticeSnapshot>("""{"projectId":"proj","cards":[{"id":"p1/t01","waiters":[{"ref":"o:a/b","reason":"r"}]}]}""", BellApi.Json)!.Cards[0].Waiters![0]);
+    }
+
+    [Fact]
     public void ADetailsNextLeavesOutARetiredCardButPreviousKeepsIt()
     {
         var snapshot = Snapshot([Card("1", "done", "bot-k"), Card("2", "ready", "bot-k"), Card("3", "retired", "bot-k"), Card("4", "retired", "bot-k")],
@@ -298,6 +314,8 @@ public sealed class LatticeChartTests
         var texts = LogicalTree.Find<TextBlock>(window.Content).Select(text => text.Text)
             .Concat(LogicalTree.Find<FrameworkElement>(window.Content).Select(element => System.Windows.Automation.AutomationProperties.GetName(element))).Where(text => text.Length > 0).ToList();
         Assert.Contains(texts, text => text.Contains("Lattice組込", StringComparison.Ordinal));
+        // 詳細 lists the other charts' waiters under 次の工程 (oldest first), as plain rows that open that chart.
+        Assert.Equal(2, LogicalTree.Find<Button>(window.Content).Count(button => System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "lattice-waiter"));
         Assert.DoesNotContain(texts, text => text.Contains("bot-", StringComparison.Ordinal) || text.Contains("p1/", StringComparison.Ordinal) || text.Contains("lattice-", StringComparison.Ordinal) || text.Contains("LATTICE_", StringComparison.Ordinal) || text == "lattice");
         // The crown and 統括 only on the coordinator chart (this one is).
         Assert.Contains("統括", texts);
