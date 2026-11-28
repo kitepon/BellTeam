@@ -31,7 +31,7 @@ final class HarnessAuthenticationFlow: ObservableObject {
     private func route(_ suffix: String) -> String { "/api/harness-auth/\(harness.id)\(suffix)\(query)" }
 
     func refresh() async throws {
-        guard !busy else { throw BellAPIError.server("認証の処理が終わってから操作してください。") }
+        guard !busy else { throw BellAPIError.server(String(localized: "認証の処理が終わってから操作してください。")) }
         requestSequence += 1
         try await perform { try await api.get(path) }
         needsRefresh = false
@@ -62,7 +62,7 @@ final class HarnessAuthenticationFlow: ObservableObject {
 
     func respond(_ response: AuthenticationReply.Response, for ui: AuthenticationUI) async throws {
         guard !needsRefresh, auth?.authUi == ui, let reply = ui.reply(response) else {
-            throw BellAPIError.server("認証画面が更新されました。状態を確認してから操作してください。")
+            throw BellAPIError.server(String(localized: "認証画面が更新されました。状態を確認してから操作してください。"))
         }
         sendingCode = true
         defer { sendingCode = false }
@@ -85,7 +85,7 @@ final class HarnessAuthenticationFlow: ObservableObject {
     }
 
     private func perform(mutation: Bool = false, _ action: () async throws -> HarnessAuthenticationResponse) async throws {
-        guard !busy else { throw BellAPIError.server("認証の処理が終わってから操作してください。") }
+        guard !busy else { throw BellAPIError.server(String(localized: "認証の処理が終わってから操作してください。")) }
         if mutation { requestSequence += 1 }
         busy = true
         defer { busy = false }

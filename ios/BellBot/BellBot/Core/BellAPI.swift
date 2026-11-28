@@ -34,21 +34,21 @@ enum BellAPIError: LocalizedError {
 
     static func operationFailureMessage(_ error: Error) -> String {
         if operationResultUnconfirmed(error) {
-            return "操作の結果を確認できませんでした。再操作する前に、現在の状態を更新して確認してください。\n\(error.localizedDescription)"
+            return String(localized: "操作の結果を確認できませんでした。再操作する前に、現在の状態を更新して確認してください。\n\(error.localizedDescription)")
         }
         return error.localizedDescription
     }
 
     var errorDescription: String? {
         switch self {
-        case .notConfigured: "接続先を設定してください。"
-        case .accessLoginRequired: "Cloudflare Accessへログインしてください。"
-        case .unauthorized: "認証が切れました。もう一度ログインしてください。"
-        case .invalidResponse: "BellTeamからの応答を読み取れませんでした。"
-        case .backgroundSendUnavailable: "送信に必要な実行時間を確保できませんでした。アプリを前面に戻して送信してください。"
-        case .backgroundSendExpired: "背景で送信を確認できる時間が終了しました。送信済みの場合があるため、会話を確認してください。"
+        case .notConfigured: String(localized: "接続先を設定してください。")
+        case .accessLoginRequired: String(localized: "Cloudflare Accessへログインしてください。")
+        case .unauthorized: String(localized: "認証が切れました。もう一度ログインしてください。")
+        case .invalidResponse: String(localized: "BellTeamからの応答を読み取れませんでした。")
+        case .backgroundSendUnavailable: String(localized: "送信に必要な実行時間を確保できませんでした。アプリを前面に戻して送信してください。")
+        case .backgroundSendExpired: String(localized: "背景で送信を確認できる時間が終了しました。送信済みの場合があるため、会話を確認してください。")
         case .server(let message): "BellTeam: \(message)"
-        case .httpStatus(423, "AI_GLOBAL_PAUSED", _): "BellTeamは全体停止中です。設定でOFFにしてから操作してください。"
+        case .httpStatus(423, "AI_GLOBAL_PAUSED", _): String(localized: "BellTeamは全体停止中です。設定でOFFにしてから操作してください。")
         case .httpStatus(let status, let message, _):
             if let message, message.wholeMatch(of: /[A-Z0-9_]+/) == nil { "BellTeam: \(message)" } else { Self.guidance(status) }
         }
@@ -57,11 +57,11 @@ enum BellAPIError: LocalizedError {
     /// サーバーが固定の符号だけを返した時の利用者向けの文。符号そのものは診断に残し、画面には出さない。
     static func guidance(_ status: Int) -> String {
         switch status {
-        case 503: "BellTeamが一時的に受付を止めています。少し待つと自動で読み直します。"
-        case 500...: "BellTeamで問題が起きています。時間をおいてもう一度お試しください。"
-        case 404: "対象が見つかりませんでした。"
-        case 409: "状態が変わりました。読み直してからもう一度お試しください。"
-        default: "BellTeamがこの操作を受け付けませんでした。"
+        case 503: String(localized: "BellTeamが一時的に受付を止めています。少し待つと自動で読み直します。")
+        case 500...: String(localized: "BellTeamで問題が起きています。時間をおいてもう一度お試しください。")
+        case 404: String(localized: "対象が見つかりませんでした。")
+        case 409: String(localized: "状態が変わりました。読み直してからもう一度お試しください。")
+        default: String(localized: "BellTeamがこの操作を受け付けませんでした。")
         }
     }
 }

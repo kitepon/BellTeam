@@ -29,7 +29,7 @@ struct WorkGraphEdge: Decodable, Equatable {
     var baseDash: [CGFloat] { isFork ? [6, 4] : [] }
     /// 札の文。分身の辺は「分身：」＋label（1つの文として折り返し・測る）。labelがnull・空なら札なし。
     var chipText: String? {
-        label.flatMap { $0.isEmpty ? nil : (isFork ? "分身：" : "") + $0 }
+        label.flatMap { $0.isEmpty ? nil : (isFork ? String(localized: "分身：\($0)") : $0) }
     }
 }
 
@@ -387,7 +387,7 @@ final class WorkGraphModel: ObservableObject {
                 try? await Task.sleep(for: unsupportedRetry)
                 continue
             } catch let error where BellAPIError.isAuthenticationError(error) {
-                connection = .failed("ログインが必要です。")
+                connection = .failed(String(localized: "ログインが必要です。"))
                 return
             } catch is DecodingError {
                 // 読めない応答でも止めない。表示したまま再接続し、読めるsnapshotが来たら消える（新しい本体で直れば開き直さずに戻る）。

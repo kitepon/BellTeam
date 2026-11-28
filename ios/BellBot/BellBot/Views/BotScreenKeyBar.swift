@@ -133,20 +133,20 @@ final class ScreenInputModel: ObservableObject {
         case BellAPIError.httpStatus(503, "SCREEN_INPUT_UNAVAILABLE", _):
             available = false
         case BellAPIError.httpStatus(409, "SCREEN_APPROVAL_CHANGED", _):
-            notice = "画面が変わりました。もう一度確認してください"
+            notice = String(localized: "画面が変わりました。もう一度確認してください")
             await refreshApproval()
         case BellAPIError.httpStatus(422, "SCREEN_APPROVAL_UNSUPPORTED", _):
             approval = nil
             approvalUnsupported = true
-            notice = "キーで答えてください"
+            notice = String(localized: "キーで答えてください")
         case BellAPIError.httpStatus(409, "SCREEN_SEAT_ABSENT", _):
-            notice = "席が起動していません"
+            notice = String(localized: "席が起動していません")
         case BellAPIError.unauthorized, BellAPIError.accessLoginRequired: // BellAPI maps 401/403 to .unauthorized
-            notice = "オーナーとしてログインしていません"
+            notice = String(localized: "オーナーとしてログインしていません")
         case BellAPIError.httpStatus(502, "SCREEN_INPUT_FAILED", _):
-            notice = "送れませんでした"
+            notice = String(localized: "送れませんでした")
         default:
-            notice = "送れませんでした"
+            notice = String(localized: "送れませんでした")
             api.diagnostics.report(error, path: path, method: method, observation: .write)
         }
     }
@@ -186,16 +186,16 @@ struct ScreenKeyBar: View {
                     .accessibilityIdentifier("screen-key-notice")
             }
             HStack(spacing: 8) {
-                key("Escape", "取消", "escape")
+                key("Escape", String(localized: "取消"), "escape")
                 key("Tab", "Tab", "arrow.right.to.line")
-                key("Enter", "決定", "return", prominent: true)
-                key("C-c", "中断", "stop.fill", destructive: true)
+                key("Enter", String(localized: "決定"), "return", prominent: true)
+                key("C-c", String(localized: "中断"), "stop.fill", destructive: true)
             }
             HStack(spacing: 8) {
-                key("Left", "左", "arrow.left", compact: true)
-                key("Up", "上", "arrow.up", compact: true)
-                key("Down", "下", "arrow.down", compact: true)
-                key("Right", "右", "arrow.right", compact: true)
+                key("Left", String(localized: "左"), "arrow.left", compact: true)
+                key("Up", String(localized: "上"), "arrow.up", compact: true)
+                key("Down", String(localized: "下"), "arrow.down", compact: true)
+                key("Right", String(localized: "右"), "arrow.right", compact: true)
                 Button { withAnimation(.snappy) { showDigits.toggle() } } label: {
                     Label("数字", systemImage: showDigits ? "chevron.down" : "number")
                         .labelStyle(.keyCap)

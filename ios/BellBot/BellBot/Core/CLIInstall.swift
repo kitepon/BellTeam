@@ -19,7 +19,7 @@ struct CLIInstall: Decodable, Equatable {
     let label: String?
 
     var canPress: Bool { action == "install" }
-    var buttonTitle: String { label ?? "最新版を入れる" }
+    var buttonTitle: String { label ?? String(localized: "最新版を入れる") }
     /// No usable CLI: the server refuses start/status with HARNESS_NOT_INSTALLED, so no login control applies.
     var isMissing: Bool { state == .notInstalled || state == .installing || state == .failed }
     /// An installer runs, or the first probe has not ended: read again in a few seconds.

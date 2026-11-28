@@ -28,12 +28,12 @@ private struct SeatApprovalAnswered: Decodable { let status: String }
 @MainActor
 final class SeatApprovalsModel: ObservableObject {
     enum Words {
-        static let heading = "承認を待っています"
-        static let badge = "承認待ち"
-        static let seeScreen = "Botの画面を見てください"
-        static let closed = "別の場所で答えられたか、もう承認待ちではありません。"
-        static let failed = "いまは送れませんでした。もう一度押してください。"
-        static let sending = "答えを送っています…"
+        static let heading = String(localized: "承認を待っています")
+        static let badge = String(localized: "承認待ち")
+        static let seeScreen = String(localized: "Botの画面を見てください")
+        static let closed = String(localized: "別の場所で答えられたか、もう承認待ちではありません。")
+        static let failed = String(localized: "いまは送れませんでした。もう一度押してください。")
+        static let sending = String(localized: "答えを送っています…")
     }
 
     @Published private(set) var items: [SeatApproval] = []

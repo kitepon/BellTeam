@@ -78,8 +78,8 @@ private struct UserRulesEditor: View {
         NavigationStack {
             Form {
                 Section {
-                    SettingsSubHeader(symbol: SettingsPage.rules.symbol, tint: SettingsPage.rules.tint, title: "チームの決まり",
-                                      line: "全文を書き換えます。チーム全員が、あなたについて守る指示です。")
+                    SettingsSubHeader(symbol: SettingsPage.rules.symbol, tint: SettingsPage.rules.tint, title: String(localized: "チームの決まり"),
+                                      line: String(localized: "全文を書き換えます。チーム全員が、あなたについて守る指示です。"))
                 }
                 .listRowBackground(Color.clear)
                 Section {
@@ -88,7 +88,7 @@ private struct UserRulesEditor: View {
                         .disabled(saving)
                         .accessibilityIdentifier("rules-text")
                 } header: {
-                    BellSectionHeader("決まりの全文")
+                    BellSectionHeader(String(localized: "決まりの全文"))
                 } footer: {
                     Text("チーム全員が、あなたについて守る指示です。").font(BellTheme.secondaryFont)
                 }
@@ -115,7 +115,7 @@ private struct UserRulesEditor: View {
         } catch let error where BellAPIError.isAuthenticationError(error) {
             store.requireLogin(for: error)
         } catch {
-            errorText = "決まりを保存できませんでした。入力は残っています。プロフィールには影響しません。\(BellAPIError.operationFailureMessage(error))"
+            errorText = String(localized: "決まりを保存できませんでした。入力は残っています。プロフィールには影響しません。\(BellAPIError.operationFailureMessage(error))")
             store.api.diagnostics.report(error, path: "/api/user-rules", method: "PUT", observation: .write)
         }
     }

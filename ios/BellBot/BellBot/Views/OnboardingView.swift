@@ -32,7 +32,7 @@ struct OnboardingView: View {
                                 }.disabled(busy)
                             }
                         } else {
-                            Text(setup.harnesses.first { $0.id == setup.harness }?.name ?? "公式認証")
+                            Text(setup.harnesses.first { $0.id == setup.harness }?.name ?? String(localized: "公式認証"))
                                 .font(.title2.bold())
                             if let install = setup.install, install.isMissing || install.busy {
                                 // a451: the AI is not there yet. The server's sentence and its button come before any login.
@@ -107,10 +107,10 @@ struct OnboardingView: View {
 
     private func authenticationText(_ auth: SetupAuthentication) -> String {
         switch auth.status {
-        case .authenticated: "認証済みです。確認して案内役との会話を始めてください。"
-        case .blocked: "認証に必要な操作を確認してください。"
-        case .failed: "認証に失敗しました。表示された理由を確認してください。"
-        case .waiting: "公式認証の完了を待っています。"
+        case .authenticated: String(localized: "認証済みです。確認して案内役との会話を始めてください。")
+        case .blocked: String(localized: "認証に必要な操作を確認してください。")
+        case .failed: String(localized: "認証に失敗しました。表示された理由を確認してください。")
+        case .waiting: String(localized: "公式認証の完了を待っています。")
         }
     }
 

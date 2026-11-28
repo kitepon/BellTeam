@@ -9,21 +9,21 @@ enum ShareLoader {
         var imageBytes = 0
         for provider in items.flatMap({ $0.attachments ?? [] }) {
             if let type = provider.registeredTypeIdentifiers.compactMap(UTType.init).first(where: { $0.conforms(to: .image) }) {
-                guard content.images.count < ShareLimits.images else { content.refusal = "画像は10枚までです。"; continue }
-                guard let data = try? await Self.data(of: provider, type: type) else { content.refusal = "画像を読み込めませんでした。"; continue }
+                guard content.images.count < ShareLimits.images else { content.refusal = String(localized: "画像は10枚までです。"); continue }
+                guard let data = try? await Self.data(of: provider, type: type) else { content.refusal = String(localized: "画像を読み込めませんでした。"); continue }
                 imageBytes += data.count
-                guard imageBytes <= ShareLimits.imageBytes else { content.refusal = "画像が大きすぎます。BellTeamのアプリから送ってください。"; content.images = []; break }
+                guard imageBytes <= ShareLimits.imageBytes else { content.refusal = String(localized: "画像が大きすぎます。BellTeamのアプリから送ってください。"); content.images = []; break }
                 content.images.append(SharedImage(data: data, mime: type.preferredMIMEType ?? "image/jpeg"))
             } else if provider.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
                 guard let url = try? await provider.loadItem(forTypeIdentifier: UTType.url.identifier) as? URL else { continue }
-                if url.isFileURL { content.refusal = "ファイルの共有は、まだできません。"; continue }
+                if url.isFileURL { content.refusal = String(localized: "ファイルの共有は、まだできません。"); continue }
                 guard ["http", "https"].contains(url.scheme?.lowercased() ?? ""), url.absoluteString.count <= 2000 else { continue }
                 if content.urls.count < ShareLimits.urls, !content.urls.contains(url.absoluteString) { content.urls.append(url.absoluteString) }
             } else if provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
                 guard let text = try? await provider.loadItem(forTypeIdentifier: UTType.plainText.identifier) as? String else { continue }
                 content.text = [content.text, text].filter { !$0.isEmpty }.joined(separator: "\n")
             } else {
-                content.refusal = "この種類の内容は、まだ共有できません。"
+                content.refusal = String(localized: "この種類の内容は、まだ共有できません。")
             }
         }
         if content.text.count > ShareLimits.text { content.text = String(content.text.prefix(ShareLimits.text)) }
@@ -72,11 +72,11 @@ final class ShareModel: ObservableObject {
             try client.validate()
             self.client = client
             content = await ShareLoader.load(items)
-            if content.isEmpty { phase = .notReady(content.refusal ?? "共有できる内容がありません。"); return }
+            if content.isEmpty { phase = .notReady(content.refusal ?? String(localized: "共有できる内容がありません。")); return }
             destinations = try await client.destinations()
             phase = .ready
         } catch {
-            phase = .notReady(error is ShareCredentials.Failure ? "BellTeamのアプリを開いて、ログインし直してください。" : ShareClient.words(error))
+            phase = .notReady(error is ShareCredentials.Failure ? String(localized: "BellTeamのアプリを開いて、ログインし直してください。") : ShareClient.words(error))
         }
     }
 

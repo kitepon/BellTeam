@@ -33,7 +33,7 @@ enum ClaudeAccountsRead: Equatable {
     }
 
     /// The row the home adds when the account list could not be read; it opens the AIの認証 page.
-    static let unreadableEntry = AIAuthEntry(harnessID: "claude", name: "Claudeのアカウント", slot: nil, progress: .unknown)
+    static let unreadableEntry = AIAuthEntry(harnessID: "claude", name: String(localized: "Claudeのアカウント"), slot: nil, progress: .unknown)
 }
 
 struct AIAuthEntry: Equatable {
@@ -91,27 +91,27 @@ enum SettingsSummary {
 
     static func ai(_ entries: [AIAuthEntry]?) -> SettingsStatus {
         guard let entries, !entries.isEmpty else {
-            return SettingsStatus(line: "AIの認証の状態を確認できません", badge: "確認できません", tone: .orange,
+            return SettingsStatus(line: String(localized: "AIの認証の状態を確認できません"), badge: String(localized: "確認できません"), tone: .orange,
                                   needsAttention: true, attentionRoute: .page(.ai))
         }
         let worst = entries.max { severity($0.progress) < severity($1.progress) }!
         let others = entries.filter { $0.progress != .done }.count - (worst.progress == .done ? 0 : 1)
-        let more = others > 0 ? "（ほか\(others)件）" : ""
+        let more = others > 0 ? String(localized: "（ほか\(others)件）") : ""
         let line: String
         switch worst.progress {
-        case .done: line = "すべて認証済み"
-        case .checking: line = "認証の状態を確認しています"
-        case .confirming, .sendingCode: line = "\(worst.name)の認証を確認しています" + more
-        case .waitingSite: line = "\(worst.name)は公式サイトでの認証の途中です" + more
-        case .waitingCode: line = "\(worst.name)は認証コードの入力待ちです" + more
-        case .unknown: line = "\(worst.name)の状態を確認できません" + more
-        case .needsLogin: line = "\(worst.name)のログインが必要です" + more
-        case .failed: line = "\(worst.name)の認証に失敗しました" + more
+        case .done: line = String(localized: "すべて認証済み")
+        case .checking: line = String(localized: "認証の状態を確認しています")
+        case .confirming, .sendingCode: line = String(localized: "\(worst.name)の認証を確認しています\(more)")
+        case .waitingSite: line = String(localized: "\(worst.name)は公式サイトでの認証の途中です\(more)")
+        case .waitingCode: line = String(localized: "\(worst.name)は認証コードの入力待ちです\(more)")
+        case .unknown: line = String(localized: "\(worst.name)の状態を確認できません\(more)")
+        case .needsLogin: line = String(localized: "\(worst.name)のログインが必要です\(more)")
+        case .failed: line = String(localized: "\(worst.name)の認証に失敗しました\(more)")
         case .notInstalled(let install):
             switch install.state {
-            case .installing: line = "\(worst.name)を入れています" + more
-            case .failed: line = "\(worst.name)を入れられませんでした" + more
-            default: line = "\(worst.name)がまだ入っていません" + more
+            case .installing: line = String(localized: "\(worst.name)を入れています\(more)")
+            case .failed: line = String(localized: "\(worst.name)を入れられませんでした\(more)")
+            default: line = String(localized: "\(worst.name)がまだ入っていません\(more)")
             }
         }
         let attention: Bool
@@ -133,12 +133,12 @@ enum SettingsSummary {
         let state = OnePasswordState(setting)
         switch state {
         case .connected:
-            let line = setting.connection.map { "保管庫\($0.vaults.count)件・SSH鍵\($0.sshKeys)件" } ?? "つながっています"
+            let line = setting.connection.map { String(localized: "保管庫\($0.vaults.count)件・SSH鍵\($0.sshKeys)件") } ?? String(localized: "つながっています")
             return SettingsStatus(line: line, badge: state.badgeText, tone: .green)
         case .off:
-            return SettingsStatus(line: "まだ連携していません", badge: state.badgeText, tone: .gray)
+            return SettingsStatus(line: String(localized: "まだ連携していません"), badge: state.badgeText, tone: .gray)
         case .failed:
-            return SettingsStatus(line: setting.error?.message ?? "連携できませんでした", badge: state.badgeText, tone: .orange,
+            return SettingsStatus(line: setting.error?.message ?? String(localized: "連携できませんでした"), badge: state.badgeText, tone: .orange,
                                   needsAttention: true, attentionRoute: .page(.onepassword))
         }
     }
@@ -147,13 +147,13 @@ enum SettingsSummary {
 
     static func notifications(_ state: NotificationState, failed: Bool = false) -> SettingsStatus {
         switch state {
-        case .serverOff: SettingsStatus(line: "サーバーで無効です", badge: "サーバーで無効", tone: .gray)
-        case .osOff: SettingsStatus(line: "端末の通知がオフです", badge: "OSでオフ", tone: .gray)
+        case .serverOff: SettingsStatus(line: String(localized: "サーバーで無効です"), badge: String(localized: "サーバーで無効"), tone: .gray)
+        case .osOff: SettingsStatus(line: String(localized: "端末の通知がオフです"), badge: String(localized: "OSでオフ"), tone: .gray)
         case .unregistered where failed:
-            SettingsStatus(line: "登録できませんでした", badge: "失敗", tone: .orange,
+            SettingsStatus(line: String(localized: "登録できませんでした"), badge: String(localized: "失敗"), tone: .orange,
                            needsAttention: true, attentionRoute: .page(.notifications))
-        case .unregistered: SettingsStatus(line: "この端末に届きません", badge: "未登録", tone: .violet)
-        case .registered: SettingsStatus(line: "この端末に届きます", badge: "届きます", tone: .green)
+        case .unregistered: SettingsStatus(line: String(localized: "この端末に届きません"), badge: String(localized: "未登録"), tone: .violet)
+        case .registered: SettingsStatus(line: String(localized: "この端末に届きます"), badge: String(localized: "届きます"), tone: .green)
         }
     }
 
@@ -173,15 +173,15 @@ enum SettingsSummary {
         switch state {
         case .notLoaded, .unsupported: return SettingsStatus(line: SettingsPage.terminals.detail)
         case .failed:
-            return SettingsStatus(line: "端末の一覧を確認できません", badge: "確認できません", tone: .orange,
+            return SettingsStatus(line: String(localized: "端末の一覧を確認できません"), badge: String(localized: "確認できません"), tone: .orange,
                                   needsAttention: true, attentionRoute: .page(.terminals))
         case .supported(let list):
-            if list.isEmpty { return SettingsStatus(line: "まだ端末がありません", badge: "未設定", tone: .gray) }
+            if list.isEmpty { return SettingsStatus(line: String(localized: "まだ端末がありません"), badge: String(localized: "未設定"), tone: .gray) }
             let missing = list.filter(sshKeyMissing).count
-            let count = "\(list.count)台"
+            let count = String(localized: "\(list.count)台")
             return missing > 0
-                ? SettingsStatus(line: count + "・鍵が未設定の端末が\(missing)台", badge: "未設定", tone: .gray)
-                : SettingsStatus(line: count, badge: "設定済み", tone: .green)
+                ? SettingsStatus(line: String(localized: "\(list.count)台・鍵が未設定の端末が\(missing)台"), badge: String(localized: "未設定"), tone: .gray)
+                : SettingsStatus(line: count, badge: String(localized: "設定済み"), tone: .green)
         }
     }
 
@@ -190,24 +190,24 @@ enum SettingsSummary {
     /// - catalog: the model list (`GET /api/models`) so the line says the model's display name; an id not in it is shown as is.
     static func summaryAgent(_ record: BackgroundAgentRecord?, catalog: [String: HarnessModels] = [:]) -> SettingsStatus {
         guard let record else { return SettingsStatus(line: SettingsPage.summary.detail) }
-        guard let selection = record.selection else { return SettingsStatus(line: "まだ選んでいません", badge: "未設定", tone: .gray) }
+        guard let selection = record.selection else { return SettingsStatus(line: String(localized: "まだ選んでいません"), badge: String(localized: "未設定"), tone: .gray) }
         let name = backgroundAgentHarnesses.first { $0.0 == selection.harness }?.1 ?? selection.harness
         let model = catalog[selection.harness]?.models.first { $0.id == selection.model }?.label ?? selection.model
-        return SettingsStatus(line: [name, model, EffortText.label(selection.reasoningEffort)].joined(separator: " · "), badge: "設定済み", tone: .green)
+        return SettingsStatus(line: [name, model, EffortText.label(selection.reasoningEffort)].joined(separator: " · "), badge: String(localized: "設定済み"), tone: .green)
     }
 
     // MARK: アップデート
 
     static func update(_ status: UpdateContent.Status, title: String) -> SettingsStatus {
         switch status {
-        case .loading, .unconfirmed: SettingsStatus(line: title, badge: "確認中", tone: .violet)
-        case .updating: SettingsStatus(line: title, badge: "更新中", tone: .violet)
-        case .available: SettingsStatus(line: title, badge: "更新あり", tone: .violet, needsAttention: true, attentionRoute: .page(.update))
-        case .completed: SettingsStatus(line: title, badge: "完了", tone: .green)
-        case .upToDate, .waiting: SettingsStatus(line: title, badge: "最新", tone: .green)
-        case .failed: SettingsStatus(line: title, badge: "失敗", tone: .orange, needsAttention: true, attentionRoute: .page(.update))
+        case .loading, .unconfirmed: SettingsStatus(line: title, badge: String(localized: "確認中"), tone: .violet)
+        case .updating: SettingsStatus(line: title, badge: String(localized: "更新中"), tone: .violet)
+        case .available: SettingsStatus(line: title, badge: String(localized: "更新あり"), tone: .violet, needsAttention: true, attentionRoute: .page(.update))
+        case .completed: SettingsStatus(line: title, badge: String(localized: "完了"), tone: .green)
+        case .upToDate, .waiting: SettingsStatus(line: title, badge: String(localized: "最新"), tone: .green)
+        case .failed: SettingsStatus(line: title, badge: String(localized: "失敗"), tone: .orange, needsAttention: true, attentionRoute: .page(.update))
         case .unreachable, .unknown:
-            SettingsStatus(line: title, badge: "確認できません", tone: .orange, needsAttention: true, attentionRoute: .page(.update))
+            SettingsStatus(line: title, badge: String(localized: "確認できません"), tone: .orange, needsAttention: true, attentionRoute: .page(.update))
         }
     }
 
@@ -215,10 +215,10 @@ enum SettingsSummary {
 
     static func stopSentence(_ state: AIControl.State) -> String {
         switch state {
-        case .enabled: "いまは全員が動ける状態です。"
-        case .stopping: "全員へ停止の指示を送っています。"
-        case .stopped: "全員へ停止の指示を送りました。OFFにすると、また依頼を受け付けます。"
-        case .unconfirmed: "止まったか確かめられませんでした。全体停止はONのままです。"
+        case .enabled: String(localized: "いまは全員が動ける状態です。")
+        case .stopping: String(localized: "全員へ停止の指示を送っています。")
+        case .stopped: String(localized: "全員へ停止の指示を送りました。OFFにすると、また依頼を受け付けます。")
+        case .unconfirmed: String(localized: "止まったか確かめられませんでした。全体停止はONのままです。")
         }
     }
 
@@ -226,17 +226,17 @@ enum SettingsSummary {
     static func stop(_ control: AIControl?, unreadable: Bool) -> SettingsStatus {
         guard let control else {
             return unreadable
-                ? SettingsStatus(line: "全体停止の状態を読み込めませんでした", badge: "確認できません", tone: .orange,
+                ? SettingsStatus(line: String(localized: "全体停止の状態を読み込めませんでした"), badge: String(localized: "確認できません"), tone: .orange,
                                  needsAttention: true, attentionRoute: .page(.stop))
                 : SettingsStatus(line: SettingsPage.stop.detail)
         }
         let line = stopSentence(control.state)
         switch control.state {
-        case .enabled: return SettingsStatus(line: line, badge: "動作中", tone: .green)
-        case .stopping: return SettingsStatus(line: line, badge: "確認中", tone: .violet)
-        case .stopped: return SettingsStatus(line: line, badge: "停止中", tone: .orange, needsAttention: true, attentionRoute: .page(.stop))
+        case .enabled: return SettingsStatus(line: line, badge: String(localized: "動作中"), tone: .green)
+        case .stopping: return SettingsStatus(line: line, badge: String(localized: "確認中"), tone: .violet)
+        case .stopped: return SettingsStatus(line: line, badge: String(localized: "停止中"), tone: .orange, needsAttention: true, attentionRoute: .page(.stop))
         case .unconfirmed:
-            return SettingsStatus(line: line, badge: "確認できません", tone: .orange, needsAttention: true, attentionRoute: .page(.stop))
+            return SettingsStatus(line: line, badge: String(localized: "確認できません"), tone: .orange, needsAttention: true, attentionRoute: .page(.stop))
         }
     }
 
@@ -244,9 +244,9 @@ enum SettingsSummary {
 
     static func billing(_ presentation: SubscriptionPresentation) -> SettingsStatus {
         switch presentation {
-        case .checking: return SettingsStatus(line: "購読を確認中", badge: "確認中", tone: .violet)
-        case .active: return SettingsStatus(line: "購読中です", badge: "有効", tone: .green)
-        case .inactive: return SettingsStatus(line: "購読していません", badge: "未設定", tone: .gray)
+        case .checking: return SettingsStatus(line: String(localized: "購読を確認中"), badge: String(localized: "確認中"), tone: .violet)
+        case .active: return SettingsStatus(line: String(localized: "購読中です"), badge: String(localized: "有効"), tone: .green)
+        case .inactive: return SettingsStatus(line: String(localized: "購読していません"), badge: String(localized: "未設定"), tone: .gray)
         }
     }
 
@@ -255,14 +255,14 @@ enum SettingsSummary {
     static func rules(_ text: String?, unreadable: Bool) -> SettingsStatus {
         guard let text else {
             return unreadable
-                ? SettingsStatus(line: "決まりを読み込めませんでした", badge: "確認できません", tone: .orange,
+                ? SettingsStatus(line: String(localized: "決まりを読み込めませんでした"), badge: String(localized: "確認できません"), tone: .orange,
                                  needsAttention: true, attentionRoute: .page(.rules))
                 : SettingsStatus(line: SettingsPage.rules.detail)
         }
         let document = UserRulesDocument.parse(text)
-        if document.isEmpty { return SettingsStatus(line: "まだ決まりがありません", badge: "未設定", tone: .gray) }
-        let line = document.ruleCount > 0 ? "\(document.ruleCount)件の決まり" : "\(document.plainLines.count)行の決まり"
-        return SettingsStatus(line: line, badge: "設定済み", tone: .green)
+        if document.isEmpty { return SettingsStatus(line: String(localized: "まだ決まりがありません"), badge: String(localized: "未設定"), tone: .gray) }
+        let line = document.ruleCount > 0 ? String(localized: "\(document.ruleCount)件の決まり") : String(localized: "\(document.plainLines.count)行の決まり")
+        return SettingsStatus(line: line, badge: String(localized: "設定済み"), tone: .green)
     }
 
     /// The feature list without 1Password (its own item).
@@ -271,15 +271,15 @@ enum SettingsSummary {
         guard !rest.isEmpty else { return SettingsStatus(line: SettingsPage.features.detail) }
         let failed = rest.filter { $0.error != nil }.count
         if failed > 0 {
-            return SettingsStatus(line: "反映できていない機能が\(failed)件あります", badge: "失敗", tone: .orange,
+            return SettingsStatus(line: String(localized: "反映できていない機能が\(failed)件あります"), badge: String(localized: "失敗"), tone: .orange,
                                   needsAttention: true, attentionRoute: .page(.features))
         }
         let enabled = rest.filter { $0.status == "enabled" }.count
         let off = rest.filter { $0.status == "disabled" }.count
         let unset = rest.count - enabled - off
-        let line = [enabled > 0 ? "\(enabled)つ使用中" : nil, unset > 0 ? "\(unset)つ未設定" : nil, off > 0 ? "\(off)つオフ" : nil]
+        let line = [enabled > 0 ? String(localized: "\(enabled)つ使用中") : nil, unset > 0 ? String(localized: "\(unset)つ未設定") : nil, off > 0 ? String(localized: "\(off)つオフ") : nil]
             .compactMap { $0 }.joined(separator: "・")
-        return SettingsStatus(line: line.isEmpty ? "使用中の機能はありません" : line, badge: enabled > 0 ? "設定済み" : "未設定",
+        return SettingsStatus(line: line.isEmpty ? String(localized: "使用中の機能はありません") : line, badge: enabled > 0 ? String(localized: "設定済み") : String(localized: "未設定"),
                               tone: enabled > 0 ? .green : .gray)
     }
 }

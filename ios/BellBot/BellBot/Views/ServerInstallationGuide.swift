@@ -6,7 +6,7 @@ struct ServerInstallationGuide: View {
     @State private var copiedAIRequest = false
 
     private var aiRequest: String {
-        "\(BillingStore.configuration.repositoryUrl.absoluteString)\nこれセットアップしたい"
+        String(localized: "\(BillingStore.configuration.repositoryUrl.absoluteString)\nこれセットアップしたい")
     }
 
     private static let source: String = {

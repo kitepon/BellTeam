@@ -26,7 +26,7 @@ struct FeatureSettingsList: View {
                 .accessibilityIdentifier("feature-row-\(setting.id)")
                 if setting.id != shown.last?.id { Divider().padding(.leading, 52) }
             }
-            if let errorText { SettingsBanner(message: "機能の一覧を読み込めませんでした。", detail: errorText).padding(.top, 8) }
+            if let errorText { SettingsBanner(message: String(localized: "機能の一覧を読み込めませんでした。"), detail: errorText).padding(.top, 8) }
         }
         .padding(20).bellCard()
         #if DEBUG
@@ -95,24 +95,24 @@ extension FeatureSetting {
     /// Client-side look per known feature; an unknown feature gets a generic icon and no summary.
     var look: (symbol: String, tint: Color, summary: String?) {
         switch id {
-        case "routing": ("arrow.triangle.branch", .indigo, "ルームで誰が答えるかをAIが選びます")
-        case "callBridge": ("phone.fill", .green, "メンバーや他のチームのAIと通話でつなぎます")
-        case "cloudflare": ("lock.shield.fill", .orange, "外からWeb画面に入る人をCloudflare Accessで確かめます")
-        case "diagnostics": ("stethoscope", .teal, "アプリの不具合の記録をBugHubへ送ります")
-        case "notifications": ("bell.badge.fill", .red, "メンバーからの連絡をiPhoneとMacへ通知します")
-        case "webPush": ("globe", .blue, "ブラウザーで開いたWeb画面にも通知を出します")
-        case "onePassword": ("key.fill", .blue, "1Passwordの保管庫の鍵をメンバーが使えるようにします")
-        case "thinkingDisplay": ("brain", .purple, "AIが考えている内容を、会話に表示します。")
+        case "routing": ("arrow.triangle.branch", .indigo, String(localized: "ルームで誰が答えるかをAIが選びます"))
+        case "callBridge": ("phone.fill", .green, String(localized: "メンバーや他のチームのAIと通話でつなぎます"))
+        case "cloudflare": ("lock.shield.fill", .orange, String(localized: "外からWeb画面に入る人をCloudflare Accessで確かめます"))
+        case "diagnostics": ("stethoscope", .teal, String(localized: "アプリの不具合の記録をBugHubへ送ります"))
+        case "notifications": ("bell.badge.fill", .red, String(localized: "メンバーからの連絡をiPhoneとMacへ通知します"))
+        case "webPush": ("globe", .blue, String(localized: "ブラウザーで開いたWeb画面にも通知を出します"))
+        case "onePassword": ("key.fill", .blue, String(localized: "1Passwordの保管庫の鍵をメンバーが使えるようにします"))
+        case "thinkingDisplay": ("brain", .purple, String(localized: "AIが考えている内容を、会話に表示します。"))
         default: ("puzzlepiece.extension.fill", .gray, nil)
         }
     }
 
     var badge: (text: String, symbol: String, tone: SettingsTone) {
-        if error != nil { return ("反映エラー", "exclamationmark.triangle.fill", .orange) }
+        if error != nil { return (String(localized: "反映エラー"), "exclamationmark.triangle.fill", .orange) }
         return switch status {
-        case "enabled": ("有効", "checkmark.circle.fill", .green)
-        case "disabled": ("オフ", "pause.circle.fill", .gray)
-        default: ("未設定", "circle.dashed", .gray)
+        case "enabled": (String(localized: "有効"), "checkmark.circle.fill", .green)
+        case "disabled": (String(localized: "オフ"), "pause.circle.fill", .gray)
+        default: (String(localized: "未設定"), "circle.dashed", .gray)
         }
     }
 }
@@ -232,7 +232,7 @@ struct OnePasswordSettingEditor: View {
                         }
                     }
                 }
-                Section(header: BellSectionHeader("サービスアカウントのトークン")) {
+                Section(header: BellSectionHeader(String(localized: "サービスアカウントのトークン"))) {
                     // Inputs are locked while the PATCH is pending (an edit after 保存 is not in the sent request).
                     Toggle("1Passwordと連携する", isOn: $enabled).disabled(saving)
                     if let tokenField {
@@ -323,7 +323,7 @@ struct OnePasswordSettingEditor: View {
         // The badge follows the reloaded item; the result line stays the PATCH response's.
         do { try await store.refreshSettings() }
         catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
-        catch { errorText = "保存しました。表示を更新できませんでした（\(error.localizedDescription)）" }
+        catch { errorText = String(localized: "保存しました。表示を更新できませんでした（\(error.localizedDescription)）") }
     }
 }
 
@@ -371,13 +371,13 @@ struct FeatureSettingEditor: View {
                     Section { Label(failure.message, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange) }
                 }
                 if !fields.isEmpty {
-                Section(header: BellSectionHeader("設定")) {
+                Section(header: BellSectionHeader(String(localized: "設定"))) {
                     ForEach(fields) { field in
                         if field.configured && !changing.contains(field.key) {
                             HStack(spacing: 10) {
                                 Text(field.label)
                                 Spacer(minLength: 8)
-                                BellBadge(text: "登録済み", tone: .green, symbol: "checkmark.circle.fill")
+                                BellBadge(text: String(localized: "登録済み"), tone: .green, symbol: "checkmark.circle.fill")
                                 Button("変更") { changing.insert(field.key) }
                                     .buttonStyle(.bordered).controlSize(.small)
                                     .accessibilityIdentifier("feature-change-\(field.key)")

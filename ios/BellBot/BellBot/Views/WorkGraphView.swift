@@ -28,7 +28,7 @@ struct WorkGraphView: View {
                 BellBackground()
                 switch model.connection {
                 case .unsupported:
-                    notice("このサーバーでは相関図をまだ使えません")
+                    notice(String(localized: "このサーバーでは相関図をまだ使えません"))
                 case .failed(let text):
                     notice(text)
                 default:
@@ -117,7 +117,7 @@ struct WorkGraphView: View {
         store.openConversation(.bot(botId))
         mainWindowError = nil
         MainWindow.bringToFront(open: { openWindow(id: MainWindow.id) }) { error in
-            mainWindowError = "メインの窓を開けませんでした: \(error.localizedDescription)"
+            mainWindowError = String(localized: "メインの窓を開けませんでした: \(error.localizedDescription)")
         }
         #else
         store.openConversation(.bot(botId), returningTo: 4)
@@ -388,11 +388,11 @@ struct WorkGraphView: View {
         if let mainWindowError { pillText(mainWindowError, symbol: "exclamationmark.triangle.fill", tint: .red) }
         #endif
         if model.connection == .reconnecting {
-            pillText("再接続中…", symbol: "arrow.triangle.2.circlepath", tint: BellTheme.muted)
+            pillText(String(localized: "再接続中…"), symbol: "arrow.triangle.2.circlepath", tint: BellTheme.muted)
         } else if model.connection == .unreadable {
-            pillText("相関図の応答を読めませんでした。再接続しています…", symbol: "arrow.triangle.2.circlepath", tint: BellTheme.muted)
+            pillText(String(localized: "相関図の応答を読めませんでした。再接続しています…"), symbol: "arrow.triangle.2.circlepath", tint: BellTheme.muted)
         } else if model.degraded && model.connection == .live {
-            pillText("一部の情報を取得できていません", symbol: "exclamationmark.circle.fill", tint: .orange)
+            pillText(String(localized: "一部の情報を取得できていません"), symbol: "exclamationmark.circle.fill", tint: .orange)
         }
     }
 

@@ -1,0 +1,24 @@
+# Japanese literals that are not UI text (checked by scripts/check-apple-strings.py).
+# 'path' = whole file; 'path::text' = lines containing that text.
+ios/BellBot/BellBot/Core/PreviewFixtures.swift  # DEBUG preview/test fixtures
+ios/BellBot/BellBot/Core/SeatApprovals.swift::approve_once  # DEBUG preview
+ios/BellBot/BellBot/Core/SeatApprovals.swift::sa-preview  # DEBUG preview
+ios/BellBot/BellBot/Core/SeatApprovals.swift::Claude Codeが承認  # DEBUG preview
+ios/BellBot/BellBot/Core/Approvals.swift::context: "背景"  # DEBUG preview
+ios/BellBot/BellBot/Core/Approvals.swift::sessionLabel: "Macのレシート整理"  # DEBUG preview
+ios/BellBot/BellBot/Core/Approvals.swift::請求の自動更新  # DEBUG preview
+ios/BellBot/BellBot/Core/SettingsStatus.swift::separator: "・"  # punctuation joiner
+ios/BellBot/BellBot/Core/AppStore.swift::owner = Owner(name: "クオ"  # settings-preview fixture
+ios/BellBot/BellBot/Core/AppStore.swift::"id":"notifications"  # preview JSON
+ios/BellBot/BellBot/Core/AppStore.swift::"id":"calendar"  # preview JSON
+ios/BellBot/BellBot/Core/AppStore.swift::通知アバターの保存に失敗  # log
+ios/BellBot/BellBot/Core/AppStore.swift::画面状態=  # log
+ios/BellBot/BellBot/Core/BackgroundMessageSend.swift::withName:  # system task label
+ios/BellBot/BellBot/App/BellBotApp.swift::case graph = "相関図"  # stored SceneStorage key, label via title
+ios/BellBot/BellBot/Views/ConversationView.swift::preview-room-  # DEBUG preview
+ios/BellBot/BellBot/Views/ConversationView.swift::separator: "・"  # punctuation joiner
+ios/BellBot/BellBot/Views/LatticeChartView.swift::case depth =  # stored key, label via title
+ios/BellBot/BellBot/Views/LatticeListView.swift::case all = "すべて"  # stored key, label via title
+ios/BellBot/BellBot/Views/LatticeTreeView.swift::case tree = "ツリー"  # stored key, label via title
+ios/BellBot/BellBot/Views/ManagementView.swift::name = "ハル"  # preview-only default
+ios/BellBot/BellBot/Views/TerminalsView.swift::このMacのログインパスワード  # DEBUG preview JSON

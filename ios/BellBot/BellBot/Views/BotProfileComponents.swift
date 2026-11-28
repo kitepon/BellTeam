@@ -33,7 +33,7 @@ final class BotProfileImageState: ObservableObject {
             return true
         }
         refreshFailedVariants.insert(variant)
-        imageSaveErrors[variant] = "画像を保存しましたが、表示を更新できませんでした。\n\(error.localizedDescription)"
+        imageSaveErrors[variant] = String(localized: "画像を保存しましたが、表示を更新できませんでした。\n\(error.localizedDescription)")
         return false
     }
 
@@ -41,7 +41,7 @@ final class BotProfileImageState: ObservableObject {
     func avatarVersionChanged(_ variant: AvatarCropVariant) {
         guard refreshFailedVariants.remove(variant) != nil else { return }
         imageSaveErrors[variant] = nil
-        imageSaveMessage = "画像を保存しました。"
+        imageSaveMessage = String(localized: "画像を保存しました。")
     }
 
     func loadDrafts(for bot: Bot, store: AppStore) {
@@ -67,7 +67,7 @@ final class BotProfileImageState: ObservableObject {
         persistImageSelections(for: bot, store: store)
         refreshFailedVariants.remove(variant)
         imageSaveErrors[variant] = nil
-        imageSaveMessage = "選択を破棄しました。"
+        imageSaveMessage = String(localized: "選択を破棄しました。")
     }
 
     func saveImage(_ selection: AvatarCropSelection, current: BotSettings,
@@ -91,19 +91,19 @@ final class BotProfileImageState: ObservableObject {
                 imageSaveErrors[variant] = nil
                 do {
                     try await store.refresh(origin: .avatarSave)
-                    imageSaveMessage = "画像を保存しました。"
+                    imageSaveMessage = String(localized: "画像を保存しました。")
                 } catch {
                     _ = noteRefreshFailure(error, variant: variant, versionBeforeSave: versionBeforeSave,
-                                           current: store.bots.first { $0.id == bot.id }, success: "画像を保存しました。")
+                                           current: store.bots.first { $0.id == bot.id }, success: String(localized: "画像を保存しました。"))
                 }
             case .different:
-                imageSaveErrors[variant] = "サーバーの画像は選んだ内容と一致しません。選択は保持しています。"
+                imageSaveErrors[variant] = String(localized: "サーバーの画像は選んだ内容と一致しません。選択は保持しています。")
             case .unconfirmed(let error):
-                imageSaveErrors[variant] = "保存結果を確認できませんでした。選択は保持しています。\n\(error.localizedDescription)"
+                imageSaveErrors[variant] = String(localized: "保存結果を確認できませんでした。選択は保持しています。\n\(error.localizedDescription)")
             }
         } catch let error where BellAPIError.isAuthenticationError(error) {
             guard pendingSelections.selection(for: variant) == selection else { return }
-            imageSaveErrors[variant] = "認証が必要です。選択は保持しています。"
+            imageSaveErrors[variant] = String(localized: "認証が必要です。選択は保持しています。")
             store.requireLogin(for: error)
         }
         catch {
@@ -133,24 +133,24 @@ final class BotProfileImageState: ObservableObject {
                 catch {
                     if noteRefreshFailure(error, variant: variant, versionBeforeSave: versionBeforeSave,
                                           current: store.bots.first { $0.id == bot.id },
-                                          success: "画像の保存を確認しました。") { imageAction = nil }
+                                          success: String(localized: "画像の保存を確認しました。")) { imageAction = nil }
                     return
                 }
-                imageSaveMessage = "画像の保存を確認しました。"
+                imageSaveMessage = String(localized: "画像の保存を確認しました。")
                 imageAction = nil
             case .different:
-                imageSaveErrors[variant] = "サーバーの画像は選んだ内容と一致しません。選択は保持しています。"
+                imageSaveErrors[variant] = String(localized: "サーバーの画像は選んだ内容と一致しません。選択は保持しています。")
             case .unconfirmed(let error):
-                imageSaveErrors[variant] = "保存結果を確認できませんでした。選択は保持しています。\n\(error.localizedDescription)"
+                imageSaveErrors[variant] = String(localized: "保存結果を確認できませんでした。選択は保持しています。\n\(error.localizedDescription)")
             }
         } catch let error where BellAPIError.isAuthenticationError(error) {
             guard pendingSelections.selection(for: variant) == selection else { return }
-            imageSaveErrors[variant] = "認証が必要です。選択は保持しています。"
+            imageSaveErrors[variant] = String(localized: "認証が必要です。選択は保持しています。")
             store.requireLogin(for: error)
         }
         catch {
             guard pendingSelections.selection(for: variant) == selection else { return }
-            imageSaveErrors[variant] = "保存結果を確認できませんでした。選択は保持しています。\n\(error.localizedDescription)"
+            imageSaveErrors[variant] = String(localized: "保存結果を確認できませんでした。選択は保持しています。\n\(error.localizedDescription)")
         }
     }
 }
@@ -248,15 +248,15 @@ struct BotProfileHero: View {
             if let imageSaveMessage = images.imageSaveMessage { Text(imageSaveMessage).font(.footnote).foregroundStyle(BellTheme.mint) }
             ForEach([AvatarCropVariant.small, .large], id: \.self) { variant in
                 if let error = images.imageSaveErrors[variant] {
-                    Text("\(variant == .small ? "小画像" : "大画像")：\(error)")
+                    Text("\(variant == .small ? String(localized: "小画像") : String(localized: "大画像"))：\(error)")
                         .font(.footnote).foregroundStyle(.red)
                 }
                 if images.pendingSelections.selection(for: variant) != nil {
                     HStack {
-                        Button("\(variant == .small ? "小画像" : "大画像")の保存結果を確認") {
+                        Button("\(variant == .small ? String(localized: "小画像") : String(localized: "大画像"))の保存結果を確認") {
                             Task { await images.confirmImageSave(variant, bot: bot, store: store) }
                         }
-                        Button("\(variant == .small ? "小画像" : "大画像")の選択を破棄", role: .destructive) {
+                        Button("\(variant == .small ? String(localized: "小画像") : String(localized: "大画像"))の選択を破棄", role: .destructive) {
                             images.discardImageSelection(variant, bot: bot, store: store)
                         }
                     }
@@ -270,7 +270,7 @@ struct BotProfileHero: View {
             if !bot.position.isEmpty {
                 Text(bot.position).font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
             }
-            BellBadge(text: bot.online ? "オンライン" : "オフライン", tone: bot.online ? .green : .gray, symbol: "circle.fill")
+            BellBadge(text: bot.online ? String(localized: "オンライン") : String(localized: "オフライン"), tone: bot.online ? .green : .gray, symbol: "circle.fill")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .task(id: bot.id) { images.loadDrafts(for: bot, store: store) }
@@ -337,7 +337,7 @@ private struct BotProfileAvatarActions: View {
                             .multilineTextAlignment(.center)
                         AvatarImagePicker(onSelect: { image in
                             cropSource = AvatarCropSource(image: image, variant: variant)
-                        }, onFailure: { errorText = "画像を読み込めませんでした。" },
+                        }, onFailure: { errorText = String(localized: "画像を読み込めませんでした。") },
                         inactive: isBusy,
                         prepare: { await loadSettings() }) {
                             Text("画像変更").frame(maxWidth: .infinity)
@@ -450,7 +450,7 @@ private struct BotProfileAvatarActions: View {
             guard !isBusy, lifetime.accepts(generation) else { return false }
             guard response.bot.avatarLarge != nil && response.bot.avatarSource != nil
                     && response.bot.avatarLargeSource != nil else {
-                errorText = "画像の独立編集はサーバー更新後に利用できます。"
+                errorText = String(localized: "画像の独立編集はサーバー更新後に利用できます。")
                 unsupportedSchema = true
                 return false
             }
@@ -466,7 +466,7 @@ private struct BotProfileAvatarActions: View {
         }
         catch {
             guard !isBusy, !Task.isCancelled, lifetime.accepts(generation) else { return false }
-            errorText = "画像情報を読み込めませんでした。\n\(error.localizedDescription)"
+            errorText = String(localized: "画像情報を読み込めませんでした。\n\(error.localizedDescription)")
             store.api.diagnostics.report(error, path: path, method: "GET",
                                          observation: .read(error, retainedData: false))
             return false
@@ -476,7 +476,7 @@ private struct BotProfileAvatarActions: View {
     private func adjust(_ settings: BotSettings) {
         if let pendingSelection {
             guard let image = AvatarPortraitCache.image(for: pendingSelection.source) else {
-                errorText = "保持中の画像を読み込めませんでした。"
+                errorText = String(localized: "保持中の画像を読み込めませんでした。")
                 return
             }
             cropSource = AvatarCropSource(image: image, variant: variant, initialCrop: pendingSelection.crop)
@@ -484,7 +484,7 @@ private struct BotProfileAvatarActions: View {
         }
         let current = adjustmentImage(settings)
         guard let image = AvatarPortraitCache.image(for: current.source.isEmpty ? current.render : current.source) else {
-            errorText = "画像を読み込めませんでした。"
+            errorText = String(localized: "画像を読み込めませんでした。")
             return
         }
         cropSource = AvatarCropSource(image: image, variant: variant,
@@ -517,10 +517,10 @@ struct BotProfileAISection: View {
     }
     private var summary: String {
         switch (bot.model.isEmpty, bot.reasoningEffort.isEmpty) {
-        case (true, true): "モデルとエフォートはCLIの既定で動きます"
-        case (true, false): "モデルはCLIの既定で動きます"
-        case (false, true): "エフォートはCLIの既定で動きます"
-        case (false, false): "選んだモデルとエフォートで動きます"
+        case (true, true): String(localized: "モデルとエフォートはCLIの既定で動きます")
+        case (true, false): String(localized: "モデルはCLIの既定で動きます")
+        case (false, true): String(localized: "エフォートはCLIの既定で動きます")
+        case (false, false): String(localized: "選んだモデルとエフォートで動きます")
         }
     }
     let errorText: String?
@@ -551,13 +551,13 @@ struct BotProfileAISection: View {
             // The saved preferences as badges; the CLI's own default is said once in the summary, not as a badge.
             FlowBadges {
                 if !bot.model.isEmpty { BellBadge(text: bot.model, tone: .violet, symbol: "cpu") }
-                if !bot.reasoningEffort.isEmpty { BellBadge(text: "エフォート \(EffortText.label(bot.reasoningEffort))", tone: .gray, symbol: "gauge.with.dots.needle.67percent") }
+                if !bot.reasoningEffort.isEmpty { BellBadge(text: String(localized: "エフォート \(EffortText.label(bot.reasoningEffort))"), tone: .gray, symbol: "gauge.with.dots.needle.67percent") }
                 // 旧本体はaccountを返さない。その時は出さない。
                 if let account = bot.account {
                     BellBadge(text: AccountText.slotName(account.slot), tone: .green, symbol: "person.crop.circle")
                         .accessibilityIdentifier("bot-account-slot")
                 }
-                if bot.fastMode { BellBadge(text: "ファスト", tone: .orange, symbol: "bolt.fill") }
+                if bot.fastMode { BellBadge(text: String(localized: "ファスト"), tone: .orange, symbol: "bolt.fill") }
             }
             Button(action: onScreen) {
                 Label("Botの画面を見る", systemImage: "terminal").frame(maxWidth: .infinity)
@@ -574,7 +574,7 @@ struct BotProfileAISection: View {
                 Task {
                     restarting = true
                     note = nil
-                    if await onRestart() { note = "会話を再起動しました。" }
+                    if await onRestart() { note = String(localized: "会話を再起動しました。") }
                     restarting = false
                 }
             }
@@ -604,13 +604,13 @@ struct BotProfileDetails: View {
     }
 
     /// One section as a card with its own icon; long text folds after a few lines (詳しく opens it).
-    private func detail(_ title: String, symbol: String, tint: Color, value: String) -> some View {
+    private func detail(_ title: LocalizedStringKey, symbol: String, tint: Color, value: String) -> some View {
         ProfileDetailCard(title: title, symbol: symbol, tint: tint, value: value)
     }
 }
 
 private struct ProfileDetailCard: View {
-    let title: String
+    let title: LocalizedStringKey
     let symbol: String
     let tint: Color
     let value: String

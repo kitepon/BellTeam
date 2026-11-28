@@ -81,9 +81,9 @@ final class LocalAccount: ObservableObject {
     }
 
     /// BellTeam's own guidance (Owner, contract 1.50 11.12; the same words on every client): before the Apple / Google buttons, and beside the QR.
-    static let qrLead = "この端末にQRを出します。2台は同じネットワーク（同じLAN）につないでください。"
-    static let signInGuidance = "すでにほかの端末で使っている方は、同じアカウントでサインインしてから、次に出るQRコードを使用中の端末のカメラで読んでください。"
-    static let qrGuidance = "親となる端末（課金操作をするカメラのあるスマートフォンがお勧め）のカメラでQRコードを読んでください。"
+    static let qrLead = String(localized: "この端末にQRを出します。2台は同じネットワーク（同じLAN）につないでください。")
+    static let signInGuidance = String(localized: "すでにほかの端末で使っている方は、同じアカウントでサインインしてから、次に出るQRコードを使用中の端末のカメラで読んでください。")
+    static let qrGuidance = String(localized: "親となる端末（課金操作をするカメラのあるスマートフォンがお勧め）のカメラでQRコードを読んでください。")
 
     var offersGoogle: Bool { rules.googleClientId != nil }
     var hasLiveContract: Bool { paid != nil }
@@ -141,9 +141,9 @@ final class LocalAccount: ObservableObject {
     func purchase() async {
         await run {
             switch try await self.form.purchaseLocal(self.productId) {
-            case .purchased: UserDefaults.standard.removeObject(forKey: Self.signedOutKey); self.message = "購読が有効になりました。"
+            case .purchased: UserDefaults.standard.removeObject(forKey: Self.signedOutKey); self.message = String(localized: "購読が有効になりました。")
             case .cancelled: break
-            case .pending: self.message = "Appleで購入の承認を待っています。"
+            case .pending: self.message = String(localized: "Appleで購入の承認を待っています。")
             }
         }
     }
@@ -154,7 +154,7 @@ final class LocalAccount: ObservableObject {
             try await StoreKit.AppStore.sync()
             UserDefaults.standard.removeObject(forKey: Self.signedOutKey)
             await self.start()
-            self.message = self.hasLiveContract ? "購読を確認しました。" : "このApple Accountに有効な購読はありません。"
+            self.message = self.hasLiveContract ? String(localized: "購読を確認しました。") : String(localized: "このApple Accountに有効な購読はありません。")
         }
     }
 
@@ -171,7 +171,7 @@ final class LocalAccount: ObservableObject {
             busy = false
             let reply = try await made.awaitPaid()
             if reply != nil { UserDefaults.standard.removeObject(forKey: Self.signedOutKey) }
-            message = reply == nil ? "その端末には購読がありません。購読している端末で読み取ってください。" : "購読を確認しました。"
+            message = reply == nil ? String(localized: "その端末には購読がありません。購読している端末で読み取ってください。") : String(localized: "購読を確認しました。")
         } catch { errorText = Self.words(error) }
         open = nil
         request = nil
@@ -188,8 +188,8 @@ final class LocalAccount: ObservableObject {
         guard isLibraryQR(text) else { return }
         switch await JoinLinks.route(text, takers: [{ _ = try await self.form.take($0) }, child]) {
         case .taken: await start()
-        case .refused(let error): outcome = Outcome(text: Self.words(error), isError: true, code: (error as? LoginBillingError)?.code, title: "つなげませんでした")
-        case .gone: outcome = Outcome(text: Self.words(LoginBillingError(code: "request_gone")), isError: true, code: "request_gone", title: "つなげませんでした")
+        case .refused(let error): outcome = Outcome(text: Self.words(error), isError: true, code: (error as? LoginBillingError)?.code, title: String(localized: "つなげませんでした"))
+        case .gone: outcome = Outcome(text: Self.words(LoginBillingError(code: "request_gone")), isError: true, code: "request_gone", title: String(localized: "つなげませんでした"))
         case .other: await approve(text)
         }
     }
@@ -203,8 +203,8 @@ final class LocalAccount: ObservableObject {
             switch try await Self.answerWithSignIn(ask: { [weak self] in await self?.ask() ?? false },
                                                    answer: { confirm in try await self.form.answer(qr: qr, confirm: confirm) },
                                                    signIn: { try await self.form.signInLocal("apple") }) {
-            case .sent: self.message = "確認の返事を送りました。"
-            case .noPurchase: self.errorText = "この端末には購読がありません。先に購読してください。"
+            case .sent: self.message = String(localized: "確認の返事を送りました。")
+            case .noPurchase: self.errorText = String(localized: "この端末には購読がありません。先に購読してください。")
             case .declined: break
             case .returnLink(let link, let cause): self.returnLink = Return(link: link, words: cause.flatMap(LocalWords.ja))
             }
@@ -284,21 +284,21 @@ final class LocalAccount: ObservableObject {
         // 1.61: the local-network causes carry the library's own sentence.
         if let text = LocalWords.ja(code) { return text }
         switch code {
-        case "qr_invalid": return "QRが正しくありません。相手の画面で新しいQRを出してください。"
+        case "qr_invalid": return String(localized: "QRが正しくありません。相手の画面で新しいQRを出してください。")
         // 0.21.1: two devices on different versions end here, so the text sends the person to update both devices (Mint; the sentence is Neon's shared Core text, Tronie 2026-11-24).
-        case "request_invalid", "other_request": return "QRが正しくないか、相手の端末のBellTeamが古い可能性があります。2台とも最新版に更新してから、相手の画面で新しいQRを出してください。"
-        case "other_account": return "別のアカウントです。相手の端末と同じアカウントでサインインしてください。"
-        case "request_expired", "request_gone": return "QRの待ち時間（10分）が過ぎました。新しいQRを出してください。"
-        case "device_refused": return "相手が返事を受け取りませんでした。相手の画面で新しいQRを出してください。"
-        case "connection_closed": return "相手との接続が途中で切れました。新しいQRでもう一度お試しください。"
-        case "signin_required": return "サインインしてから、もう一度お試しください。"
-        case "signin_failed": return "サインインできませんでした。もう一度お試しください。"
-        case "ended": return "購読の期間が終わっています。新しいQRを出してください。"
-        case "not_paid", "revoked", "proof_invalid", "not_this_app", "product_unknown", "sandbox_refused": return "購入を確かめられませんでした（\(code)）。"
-        case "purchase_failed", "purchase_unverified": return "購入を完了できませんでした。もう一度お試しください。"
-        case "bad_request", "provider_unsupported": return "この端末ではそのアカウントでサインインできません。"
-        case "network": return "つながりません。ネットワークを確かめて、もう一度お試しください。"
-        default: return "処理できませんでした（\(code)）。"
+        case "request_invalid", "other_request": return String(localized: "QRが正しくないか、相手の端末のBellTeamが古い可能性があります。2台とも最新版に更新してから、相手の画面で新しいQRを出してください。")
+        case "other_account": return String(localized: "別のアカウントです。相手の端末と同じアカウントでサインインしてください。")
+        case "request_expired", "request_gone": return String(localized: "QRの待ち時間（10分）が過ぎました。新しいQRを出してください。")
+        case "device_refused": return String(localized: "相手が返事を受け取りませんでした。相手の画面で新しいQRを出してください。")
+        case "connection_closed": return String(localized: "相手との接続が途中で切れました。新しいQRでもう一度お試しください。")
+        case "signin_required": return String(localized: "サインインしてから、もう一度お試しください。")
+        case "signin_failed": return String(localized: "サインインできませんでした。もう一度お試しください。")
+        case "ended": return String(localized: "購読の期間が終わっています。新しいQRを出してください。")
+        case "not_paid", "revoked", "proof_invalid", "not_this_app", "product_unknown", "sandbox_refused": return String(localized: "購入を確かめられませんでした（\(code)）。")
+        case "purchase_failed", "purchase_unverified": return String(localized: "購入を完了できませんでした。もう一度お試しください。")
+        case "bad_request", "provider_unsupported": return String(localized: "この端末ではそのアカウントでサインインできません。")
+        case "network": return String(localized: "つながりません。ネットワークを確かめて、もう一度お試しください。")
+        default: return String(localized: "処理できませんでした（\(code)）。")
         }
     }
 }

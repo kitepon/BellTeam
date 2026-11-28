@@ -26,13 +26,13 @@ struct MessageText: View, Equatable {
     private var quoteActions: [MarkdownSelectionMenuAction] {
         var actions: [MarkdownSelectionMenuAction] = []
         if let onReply {
-            actions.append(MarkdownSelectionMenuAction(title: "返信", systemImageName: "arrowshape.turn.up.left") { _ in onReply() })
+            actions.append(MarkdownSelectionMenuAction(title: String(localized: "返信"), systemImageName: "arrowshape.turn.up.left") { _ in onReply() })
         }
         if let onForward {
-            actions.append(MarkdownSelectionMenuAction(title: "転送", systemImageName: "arrowshape.turn.up.right") { _ in onForward() })
+            actions.append(MarkdownSelectionMenuAction(title: String(localized: "転送"), systemImageName: "arrowshape.turn.up.right") { _ in onForward() })
         }
         if let onQuote {
-            actions.append(MarkdownSelectionMenuAction(title: "引用して返信", systemImageName: "text.quote") { selected in
+            actions.append(MarkdownSelectionMenuAction(title: String(localized: "引用して返信"), systemImageName: "text.quote") { selected in
                 if !selected.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { onQuote(selected) }
             })
         }
@@ -67,7 +67,7 @@ struct MessageText: View, Equatable {
             .markdownTheme(Self.theme(fontSize: fontSize, lineSpacing: lineSpacing))
             .markdownSelectable(true)
             .markdownSelectionColor(BellTheme.violet)
-            .markdownSelectionMenu(.init(copyAsMarkdownLabel: "Markdownとしてコピー", customActions: quoteActions))
+            .markdownSelectionMenu(.init(copyAsMarkdownLabel: String(localized: "Markdownとしてコピー"), customActions: quoteActions))
             .markdownHighlight(highlight)
             .markdownTaskListItemToggleEnabled(false)
             .onLinkPress { openURL($0) }

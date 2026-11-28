@@ -14,12 +14,12 @@ struct HarnessModels: Decodable {
         let selectedModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
         if selectedModel.isEmpty {
             guard let defaultModel, let choice = models.first(where: { $0.id == defaultModel }) else {
-                return "既定モデルの対応を確認できません。"
+                return String(localized: "既定モデルの対応を確認できません。")
             }
-            return choice.fast ? nil : "このモデルはファストモードに対応していません。"
+            return choice.fast ? nil : String(localized: "このモデルはファストモードに対応していません。")
         }
         if let choice = models.first(where: { $0.id == selectedModel }), !choice.fast {
-            return "このモデルはファストモードに対応していません。"
+            return String(localized: "このモデルはファストモードに対応していません。")
         }
         // 一覧に無いIDはサーバーとAitermが可否を判定する。
         return nil
@@ -122,13 +122,13 @@ struct BotEditor: View {
         return catalog[harness]?.efforts ?? []
     }
     private var fastModeUnavailableReason: String? {
-        if loadingModels { return "モデル候補を読み込んでいます。" }
+        if loadingModels { return String(localized: "モデル候補を読み込んでいます。") }
         guard let selected = catalog[harness] else {
-            return modelErrorText ?? "モデル候補を読み込めませんでした。"
+            return modelErrorText ?? String(localized: "モデル候補を読み込めませんでした。")
         }
         let selectedModel = model == "__custom__" ? customModel : model
         if model == "__custom__" && selectedModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return "モデルIDを入力してください。"
+            return String(localized: "モデルIDを入力してください。")
         }
         return selected.fastModeUnavailableReason(model: selectedModel)
     }
@@ -160,12 +160,12 @@ struct BotEditor: View {
                         .padding(.vertical, 4)
                     }
                 }
-                Section(header: BellSectionHeader("メンバー")) {
+                Section(header: BellSectionHeader(String(localized: "メンバー"))) {
                     if initial == nil {
                         HStack {
                             Spacer()
                             AvatarImagePicker(onSelect: { cropSource = AvatarCropSource(image: $0, variant: .small) },
-                                              onFailure: { errorText = "画像を読み込めませんでした。" }) {
+                                              onFailure: { errorText = String(localized: "画像を読み込めませんでした。") }) {
                                 VStack(spacing: 8) {
                                     AvatarView(name: name.isEmpty ? "B" : name, avatar: avatar,
                                                color: BellTheme.accent(color), size: 80)
@@ -176,8 +176,8 @@ struct BotEditor: View {
                             Spacer()
                         }
                     }
-                    LabeledField(label: "名前") { TextField("名前", text: $name, prompt: Text("呼び名")) }
-                    LabeledField(label: "役職") { TextField("役職", text: $position, prompt: Text("例：BellTeam Appleアプリ")) }
+                    LabeledField(label: String(localized: "名前")) { TextField("名前", text: $name, prompt: Text("呼び名")) }
+                    LabeledField(label: String(localized: "役職")) { TextField("役職", text: $position, prompt: Text("例：BellTeam Appleアプリ")) }
                     Picker("テーマ色", selection: $color) {
                         Text("紫").tag("violet")
                         Text("ローズ").tag("rose")
@@ -186,7 +186,7 @@ struct BotEditor: View {
                 }
                 .disabled(deletionPending || deletionResultUnconfirmed)
                 if initial == nil {
-                    Section(header: BellSectionHeader("画像")) {
+                    Section(header: BellSectionHeader(String(localized: "画像"))) {
                         if appearanceLoaded && !appearanceSchemaAvailable {
                             Text("画像の独立編集はサーバー更新後に利用できます。")
                                 .font(BellTheme.secondaryFont).foregroundStyle(.secondary)
@@ -198,7 +198,7 @@ struct BotEditor: View {
                                 .font(BellTheme.secondaryFont).foregroundStyle(.secondary)
                         }
                         AvatarImagePicker(onSelect: { cropSource = AvatarCropSource(image: $0, variant: .large) },
-                                          onFailure: { errorText = "画像を読み込めませんでした。" }) {
+                                          onFailure: { errorText = String(localized: "画像を読み込めませんでした。") }) {
                             VStack(alignment: .leading, spacing: 8) {
                                 if let image = AvatarPortraitCache.image(for: largeAvatarPreview) {
                                     Image(uiImage: image).resizable().scaledToFill()
@@ -311,11 +311,11 @@ struct BotEditor: View {
                 MemberTerminalSection(terminalId: $terminalId, projectRoot: $projectRoot, showingPicker: $showingFolderPicker,
                                       memberFieldsAvailable: memberFieldsAvailable, memberName: name)
                     .disabled(deletionPending || deletionResultUnconfirmed)
-                Section(header: BellSectionHeader("プロフィール")) {
-                    profileField("背景・見た目・関係性", text: $profileText)
-                    profileField("性格・考え方", text: $personality)
-                    profileField("口調", text: $speechStyle)
-                    profileField("担当する仕事", text: $role)
+                Section(header: BellSectionHeader(String(localized: "プロフィール"))) {
+                    profileField(String(localized: "背景・見た目・関係性"), text: $profileText)
+                    profileField(String(localized: "性格・考え方"), text: $personality)
+                    profileField(String(localized: "口調"), text: $speechStyle)
+                    profileField(String(localized: "担当する仕事"), text: $role)
                 }
                 .disabled(deletionPending || deletionResultUnconfirmed)
                 if initial != nil {
@@ -496,7 +496,7 @@ struct BotEditor: View {
         let source = variant == .small ? avatarSource ?? "" : avatarLargeSource ?? ""
         let crop = variant == .small ? avatarCrop : avatarLargeCrop
         guard let image = AvatarPortraitCache.image(for: source.isEmpty ? render : source) else {
-            errorText = "画像を読み込めませんでした。"
+            errorText = String(localized: "画像を読み込めませんでした。")
             return
         }
         cropSource = AvatarCropSource(image: image, variant: variant,
@@ -513,7 +513,7 @@ struct BotEditor: View {
     private func save(createFolder: Bool = false) async {
         guard !deletionPending && !deletionResultUnconfirmed else { return }
         guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            errorText = "名前を入力してください。"; return
+            errorText = String(localized: "名前を入力してください。"); return
         }
         let terminalOS = store.terminals.terminal(terminalId)?.os ?? TerminalOS.macos.rawValue
         if bindingAvailable, let problem = MemberBinding.problem(terminalId: terminalId, projectRoot: projectRoot, os: terminalOS) {
@@ -581,11 +581,11 @@ struct BotEditor: View {
         errorText = nil
         do {
             if try await store.confirmBotDeletion(initial.id) == false {
-                errorText = "メンバーはまだ一覧にあります。削除完了は確認できません。"
+                errorText = String(localized: "メンバーはまだ一覧にあります。削除完了は確認できません。")
             }
         } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
         catch {
-            errorText = "削除結果を確認できませんでした。\n\(error.localizedDescription)"
+            errorText = String(localized: "削除結果を確認できませんでした。\n\(error.localizedDescription)")
             store.api.diagnostics.report(error, path: "/api/bots", method: "GET", observation: .read(error, retainedData: true))
         }
     }
@@ -718,11 +718,11 @@ struct RoomEditor: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section(header: BellSectionHeader("ルーム")) {
+                Section(header: BellSectionHeader(String(localized: "ルーム"))) {
                     HStack {
                         Spacer()
                         AvatarImagePicker(onSelect: { cropSource = AvatarCropSource(image: $0) },
-                                          onFailure: { errorText = "画像を読み込めませんでした。" }) {
+                                          onFailure: { errorText = String(localized: "画像を読み込めませんでした。") }) {
                             VStack(spacing: 8) {
                                 AvatarView(name: name.isEmpty ? "R" : name, avatar: avatar,
                                            color: BellTheme.violet, size: 80, isRoom: true)
@@ -731,8 +731,8 @@ struct RoomEditor: View {
                         }
                         Spacer()
                     }
-                    LabeledField(label: "ルーム名") { TextField("ルーム名", text: $name, prompt: Text("例：インフラ整備")) }
-                    LabeledField(label: "この部屋で共有する仕事") {
+                    LabeledField(label: String(localized: "ルーム名")) { TextField("ルーム名", text: $name, prompt: Text("例：インフラ整備")) }
+                    LabeledField(label: String(localized: "この部屋で共有する仕事")) {
                         TextField("この部屋で共有する仕事", text: $purpose, prompt: Text("この部屋で話し合うこと・進める仕事"), axis: .vertical)
                             .lineLimit(3...7)
                     }
@@ -746,7 +746,7 @@ struct RoomEditor: View {
                         RoomMemberRow(bot: bot, selected: true) { toggle(bot.id) }
                     }
                 } header: {
-                    BellSectionHeader("参加メンバー（\(members.count)人）")
+                    BellSectionHeader(String(localized: "参加メンバー（\(members.count)人）"))
                 }
                 Section {
                     HStack(spacing: 8) {
@@ -766,9 +766,9 @@ struct RoomEditor: View {
                         }
                     }
                 } header: {
-                    BellSectionHeader("メンバーを追加")
+                    BellSectionHeader(String(localized: "メンバーを追加"))
                 }
-                Section(header: BellSectionHeader("代表")) {
+                Section(header: BellSectionHeader(String(localized: "代表"))) {
                     Picker("代表Bot", selection: $representative) {
                         Text("代表なし").tag("")
                         ForEach(store.bots.filter { members.contains($0.id) }) { bot in
@@ -833,7 +833,7 @@ struct RoomEditor: View {
 
     private func save() async {
         guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            errorText = "ルーム名を入力してください。"; return
+            errorText = String(localized: "ルーム名を入力してください。"); return
         }
         saving = true
         defer { saving = false }
@@ -850,11 +850,11 @@ struct RoomEditor: View {
             dismiss()
         } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
         catch BellAPIError.invalidResponse {
-            errorText = "保存結果を確認できませんでした。やり直す前にルーム一覧を確認してください。\nBellTeamからの応答を読み取れませんでした。"
+            errorText = String(localized: "保存結果を確認できませんでした。やり直す前にルーム一覧を確認してください。\nBellTeamからの応答を読み取れませんでした。")
             store.api.diagnostics.report(BellAPIError.invalidResponse, path: "/api/rooms", method: initial == nil ? "POST" : "PATCH", observation: .write)
         }
         catch let error as URLError {
-            errorText = "接続が切れ、保存結果を確認できませんでした。やり直す前にルーム一覧を確認してください。\n\(error.localizedDescription)"
+            errorText = String(localized: "接続が切れ、保存結果を確認できませんでした。やり直す前にルーム一覧を確認してください。\n\(error.localizedDescription)")
             store.api.diagnostics.report(error, path: "/api/rooms", method: initial == nil ? "POST" : "PATCH", observation: .write)
         }
         catch {

@@ -329,7 +329,7 @@ struct MachineRequestCard: View {
         } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
         catch BellAPIError.httpStatus(409, _, _) {
             // 席はもう待っていない、または既に答え済み。履歴を読み直せば行の状態が変わる。
-            state.errorText = "この要求はすでに閉じています。"
+            state.errorText = String(localized: "この要求はすでに閉じています。")
             await store.refreshFromView(origin: .ownerQuestionAnswer)
         } catch {
             state.errorText = BellAPIError.operationFailureMessage(error)

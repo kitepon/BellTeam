@@ -137,7 +137,7 @@ struct ForwardSheet: View {
 
     private var preview: String {
         let text = (message.message ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        return text.isEmpty ? "（画像）" : text
+        return text.isEmpty ? String(localized: "（画像）") : text
     }
 
     private func send() async {
@@ -152,7 +152,7 @@ struct ForwardSheet: View {
         do {
             try await store.authorizeAIUse(target: pick)
             _ = try await store.api.sendMessage(pick.path + "/messages", body: body)
-            sentName = destinations.first { $0.target == pick }?.name ?? "転送先"
+            sentName = destinations.first { $0.target == pick }?.name ?? String(localized: "転送先")
         } catch let error where BellAPIError.isAuthenticationError(error) {
             store.requireLogin(for: error)
         } catch {
@@ -165,12 +165,12 @@ struct ForwardSheet: View {
     static func failureMessage(_ error: Error) -> String {
         if case .httpStatus(let status, _, _)? = error as? BellAPIError {
             switch status {
-            case 404: return "転送する発言が見つかりません。会話を読み直してから、もう一度お試しください。"
-            case 415: return "画像やファイルを含む発言は、まだ転送できません。"
-            case 400: return "転送できませんでした。内容を確かめてください。"
+            case 404: return String(localized: "転送する発言が見つかりません。会話を読み直してから、もう一度お試しください。")
+            case 415: return String(localized: "画像やファイルを含む発言は、まだ転送できません。")
+            case 400: return String(localized: "転送できませんでした。内容を確かめてください。")
             default: break
             }
         }
-        return "転送できませんでした。少し待って、もう一度お試しください。\n\(BellAPIError.operationFailureMessage(error))"
+        return String(localized: "転送できませんでした。少し待って、もう一度お試しください。\n\(BellAPIError.operationFailureMessage(error))")
     }
 }

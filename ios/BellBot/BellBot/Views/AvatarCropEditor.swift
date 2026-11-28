@@ -176,7 +176,7 @@ struct AvatarCropEditor: View {
     private func useImage() {
         guard let render = AvatarImage.dataURL(from: image, zoom: CGFloat(zoom), offset: offset,
                                                canvas: variant.canvas) else {
-            errorText = "写真を読み込めませんでした。"
+            errorText = String(localized: "写真を読み込めませんでした。")
             return
         }
         if let onUseLegacy {
@@ -185,7 +185,7 @@ struct AvatarCropEditor: View {
             guard let source = AvatarImage.sourceDataURL(from: image),
                   let crop = AvatarImage.cropRect(from: image, zoom: CGFloat(zoom), offset: offset,
                                                  canvas: variant.canvas) else {
-                errorText = "元画像を保存できませんでした。別の画像を選んでください。"
+                errorText = String(localized: "元画像を保存できませんでした。別の画像を選んでください。")
                 return
             }
             onUseSelection?(AvatarCropSelection(render: render, source: source, crop: crop))

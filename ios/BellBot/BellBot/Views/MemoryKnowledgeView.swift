@@ -4,8 +4,8 @@ import SwiftUI
 enum MemberToolScreen: Hashable {
     case memory, sheets
 
-    var title: String { self == .memory ? "記憶と知識" : "キャラクターシート" }
-    var detail: String { self == .memory ? "長期記憶と知識を、覚えさせたり探したりする" : "メンバーが自分を描く時の正本の画像" }
+    var title: String { self == .memory ? String(localized: "記憶と知識") : String(localized: "キャラクターシート") }
+    var detail: String { self == .memory ? String(localized: "長期記憶と知識を、覚えさせたり探したりする") : String(localized: "メンバーが自分を描く時の正本の画像") }
     var symbol: String { self == .memory ? "brain.head.profile" : "person.crop.rectangle.stack.fill" }
     var tint: Color { self == .memory ? .purple : .pink }
 
@@ -26,7 +26,7 @@ enum MemberToolScreen: Hashable {
 /// The member editor's two rows (Web: 「記憶と知識」 and 「キャラクターシート」 buttons of the member dialog).
 struct MemberToolRows: View {
     var body: some View {
-        Section(header: BellSectionHeader("記憶とキャラクターシート")) {
+        Section(header: BellSectionHeader(String(localized: "記憶とキャラクターシート"))) {
             row(.memory, id: "member-memory-row")
             row(.sheets, id: "member-sheets-row")
         }
@@ -131,7 +131,7 @@ private struct ScopePicker: View {
 }
 
 private struct PanelButton: View {
-    let title: String
+    let title: LocalizedStringKey
     let symbol: String
     let busy: Bool
     let enabled: Bool
@@ -188,7 +188,7 @@ struct MemberMemoryScreen: View {
     }
 
     private var rememberPanel: some View {
-        Section(header: PanelHeader(title: "長期記憶を追加", symbol: "square.and.pencil", tint: .purple)) {
+        Section(header: PanelHeader(title: String(localized: "長期記憶を追加"), symbol: "square.and.pencil", tint: .purple)) {
             Picker("種類", selection: $model.rememberKind) {
                 ForEach(MemoryKind.allCases) { Label($0.label, systemImage: $0.symbol).tag($0) }
             }
@@ -207,7 +207,7 @@ struct MemberMemoryScreen: View {
     }
 
     private var recallPanel: some View {
-        Section(header: PanelHeader(title: "長期記憶を検索", symbol: "magnifyingglass", tint: .indigo)) {
+        Section(header: PanelHeader(title: String(localized: "長期記憶を検索"), symbol: "magnifyingglass", tint: .indigo)) {
             ScopePicker(selection: $model.recallScope, id: "recall-scope")
             TextField("検索語", text: $model.recallQuery).submitLabel(.search)
                 .onSubmit { Task { await model.recall() } }
@@ -233,7 +233,7 @@ struct MemberMemoryScreen: View {
     }
 
     private var knowledgePanel: some View {
-        Section(header: PanelHeader(title: "知識を追加", symbol: "books.vertical.fill", tint: .orange)) {
+        Section(header: PanelHeader(title: String(localized: "知識を追加"), symbol: "books.vertical.fill", tint: .orange)) {
             ScopePicker(selection: $model.knowledgeScope, id: "knowledge-scope")
             TextField("タイトル", text: $model.knowledgeTitle).accessibilityIdentifier("knowledge-title")
             TextField("内容", text: $model.knowledgeContent, axis: .vertical).lineLimit(4...10)
@@ -249,7 +249,7 @@ struct MemberMemoryScreen: View {
     }
 
     private var searchPanel: some View {
-        Section(header: PanelHeader(title: "知識を検索", symbol: "doc.text.magnifyingglass", tint: .teal)) {
+        Section(header: PanelHeader(title: String(localized: "知識を検索"), symbol: "doc.text.magnifyingglass", tint: .teal)) {
             ScopePicker(selection: $model.searchScope, id: "knowledge-search-scope")
             TextField("検索語", text: $model.searchQuery).submitLabel(.search)
                 .onSubmit { Task { await model.searchKnowledge() } }

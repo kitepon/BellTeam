@@ -252,7 +252,7 @@ final class AppStore: ObservableObject {
     }
 
     func setServerAddress(_ address: String) async throws {
-        guard let url = ServerOrigin.url(address) else { throw BellAPIError.server("HTTPS、またはlocalhost・LANのHTTP接続先URLを入力してください。") }
+        guard let url = ServerOrigin.url(address) else { throw BellAPIError.server(String(localized: "HTTPS、またはlocalhost・LANのHTTP接続先URLを入力してください。")) }
         if serverURL != url {
             botEditorDrafts.removeAll()
             clearConversationPages()
@@ -401,13 +401,13 @@ final class AppStore: ObservableObject {
             if self.aiControl != nil {
                 switch error {
                 case BellAPIError.httpStatus(503, _, _):
-                    aiControlError = "変更を保存できませんでした。現在の状態を表示しています。"
+                    aiControlError = String(localized: "変更を保存できませんでした。現在の状態を表示しています。")
                 case BellAPIError.httpStatus(502, _, _):
                     if self.aiControl?.state != .stopped {
-                        aiControlError = "停止操作の結果を確認できませんでした。現在の状態を表示しています。"
+                        aiControlError = String(localized: "停止操作の結果を確認できませんでした。現在の状態を表示しています。")
                     }
                 default:
-                    aiControlError = "通信後の現在の状態を読み直しました。"
+                    aiControlError = String(localized: "通信後の現在の状態を読み直しました。")
                 }
             }
         }
@@ -440,7 +440,7 @@ final class AppStore: ObservableObject {
         } catch {
             guard epoch == aiControlEpoch, sequence == aiControlReadSequence else { return }
             if aiControl != nil { aiControl = nil }
-            aiControlError = "全体停止の状態を確認できませんでした。接続を確認して再読み込みしてください。"
+            aiControlError = String(localized: "全体停止の状態を確認できませんでした。接続を確認して再読み込みしてください。")
             api.diagnostics.report(error, path: "/api/ai-control", method: "GET", observation: .read(error, retainedData: false))
         }
         if aiControlLoading { aiControlLoading = false }
@@ -513,7 +513,7 @@ final class AppStore: ObservableObject {
 
     func submitAuthResponse(_ response: AuthenticationReply.Response, for ui: AuthenticationUI) async throws {
         guard !setupAuthNeedsRefresh, setup?.auth?.authUi == ui, let reply = ui.reply(response) else {
-            throw BellAPIError.server("認証画面が更新されました。状態を確認してから操作してください。")
+            throw BellAPIError.server(String(localized: "認証画面が更新されました。状態を確認してから操作してください。"))
         }
         setupAuthRevision += 1
         setupAuthUpdating = true
@@ -527,7 +527,7 @@ final class AppStore: ObservableObject {
         setupAuthUpdating = true
         defer { setupAuthUpdating = false; setupAuthRevision += 1 }
         setup = try await api.post("/api/setup/start", body: SetupEmptyBody())
-        guard setup?.phase == "ready" else { throw BellAPIError.server("公式認証を完了してから、もう一度確認してください。") }
+        guard setup?.phase == "ready" else { throw BellAPIError.server(String(localized: "公式認証を完了してから、もう一度確認してください。")) }
         try await enterConversations(openGuide: true, origin: .guideCompletion)
     }
 
@@ -705,7 +705,7 @@ final class AppStore: ObservableObject {
         } catch let error where BellAPIError.isAuthenticationError(error) {
             requireLogin(for: error)
         } catch {
-            pinError = "\(bot.displayName)のピン留めを変えられませんでした。\(BellAPIError.operationFailureMessage(error))"
+            pinError = String(localized: "\(bot.displayName)のピン留めを変えられませんでした。\(BellAPIError.operationFailureMessage(error))")
             api.diagnostics.report(error, path: path, method: "PATCH", observation: .write)
         }
     }
@@ -894,21 +894,21 @@ final class AppStore: ObservableObject {
                         }
                     }
                     if Task.isCancelled { return }
-                    eventsError = "更新の接続が切れました。再接続しています。"
+                    eventsError = String(localized: "更新の接続が切れました。再接続しています。")
                     updateConnectionError()
                 } catch let error where BellAPIError.isAuthenticationError(error) {
                     if !Task.isCancelled { requireLogin(for: error) }
                     return
                 } catch BellAPIError.httpStatus(let status, _, let trace) where status == 429 || status >= 500 {
                     if Task.isCancelled { return }
-                    eventsError = "更新へ接続できません。再接続しています。"
+                    eventsError = String(localized: "更新へ接続できません。再接続しています。")
                     updateConnectionError()
                     api.diagnostics.report(BellAPIError.httpStatus(status, nil, trace), path: "/api/events", method: "GET", observation: .reconnecting)
                 } catch let error as URLError {
                     if Task.isCancelled { return }
                     // 切断1回は想定内。連続して失敗が続く時だけ、その連続を1件として報告する。
                     failures += 1
-                    eventsError = "更新へ接続できません。再接続しています。"
+                    eventsError = String(localized: "更新へ接続できません。再接続しています。")
                     updateConnectionError()
                     if failures == Self.eventsFailureReportThreshold { api.diagnostics.report(error, path: "/api/events", method: "GET", observation: .reconnecting, elapsedMilliseconds: BellDiagnostics.elapsedMilliseconds(since: requestStarted)) }
                 } catch {
@@ -916,7 +916,7 @@ final class AppStore: ObservableObject {
                     // 404・読めない応答でも止めない。理由を出したまま同じ間隔で再接続し、報告は失敗の連続ごとに1件。
                     // 止めるのは取消（サインアウト・接続先変更を含む）と認証拒否だけ（Windows #677と同じ）。
                     failures += 1
-                    eventsError = "更新を受け取れませんでした（\(BellAPIError.operationFailureMessage(error))）。再接続しています。"
+                    eventsError = String(localized: "更新を受け取れませんでした（\(BellAPIError.operationFailureMessage(error))）。再接続しています。")
                     updateConnectionError()
                     if failures == 1 { api.diagnostics.report(error, path: "/api/events", method: "GET", observation: .read(error, retainedData: !bots.isEmpty || !rooms.isEmpty)) }
                 }
@@ -999,7 +999,7 @@ final class AppStore: ObservableObject {
         notificationError = nil
         updateConnectionError()
         if api.sessionToken != nil || loginProbe?.enforced == true { showServerLogin(); return }
-        phase = authMode == "cloudflare" ? .signIn : .failure("接続先が認証を拒否しました。サーバーの設定を確認してください。")
+        phase = authMode == "cloudflare" ? .signIn : .failure(String(localized: "接続先が認証を拒否しました。サーバーの設定を確認してください。"))
     }
 
     /// 本体が確定した401・未認証を返した。古いトークンは捨てて、サーバーに入る画面を出す。

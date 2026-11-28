@@ -75,12 +75,12 @@ private enum GoalViewError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .changedConversation: "会話が変わりました。現在のゴールを更新してから操作してください。"
-        case .refreshing: "ゴールの更新が終わってから保存してください。"
-        case .invalidResponse: "ゴールの応答を確認できませんでした。更新して確認してください。"
-        case .outcomeUnconfirmed: "変更結果を確認できませんでした。現在の状態を確認してから操作してください。"
-        case .readbackAfterUnknown: "変更の応答を確認できませんでした。現在取得できた状態を表示しています。操作前に確認してください。"
-        case .unknownOutcome: "変更結果と現在の状態を確認できませんでした。更新して確認してください。"
+        case .changedConversation: String(localized: "会話が変わりました。現在のゴールを更新してから操作してください。")
+        case .refreshing: String(localized: "ゴールの更新が終わってから保存してください。")
+        case .invalidResponse: String(localized: "ゴールの応答を確認できませんでした。更新して確認してください。")
+        case .outcomeUnconfirmed: String(localized: "変更結果を確認できませんでした。現在の状態を確認してから操作してください。")
+        case .readbackAfterUnknown: String(localized: "変更の応答を確認できませんでした。現在取得できた状態を表示しています。操作前に確認してください。")
+        case .unknownOutcome: String(localized: "変更結果と現在の状態を確認できませんでした。更新して確認してください。")
         }
     }
 }

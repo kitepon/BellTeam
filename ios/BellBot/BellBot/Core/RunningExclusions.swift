@@ -58,12 +58,13 @@ struct RunningExclusionEntry: Decodable, Equatable, Identifiable {
     var words: String {
         if isProcess { return ([exe ?? ""] + (args ?? [])).joined(separator: " ") }
         let name = harness.map { Self.harnessNames[$0] ?? $0 } ?? ""
-        return "\(name) の子の席" + (session.map { $0.isEmpty ? "（どの席でも）" : "「\($0)」" } ?? "（どの席でも）")
+        let seat = session.flatMap { $0.isEmpty ? nil : String(localized: "「\($0)」") } ?? String(localized: "（どの席でも）")
+        return String(localized: "\(name) の子の席\(seat)")
     }
 
     func scopeWords(_ nameOf: (String) -> String?) -> String {
         switch scope {
-        case .all: "全員"
+        case .all: String(localized: "全員")
         case .members(let ids): ids.map { nameOf($0) ?? $0 }.joined(separator: "、")
         }
     }
@@ -104,7 +105,7 @@ struct RunningExclusionPending: Decodable, Equatable, Identifiable {
 
     /// The entry the card names: an addition's own entry, a removal's listed entry (or a placeholder when it is gone).
     func shownEntry(in entries: [RunningExclusionEntry]) -> RunningExclusionEntry {
-        entry ?? entries.first { $0.id == entryID } ?? RunningExclusionEntry(id: entryID ?? "", kind: "process", exe: "（一覧にない処理）", args: [], scope: .all)
+        entry ?? entries.first { $0.id == entryID } ?? RunningExclusionEntry(id: entryID ?? "", kind: "process", exe: String(localized: "（一覧にない処理）"), args: [], scope: .all)
     }
 }
 
@@ -129,10 +130,10 @@ enum RunningExclusionsRead: Equatable {
     /// 外す failed: the sentence under the list (the list is then read again).
     static func removalFailure(_ error: Error) -> String {
         if case BellAPIError.httpStatus(let status, let code, _) = error {
-            if code == "RUNNING_EXCLUSION_NOT_FOUND" || status == 404 { return "もう一覧にありませんでした。" }
-            if code == "RUNNING_EXCLUSIONS_UNAVAILABLE" || status == 503 { return "一覧を読めないため、外せませんでした。" }
+            if code == "RUNNING_EXCLUSION_NOT_FOUND" || status == 404 { return String(localized: "もう一覧にありませんでした。") }
+            if code == "RUNNING_EXCLUSIONS_UNAVAILABLE" || status == 503 { return String(localized: "一覧を読めないため、外せませんでした。") }
         }
-        return "外せませんでした。もう一度お試しください。"
+        return String(localized: "外せませんでした。もう一度お試しください。")
     }
 }
 
@@ -141,13 +142,13 @@ extension SettingsSummary {
     static func runningExclusions(_ read: RunningExclusionsRead?) -> SettingsStatus {
         switch read {
         case nil: return SettingsStatus(line: SettingsPage.exclusions.detail)
-        case .oldServer: return SettingsStatus(line: "本体を更新すると使えます")
+        case .oldServer: return SettingsStatus(line: String(localized: "本体を更新すると使えます"))
         case .unreadable:
-            return SettingsStatus(line: "一覧を読めませんでした", badge: "確認できません", tone: .orange,
+            return SettingsStatus(line: String(localized: "一覧を読めませんでした"), badge: String(localized: "確認できません"), tone: .orange,
                                   needsAttention: true, attentionRoute: .page(.exclusions))
         case .listed(let list):
-            let line = list.entries.isEmpty ? "なし" : "\(list.entries.count)件"
-            return SettingsStatus(line: list.pending.isEmpty ? line : "\(line)・答え待ち\(list.pending.count)件")
+            let line = list.entries.isEmpty ? String(localized: "なし") : String(localized: "\(list.entries.count)件")
+            return SettingsStatus(line: list.pending.isEmpty ? line : String(localized: "\(line)・答え待ち\(list.pending.count)件"))
         }
     }
 }

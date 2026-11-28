@@ -1,0 +1,50 @@
+{
+  "sourceLanguage": "ja",
+  "strings": {
+    "NSLocalNetworkUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LAN上のBellTeamへ接続するため、また同じネットワーク（同じLAN）の別の端末と購読を確かめ合うために、ローカルネットワークを使います。"
+          }
+        }
+      }
+    },
+    "NSPhotoLibraryUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会話へ添付する画像を選ぶために写真を使います。"
+          }
+        }
+      }
+    },
+    "NSCameraUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "承認用のQRコードを読み取るためにカメラを使います。"
+          }
+        }
+      }
+    },
+    "NSPhotoLibraryAddUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会話の画像を写真に保存するために使います。"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

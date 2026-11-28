@@ -39,7 +39,7 @@ struct CLIInstallSection: View {
     }
 
     @ViewBuilder private func button(_ install: CLIInstall) -> some View {
-        let title = flow.pressing ? "始めています…" : install.buttonTitle
+        let title = flow.pressing ? String(localized: "始めています…") : install.buttonTitle
         let press = {
             errorText = nil
             Task {

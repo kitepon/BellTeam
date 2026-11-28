@@ -45,8 +45,8 @@ struct BellUpdateRoute: Equatable {
 @MainActor
 final class BellNotifications: NSObject, ObservableObject, UNUserNotificationCenterDelegate {
     static let shared = BellNotifications()
-    static let registeringText = "通知を登録しています"
-    @Published var statusText = "未設定"
+    static let registeringText = String(localized: "通知を登録しています")
+    @Published var statusText = String(localized: "未設定")
     @Published var errorText: String?
     /// What the OS says about this app's notifications; nil until first read (`refreshAuthorization`).
     @Published private(set) var authorization: OSNotificationAuthorization?
@@ -95,8 +95,8 @@ final class BellNotifications: NSObject, ObservableObject, UNUserNotificationCen
             let server: PushServerStatus = try await api.get("/api/notifications")
             guard attached else { return }
             guard server.configured, server.environments.contains(try Self.environment()) else {
-                statusText = "サーバーで通知が設定されていません"
-                failure = "サーバーに、この端末へ通知を送る設定がありません。"
+                statusText = String(localized: "サーバーで通知が設定されていません")
+                failure = String(localized: "サーバーに、この端末へ通知を送る設定がありません。")
                 return
             }
             let center = UNUserNotificationCenter.current()
@@ -109,16 +109,16 @@ final class BellNotifications: NSObject, ObservableObject, UNUserNotificationCen
             }
             authorization = OSNotificationAuthorization(settings.authorizationStatus)
             guard authorization == .authorized else {
-                statusText = "端末の設定で通知がオフです"
+                statusText = String(localized: "端末の設定で通知がオフです")
                 return
             }
             guard attached else { return }
             statusText = Self.registeringText
             UIApplication.shared.registerForRemoteNotifications()
         } catch {
-            statusText = "通知を登録できませんでした"
+            statusText = String(localized: "通知を登録できませんでした")
             errorText = error.localizedDescription
-            failure = "通知を登録できませんでした。通信と端末の通知設定を確かめて、もう一度試してください。"
+            failure = String(localized: "通知を登録できませんでした。通信と端末の通知設定を確かめて、もう一度試してください。")
             api.diagnostics.reportPush(error, stage: stage, elapsedMilliseconds: BellDiagnostics.elapsedMilliseconds(since: started))
         }
     }
@@ -138,24 +138,24 @@ final class BellNotifications: NSObject, ObservableObject, UNUserNotificationCen
             let _: PushRegistration = try await api.post("/api/notifications/devices",
                 body: PushDevice(token: token, environment: try Self.environment(), server: server, previousToken: previous))
             UserDefaults.standard.set(token, forKey: "bellbot.pushToken")
-            statusText = "返信・入力要求を通知します"
+            statusText = String(localized: "返信・入力要求を通知します")
             errorText = nil
             failure = nil
             registered = true
         } catch {
-            statusText = "通知を登録できませんでした"
+            statusText = String(localized: "通知を登録できませんでした")
             errorText = error.localizedDescription
             registered = false
-            failure = "通知を登録できませんでした。通信と端末の通知設定を確かめて、もう一度試してください。"
+            failure = String(localized: "通知を登録できませんでした。通信と端末の通知設定を確かめて、もう一度試してください。")
             api.diagnostics.reportPush(error, stage: "register_device", elapsedMilliseconds: BellDiagnostics.elapsedMilliseconds(since: started))
         }
     }
 
     func registrationFailed(_ error: Error) {
-        statusText = "Appleの通知サービスへ登録できませんでした"
-        errorText = "通信状態と端末の通知設定を確認してください。"
+        statusText = String(localized: "Appleの通知サービスへ登録できませんでした")
+        errorText = String(localized: "通信状態と端末の通知設定を確認してください。")
         registered = false
-        failure = "Appleの通知サービスへ登録できませんでした。通信状態を確かめて、もう一度試してください。"
+        failure = String(localized: "Appleの通知サービスへ登録できませんでした。通信状態を確かめて、もう一度試してください。")
         BellDiagnostics.shared.reportPush(error, stage: "apns_token")
     }
 
@@ -176,7 +176,7 @@ final class BellNotifications: NSObject, ObservableObject, UNUserNotificationCen
         pendingRoute = nil
         pendingUpdateRoute = nil
         visibleConversation = nil
-        statusText = "未設定"
+        statusText = String(localized: "未設定")
         registered = false
         failure = nil
     }
@@ -210,7 +210,7 @@ final class BellNotifications: NSObject, ObservableObject, UNUserNotificationCen
     static func environment() throws -> String {
         guard let value = Bundle.main.object(forInfoDictionaryKey: "BellTeamPushEnvironment") as? String,
               ["development", "production"].contains(value) else {
-            throw BellAPIError.server("アプリの通知環境が正しく設定されていません。")
+            throw BellAPIError.server(String(localized: "アプリの通知環境が正しく設定されていません。"))
         }
         return value
     }

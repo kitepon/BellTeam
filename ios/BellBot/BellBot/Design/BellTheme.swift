@@ -142,7 +142,7 @@ enum BellDate {
     static func short(_ value: String?) -> String {
         guard let value, let date = parse(value) else { return "" }
         if Calendar.current.isDateInToday(date) { return date.formatted(date: .omitted, time: .shortened) }
-        if Calendar.current.isDateInYesterday(date) { return "昨日" }
+        if Calendar.current.isDateInYesterday(date) { return String(localized: "昨日") }
         return date.formatted(.dateTime.month(.abbreviated).day())
     }
 }

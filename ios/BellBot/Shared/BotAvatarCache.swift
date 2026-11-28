@@ -136,9 +136,9 @@ struct BotAvatarCache {
 
         var errorDescription: String? {
             switch self {
-            case .invalidAppGroup: return "通知のApp Group設定が不正です。"
-            case .unavailableAppGroup: return "通知の共有アバター保存先を開けません。"
-            case .invalidImage: return "通知のアバター画像を読み込めません。"
+            case .invalidAppGroup: return String(localized: "通知のApp Group設定が不正です。")
+            case .unavailableAppGroup: return String(localized: "通知の共有アバター保存先を開けません。")
+            case .invalidImage: return String(localized: "通知のアバター画像を読み込めません。")
             }
         }
     }

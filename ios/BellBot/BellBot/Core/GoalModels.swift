@@ -6,12 +6,12 @@ enum GoalStatus: String, Decodable {
 
     var title: String {
         switch self {
-        case .active: "進行中"
-        case .paused: "一時停止"
-        case .blocked: "進行できない状態"
-        case .usageLimited: "利用制限"
-        case .budgetLimited: "予算に到達"
-        case .complete: "完了"
+        case .active: String(localized: "進行中")
+        case .paused: String(localized: "一時停止")
+        case .blocked: String(localized: "進行できない状態")
+        case .usageLimited: String(localized: "利用制限")
+        case .budgetLimited: String(localized: "予算に到達")
+        case .complete: String(localized: "完了")
         }
     }
 }
@@ -72,9 +72,9 @@ enum GrokCurrentStatus: Decodable {
         case idle = "Idle", planning = "Planning", executing = "Executing"
         var title: String {
             switch self {
-            case .idle: "待機"
-            case .planning: "計画中"
-            case .executing: "実行中"
+            case .idle: String(localized: "待機")
+            case .planning: String(localized: "計画中")
+            case .executing: String(localized: "実行中")
             }
         }
     }
@@ -105,13 +105,13 @@ enum GrokCurrentStatus: Decodable {
 
     var statusTitle: String {
         switch self {
-        case .status(let current): "\(current.status == .userPaused ? "一時停止" : "進行中") · \(current.phase.title)"
+        case .status(let current): String(localized: "\(current.status == .userPaused ? String(localized: "一時停止") : String(localized: "進行中")) · \(current.phase.title)")
         case .detail(let current): current.statusDisplay
         }
     }
     var usageText: String {
         switch self {
-        case .status(let current): "使用トークン \(current.tokensUsed.formatted()) · 経過 \(current.elapsedDisplay)"
+        case .status(let current): String(localized: "使用トークン \(current.tokensUsed.formatted()) · 経過 \(current.elapsedDisplay)")
         case .detail(let current):
             [current.phaseDisplay, current.budgetDisplay, current.elapsedDisplay]
                 .compactMap { $0 }.joined(separator: " · ")
@@ -139,7 +139,7 @@ enum GrokCurrentStatus: Decodable {
 enum GoalHistoryKind: String, Decodable { case claudeCode = "claude-code" }
 enum GoalTerminal: String, Decodable {
     case cleared, achieved
-    var title: String { self == .cleared ? "取消" : "達成" }
+    var title: String { self == .cleared ? String(localized: "取消") : String(localized: "達成") }
 }
 
 enum NativeGoal: Decodable {
@@ -185,7 +185,7 @@ enum NativeGoal: Decodable {
     var statusTitle: String {
         switch self {
         case .codex(let goal): goal.status.title
-        case .claude: "進行中"
+        case .claude: String(localized: "進行中")
         case .grok(_, let current): current.statusTitle
         }
     }
@@ -204,22 +204,22 @@ enum NativeGoal: Decodable {
     var usageText: String {
         switch self {
         case .codex(let goal):
-            return "使用量 \(goal.tokensUsed.formatted()) / 予算 \(goal.tokenBudget.map { $0.formatted() } ?? "指定なし") · 作業時間 \(goal.timeUsedSeconds.formatted())秒"
+            return String(localized: "使用量 \(goal.tokensUsed.formatted()) / 予算 \(goal.tokenBudget.map { $0.formatted() } ?? String(localized: "指定なし")) · 作業時間 \(goal.timeUsedSeconds.formatted())秒")
         case .claude(_, let native, let reportedTurns):
             var parts: [String] = []
-            if let tokens = native.tokens { parts.append("使用トークン \(tokens.formatted())") }
-            if let durationMs = native.durationMs { parts.append("実行時間 \(durationMs.formatted())ミリ秒") }
-            if let iterations = native.iterations { parts.append("反復数 \(iterations.formatted())") }
-            if let reportedTurns { parts.append("CLI表示ターン数 \(reportedTurns.formatted())") }
-            return parts.isEmpty ? "使用量・作業時間はまだ取得していません。" : parts.joined(separator: " · ")
+            if let tokens = native.tokens { parts.append(String(localized: "使用トークン \(tokens.formatted())")) }
+            if let durationMs = native.durationMs { parts.append(String(localized: "実行時間 \(durationMs.formatted())ミリ秒")) }
+            if let iterations = native.iterations { parts.append(String(localized: "反復数 \(iterations.formatted())")) }
+            if let reportedTurns { parts.append(String(localized: "CLI表示ターン数 \(reportedTurns.formatted())")) }
+            return parts.isEmpty ? String(localized: "使用量・作業時間はまだ取得していません。") : parts.joined(separator: " · ")
         case .grok(_, let current):
             return current.usageText
         }
     }
     var elapsedText: String? {
         switch self {
-        case .codex(let goal): "\(goal.timeUsedSeconds.formatted())秒"
-        case .claude(_, let native, _): native.durationMs.map { "\($0.formatted())ミリ秒" }
+        case .codex(let goal): String(localized: "\(goal.timeUsedSeconds.formatted())秒")
+        case .claude(_, let native, _): native.durationMs.map { String(localized: "\($0.formatted())ミリ秒") }
         case .grok(_, let current): current.elapsedDisplay
         }
     }

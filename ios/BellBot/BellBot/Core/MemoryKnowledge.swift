@@ -11,15 +11,15 @@ enum MemoryKind: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .fact: "事実"
-        case .preference: "好み"
-        case .policy: "方針"
-        case .task: "継続中の仕事"
-        case .config: "設定"
-        case .incident: "出来事"
-        case .relationship: "関係"
-        case .episode: "思い出"
-        case .growth: "成長"
+        case .fact: String(localized: "事実")
+        case .preference: String(localized: "好み")
+        case .policy: String(localized: "方針")
+        case .task: String(localized: "継続中の仕事")
+        case .config: String(localized: "設定")
+        case .incident: String(localized: "出来事")
+        case .relationship: String(localized: "関係")
+        case .episode: String(localized: "思い出")
+        case .growth: String(localized: "成長")
         }
     }
 
@@ -46,7 +46,7 @@ enum MemoryScope: String, CaseIterable, Identifiable {
     case personal, shared
 
     var id: String { rawValue }
-    var label: String { self == .personal ? "このBot" : "BellTeam共通" }
+    var label: String { self == .personal ? String(localized: "このBot") : String(localized: "BellTeam共通") }
 }
 
 struct MemoryItem: Decodable, Equatable {
@@ -129,8 +129,8 @@ enum MemberToolError {
         return status == 405 || (status == 404 && TerminalErrorText.code(error) != "BOT_NOT_FOUND")
     }
 
-    static let memoryUnsupportedLine = "このBellTeamはまだ記憶と知識に対応していません"
-    static let sheetsUnsupportedLine = "このBellTeamはまだキャラクターシートに対応していません"
+    static let memoryUnsupportedLine = String(localized: "このBellTeamはまだ記憶と知識に対応していません")
+    static let sheetsUnsupportedLine = String(localized: "このBellTeamはまだキャラクターシートに対応していません")
 }
 
 /// One open memory screen of one member. A new model per screen: closing the screen, or opening another member, drops every result.
@@ -140,9 +140,9 @@ final class MemoryScreenModel: ObservableObject {
     /// A search outcome: nothing asked yet, no hit (「見つかりませんでした。」), or the hits.
     enum Results<Item: Equatable>: Equatable { case none, empty, items([Item]) }
 
-    static let rememberedNote = "記憶しました。"
-    static let knowledgeSavedNote = "知識を保存しました。"
-    static let notFoundNote = "見つかりませんでした。"
+    static let rememberedNote = String(localized: "記憶しました。")
+    static let knowledgeSavedNote = String(localized: "知識を保存しました。")
+    static let notFoundNote = String(localized: "見つかりませんでした。")
 
     let botID: String
     private let api: BellAPI
@@ -188,7 +188,7 @@ final class MemoryScreenModel: ObservableObject {
     func remember() async {
         guard canRemember else { return }
         let body = rememberBody
-        await write(.remember, path: MemberToolRoutes.memory(botID), body: body, label: "記憶できませんでした") {
+        await write(.remember, path: MemberToolRoutes.memory(botID), body: body, label: String(localized: "記憶できませんでした")) {
             if self.rememberBody == body { self.rememberContent = "" }
             self.rememberNote = Self.rememberedNote
         }
@@ -197,7 +197,7 @@ final class MemoryScreenModel: ObservableObject {
     func saveKnowledge() async {
         guard canSaveKnowledge else { return }
         let body = knowledgeBody
-        await write(.knowledge, path: MemberToolRoutes.knowledge(botID), body: body, label: "保存できませんでした") {
+        await write(.knowledge, path: MemberToolRoutes.knowledge(botID), body: body, label: String(localized: "保存できませんでした")) {
             if self.knowledgeBody == body {
                 self.knowledgeScope = .personal; self.knowledgeTitle = ""; self.knowledgeContent = ""
             }
@@ -242,7 +242,7 @@ final class MemoryScreenModel: ObservableObject {
         } catch let error where BellAPIError.isAuthenticationError(error) { requireLogin(error) }
         catch {
             if MemberToolError.isUnsupported(error) { unsupported = true; return }
-            failure = (panel, "\(label)（\(BellAPIError.operationFailureMessage(error))）")
+            failure = (panel, String(localized: "\(label)（\(BellAPIError.operationFailureMessage(error))）"))
             api.diagnostics.report(error, path: path.replacingOccurrences(of: botID, with: ":id"), method: "POST", observation: .write)
         }
     }
@@ -251,7 +251,7 @@ final class MemoryScreenModel: ObservableObject {
         if BellAPIError.isAuthenticationError(error) { requireLogin(error); return }
         guard current else { return }
         if MemberToolError.isUnsupported(error) { unsupported = true; return }
-        failure = (panel, "検索できませんでした（\(error.localizedDescription)）")
+        failure = (panel, String(localized: "検索できませんでした（\(error.localizedDescription)）"))
         api.diagnostics.report(error, path: route, method: "GET", observation: .read(error, retainedData: retained))
     }
 }

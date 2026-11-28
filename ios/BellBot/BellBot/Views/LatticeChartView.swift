@@ -125,10 +125,10 @@ struct LatticeChartScreen: View {
         switch model.connection {
         case .notFound:
             LatticeEmptyState(symbol: "questionmark.folder", title: LatticeText.notFound, detail: "",
-                              action: ("一覧へ戻る", { leave() }))
+                              action: (String(localized: "一覧へ戻る"), { leave() }))
         case .unsupported:
             LatticeEmptyState(symbol: "camera.macro", title: LatticeText.oldServer, detail: LatticeText.oldServerNext,
-                              action: ("閉じる", { leave() }))
+                              action: (String(localized: "閉じる"), { leave() }))
         case .failed(let text):
             LatticeEmptyState(symbol: "person.crop.circle.badge.exclamationmark", title: text, detail: "")
         default:
@@ -198,7 +198,7 @@ struct LatticeChartScreen: View {
                 .frame(height: min(switchRowsHeight, Self.switchListMaximum))
                 .accessibilityIdentifier("lattice-switcher-list")
                 Divider().padding(.vertical, 4)
-                switchRow("すべての工程表", symbol: "square.grid.2x2", detail: "", current: false) { switching = false; switchTo(nil) }
+                switchRow(String(localized: "すべての工程表"), symbol: "square.grid.2x2", detail: "", current: false) { switching = false; switchTo(nil) }
             }
             .padding(8)
             .frame(width: 260)
@@ -259,7 +259,7 @@ struct LatticeChartScreen: View {
 
     private var centerPicker: some View {
         Picker("表示", selection: $center) {
-            ForEach(LatticeCenter.allCases, id: \.self) { Text($0 == .history ? "\($0.rawValue) \(LatticeHistory.count(model.snapshot))" : $0.rawValue).tag($0) }
+            ForEach(LatticeCenter.allCases, id: \.self) { Text($0 == .history ? "\($0.title) \(LatticeHistory.count(model.snapshot))" : $0.title).tag($0) }
         }
         .pickerStyle(.segmented)
         // Each segment fits its own words everywhere: a fixed 240 pt split 「過去ログ 35」 to 「過去ログ 1…」 (Owner iPad and iPhone 2026-11-14).
@@ -284,7 +284,7 @@ struct LatticeChartScreen: View {
 
     private func unavailable() -> some View {
         LatticeEmptyState(symbol: "camera.macro", title: LatticeText.unavailable, detail: LatticeText.unavailableNext,
-                          action: ("一覧へ戻る", { leave() }))
+                          action: (String(localized: "一覧へ戻る"), { leave() }))
             .accessibilityIdentifier("lattice-unavailable")
     }
 
@@ -706,7 +706,7 @@ struct LatticeChartScreen: View {
             }
             if center == .lanes {
                 Picker("並べ方", selection: $grouping) {
-                    ForEach(LatticeGrouping.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                    ForEach(LatticeGrouping.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
                 .pickerStyle(.segmented).frame(width: 160).frame(maxWidth: .infinity, alignment: .trailing)
             }
@@ -855,6 +855,8 @@ enum LatticeDebugOpen {
 enum LatticeGrouping: String, CaseIterable {
     case depth = "段ごと", producer = "担当ごと"
 
+    var title: String { self == .depth ? String(localized: "段ごと") : String(localized: "担当ごと") }
+
     struct Group { let title: String; let cards: [LatticeCard] }
 
     func groups(_ snapshot: LatticeChartSnapshot, layout: LatticeLayout, lookup: (String?) -> LatticePerson?) -> [Group] {
@@ -862,7 +864,7 @@ enum LatticeGrouping: String, CaseIterable {
         switch self {
         case .depth:
             let depths = Set(ordered.map { max(0, $0.depth ?? 0) }).sorted()
-            return depths.map { depth in Group(title: "\(depth + 1)段目", cards: ordered.filter { max(0, $0.depth ?? 0) == depth }) }
+            return depths.map { depth in Group(title: String(localized: "\(depth + 1)段目"), cards: ordered.filter { max(0, $0.depth ?? 0) == depth }) }
         case .producer:
             return layout.lanes.map { lane in
                 Group(title: latticeName(lane.person), cards: ordered.filter { ($0.owner ?? "") == lane.id })
@@ -1301,15 +1303,15 @@ struct LatticeCounters: View {
     var body: some View {
         if compact {
             HStack(spacing: 0) {
-                cell(counts.working, "作業中", BellTheme.violet)
-                cell(counts.connections, "接続", LatticePalette.muted)
-                cell(counts.blocked, "ブロック", LatticePalette.red)
+                cell(counts.working, String(localized: "作業中"), BellTheme.violet)
+                cell(counts.connections, String(localized: "接続"), LatticePalette.muted)
+                cell(counts.blocked, String(localized: "ブロック"), LatticePalette.red)
             }
         } else {
             HStack(spacing: 12) {
-                inline(counts.working, "作業中", BellTheme.violet)
-                inline(counts.connections, "接続", LatticePalette.muted)
-                inline(counts.blocked, "ブロック", LatticePalette.red)
+                inline(counts.working, String(localized: "作業中"), BellTheme.violet)
+                inline(counts.connections, String(localized: "接続"), LatticePalette.muted)
+                inline(counts.blocked, String(localized: "ブロック"), LatticePalette.red)
             }
         }
     }
@@ -1317,7 +1319,7 @@ struct LatticeCounters: View {
     private func cell(_ value: Int, _ title: String, _ color: Color) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text("\(value)").font(.system(size: 22, weight: .bold, design: .rounded)).monospacedDigit()
-                .foregroundStyle(title == "ブロック" && value > 0 ? LatticePalette.red : LatticePalette.ink)
+                .foregroundStyle(title == String(localized: "ブロック") && value > 0 ? LatticePalette.red : LatticePalette.ink)
                 .contentTransition(.numericText())
             HStack(spacing: 4) {
                 Circle().fill(color).frame(width: 6, height: 6)
@@ -1608,12 +1610,12 @@ struct LatticeDetailPanel: View {
             }
             Group {
                 if let memo = detail.card.designMemo, !memo.isEmpty {
-                    section("設計メモ") {
+                    section(String(localized: "設計メモ")) {
                         Text(verbatim: memo).font(.system(size: 13.5)).foregroundStyle(LatticePalette.ink).fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 if let condition = detail.card.doneCondition, !condition.isEmpty {
-                    section("終了条件") {
+                    section(String(localized: "終了条件")) {
                         Label { Text(verbatim: condition).fixedSize(horizontal: false, vertical: true) } icon: {
                             Image(systemName: "checkmark").foregroundStyle(BellTheme.mint)
                         }
@@ -1621,8 +1623,8 @@ struct LatticeDetailPanel: View {
                     }
                 }
                 if let decision, let state = decision.stateText {
-                    section("決裁") {
-                        Label { Text(verbatim: decision.title.isEmpty ? "決裁（\(state)）" : "\(decision.title)（\(state)）").fixedSize(horizontal: false, vertical: true) } icon: {
+                    section(String(localized: "決裁")) {
+                        Label { Text(verbatim: decision.title.isEmpty ? String(localized: "決裁（\(state)）") : String(localized: "\(decision.title)（\(state)）")).fixedSize(horizontal: false, vertical: true) } icon: {
                             Image(systemName: "checkmark.seal").foregroundStyle(LatticePalette.amber)
                         }
                         .font(.system(size: 13.5, weight: .medium)).foregroundStyle(LatticePalette.ink)
@@ -1633,12 +1635,12 @@ struct LatticeDetailPanel: View {
                     .accessibilityIdentifier("lattice-detail-decision")
                 }
                 if !detail.previous.isEmpty {
-                    section("前の工程 · \(detail.previous.count)") {
+                    section(String(localized: "前の工程 · \(detail.previous.count)")) {
                         VStack(spacing: 6) { ForEach(detail.previous) { link in linkRow(link) } }
                     }
                 }
                 if !detail.next.isEmpty {
-                    section("次の工程 · \(detail.next.count)") {
+                    section(String(localized: "次の工程 · \(detail.next.count)")) {
                         LatticeFlowLayout(spacing: 6) {
                             ForEach(detail.next) { link in linkChip(link) }
                         }

@@ -244,7 +244,7 @@ struct DesktopWorkspaceView: View {
                 Circle().fill(BellTheme.mint).frame(width: 6, height: 6)
                 Text("\(store.bots.filter(\.online).count)人オンライン")
                 Spacer()
-                Text(store.owner?.name ?? "あなた").lineLimit(1)
+                Text(store.owner?.name ?? String(localized: "あなた")).lineLimit(1)
             }
             .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted).padding(.horizontal, 18).padding(.bottom, 14)
         }
@@ -254,7 +254,7 @@ struct DesktopWorkspaceView: View {
         .toolbar(.hidden, for: .navigationBar)
     }
 
-    private func sectionTitle(_ title: String, count: Int) -> some View {
+    private func sectionTitle(_ title: LocalizedStringKey, count: Int) -> some View {
         HStack { Text(title); Spacer(); Text("\(count)") }
             .font(BellTheme.secondaryFont.weight(.semibold)).foregroundStyle(BellTheme.muted).padding(.horizontal, 10).padding(.vertical, 8)
     }
@@ -350,7 +350,7 @@ private struct DesktopInspector: View {
                 Divider()
                 if let room {
                     heading("この部屋で共有する仕事")
-                    SelectableText(room.purpose.isEmpty ? "未設定" : room.purpose, font: BellTheme.profileBodyFont)
+                    SelectableText(room.purpose.isEmpty ? String(localized: "未設定") : room.purpose, font: BellTheme.profileBodyFont)
                     heading("参加メンバー")
                     ForEach(room.memberIds, id: \.self) { id in
                         if let member = store.bots.first(where: { $0.id == id }) {
@@ -423,7 +423,7 @@ private struct DesktopInspector: View {
             .bellEditorSheet()
         }
     }
-    private func heading(_ title: String) -> some View { Text(title).font(BellTheme.secondaryFont.weight(.bold)).foregroundStyle(BellTheme.muted) }
+    private func heading(_ title: LocalizedStringKey) -> some View { Text(title).font(BellTheme.secondaryFont.weight(.bold)).foregroundStyle(BellTheme.muted) }
 }
 
 /// Layout numbers for a sidebar row. The avatar is 1.2x the old size so the row has the height for a name plus a 2-line summary.

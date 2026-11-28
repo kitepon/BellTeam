@@ -339,7 +339,10 @@ private struct ConnectionFailureView: View {
 
 /// iPhoneの「相関図」タブ：相関図と工程表を上の切り替えで行き来する（タブを6つにしない）。
 private struct TeamBoardTab: View {
-    enum Board: String, CaseIterable { case graph = "相関図", lattice = "工程表" }
+    enum Board: String, CaseIterable {
+        case graph = "相関図", lattice = "工程表"
+        var title: String { self == .graph ? String(localized: "相関図") : String(localized: "工程表") }
+    }
     @SceneStorage("team-board") private var board = Board.graph
     @EnvironmentObject private var store: AppStore
 
@@ -347,7 +350,7 @@ private struct TeamBoardTab: View {
         // 切り替えは上に縦に並べる（重ねると工程表のナビゲーションバーと重なる）。
         VStack(spacing: 0) {
             Picker("表示", selection: $board) {
-                ForEach(Board.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                ForEach(Board.allCases, id: \.self) { Text($0.title).tag($0) }
             }
             .pickerStyle(.segmented)
             .frame(width: 220)

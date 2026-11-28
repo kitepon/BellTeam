@@ -58,7 +58,7 @@ struct HarnessAuthenticationList: View {
             store.requireLogin(for: error)
         } catch {
             // 前に読めた行は残す。まだ無ければ従来の1行（1stのログイン）だけを出す。
-            accountsError = "1つ目・2つ目のアカウントの状態を読めませんでした（\(BellAPIError.operationFailureMessage(error))）。読み直しています…"
+            accountsError = String(localized: "1つ目・2つ目のアカウントの状態を読めませんでした（\(BellAPIError.operationFailureMessage(error))）。読み直しています…")
             accountsFailures += 1
             store.api.diagnostics.report(error, path: "/api/accounts", method: "GET", observation: .read(error, retainedData: false))
         }
@@ -268,7 +268,7 @@ struct HarnessAuthenticationView: View {
             }
             }
             if installFlow.install != nil {
-                Section(header: BellSectionHeader("インストール")) { CLIInstallSection(flow: installFlow).padding(.vertical, 4) }
+                Section(header: BellSectionHeader(String(localized: "インストール"))) { CLIInstallSection(flow: installFlow).padding(.vertical, 4) }
             }
         }
         .navigationTitle(title)
@@ -307,12 +307,12 @@ struct HarnessAuthenticationView: View {
             refreshButton
             errorLine
         case .needsLogin:
-            startButton("認証する", blocked: blocked)
+            startButton(String(localized: "認証する"), blocked: blocked)
             errorLine
             // 失敗の後は開始ボタンが止まるので、読み直す出口を同じ所に出す。
             if blocked { refreshButton }
         case .failed:
-            startButton("認証し直す", blocked: blocked)
+            startButton(String(localized: "認証し直す"), blocked: blocked)
             refreshButton
             errorLine
         case .waitingSite, .waitingCode, .sendingCode:
@@ -331,9 +331,9 @@ struct HarnessAuthenticationView: View {
             cancelButton(blocked: blocked)
         case .done:
             if flow.harness.canStart(flow.auth) {
-                startButton("認証し直す", blocked: blocked, quiet: true)
+                startButton(String(localized: "認証し直す"), blocked: blocked, quiet: true)
             } else {
-                Text(flow.harness.startWarning.flatMap { $0.isEmpty ? nil : $0 } ?? "このAIは認証済みの間は入り直せません。")
+                Text(flow.harness.startWarning.flatMap { $0.isEmpty ? nil : $0 } ?? String(localized: "このAIは認証済みの間は入り直せません。"))
                     .foregroundStyle(BellTheme.muted)
                     .accessibilityIdentifier("harness-auth-unavailable")
             }
@@ -344,7 +344,7 @@ struct HarnessAuthenticationView: View {
 
     @ViewBuilder private func startButton(_ title: String, blocked: Bool, quiet: Bool = false) -> some View {
         if flow.harness.canStart(flow.auth) {
-            let label = acting == .start ? "始めています…" : title
+            let label = acting == .start ? String(localized: "始めています…") : title
             let press = {
                 input = ""
                 if flow.needsStartConfirmation { confirming = true }

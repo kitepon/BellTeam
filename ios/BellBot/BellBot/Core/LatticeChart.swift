@@ -67,7 +67,7 @@ struct LatticeDecision: Decodable, Equatable {
         title = (try? c.decodeIfPresent(String.self, forKey: .title)) ?? ""
     }
 
-    static let stateWords = ["pending": "待ち", "held": "保留", "answered": "回答済み", "cancelled": "取り下げ"]
+    static let stateWords = ["pending": String(localized: "待ち"), "held": String(localized: "保留"), "answered": String(localized: "回答済み"), "cancelled": String(localized: "取り下げ")]
     var stateText: String? { Self.stateWords[status] }
     /// Any other shape is no decision (no block, no message).
     var valid: Bool { !decisionId.isEmpty && stateText != nil }
@@ -259,11 +259,11 @@ struct LatticeChartSummary: Decodable, Equatable, Identifiable {
 /// 工程表の表示名（lattice README「Display name rule」）：`name`、無ければ「<作った人の名簿の名前>の工程表」、
 /// それも分からなければ「名前のない工程表」。projectIdはAPIの宛先だけで、画面にも読み上げにも出さない。
 enum LatticeChartName {
-    static let unnamed = "名前のない工程表"
+    static let unnamed = String(localized: "名前のない工程表")
 
     static func of(name: String?, createdBy: String?, roster: (String) -> String?) -> String {
         if let name { return name }
-        if let createdBy, let member = roster(createdBy) { return "\(member)の工程表" }
+        if let createdBy, let member = roster(createdBy) { return String(localized: "\(member)の工程表") }
         return unnamed
     }
 }
@@ -277,12 +277,12 @@ enum LatticeTaskState: String, CaseIterable {
 
     var badge: String {
         switch self {
-        case .pending: "未着手"
-        case .ready: "着手可"
-        case .inProgress: "作業中"
-        case .blocked: "ブロック"
-        case .done: "完了"
-        case .retired: "取り下げ"
+        case .pending: String(localized: "未着手")
+        case .ready: String(localized: "着手可")
+        case .inProgress: String(localized: "作業中")
+        case .blocked: String(localized: "ブロック")
+        case .done: String(localized: "完了")
+        case .retired: String(localized: "取り下げ")
         }
     }
 
@@ -300,12 +300,12 @@ enum LatticeTaskState: String, CaseIterable {
     /// 状態のことば（凡例の説明）。
     var meaning: String {
         switch self {
-        case .pending: "まだ誰も手を付けていない。前の工程を待つ。"
-        case .ready: "前の工程が終わり、いつでも始められる。"
-        case .inProgress: "担当が進めている。経過時間を表示。"
-        case .blocked: "進められない。理由を一行で示す。"
-        case .done: "終わった工程。小さく静かに畳む。"
-        case .retired: "やめた工程。数には含めない。"
+        case .pending: String(localized: "まだ誰も手を付けていない。前の工程を待つ。")
+        case .ready: String(localized: "前の工程が終わり、いつでも始められる。")
+        case .inProgress: String(localized: "担当が進めている。経過時間を表示。")
+        case .blocked: String(localized: "進められない。理由を一行で示す。")
+        case .done: String(localized: "終わった工程。小さく静かに畳む。")
+        case .retired: String(localized: "やめた工程。数には含めない。")
         }
     }
 
@@ -316,8 +316,8 @@ enum LatticeTaskState: String, CaseIterable {
 
 /// 担当の表示。名簿にいない担当は「名簿にないメンバー」と「?」で描く。
 struct LatticePerson: Equatable, Hashable {
-    static let unknownName = "名簿にないメンバー"
-    static let unassigned = "担当なし"
+    static let unknownName = String(localized: "名簿にないメンバー")
+    static let unassigned = String(localized: "担当なし")
 
     static let lanePrefix = "lane:"
 
@@ -338,7 +338,7 @@ struct LatticePerson: Equatable, Hashable {
     var initial: String { known || lane || isOwner ? String(name.prefix(1)).uppercased() : "?" }
 
     static var owner: LatticePerson {
-        LatticePerson(botId: ownerKey, name: ownerName.flatMap { $0.isEmpty ? nil : $0 } ?? "指揮官", color: "violet", known: false, isOwner: true)
+        LatticePerson(botId: ownerKey, name: ownerName.flatMap { $0.isEmpty ? nil : $0 } ?? String(localized: "指揮官"), color: "violet", known: false, isOwner: true)
     }
 
     /// ブロック一覧の担当・ブロックした人（Stops contract）：名簿のBot → 顔と名前、"owner" → 指揮官、`bot-…`で名簿に無い → 名簿にないメンバー、
@@ -378,9 +378,9 @@ enum LatticeTime {
     private static let plain = ISO8601DateFormatter()
     private static let jst: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.locale = Locale.current
         formatter.timeZone = TimeZone(identifier: "Asia/Tokyo")
-        formatter.dateFormat = "M月d日 H:mm"
+        formatter.setLocalizedDateFormatFromTemplate("MMMdHmm")
         return formatter
     }()
     private static let clock: DateFormatter = {
@@ -400,9 +400,9 @@ enum LatticeTime {
     }()
     private static let dayTitle: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.locale = Locale.current
         formatter.timeZone = TimeZone(identifier: "Asia/Tokyo")
-        formatter.dateFormat = "M月d日"
+        formatter.setLocalizedDateFormatFromTemplate("MMMd")
         return formatter
     }()
     static let tokyo: Calendar = {
@@ -432,18 +432,18 @@ enum LatticeTime {
 
     /// 過去ログの日の見出し（JST）：今日 / 昨日 / M月d日。
     static func dayHeading(_ day: Date, now: Date) -> String {
-        if tokyo.isDate(day, inSameDayAs: now) { return "今日" }
-        if let yesterday = tokyo.date(byAdding: .day, value: -1, to: now), tokyo.isDate(day, inSameDayAs: yesterday) { return "昨日" }
+        if tokyo.isDate(day, inSameDayAs: now) { return String(localized: "今日") }
+        if let yesterday = tokyo.date(byAdding: .day, value: -1, to: now), tokyo.isDate(day, inSameDayAs: yesterday) { return String(localized: "昨日") }
         return dayTitle.string(from: day)
     }
 
     /// 経過の長さ：1分未満 / N分 / N時間M分 / N日。
     static func since(_ value: String?, now: Date) -> String {
         let n = minutes(since: value, now: now)
-        if n < 1 { return "1分未満" }
-        if n < 60 { return "\(n)分" }
-        if n < 1440 { return n % 60 == 0 ? "\(n / 60)時間" : "\(n / 60)時間\(n % 60)分" }
-        return "\(n / 1440)日"
+        if n < 1 { return String(localized: "1分未満") }
+        if n < 60 { return String(localized: "\(n)分") }
+        if n < 1440 { return n % 60 == 0 ? String(localized: "\(n / 60)時間") : String(localized: "\(n / 60)時間\(n % 60)分") }
+        return String(localized: "\(n / 1440)日")
     }
 
     /// ブロックした時刻（JST）：今日 HH:mm / 昨日 HH:mm / M月d日 HH:mm。読めない値は空。
@@ -456,43 +456,43 @@ enum LatticeTime {
     static func updated(_ value: String?, now: Date) -> String {
         guard let date = date(value) else { return "" }
         let n = minutes(since: value, now: now)
-        if n < 1 { return "たった今更新" }
-        if n < 60 { return "\(n)分前に更新" }
+        if n < 1 { return String(localized: "たった今更新") }
+        if n < 60 { return String(localized: "\(n)分前に更新") }
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "Asia/Tokyo")!
-        if calendar.isDate(date, inSameDayAs: now) { return "今日 \(clock.string(from: date)) に更新" }
-        return "\(jst.string(from: date)) に更新"
+        if calendar.isDate(date, inSameDayAs: now) { return String(localized: "今日 \(clock.string(from: date)) に更新") }
+        return String(localized: "\(jst.string(from: date)) に更新")
     }
 }
 
 // MARK: Texts
 
 enum LatticeText {
-    static let reconnect = "工程表に再接続しています…"
-    static let listEmpty = "工程表はまだありません。メンバーがLatticeで工程をつくると、ここに並びます。"
-    static let newChart = "工程表はメンバーがLatticeでつくります。権限も参加登録もなく、誰でも開けます。"
-    static let oldServer = "このサーバーではまだ工程表を使えません。"
-    static let oldServerNext = "サーバーが新しくなると使えるようになります。"
-    static let notFound = "この工程表は見つかりません。"
-    static let unavailable = "この工程表はまだ読めません"
-    static let unavailableNext = "記録が整うと自動で表示します。"
-    static let noCards = "この工程表にはまだ工程がありません。"
-    static let unverified = "工程表の記録に食い違いがあります。読める分だけ表示しています。直り次第、自動で最新に戻ります。"
-    static let login = "ログインが必要です。"
-    static let stops = "ブロック一覧"
-    static let stopsLoading = "ブロックを読んでいます…"
-    static let stopsEmpty = "ブロックされている工程はありません。"
-    static let stopsRetry = "ブロック一覧を読み直しています…"
-    static let stopsOld = "このサーバーではまだブロック一覧を使えません。"
-    static let stopsUnread = "一部の工程表を読めませんでした。読めた分だけ表示しています。"
-    static let stopsAsk = "このブロックを外しますか？"
-    static let stopsLater = "いまは外せませんでした。少し待ってからもう一度お試しください。"
-    static func stopsRefused(_ reason: String) -> String { reason.isEmpty ? "外せませんでした" : "外せませんでした: \(reason)" }
+    static let reconnect = String(localized: "工程表に再接続しています…")
+    static let listEmpty = String(localized: "工程表はまだありません。メンバーがLatticeで工程をつくると、ここに並びます。")
+    static let newChart = String(localized: "工程表はメンバーがLatticeでつくります。権限も参加登録もなく、誰でも開けます。")
+    static let oldServer = String(localized: "このサーバーではまだ工程表を使えません。")
+    static let oldServerNext = String(localized: "サーバーが新しくなると使えるようになります。")
+    static let notFound = String(localized: "この工程表は見つかりません。")
+    static let unavailable = String(localized: "この工程表はまだ読めません")
+    static let unavailableNext = String(localized: "記録が整うと自動で表示します。")
+    static let noCards = String(localized: "この工程表にはまだ工程がありません。")
+    static let unverified = String(localized: "工程表の記録に食い違いがあります。読める分だけ表示しています。直り次第、自動で最新に戻ります。")
+    static let login = String(localized: "ログインが必要です。")
+    static let stops = String(localized: "ブロック一覧")
+    static let stopsLoading = String(localized: "ブロックを読んでいます…")
+    static let stopsEmpty = String(localized: "ブロックされている工程はありません。")
+    static let stopsRetry = String(localized: "ブロック一覧を読み直しています…")
+    static let stopsOld = String(localized: "このサーバーではまだブロック一覧を使えません。")
+    static let stopsUnread = String(localized: "一部の工程表を読めませんでした。読めた分だけ表示しています。")
+    static let stopsAsk = String(localized: "このブロックを外しますか？")
+    static let stopsLater = String(localized: "いまは外せませんでした。少し待ってからもう一度お試しください。")
+    static func stopsRefused(_ reason: String) -> String { reason.isEmpty ? String(localized: "外せませんでした") : String(localized: "外せませんでした: \(reason)") }
 
     static func degraded(_ key: String) -> String? {
         switch key {
-        case "lattice-read": "最新の記録を読み直しています…"
-        case "members": "メンバー情報を読み直しています…"
+        case "lattice-read": String(localized: "最新の記録を読み直しています…")
+        case "members": String(localized: "メンバー情報を読み直しています…")
         default: nil
         }
     }
@@ -506,7 +506,7 @@ enum LatticeText {
         case .blocked:
             if let reason = card.blockedReason, !reason.isEmpty { return "\(status.badge): \(reason)" }
             return status.badge
-        case .pending, .ready: return producer.map { "\(status.badge): 担当 \($0.name)" } ?? LatticePerson.unassigned
+        case .pending, .ready: return producer.map { String(localized: "\(status.badge): 担当 \($0.name)") } ?? LatticePerson.unassigned
         default: return status.badge
         }
     }
@@ -514,42 +514,42 @@ enum LatticeText {
     /// 札の下の一行：ブロックは理由、未着手と着手可は終了条件、作業中は終了条件。
     /// The card's one note line (screen-spec "Card body"): 理由 when blocked, ◯◯がつくっています while working, else 担当 ◯◯.
     static func cardNote(_ card: LatticeCard, owner: LatticePerson?) -> String {
-        if card.status == .blocked, let reason = card.blockedReason, !reason.isEmpty { return "理由: \(reason)" }
-        if card.status == .inProgress, let owner { return "\(owner.name)がつくっています" }
-        return owner.map { "担当 \($0.name)" } ?? LatticePerson.unassigned
+        if card.status == .blocked, let reason = card.blockedReason, !reason.isEmpty { return String(localized: "理由: \(reason)") }
+        if card.status == .inProgress, let owner { return String(localized: "\(owner.name)がつくっています") }
+        return owner.map { String(localized: "担当 \($0.name)") } ?? LatticePerson.unassigned
     }
 
     /// The edge chip over a 前工程 that is still open: 「前工程：◯◯」, ◯◯ = the owner of the finishing card (the edge's start), 担当なし when it has none.
-    static func chipText(maker: LatticePerson?) -> String { "前工程：\(latticeName(maker))" }
+    static func chipText(maker: LatticePerson?) -> String { String(localized: "前工程：\(latticeName(maker))") }
 
     /// A card's chip for its open 接続 entries; nil when it has none.
     static func connectionChip(_ card: LatticeCard) -> String? {
         let count = card.openConnections.count
-        return count > 0 ? "接続 \(count)" : nil
+        return count > 0 ? String(localized: "接続 \(count)") : nil
     }
 
-    static let connectionsTitle = "接続"
-    static let connectionsEmpty = "接続している工程はありません。"
-    static let connectionsLead = "工程表の外の条件に接続している工程"
-    static let connectionTask = "この工程の完了が条件になっています"
-    static let connectionSchedule = "予定の結果が条件になっています"
-    static func connectionPriority(_ agent: String) -> String { "\(agent)が、着手できるようになったらすぐ動きたいと伝えています" }
-    static let notRead = "読めていません"
-    static let otherTask = "ほかの工程表の工程"
-    static let otherChart = "ほかの工程表"
+    static let connectionsTitle = String(localized: "接続")
+    static let connectionsEmpty = String(localized: "接続している工程はありません。")
+    static let connectionsLead = String(localized: "工程表の外の条件に接続している工程")
+    static let connectionTask = String(localized: "この工程の完了が条件になっています")
+    static let connectionSchedule = String(localized: "予定の結果が条件になっています")
+    static func connectionPriority(_ agent: String) -> String { String(localized: "\(agent)が、着手できるようになったらすぐ動きたいと伝えています") }
+    static let notRead = String(localized: "読めていません")
+    static let otherTask = String(localized: "ほかの工程表の工程")
+    static let otherChart = String(localized: "ほかの工程表")
 
     /// The awaited task of another chart in one phrase (README `externals[]`): in-progress has no minutes (no start time), no state = 読めていません.
     static func externalState(_ state: String?, producer: LatticePerson?) -> String {
         guard let state else { return notRead }
         let status = LatticeTaskState(state)
         switch status {
-        case .pending, .ready: return producer.map { "\(status.badge): 担当 \($0.name)" } ?? LatticePerson.unassigned
+        case .pending, .ready: return producer.map { String(localized: "\(status.badge): 担当 \($0.name)") } ?? LatticePerson.unassigned
         default: return status.badge
         }
     }
 
     static func cardLabel(_ card: LatticeCard, producer: LatticePerson?) -> String {
-        "\(card.title)、\(card.status.badge)、つくっている \(latticeName(producer))"
+        String(localized: "\(card.title)、\(card.status.badge)、つくっている \(latticeName(producer))")
     }
 }
 
@@ -569,7 +569,7 @@ struct LatticeBanner: Equatable {
         case "last_verified":
             let at = LatticeTime.jstText(snapshot?.verifiedAt)
             return LatticeBanner(tone: .grey, symbol: "clock.arrow.circlepath",
-                                 text: "いまの記録が読めないため、最後に確認できた状態\(at.isEmpty ? "" : "（\(at) JST）")を表示しています。読めるようになると自動で切り替わります。",
+                                 text: at.isEmpty ? String(localized: "いまの記録が読めないため、最後に確認できた状態を表示しています。読めるようになると自動で切り替わります。") : String(localized: "いまの記録が読めないため、最後に確認できた状態（\(at) JST）を表示しています。読めるようになると自動で切り替わります。"),
                                  dims: true)
         default:
             return nil
@@ -630,7 +630,7 @@ struct LatticeConnectionRow: Identifiable, Equatable {
             && a.agent == b.agent && a.emphasized == b.emphasized
     }
 
-    var ownerLine: String { owner.map { "担当 \($0.name)" } ?? LatticePerson.unassigned }
+    var ownerLine: String { owner.map { String(localized: "担当 \($0.name)") } ?? LatticePerson.unassigned }
     var canChat: Bool { producer?.known == true }
     var mark: String {
         switch kind {
@@ -640,9 +640,9 @@ struct LatticeConnectionRow: Identifiable, Equatable {
         }
     }
     var accessibilityLabel: String {
-        let who = "「\(title)」（\(ownerLine)）は、"
+        let who = String(localized: "「\(title)」（\(ownerLine)）は、")
         switch kind {
-        case .task: return "\(who)「\(awaitedTitle)」（\(chart)）の完了が条件になっています。つくっているのは\(latticeName(producer))、\(stateText)"
+        case .task: return String(localized: "\(who)「\(awaitedTitle)」（\(chart)）の完了が条件になっています。つくっているのは\(latticeName(producer))、\(stateText)")
         case .schedule: return "\(who)\(LatticeText.connectionSchedule)"
         case .priority: return "\(who)\(LatticeText.connectionPriority(latticeName(agent)))"
         }
@@ -679,7 +679,7 @@ struct LatticeConnectionRow: Identifiable, Equatable {
                 let status = ext.state.map { LatticeTaskState($0) }
                 let target = ext.projectId.flatMap { project in ext.cardId.map { (projectId: project, cardId: $0) } }
                 return row(.task, awaited: ext.title ?? LatticeText.otherTask,
-                           chart: ext.chartName.map { "\($0)の工程表" } ?? LatticeText.otherChart,
+                           chart: ext.chartName.map { String(localized: "\($0)の工程表") } ?? LatticeText.otherChart,
                            producer: producer, status: status, state: LatticeText.externalState(ext.state, producer: producer),
                            external: target, emphasized: status == .blocked)
             }
@@ -722,7 +722,7 @@ struct LatticeDetail: Equatable {
         // A retired successor is not a live next step (Owner 2026-11-16, a185; Web does the same); 前の工程 keeps every card.
         next = snapshot.edgeList.filter { $0.from == cardId }.compactMap { link($0.to) }.filter { $0.status != .retired }
         let started = LatticeTime.jstText(card.startedAt)
-        startedText = started.isEmpty ? "まだ着手されていません" : "着手 \(started) JST"
+        startedText = started.isEmpty ? String(localized: "まだ着手されていません") : String(localized: "着手 \(started) JST")
     }
 }
 
@@ -1029,10 +1029,10 @@ struct LatticeHistory: Equatable {
         var cards: [LatticeCard]
     }
 
-    static let unknownDay = "日時の分からない工程"
-    static let empty = "まだ終わった工程はありません。"
-    static let readFailed = "続きを読めませんでした。"
-    static let retry = "読み直す"
+    static let unknownDay = String(localized: "日時の分からない工程")
+    static let empty = String(localized: "まだ終わった工程はありません。")
+    static let readFailed = String(localized: "続きを読めませんでした。")
+    static let retry = String(localized: "読み直す")
 
     let days: [Day]
     var count: Int { days.reduce(0) { $0 + $1.cards.count } }
@@ -1112,9 +1112,10 @@ struct LatticeStopRow: Equatable, Identifiable {
 
     /// 読み上げ：ブロック、題、工程表、担当、理由（全文）、ブロックした人と時刻。
     var label: String {
-        let reasonPart = reason.isEmpty ? "" : "、理由 \(reason)"
-        let timePart = time.isEmpty ? "" : "\(time)に"
-        return "ブロック、\(title)、\(chart)、\(lane.map { "担当 \($0.name)" } ?? LatticePerson.unassigned)\(reasonPart)、\(latticeName(by))が\(timePart)ブロックしました"
+        let reasonPart = reason.isEmpty ? "" : String(localized: "、理由 \(reason)")
+        let timePart = time.isEmpty ? "" : String(localized: "\(time)に")
+        let laneText = lane.map { String(localized: "担当 \($0.name)") } ?? LatticePerson.unassigned
+        return String(localized: "ブロック、\(title)、\(chart)、\(laneText)\(reasonPart)、\(latticeName(by))が\(timePart)ブロックしました")
     }
 
     static func rows(_ blockers: [LatticeBlocker], now: Date, face: (String?) -> LatticePerson?,

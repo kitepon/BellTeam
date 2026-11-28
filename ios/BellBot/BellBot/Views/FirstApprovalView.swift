@@ -2,8 +2,8 @@ import SwiftUI
 
 /// What the first screen says while this device is not yet approved or paid (Owner 2026-11-24, row first-screen-parent-approval; 決裁箱 is the model). Same entry and layout on every client.
 enum FirstScreenWords {
-    static let purpose = "AIのチームに、スマホやPCから指示できます。"
-    static let waitingTitle = "使っている端末の承認を待っています"
+    static let purpose = String(localized: "AIのチームに、スマホやPCから指示できます。")
+    static let waitingTitle = String(localized: "使っている端末の承認を待っています")
 }
 
 /// The app, or the first approval screen when this device's own store check found nothing paid (a540). It stands before every other screen, the server setup included: the local form needs no server.
