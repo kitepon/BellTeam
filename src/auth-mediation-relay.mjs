@@ -17,6 +17,8 @@ const bad = () => ({ outcome: 'error', error: 'Bad request.' })
 const words = value => Array.isArray(value) && value.length >= 1 && value.length <= 64 && value.every(word => typeof word === 'string' && word.length >= 1 && word.length <= 1024 && !word.includes('\0'))
 const absolute = value => typeof value === 'string' && value.startsWith('/') && value.length <= 4096 && !value.includes('\0')
 // The client's http line -> the child's http params (the transport fills who is calling).
+// The client's run line -> the child's run params: the stream socket is the relay's own doing (frame.stream), never the client's.
+const runParams = (request, frame) => ({ name: request.name, stream: frame.stream })
 const httpParams = request => ({ name: request.name, method: request.method, path: request.path, ...(request.headers === undefined ? {} : { headers: request.headers }),
   ...(request.body === undefined ? {} : { body: request.body }), ...(request.timeout_sec === undefined ? {} : { timeoutSec: request.timeout_sec }) })
 // The client's key-use line -> the child's keyuse params (the transport fills who is calling).
@@ -41,7 +43,8 @@ export async function relayAnswer(frame, facade) {
   if (!request || typeof request !== 'object' || Array.isArray(request)) return bad()
   if (frame.via === 'caller-socket') {
     // A container product's own socket: its path is its identity (named by the relay, never by the client's line). Key use only; no exec, no admin.
-    if (!absolute(frame.unit) || (peer !== null && peer !== undefined) || ![...KEY_OPS, 'http', ...MAIL_OPS, ...GMAIL_OPS].includes(request.op)) return bad()
+    if (!absolute(frame.unit) || (peer !== null && peer !== undefined) || ![...KEY_OPS, 'http', 'run', ...MAIL_OPS, ...GMAIL_OPS].includes(request.op)) return bad()
+    if (request.op === 'run') return facade.run({ ...runParams(request, frame), via: 'caller-socket', unit: frame.unit })
     if (GMAIL_OPS.includes(request.op)) return facade.gmail({ ...gmailParams(request), via: 'caller-socket', unit: frame.unit })
     if (MAIL_OPS.includes(request.op)) return facade.mail({ ...mailParams(request), via: 'caller-socket', unit: frame.unit })
     if (request.op === 'http') return facade.http({ ...httpParams(request), via: 'caller-socket', unit: frame.unit })
@@ -73,6 +76,11 @@ export async function relayAnswer(frame, facade) {
     if (container) return facade.mail({ ...mailParams(request), via: 'container-socket', cwd: peer.cwd })
     if (!absolute(request.cwd)) return bad()
     return facade.mail({ ...mailParams(request), via: 'host-socket', cwd: request.cwd, unit: request.cwd })
+  }
+  if (request.op === 'run') {
+    if (container) return facade.run({ ...runParams(request, frame), via: 'container-socket', cwd: peer.cwd })
+    if (!absolute(request.cwd)) return bad()
+    return facade.run({ ...runParams(request, frame), via: 'host-socket', cwd: request.cwd, unit: request.cwd })
   }
   if (request.op === 'http') {
     if (container) return facade.http({ ...httpParams(request), via: 'container-socket', cwd: peer.cwd })

@@ -56,6 +56,7 @@
     "src/auth-mediation/keyuse.mjs",
     "src/auth-mediation/sshkey.mjs",
     "src/auth-mediation/gmail.mjs",
+    "src/auth-mediation/run.mjs",
     "src/auth-mediation/mail.mjs",
     "src/auth-mediation/http.mjs",
     "src/auth-mediation/mcp.mjs",

@@ -2,7 +2,7 @@
 """Socket relay of the authentication module. Runs as the seat uid (1000), because only that uid can read a seat's cwd
 and can own the main-server user's host.sock. It frames one request line per connection, adds the peer's identity,
 asks the body over one unix socket and returns the body's one reply line unchanged. It holds no policy and no secret."""
-import hashlib, json, os, signal, socket, struct, sys, threading
+import hashlib, json, os, signal, socket, struct, sys, threading, uuid
 
 DIR = os.environ.get("AUTH_RELAY_DIR", "/srv/bellteam/shared/tools/auth-mediation")
 BODY = os.environ.get("AUTH_RELAY_BODY", "/srv/bellteam/state/auth-mediation-relay.sock")
@@ -10,7 +10,7 @@ SEAT_UID = int(os.environ.get("AUTH_RELAY_SEAT_UID", "1000"))
 MAX_REQUEST, MAX_REPLY, READ_SECONDS, BODY_SECONDS = 13 << 20, 17 << 20, 10, 45  # a request may carry a 9 MiB http body as base64, a reply an 11 MiB response (mail read: 1 MiB)
 SOCKETS = (("container-socket", "container.sock", 0o666), ("host-socket", "host.sock", 0o600))
 # One socket per container caller of key use (wrap / unwrap): callers/<name>/<name>.sock. Whoever can open it is that caller. A new caller is a body train, on purpose.
-CALLERS = ("mmobank", "auctionbot", "reminderbot", "reminderbot-public", "yuihome", "forklore-web", "forklore-mcp", "poly-daily", "ip-mcp", "call-bridge", "x-article-mcp")
+CALLERS = ("mmobank", "auctionbot", "reminderbot", "reminderbot-public", "yuihome", "forklore-web", "forklore-mcp", "poly-daily", "ip-mcp", "call-bridge", "x-article-mcp", "bingo")
 
 
 def read_line(conn, limit, seconds):
@@ -58,6 +58,35 @@ def program_of(pid):
         return None
 
 
+def pump(src, dst):
+    """Copies bytes until src ends, then tells dst there is no more (write side shut). Used both ways of a run's stream."""
+    try:
+        while True:
+            chunk = src.recv(65536)
+            if not chunk:
+                break
+            dst.sendall(chunk)
+    except OSError:
+        pass
+    try:
+        dst.shutdown(socket.SHUT_WR)
+    except OSError:
+        pass
+
+
+def open_run_listener():
+    """A one-shot socket the module child joins (it runs as another uid): mode 0666 in a 0711 folder, a random name nobody can list."""
+    folder = os.path.join(DIR, "runs")
+    os.makedirs(folder, mode=0o711, exist_ok=True)
+    os.chmod(folder, 0o711)
+    path = os.path.join(folder, str(uuid.uuid4()) + ".sock")
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    s.bind(path)
+    os.chmod(path, 0o666)
+    s.listen(1)
+    return s, path
+
+
 def handle(conn, via, unit=None):
     with conn:
         try:
@@ -77,6 +106,7 @@ def handle(conn, via, unit=None):
             peer = {"uid": uid, "cwd": cwd}
             if request.get("op") == "admin":
                 peer["program"] = program_of(pid)
+        listener = path = None
         try:
             body = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             body.settimeout(BODY_SECONDS)
@@ -85,11 +115,30 @@ def handle(conn, via, unit=None):
                 frame = {"via": via, "peer": peer, "request": request}
                 if unit:
                     frame["unit"] = unit  # the caller socket's own path: its identity
+                if request.get("op") == "run":
+                    listener, path = open_run_listener()  # the module child joins this socket; the client's line cannot name it
+                    frame["stream"] = path
                 body.sendall(json.dumps(frame).encode() + b"\n")
                 line = read_line(body, MAX_REPLY, BODY_SECONDS)
             conn.sendall(line + b"\n")
+            if listener and json.loads(line).get("outcome") == "granted":
+                listener.settimeout(10)
+                other, _ = listener.accept()
+                other.settimeout(None)
+                conn.settimeout(None)
+                up = threading.Thread(target=pump, args=(conn, other), daemon=True)
+                up.start()
+                pump(other, conn)  # until the module ends the run
+                other.close()
         except (OSError, ValueError):
             reply(conn, {"outcome": "error", "error": "The authentication module is not running."})
+        finally:
+            if listener:
+                listener.close()
+                try:
+                    os.unlink(path)
+                except OSError:
+                    pass
 
 
 def serve(via, path, mode, unit=None):

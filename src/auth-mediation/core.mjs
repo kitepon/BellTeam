@@ -7,6 +7,7 @@ import { botForCwd, callerKey } from './identity.mjs'
 import { useKey, signData, signDigest } from './keyuse.mjs'
 import { callHttp, forgetTokens } from './http.mjs'
 import { callGmail } from './gmail.mjs'
+import { planRun, startRun, stopRuns } from './run.mjs'
 import { sshIdentity, sshSign } from './sshkey.mjs'
 import { sendMail } from './mail.mjs'
 import { LIMITS, listFolders, openImap, readFolder, sortMessage } from './imap.mjs'
@@ -18,9 +19,9 @@ const ENTRY_ONLY = ['grant', 'revoke', 'import'], DECISION_KEYS = ['id', 'role',
 const REFUSALS = { stopped: 'This command is stopped by the operator.', denied: 'This command is not permitted.' }
 
 // store: {read, write}; items: createItemCache; audit: line => Promise; roots: () => {botId: absoluteRoot}.
-export function createAuthCore({ store, items: itemCache, tokenState = null, audit, roots, now = () => new Date(), realpath = fsRealpath, fetchImpl = fetch, mailConnect, imapConnect }) {
+export function createAuthCore({ store, items: itemCache, tokenState = null, runner = startRun, audit, roots, now = () => new Date(), realpath = fsRealpath, fetchImpl = fetch, mailConnect, imapConnect }) {
   // A flush (stop, revoke, flush, a new token) also drops the OAuth tokens the http op keeps in memory: the key is a hash of the item, so all of them go (cost: one new token).
-  const items = { ...itemCache, get: (...a) => itemCache.get(...a), flush: name => { itemCache.flush(name); forgetTokens() } }
+  const items = { ...itemCache, get: (...a) => itemCache.get(...a), flush: name => { itemCache.flush(name); forgetTokens(); stopRuns(name) } }
   // An audit failure never refuses a request (the diagnostic is the caller's); it is swallowed here by design.
   const record = (rec, outcome, extra = {}) => { void Promise.resolve(audit({ ...rec, outcome, ...extra })).catch(() => {}) }
 
@@ -121,6 +122,21 @@ export function createAuthCore({ store, items: itemCache, tokenState = null, aud
       return { outcome: 'granted', ...result }
     } catch (error) { record(rec, 'error', { cache: found.hit ? 'hit' : 'miss' }); return { outcome: 'error', error: error?.code?.startsWith?.('HTTP_') ? error.message : 'The request failed.' } }
   }
+  // Run (F22): the item fixes the command and holds the secrets; the relay named a per-run stream socket, the caller's bytes go in and the output comes back on it.
+  async function run(request) {
+    const at = now(), policy = await store.read(), caller = await identify(request), item = `run ${request.name}`
+    const rec = { time: at.toISOString(), request_id: randomUUID(), caller: caller ? callerKey(caller) : null, item, via: request.via, cwd: request.cwd ?? request.unit }
+    if (!caller) { record(rec, 'unknown-caller'); return { outcome: 'unknown-caller', error: 'The caller is not registered.' } }
+    const verdict = authorize(policy, caller, item, request.cwd ?? request.unit, at.getTime())
+    if (verdict !== 'granted') { if (verdict === 'stopped') items.flush(item); record(rec, verdict); return { outcome: verdict, error: REFUSALS[verdict] } }
+    const found = await items.get(item, policy.vault, policy.cache_seconds)
+    if (!found) { record(rec, 'not-registered'); return { outcome: 'not-registered', error: NOT_REGISTERED } }
+    try {
+      await runner(planRun(found.fields), { item, stream: request.stream, onEnd: end => record({ ...rec, request_id: randomUUID() }, 'run-ended', end) })
+      record(rec, 'granted', { cache: found.hit ? 'hit' : 'miss' })
+      return { outcome: 'granted' }
+    } catch (error) { record(rec, 'error', { cache: found.hit ? 'hit' : 'miss' }); return { outcome: 'error', error: error?.code === 'RUN_REFUSED' ? error.message : 'The run failed.' } }
+  }
   // Mail read (F17): the module logs in to the item's IMAP server, opens mailboxes read-only (EXAMINE, BODY.PEEK: nothing is ever marked seen) and answers with folders or messages.
   async function readMail(fields, request) {
     const client = await openImap(fields, imapConnect ? { connect: imapConnect } : {})
@@ -187,5 +203,5 @@ export function createAuthCore({ store, items: itemCache, tokenState = null, aud
       return { outcome: 'granted', ...result }
     } catch (error) { const code = error?.code?.startsWith?.('GMAIL_') ? error.code : 'GMAIL_FAILED'; record(rec, 'error', { cache: found.hit ? 'hit' : 'miss', class: code, why: error?.why }); return { outcome: 'error', error: code, ...(SAFE_DETAIL.test(error?.why ?? '') ? { detail: error.why } : {}) } }
   }
-  return { resolve, admin, keyuse, http, mail, gmail }
+  return { resolve, admin, keyuse, http, mail, gmail, run }
 }

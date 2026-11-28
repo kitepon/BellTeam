@@ -1,6 +1,6 @@
 export const AUTH_MEDIATION_PROTOCOL_VERSION = 1
 export const AUTH_MEDIATION_STATE_COMPATIBILITY = Object.freeze({ state: 'policy-v2' })
-export const AUTH_MEDIATION_METHODS = Object.freeze(['resolve', 'admin', 'keyuse', 'http', 'mail', 'gmail', 'status'])
+export const AUTH_MEDIATION_METHODS = Object.freeze(['resolve', 'admin', 'keyuse', 'http', 'mail', 'gmail', 'run', 'status'])
 export const AUTH_MEDIATION_EFFECTS = Object.freeze(['members.roots', 'secret.get', 'secret.put', 'secret.erase', 'seat.run'])
 export const authMediationError = (code, status = 400) => Object.assign(new Error(code), { code, status, outcome: 'not_accepted' })
 export const authMediationObject = (value, required, optional = []) => value && typeof value === 'object' && !Array.isArray(value)
@@ -70,6 +70,8 @@ export function validateAuthMediationRequest(method, params, context) {
     && ['add_labels', 'remove_labels'].every(k => params[k] === undefined || Array.isArray(params[k]) && params[k].length <= 8 && params[k].every(l => text(l, 64)))
     && (params.action === 'list' ? ['id', 'format', 'add_labels', 'remove_labels'].every(k => params[k] === undefined) : params.action === 'get' ? ['q', 'max_results', 'page_token', 'add_labels', 'remove_labels'].every(k => params[k] === undefined) && params.id !== undefined
       : ['q', 'max_results', 'page_token', 'format'].every(k => params[k] === undefined) && params.id !== undefined))
+  else if (method === 'run') check(authMediationObject(params, ['name', 'via', 'stream'], ['cwd', 'unit', 'botId']) && text(params.name, 128) && /^[A-Za-z0-9][A-Za-z0-9._-]*$/u.test(params.name) && ['container-socket', 'host-socket', 'caller-socket'].includes(params.via)
+    && /^\/[^\0]{1,400}\/runs\/[a-f0-9-]{36}\.sock$/u.test(params.stream) && (params.via === 'caller-socket' ? params.unit !== undefined : params.cwd !== undefined) && (params.cwd === undefined || path(params.cwd)) && (params.unit === undefined || path(params.unit)) && (params.botId === undefined || botId(params.botId)))
   else if (method === 'http') check(authMediationObject(params, ['name', 'method', 'path', 'via'], ['headers', 'body', 'timeoutSec', 'cwd', 'unit', 'botId'])
     && text(params.name, 128) && /^[A-Za-z0-9][A-Za-z0-9._-]*$/u.test(params.name) && ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(params.method)
     && text(params.path, 2048) && params.path.startsWith('/') && ['container-socket', 'host-socket', 'caller-socket'].includes(params.via)
@@ -147,6 +149,7 @@ export function validateAuthMediationResult(method, value) {
     && (value.truncated === undefined || typeof value.truncated === 'boolean') && JSON.stringify(value).length <= 4 * 1024 * 1024)
   else if (method === 'gmail') need(authMediationObject(value, ['outcome'], ['error', 'detail', 'status', 'body', 'truncated']) && OUTCOMES.includes(value.outcome) && (value.error === undefined || str(value.error)) && (value.detail === undefined || text(value.detail, 64))
     && (value.status === undefined || Number.isInteger(value.status) && value.status >= 100 && value.status <= 599) && (value.body === undefined || str(value.body) && value.body.length <= 1200000) && (value.truncated === undefined || typeof value.truncated === 'boolean'))
+  else if (method === 'run') need(authMediationObject(value, ['outcome'], ['error']) && OUTCOMES.includes(value.outcome) && (value.error === undefined || str(value.error)))
   else if (method === 'http') need(authMediationObject(value, ['outcome'], ['error', 'status', 'headers', 'body', 'truncated']) && OUTCOMES.includes(value.outcome) && (value.error === undefined || str(value.error))
     && (value.status === undefined || Number.isInteger(value.status) && value.status >= 100 && value.status <= 599) && (value.truncated === undefined || typeof value.truncated === 'boolean')
     && (value.body === undefined || str(value.body) && value.body.length <= 15400000)

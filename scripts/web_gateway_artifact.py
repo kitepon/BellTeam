@@ -230,6 +230,7 @@ BUSINESS_FILES = {
         'src/auth-mediation/env.mjs',
         'src/auth-mediation/identity.mjs',
         'src/auth-mediation/gmail.mjs',
+        'src/auth-mediation/run.mjs',
         'src/auth-mediation/http.mjs',
         'src/auth-mediation/imap.mjs',
         'src/auth-mediation/items.mjs',
