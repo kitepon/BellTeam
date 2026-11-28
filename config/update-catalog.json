@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-28T10:38:40Z",
-  "expiresAt": "2026-12-05T10:38:40Z",
+  "publishedAt": "2026-11-28T10:56:51Z",
+  "expiresAt": "2026-12-05T10:56:51Z",
   "releases": [
     {
       "componentId": "usage",
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "b71808a7f29e136873411806d9eb98f993bde353",
-      "versionId": "sha256:6da9730c5929980caa8a06c1b408ddfb8ab01a35f5c661ca0a8c81e925ed0fbd",
+      "sourceCommit": "e5447d14cffb46c784bb97323551bc5925efae71",
+      "versionId": "sha256:a92b11a95cad49d1f3c90339b0ca0a410320905342e2bd1db6e29c7d18b7921c",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6da9730c5929980caa8a06c1b408ddfb8ab01a35f5c661ca0a8c81e925ed0fbd"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:a92b11a95cad49d1f3c90339b0ca0a410320905342e2bd1db6e29c7d18b7921c"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -722,20 +722,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "BellTeam 本体が、固定アドレスのネットワーク（bellteam_fixed）に付いて起動します。通話ブリッジの取り込み口（役目を終えたもの）が、配布物から外れます。"
+        "BellTeam 本体が、固定アドレスのネットワーク（bellteam_fixed）に付いて起動します。Throughline が 0.22.0 になり、不具合の報告に署名が付けられるようになります。既にある工程表へ名前を付けて呼んでも、名前が書き換わらなくなります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "b71808a7f29e136873411806d9eb98f993bde353",
-      "versionId": "sha256:6da9730c5929980caa8a06c1b408ddfb8ab01a35f5c661ca0a8c81e925ed0fbd",
+      "sourceCommit": "e5447d14cffb46c784bb97323551bc5925efae71",
+      "versionId": "sha256:a92b11a95cad49d1f3c90339b0ca0a410320905342e2bd1db6e29c7d18b7921c",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6da9730c5929980caa8a06c1b408ddfb8ab01a35f5c661ca0a8c81e925ed0fbd"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:a92b11a95cad49d1f3c90339b0ca0a410320905342e2bd1db6e29c7d18b7921c"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -744,13 +744,13 @@
         "containerUpdate": 1
       },
       "changes": [
-        "BellTeam 本体が、固定アドレスのネットワーク（bellteam_fixed）に付いて起動します。通話ブリッジの取り込み口（役目を終えたもの）が、配布物から外れます。"
+        "BellTeam 本体が、固定アドレスのネットワーク（bellteam_fixed）に付いて起動します。Throughline が 0.22.0 になり、不具合の報告に署名が付けられるようになります。既にある工程表へ名前を付けて呼んでも、名前が書き換わらなくなります。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "3eb3b0be4be91040bcd719eac3a48cd089774241",
-      "versionId": "d3f0ca3b7b5d45c46cf525d1696e5a1644d24ba9b2bd4fa0170f258021c1d087",
+      "sourceCommit": "e5447d14cffb46c784bb97323551bc5925efae71",
+      "versionId": "3f7f7aacea32ced1ab5b3365b0b2e1477e2d16d4d2dc5be9d04bb358c371250f",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -758,16 +758,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T034500Z/lattice-3eb3b0be4be91040bcd719eac3a48cd089774241-linux-amd64.tar.gz",
-          "bytes": 15369160,
-          "sha256": "d3f0ca3b7b5d45c46cf525d1696e5a1644d24ba9b2bd4fa0170f258021c1d087"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T104837Z/lattice-e5447d14cffb46c784bb97323551bc5925efae71-linux-amd64.tar.gz",
+          "bytes": 15369302,
+          "sha256": "3f7f7aacea32ced1ab5b3365b0b2e1477e2d16d4d2dc5be9d04bb358c371250f"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T034500Z/lattice-3eb3b0be4be91040bcd719eac3a48cd089774241-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10902,
-          "sha256": "7d38000ed0459bade86488a8e70d752d70bc0dfa5d18596cf39dea31e4be79cc"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T104837Z/lattice-e5447d14cffb46c784bb97323551bc5925efae71-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11137,
+          "sha256": "ff905da774779ef71b3d819763620e83875c84b71ac7c93f0868781ea24c6989"
         },
-        "signerCommit": "3eb3b0be4be91040bcd719eac3a48cd089774241"
+        "signerCommit": "e5447d14cffb46c784bb97323551bc5925efae71"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -779,13 +779,13 @@
         }
       },
       "changes": [
-        "Lattice が 0.115.0 になります（カードを足した Bot の記録、待っている工程の表示、接続の知らせ）。"
+        "既にある工程表に、コマンドと一緒に名前を渡しても、その名前に書き換わらなくなります（新しく作る時だけ名前が付きます）。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "3eb3b0be4be91040bcd719eac3a48cd089774241",
-      "versionId": "33a577131de5f9736a93988b54ef650ab397ef94567e2e06d8408e4b541c4cc5",
+      "sourceCommit": "e5447d14cffb46c784bb97323551bc5925efae71",
+      "versionId": "5e2434f4e9d80e14dd9f3ccdbc1dfafe0afddb69073328df58c8e82910808f5c",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -793,16 +793,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T034500Z/lattice-3eb3b0be4be91040bcd719eac3a48cd089774241-linux-arm64.tar.gz",
-          "bytes": 15369160,
-          "sha256": "33a577131de5f9736a93988b54ef650ab397ef94567e2e06d8408e4b541c4cc5"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T104837Z/lattice-e5447d14cffb46c784bb97323551bc5925efae71-linux-arm64.tar.gz",
+          "bytes": 15369302,
+          "sha256": "5e2434f4e9d80e14dd9f3ccdbc1dfafe0afddb69073328df58c8e82910808f5c"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T034500Z/lattice-3eb3b0be4be91040bcd719eac3a48cd089774241-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11090,
-          "sha256": "ba6c936c18222f7ab9270fa016e31b11c4919549381ec4a37f5166dd0d8400dc"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T104837Z/lattice-e5447d14cffb46c784bb97323551bc5925efae71-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11137,
+          "sha256": "79c304db08aa74da096549ac35016f07a450d98525043815d93c8dd2339bab3a"
         },
-        "signerCommit": "3eb3b0be4be91040bcd719eac3a48cd089774241"
+        "signerCommit": "e5447d14cffb46c784bb97323551bc5925efae71"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -814,7 +814,7 @@
         }
       },
       "changes": [
-        "Lattice が 0.115.0 になります（カードを足した Bot の記録、待っている工程の表示、接続の知らせ）。"
+        "既にある工程表に、コマンドと一緒に名前を渡しても、その名前に書き換わらなくなります（新しく作る時だけ名前が付きます）。"
       ]
     },
     {
