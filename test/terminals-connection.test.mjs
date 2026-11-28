@@ -51,7 +51,7 @@ test('a key-reader terminal needs no key load: availability comes from the reade
   const bindingRef = 'b1b2c3d4-1234-4234-8234-123456789abc'
   const sudoKeyRef = 'c1b2c3d4-1234-4234-8234-123456789abc'
   const state = { available: true }
-  const keyReader = { owns: id => id === 'owner-macbook', available: async () => ({ available: state.available, revision: 4 }) }
+  const keyReader = { owns: id => id === 'owner-macbook', available: async () => ({ available: state.available, revision: 4 }), agentSocket: () => '/tmp/bellteam-terminals/agent/module.sock' }
   const sudoCalls = []
   const secrets = { ...fakeSecrets(), credential(handle, context) { sudoCalls.push(context.purpose); return { handle, revision: 2, available: true } }, withResolved() { throw new Error('no value may be resolved here') } }
   const { connection, native } = setup(t, { target: { ...base, keySource: 'secret', bindingRef, sudoKeyRef }, secrets, keyReader })

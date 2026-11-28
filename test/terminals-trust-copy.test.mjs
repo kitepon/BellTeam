@@ -303,22 +303,33 @@ test('remoteFor: the remote input of a switched terminal by id, no launch, no C8
   assert.deepEqual(await bare.remoteFor('owner-macbook'), { reason: 'TRUST_COPY_MISSING' })
 })
 
-test('a key-reader terminal: the remote input takes the module agent socket per call; a dead holder or a non-string socket is AGENT_EMPTY', async t => {
-  const holder = { up: true, socket: '/dev/shm/auth-1/agent.sock' }
+test('a key-reader terminal with agentSocket: the remote input takes the module agent per call on its own forward id; a dead holder or a non-string socket is AGENT_EMPTY', async t => {
+  const holder = { up: true, socket: '/tmp/bellteam-terminals/agent/module.sock' }
   const keyReader = { owns: id => id === 'owner-macbook', available: async () => ({ available: holder.up, revision: 1 }), agentSocket: async () => holder.socket }
   const native = switched({ async agentHeld() { throw new Error('Aiterm agent is not consulted') }, agentSocket() { throw new Error('Aiterm agent is not consulted') }, async loadAgent() { throw new Error('nothing is loaded') } })
   const { connection } = await switchedSetup(t, { native, keyReader })
   const first = await connection.remoteFor('owner-macbook')
-  assert.equal(first.remote.ssh.identity_agent, '/dev/shm/auth-1/agent.sock')
-  assert.ok(first.revision.endsWith(':/dev/shm/auth-1/agent.sock'), 'the path is part of the revision')
-  holder.socket = '/dev/shm/auth-2/agent.sock' // holder restarted
-  const second = await connection.remoteFor('owner-macbook')
-  assert.equal(second.remote.ssh.identity_agent, '/dev/shm/auth-2/agent.sock')
-  assert.notEqual(second.revision, first.revision)
+  assert.equal(first.remote.ssh.identity_agent, '/tmp/bellteam-terminals/agent/module.sock')
+  assert.deepEqual(first.forward, { id: 'module-owner-macbook', to: { host: '127.0.0.1' } }, 'a binding ref as forward id would make the keeper ignore remote')
   holder.socket = 42
   assert.deepEqual(await connection.remoteFor('owner-macbook'), { reason: 'AGENT_EMPTY' })
-  holder.socket = '/dev/shm/auth-2/agent.sock'; holder.up = false
+  holder.socket = '/tmp/bellteam-terminals/agent/module.sock'; holder.up = false
   assert.deepEqual(await connection.remoteFor('owner-macbook'), { reason: 'CREDENTIAL_UNAVAILABLE' }) // resolveBinding gates first
+})
+
+test('a key-reader terminal whose port has no agentSocket still loads through load() and uses Aiterm\'s agent', async t => {
+  const loads = []
+  const keyReader = { owns: () => true, available: async () => ({ available: true, revision: 1 }), async load(request) { loads.push(request); return {} } }
+  const native = switched()
+  const { connection } = await switchedSetup(t, { native, keyReader })
+  const result = await connection.remoteFor('owner-macbook')
+  assert.equal(result.remote.ssh.identity_agent, '/tmp/bellteam-terminals/agent/owner-macbook.sock')
+  assert.deepEqual(result.forward, { id: sshKeyRef, to: { host: '127.0.0.1' } })
+  let held = false
+  const empty = switched({ async agentHeld() { return held } })
+  const { connection: again } = await switchedSetup(t, { native: empty, keyReader: { ...keyReader, async load(request) { loads.push(request); held = true; return {} } } })
+  assert.ok((await again.remoteFor('owner-macbook')).remote)
+  assert.equal(loads.length, 1, 'the empty agent was loaded through load()')
 })
 
 test('remoteFor after a body restart: an empty agent gets the key again first; if it stays empty the reason is AGENT_EMPTY and nothing falls back', async t => {
