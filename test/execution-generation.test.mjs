@@ -11,23 +11,50 @@ const version = 'a'.repeat(64), badVersion = 'b'.repeat(64), sourceCommit = 'c'.
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no }); return { promise, resolve, reject } }
 const tick = () => new Promise(resolve => setImmediate(resolve))
 const request = (method, ...args) => ({ method, args })
-async function fixture(t, { save = async () => {}, failInitialize = false, failConstruct = false, cleanupUnknown = false, shortDrain = false, refuseHandover = false, autoStart = true, beforeLoad = async () => {} } = {}) {
+async function fixture(t, { save = async () => {}, failInitialize = false, failConstruct = false, cleanupUnknown = false, shortDrain = false, refuseHandover = false, autoStart = true, beforeLoad = async () => {}, failRollbackCapture = null } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'execution-generation-')); t.after(() => rm(root, { recursive: true, force: true }))
-  const bot = { id: 'bot-synthetic', session: 'synthetic', harness: 'codex' }, bots = new Map([[bot.id, bot]])
-  const read = deferred(), created = [], selections = [], loads = [], nativeCalls = []
+  const bot = { id: 'bot-synthetic', session: 'synthetic', harness: 'codex', project: root }, bots = new Map([[bot.id, bot]])
+  const read = deferred(), turn = deferred(), created = [], selections = [], loads = [], nativeCalls = []
   let nativeCloses = 0, releaseCleanup = false
   const ports = { bots, rooms: {}, configurationStorage: { root: join(root, 'intents'), ownerUid: process.getuid() },
     membersAdmission: new MembersAdmission(), access: { assertWorkAllowed() {} }, observer: { report() {} },
-    native: { async call(name) { nativeCalls.push(name); return name === 'pty_observe' ? read.promise : {} }, async close() { nativeCloses++ } } }
+    seat: { waitProcess: () => turn.promise },
+    native: { async call(name, args) {
+      nativeCalls.push(name)
+      if (name === 'pty_observe') return read.promise
+      if (name === 'pty_list') return { structuredContent: { sessions: [] } }
+      if (name === 'pty_send') return { structuredContent: { mode: 'agent_dispatch', session_id: args.session_id,
+        vendor: 'codex', launch_id: 'a'.repeat(32), event_cursor: 1, wait_process: { executable: 'stub', args: [] } } }
+      return {}
+    }, async close() { nativeCloses++ } } }
   const loadFactory = async (versionId, options) => {
     loads.push({ versionId, options }); await beforeLoad()
     return Object.freeze({ versionId, sourceCommit, createExecutionDispatcher(params) {
       if (failConstruct && versionId === badVersion) throw Error('synthetic constructor failure')
-      const actual = createExecutionDispatcher(params), record = { versionId, actual, retired: false }; created.push(record)
+      const actual = createExecutionDispatcher(params), record = { versionId, actual, handoff: params.handoff, retired: false }; created.push(record)
+      let failedCapture = false
+      const failCapture = stage => {
+        if (versionId !== version || failedCapture || failRollbackCapture !== stage) return false
+        failedCapture = true
+        return true
+      }
       return { ...actual,
+        exportState(options) {
+          if (options?.handover && failCapture('export')) throw Error('synthetic export failure')
+          const state = actual.exportState(options)
+          if (versionId === version && failRollbackCapture && options?.handover) {
+            // This field was learned by the candidate, so it cannot come from the predecessor's export.
+            state.metadata.sessions = new Map([[bot.id, 'candidate-session']])
+            state.metadata.stopVersions = new Map([[bot.id, 4]])
+            state.metadata.continuationStates = new Map([[bot.id, { sent: 1 }]])
+            record.rollbackHandoff = state
+          }
+          return state
+        },
         project: input => input.method === 'administration.view'
           ? { ...actual.project(input), fixtureVersion: versionId } : actual.project(input),
         control: (action, options) => {
+          if (action === 'quiesce' && options?.handover && failCapture('quiesce')) return Promise.reject(Error('synthetic quiesce failure'))
           if (action === 'initialize' && versionId === badVersion && failInitialize) return Promise.reject(Error('synthetic initialization failure'))
           // Pre-#543 installed code refused a handover while busy.
           if (refuseHandover && versionId === null && action === 'quiesce' && options?.handover) return actual.control('quiesce', { timeoutMs: 0 })
@@ -41,9 +68,9 @@ async function fixture(t, { save = async () => {}, failInitialize = false, failC
     } })
   }
   const controller = createExecutionGeneration({ ports, loadFactory, onAdopt: selection => { selections.push(selection); return save(selection) } })
-  t.after(async () => { releaseCleanup = true; read.resolve({ structuredContent: { exists: true } }); await controller.close().catch(() => {}) })
+  t.after(async () => { releaseCleanup = true; turn.resolve({ outcome: 'done', turn_id: 'turn' }); read.resolve({ structuredContent: { exists: true } }); await controller.close().catch(() => {}) })
   if (autoStart) await controller.start()
-  return { controller, bot, read, created, selections, loads, nativeCalls, nativeCloses: () => nativeCloses }
+  return { controller, bot, read, turn, created, selections, loads, nativeCalls, nativeCloses: () => nativeCloses }
 }
 
 test('real engine exchange serves the previous synchronous projection until the durable selection ACK, then retires it', async t => {
@@ -159,3 +186,43 @@ test('failed candidate adoption is rolled back only after candidate close and du
   assert.equal(f.controller.snapshot().available, true)
   assert.equal(f.controller.snapshot().currentVersionId, null)
 })
+
+for (const stage of ['quiesce', 'export']) {
+  test(`adoption rollback retains accepted work and retries the candidate's ${stage}`, { timeout: 6000 }, async t => {
+    const savedOld = deferred(), releaseSave = deferred()
+    const f = await fixture(t, { failRollbackCapture: stage,
+      save: async selection => {
+        if (selection.currentVersionId === version) throw Error('synthetic save failure')
+        savedOld.resolve()
+        await releaseSave.promise
+      },
+    })
+    t.after(() => releaseSave.resolve())
+    const accepted = await f.controller.dispatch(request('transport.notify', f.bot, 'ACCEPTED_ONCE'))
+    assert.equal(accepted.delivery, 'running')
+    await assert.rejects(f.controller.replace(version), { message: 'EXECUTION_ADOPTION_ROLLBACK' })
+    assert.equal(f.controller.snapshot().available, false)
+    assert.equal(f.created.length, 2, 'capture failure leaves the initialized candidate in place')
+    assert.equal(f.created[1].retired, false)
+
+    const keepAlive = setTimeout(() => {}, 5000)
+    t.after(() => clearTimeout(keepAlive))
+    await savedOld.promise
+    const [, candidate, restored] = f.created
+    assert.equal(candidate.retired, true)
+    assert.equal(restored.handoff, candidate.rollbackHandoff)
+    assert.equal(restored.handoff.activity, candidate.handoff.activity)
+    assert.equal(restored.handoff.metadata.stopVersions.get(f.bot.id), 4)
+    assert.deepEqual(restored.handoff.metadata.continuationStates.get(f.bot.id), { sent: 1 })
+    assert.equal(f.controller.snapshot().available, false, 'old selection still awaits durable save')
+    releaseSave.resolve()
+    while (!f.controller.snapshot().available) await tick()
+    assert.equal(f.controller.project(request('transport.session', f.bot)), 'candidate-session')
+    assert.equal(f.controller.project(request('transport.queueItems')).length, 1)
+    f.turn.resolve({ outcome: 'done', turn_id: 'turn' })
+    while (f.controller.project(request('transport.queueItems')).length) await tick()
+    assert.equal(f.nativeCalls.filter(name => name === 'pty_send').length, 1)
+    assert.equal(f.nativeCalls.filter(name => name === 'pty_close').length, 0)
+    assert.equal(f.nativeCloses(), 0)
+  })
+}

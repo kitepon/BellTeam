@@ -11,7 +11,7 @@ const deferred = () => { let resolve, reject; const promise = new Promise((yes, 
 const tick = () => new Promise(resolve => setImmediate(resolve))
 const bot = { id: 'bot-synthetic', session: 'bot-synthetic', harness: 'codex', project: '/synthetic' }
 const request = (method, ...args) => ({ method, args })
-async function fixture(t, nativeCall, { handoff, generation = 'first', waitProcess = async () => ({ outcome: 'done', turn_id: 'turn' }), continuation, initialize = true } = {}) {
+async function fixture(t, nativeCall, { handoff, generation = 'first', waitProcess = async () => ({ outcome: 'done', turn_id: 'turn' }), continuation, harnessCli, initialize = true } = {}) {
   const storageRoot = await mkdtemp(join(tmpdir(), 'execution-factory-'))
   t.after(() => rm(storageRoot, { recursive: true, force: true }))
   const bots = new Map([[bot.id, bot]]), calls = []
@@ -29,7 +29,7 @@ async function fixture(t, nativeCall, { handoff, generation = 'first', waitProce
   }, async close() { closes++ } }, bots, rooms: {}, membersAdmission: new MembersAdmission(),
     configurationStorage: { root: join(storageRoot, 'intents'), ownerUid: process.getuid() }, access: { assertWorkAllowed() {} },
     seat: { waitProcess },
-    observer: { report() {} }, diagnostics: { record() {} }, ...(continuation ? { continuation } : {}) }
+    observer: { report() {} }, diagnostics: { record() {} }, ...(continuation ? { continuation } : {}), ...(harnessCli ? { harnessCli } : {}) }
   const engine = createExecutionDispatcher({ generation, ports, handoff })
   t.after(async () => {
     try { await engine.control('quiesce', { timeoutMs: 200 }); await engine.disconnect() } catch {}
@@ -121,11 +121,17 @@ test('handoff keeps session, stop versions, original request identity and Curren
 })
 
 test('retirement cancels producer timers and old callback handles cannot issue new native work', async t => {
-  const f = await fixture(t)
+  const listeners = new Set()
+  const f = await fixture(t, null, { harnessCli: { watch(listener) {
+    listeners.add(listener)
+    return () => listeners.delete(listener)
+  } } })
+  assert.equal(listeners.size, 1)
   await tick()
   await f.engine.control('quiesce')
   const before = f.calls.length
   await f.engine.disconnect()
+  assert.equal(listeners.size, 0)
   await new Promise(resolve => setTimeout(resolve, 15))
   assert.equal(f.calls.length, before)
   await assert.rejects(f.engine.control('resume'), { code: 'EXECUTION_GENERATION_RETIRED' })
@@ -180,6 +186,31 @@ test('an observer admitted before quiesce cannot create a new watch after its na
   await f.engine.control('quiesce', { timeoutMs: 200 }); await f.engine.disconnect()
 })
 
+
+test('a forwarding gap and a discarded candidate keep the shared capacity intent for one running successor', async t => {
+  let authorizationCalls = 0
+  const f = await fixture(t, null, { continuation: { models: {}, messenger: {}, harnessAuth: { status: async () => {
+    authorizationCalls++
+    return { status: 'unauthenticated' }
+  } } } })
+  await f.engine.control('quiesce', { handover: true })
+  const state = f.engine.exportState({ handover: true })
+  state.activity.recoverCapacity({ bot, deliveryId: '11111111-1111-4111-8111-111111111111',
+    failure: { category: 'capacity' }, check() {} })
+  const candidate = createExecutionDispatcher({ generation: 'discarded-candidate', ports: f.ports, handoff: state })
+  await candidate.disconnect()
+  await state.released
+  await f.engine.disconnect()
+  assert.equal(authorizationCalls, 0)
+  assert.equal(state.activity.deferredCapacity.length, 1)
+  const successor = createExecutionDispatcher({ generation: 'successor', ports: f.ports, handoff: state })
+  await successor.control('initialize')
+  await tick()
+  assert.equal(state.activity.deferredCapacity.length, 0)
+  assert.equal(authorizationCalls, 3, 'one continuation considers the three other harnesses once')
+  await successor.control('quiesce', { timeoutMs: 200 })
+  await successor.disconnect()
+})
 
 test('an uninitialized candidate can be discarded once without closing the shared native client', async t => {
   const f = await fixture(t, null, { initialize: false })

@@ -208,8 +208,14 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     activity.forks ??= new Map()
     for (const key of ['active', 'jobs', 'watches', 'followedTurns', 'configurationChanges', 'dispatches', 'waking']) transport[key] = activity[key]
   }
-  transport.activity.recoverCapacity = continuation ? context => continuation.failed(context) : null
-  if (continuation) deferredRecovery.push(...(transport.activity.deferredCapacity?.splice(0) ?? []))
+  transport.activity.recoverCapacity = continuation ? context => {
+    if (phase === 'running') recover(context)
+    else (transport.activity.deferredCapacity ??= []).push(context)
+  } : null
+  const recoverDeferred = () => {
+    if (!recover) return
+    for (const context of [...(transport.activity.deferredCapacity?.splice(0) ?? []), ...deferredRecovery.splice(0)]) recover(context)
+  }
   const unsubscribeQueue = transport.watchQueue(change => {
     alive(); track(ports.observer?.emitQueue?.(change))
   })
@@ -315,7 +321,8 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     unsubscribe(); remoteSeats?.close(); transport.workState.activityPath = null
     const released = (async () => {
       await Promise.allSettled(completions)
-      while (pending.size) await Promise.allSettled([...pending])
+      while (pending.size || continuation?.pending.size)
+        await Promise.allSettled([...pending, ...(continuation?.pending ?? [])])
     })()
     // The successor queues its activity saves after this engine's in-flight one, so a stale write never lands last.
     return Object.assign(result, { activity: transport.activity, unconfirmedJobs: transport.unconfirmedJobs, released, activityQueue: transport.workState.activityQueue })
@@ -351,7 +358,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
   }
   async function retire() {
     if (phase === 'retired') return { closed: true }
-    const settled = () => handedOver ? !pending.size : idleNow()
+    const settled = () => handedOver ? !pending.size && !continuation?.pending.size : idleNow()
     if (!['created', 'failed', 'quiesced'].includes(phase) || !settled()) throw failure('EXECUTION_BUSY')
     phase = 'discarding'
     try {
@@ -361,7 +368,8 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
       if (!settled()) throw failure('EXECUTION_BUSY')
       // A shared registry keeps the successor's listeners.
       remoteSeats?.close()
-      if (handedOver) unsubscribe(); else { unsubscribe(); transport.activity.listeners.clear() }
+      unsubscribe()
+      if (!handedOver && !handoff?.activity) transport.activity.listeners.clear()
       transport.cliUnsubscribe?.(); transport.cliUnsubscribe = null
       transport.accountsUnsubscribe?.(); transport.accountsUnsubscribe = null
       clearTimeout(transport.moveRetryTimer); transport.moveRetryTimer = null
@@ -413,7 +421,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
           }
         }
         initialized = true; phase = 'running'; transport.workState.schedule(); startProducers()
-        for (const context of deferredRecovery.splice(0)) recover(context)
+        recoverDeferred()
         // Account moves and recovery send messages through the parent, so they start once this engine accepts work.
         void transport.reviewAccounts()
         // configuration-lock.md (a339): seats running before this engine started get their Aiterm lock again.
@@ -428,7 +436,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
       if (!draining && initialized && phase === 'running') return { resumed: true }
       if (draining || !initialized || !['quiescing', 'quiesced'].includes(phase)) throw failure('EXECUTION_BUSY')
       phase = 'running'; transport.workState.schedule(); startProducers()
-      for (const context of deferredRecovery.splice(0)) recover(context)
+      recoverDeferred()
       return { resumed: true }
     }
     if (action === 'quiesce') return quiesce(options.timeoutMs, { handover: options.handover === true })
