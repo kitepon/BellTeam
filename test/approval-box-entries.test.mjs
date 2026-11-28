@@ -83,3 +83,11 @@ test('the folder is 0755 and the file 0644 even under a 077 umask', async t => {
   assert.equal((await stat(join(file, '..'))).mode & 0o777, 0o755)
   assert.equal((await stat(file)).mode & 0o777, 0o644)
 })
+
+test('the body starts and closes the publisher (the connector that used to carry it was removed 2026-11-28 and the entries file went stale)', async () => {
+  const { readFile } = await import('node:fs/promises')
+  const services = await readFile(new URL('../src/application-services.mjs', import.meta.url), 'utf8'), runtime = await readFile(new URL('../src/application-runtime.mjs', import.meta.url), 'utf8')
+  assert.match(services, /createSeatEntryPublisher\(\{ file: join\(root, 'state', 'approval-box-entries', 'harness-entries\.json'\), run: seatRun \}\)/u)
+  assert.match(runtime, /services\.seatEntries\?\.start\(\)/u)
+  assert.match(runtime, /services\.seatEntries\?\.close\(\)/u)
+})

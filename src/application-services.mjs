@@ -42,6 +42,7 @@ import { createLatticeFacade, createLatticeEffects } from './lattice-facade.mjs'
 import { createLatticeReminders } from './lattice/reminders.mjs'
 import { createLatticeDecisions } from './lattice-decisions.mjs'
 import { createApprovalBoxClientPort } from './approval-box-client.mjs'
+import { createSeatEntryPublisher } from './approval-box-entries.mjs'
 import { createSeatApprovals } from './seat-approvals.mjs'
 import { createApprovalBoxExtensionEffects } from './approval-box-parent-effects.mjs'
 import { createApprovalsFacade } from './approval-box-parent-facade.mjs'
@@ -527,6 +528,8 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   // The seats' Approval Box binary is the seat user's (the body is uid 1001, ~/.approval-box is 0700): run it as the seat user (seat-process.mjs). No seat runtime (dev, tests): no runner.
   const seatRun = seatRuntime ? createSeatProcessRunner(root, { environment: 'base' }) : null
   const approvalBoxPort = createApprovalBoxClientPort({ seatRun })
+  // P5 (decision-port.md): the seat entry file Molly's registration reads; started and closed with the body, independent of any connector (the connector's start used to carry it).
+  const seatEntries = seatRun ? createSeatEntryPublisher({ file: join(root, 'state', 'approval-box-entries', 'harness-entries.json'), run: seatRun }) : null
   if (latticeFactory) {
     // Optional module like work-graph: the routes and the seat tool answer LATTICE_UNAVAILABLE until the child is available.
     // Each new child generation (start, restart, exchange) re-delivers unacked startable notices; the call waits until the child is ready.
@@ -612,7 +615,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     notifications, secretRequests, ownerQuestions, machineStream, bots, rooms,
     roomMessenger, messenger, store, transport, memory,
     ownerProfile, userRules, characterSheets, assets,
-    scheduler, diagnostics, diagnosticsModule, workGraph, workGraphModule, lattice, latticeModule, approvals, approvalsModule, authMediation, authMediationModule, accounts, terminals, terminalKeys, runningExclusions, seatApprovals, seatCredentials, userToolRelay, remoteSeatListener, bindSeatMcpSeen, credentialRefresh, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller,
+    scheduler, diagnostics, diagnosticsModule, workGraph, workGraphModule, lattice, latticeModule, approvals, approvalsModule, authMediation, authMediationModule, accounts, terminals, terminalKeys, runningExclusions, seatApprovals, seatEntries, seatCredentials, userToolRelay, remoteSeatListener, bindSeatMcpSeen, credentialRefresh, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller,
     // Saved direct input drains after listen (Z-c). Starting before the hold release is safe and needs no bound:
     // executionReady is false while held, and the release's hold.watch → requestDrain drains it.
     lifecycle: { ...execution?.lifecycle,
