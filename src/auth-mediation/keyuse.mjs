@@ -48,15 +48,15 @@ export function signData(fields, data) {
   return sign(spec.hash, input, spec.type === 'ec' ? { key, dsaEncoding: 'ieee-p1363' } : key).toString('base64')
 }
 
-// Sign a digest (F15): RSASSA-PKCS1-v1_5 over a SHA-256 digest the caller already computed, for tools whose signature provider hashes locally (Android jarsigner / apksigner).
-// Only an RS256 item takes it; the DigestInfo prefix is fixed here, so the caller cannot make the module sign anything but a 32-byte SHA-256 value.
-const SHA256_DIGEST_INFO = Buffer.from('3031300d060960864801650304020105000420', 'hex')
+// Sign a digest (F15): RSASSA-PKCS1-v1_5 over a SHA-256, SHA-384 or SHA-512 digest (32, 48 or 64 bytes: the hash follows the length) the caller already computed, for tools whose signature provider hashes locally
+// (Android jarsigner / apksigner; apksigner picks SHA-512 for RSA keys above 3072 bits). Only an RS256 item takes it; the DigestInfo prefixes are fixed here, so the caller cannot make the module sign anything but a SHA-2 value.
+const DIGEST_INFO = { 32: Buffer.from('3031300d060960864801650304020105000420', 'hex'), 48: Buffer.from('3041300d060960864801650304020205000430', 'hex'), 64: Buffer.from('3051300d060960864801650304020305000440', 'hex') } // SHA-256 / SHA-384 / SHA-512 by length
 export function signDigest(fields, data) {
   if (fields?.sign_alg !== 'RS256' || !fields.sign_key || typeof data !== 'string' || !b64.test(data)) throw refuse()
   const digest = Buffer.from(data, 'base64')
-  if (digest.length !== 32) throw refuse()
+  if (!DIGEST_INFO[digest.length]) throw refuse()
   let key
   try { key = createPrivateKey(fields.sign_key) } catch { throw refuse() }
   if (key.asymmetricKeyType !== 'rsa') throw refuse()
-  return privateEncrypt({ key, padding: constants.RSA_PKCS1_PADDING }, Buffer.concat([SHA256_DIGEST_INFO, digest])).toString('base64')
+  return privateEncrypt({ key, padding: constants.RSA_PKCS1_PADDING }, Buffer.concat([DIGEST_INFO[digest.length], digest])).toString('base64')
 }
