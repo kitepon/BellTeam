@@ -104,6 +104,7 @@ public sealed class DeviceSession : IAsyncDisposable
             if (type == "signal" && !doc.RootElement.TryGetProperty("verify_id", out _)) { _ = OnSignal(doc); return; }
             if (signalWaiters.Count > 0) { var w = signalWaiters[0]; signalWaiters.RemoveAt(0); w.SetResult(doc); } else signals.Enqueue(doc);
         });
+        socket.Start();
     }
 
     private Task<JsonDocument> NextSignal()

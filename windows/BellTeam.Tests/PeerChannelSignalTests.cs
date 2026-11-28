@@ -27,7 +27,29 @@ public class PeerChannelSignalTests
         var closed = new TaskCompletionSource();
         await using var socket = await SignalSocket.OpenAsync(new ServerAccess(url, new Dictionary<string, string>()), CancellationToken.None);
         socket.Closed += () => closed.TrySetResult();
+        socket.Start();
         await closed.Task.WaitAsync(TimeSpan.FromSeconds(10)); await server;
+        Assert.Equal(SignalSocket.PassEnded, socket.CloseCode);
+    }
+
+    [Fact]
+    public async Task A_frame_and_a_close_that_arrive_before_the_owner_subscribed_are_still_delivered()
+    {
+        using var listener = Listen(out var url);
+        var server = Task.Run(async () =>
+        {
+            var ws = (await (await listener.GetContextAsync()).AcceptWebSocketAsync(null)).WebSocket;
+            await ws.SendAsync("{\"type\":\"error\",\"of\":\"join\",\"code\":\"not_entitled\"}"u8.ToArray(), WebSocketMessageType.Text, true, CancellationToken.None);
+            await ws.CloseOutputAsync((WebSocketCloseStatus)SignalSocket.PassEnded, "pass_ended", CancellationToken.None);
+        });
+        await using var socket = await SignalSocket.OpenAsync(new ServerAccess(url, new Dictionary<string, string>()), CancellationToken.None);
+        await server; await Task.Delay(300); // the frame and the close are already on the wire when the owner subscribes
+        var message = new TaskCompletionSource<string>(); var closed = new TaskCompletionSource();
+        socket.Message += doc => message.TrySetResult(doc.RootElement.GetProperty("code").GetString()!);
+        socket.Closed += () => closed.TrySetResult();
+        socket.Start();
+        Assert.Equal("not_entitled", await message.Task.WaitAsync(TimeSpan.FromSeconds(10)));
+        await closed.Task.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.Equal(SignalSocket.PassEnded, socket.CloseCode);
     }
 

@@ -1,4 +1,6 @@
+using System.Net;
 using System.Net.Http;
+using System.Net.WebSockets;
 using BellTeam.PeerChannel;
 
 namespace BellTeam.Tests;
@@ -32,6 +34,36 @@ public class DeviceRuntimeStateTests
         await using var unverified = Make(_ => Task.FromResult(access));
         unverified.Start();
         await Until(() => unverified.State is { Status: RuntimeStatus.NeedsAdmission, Reason: "not_verified" });
+    }
+
+    // The server refuses the join the moment the socket opens, before the runtime has finished its own join send: the refusal must stay the state, and Refresh must reconnect at once.
+    [Fact]
+    public async Task ARefusalThatArrivesWithTheJoinStaysNotEntitledAndRefreshReconnects()
+    {
+        for (var round = 0; round < 10; round++)
+        {
+            var port = new Random().Next(20000, 40000); using var listener = new HttpListener(); listener.Prefixes.Add($"http://localhost:{port}/"); listener.Start();
+            var accepts = 0;
+            _ = Task.Run(async () =>
+            {
+                while (true)
+                {
+                    var ws = (await (await listener.GetContextAsync()).AcceptWebSocketAsync(null)).WebSocket; Interlocked.Increment(ref accepts);
+                    await ws.SendAsync("{\"type\":\"error\",\"of\":\"join\",\"code\":\"not_entitled\"}"u8.ToArray(), WebSocketMessageType.Text, true, CancellationToken.None);
+                    _ = Task.Run(async () => { try { await ws.ReceiveAsync(new byte[256], CancellationToken.None); } catch (Exception) { } });
+                }
+            });
+            var holder = new Holder("acct", 1, [], new Dictionary<string, Entry>(), new HashSet<string>());
+            var access = new ServerAccess(new Uri($"http://localhost:{port}"), new Dictionary<string, string>());
+            await using var runtime = Make(_ => Task.FromResult(access), (_, _) => Task.FromResult<Holder?>(holder));
+            runtime.Start();
+            await Until(() => runtime.State.Status == RuntimeStatus.NotEntitled);
+            await Task.Delay(150);
+            Assert.Equal(RuntimeStatus.NotEntitled, runtime.State.Status); Assert.Equal(1, Volatile.Read(ref accepts));
+            runtime.Refresh();
+            await Until(() => Volatile.Read(ref accepts) == 2);
+            await Until(() => runtime.State.Status == RuntimeStatus.NotEntitled);
+        }
     }
 
     [Fact]
