@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-28T08:56:28Z",
-  "expiresAt": "2026-12-05T08:56:28Z",
+  "publishedAt": "2026-11-28T09:36:07Z",
+  "expiresAt": "2026-12-05T09:36:07Z",
   "releases": [
     {
       "componentId": "usage",
@@ -181,8 +181,8 @@
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "a571977cf722f1bd8d0f9995da17f4eed8998f0d",
-      "versionId": "903356e117d8d0bf5787e7fd2bda9c38457abeb4e0df408a556315c4d865e0db",
+      "sourceCommit": "6c3cbcb6ca180a672a4c519e4ad90f0bbd766985",
+      "versionId": "01549a7a136377732a2a49f902b9a696e9e26d4ae6ab58fa9f684b32da425077",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -190,16 +190,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T070348Z/conversation-a571977cf722f1bd8d0f9995da17f4eed8998f0d-linux-amd64.tar.gz",
-          "bytes": 3799713,
-          "sha256": "903356e117d8d0bf5787e7fd2bda9c38457abeb4e0df408a556315c4d865e0db"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T093548Z/conversation-6c3cbcb6ca180a672a4c519e4ad90f0bbd766985-linux-amd64.tar.gz",
+          "bytes": 3800879,
+          "sha256": "01549a7a136377732a2a49f902b9a696e9e26d4ae6ab58fa9f684b32da425077"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T070348Z/conversation-a571977cf722f1bd8d0f9995da17f4eed8998f0d-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11327,
-          "sha256": "ba7be9aaadeeb2b29b24f85313609dc014e01820f15a781de6c772ba64337dd9"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T093548Z/conversation-6c3cbcb6ca180a672a4c519e4ad90f0bbd766985-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10951,
+          "sha256": "acef94b1d33d20150a53c6c6e17a8499f36e9efc738a6cf8612fa246d9091288"
         },
-        "signerCommit": "a571977cf722f1bd8d0f9995da17f4eed8998f0d"
+        "signerCommit": "6c3cbcb6ca180a672a4c519e4ad90f0bbd766985"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -230,13 +230,13 @@
         }
       },
       "changes": [
-        "Bot の応答完了の確認が、1 つの区間で 1 回になります。"
+        "Bot から Bot への依頼に、受け取る側が依頼を受けるべきか確かめるための 1 行が付きます。"
       ]
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "a571977cf722f1bd8d0f9995da17f4eed8998f0d",
-      "versionId": "2e17faed8958728b0e491fa8136b341532e903971110413396bf02d1fa8447d5",
+      "sourceCommit": "6c3cbcb6ca180a672a4c519e4ad90f0bbd766985",
+      "versionId": "be992c98818cb6bca8769033a3d4296cf46569ea6eadd2575717186ad10a35f9",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -244,16 +244,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T070348Z/conversation-a571977cf722f1bd8d0f9995da17f4eed8998f0d-linux-arm64.tar.gz",
-          "bytes": 3799713,
-          "sha256": "2e17faed8958728b0e491fa8136b341532e903971110413396bf02d1fa8447d5"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T093548Z/conversation-6c3cbcb6ca180a672a4c519e4ad90f0bbd766985-linux-arm64.tar.gz",
+          "bytes": 3800879,
+          "sha256": "be992c98818cb6bca8769033a3d4296cf46569ea6eadd2575717186ad10a35f9"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261127T070348Z/conversation-a571977cf722f1bd8d0f9995da17f4eed8998f0d-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11186,
-          "sha256": "da852f87c9808c01e01f2fa9537aa9e2235f8825126130ea1634642dba3fe9f0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T093548Z/conversation-6c3cbcb6ca180a672a4c519e4ad90f0bbd766985-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10751,
+          "sha256": "22414210b5b16f2010c2e69430819056e82ca678d93934b42a71b2c2c6ffc265"
         },
-        "signerCommit": "a571977cf722f1bd8d0f9995da17f4eed8998f0d"
+        "signerCommit": "6c3cbcb6ca180a672a4c519e4ad90f0bbd766985"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -284,7 +284,7 @@
         }
       },
       "changes": [
-        "Bot の応答完了の確認が、1 つの区間で 1 回になります。"
+        "Bot から Bot への依頼に、受け取る側が依頼を受けるべきか確かめるための 1 行が付きます。"
       ]
     },
     {
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "fa10e9f693f1c1ab3ee5df0906f5babff5f0c3d0",
-      "versionId": "sha256:69790775e2ee91ef08aed1d036eb9bb97f15f617d03ae853dde0e542dd44efa0",
+      "sourceCommit": "dfae62a59b6ef09896ea52efab19c6bc38466ea6",
+      "versionId": "sha256:458e6510f4b96c30860c25aa59ddc96d719ecdde017510ca757a5191d1ddfc91",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:69790775e2ee91ef08aed1d036eb9bb97f15f617d03ae853dde0e542dd44efa0"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:458e6510f4b96c30860c25aa59ddc96d719ecdde017510ca757a5191d1ddfc91"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -722,20 +722,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "BellTeam 本体が通話ブリッジの合言葉を持たなくなり、席の通話ブリッジ MCP は認証仲介モジュールのストリーミング HTTP を通ります。中継には本体用の呼び出し口（bellteam-body）が加わります。"
+        "BellTeam 本体が通話ブリッジの合言葉を持たなくなり、席の通話ブリッジ MCP は認証仲介モジュールを通ります。工程表の書き込みが保留になった時は、遅れて出た結果が席に届きます。Bot への最初の sendmessage は、宛先の確認を求める 1 回の断りになります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "fa10e9f693f1c1ab3ee5df0906f5babff5f0c3d0",
-      "versionId": "sha256:69790775e2ee91ef08aed1d036eb9bb97f15f617d03ae853dde0e542dd44efa0",
+      "sourceCommit": "dfae62a59b6ef09896ea52efab19c6bc38466ea6",
+      "versionId": "sha256:458e6510f4b96c30860c25aa59ddc96d719ecdde017510ca757a5191d1ddfc91",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:69790775e2ee91ef08aed1d036eb9bb97f15f617d03ae853dde0e542dd44efa0"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:458e6510f4b96c30860c25aa59ddc96d719ecdde017510ca757a5191d1ddfc91"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -744,7 +744,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "BellTeam 本体が通話ブリッジの合言葉を持たなくなり、席の通話ブリッジ MCP は認証仲介モジュールのストリーミング HTTP を通ります。中継には本体用の呼び出し口（bellteam-body）が加わります。"
+        "BellTeam 本体が通話ブリッジの合言葉を持たなくなり、席の通話ブリッジ MCP は認証仲介モジュールを通ります。工程表の書き込みが保留になった時は、遅れて出た結果が席に届きます。Bot への最初の sendmessage は、宛先の確認を求める 1 回の断りになります。"
       ]
     },
     {
@@ -889,8 +889,8 @@
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "fa10e9f693f1c1ab3ee5df0906f5babff5f0c3d0",
-      "versionId": "cfb6a3688060fca236a480e586b8b9a30e8bd0b0a28af170bcf23e08f6d3e65e",
+      "sourceCommit": "dfae62a59b6ef09896ea52efab19c6bc38466ea6",
+      "versionId": "da8d70a5b0f0f0252c961cb52e1251538540eda5c2a4e9ade067e3c38562ad5d",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -898,16 +898,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T085431Z/auth-mediation-fa10e9f693f1c1ab3ee5df0906f5babff5f0c3d0-linux-amd64.tar.gz",
-          "bytes": 3739041,
-          "sha256": "cfb6a3688060fca236a480e586b8b9a30e8bd0b0a28af170bcf23e08f6d3e65e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T092136Z/auth-mediation-dfae62a59b6ef09896ea52efab19c6bc38466ea6-linux-amd64.tar.gz",
+          "bytes": 3739360,
+          "sha256": "da8d70a5b0f0f0252c961cb52e1251538540eda5c2a4e9ade067e3c38562ad5d"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T085431Z/auth-mediation-fa10e9f693f1c1ab3ee5df0906f5babff5f0c3d0-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11085,
-          "sha256": "a6f728de976ced4e249cb8ccccd28dfbc8e44c7408a59841d068bff6a8823d56"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T092136Z/auth-mediation-dfae62a59b6ef09896ea52efab19c6bc38466ea6-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11128,
+          "sha256": "572e4d6cc2992b3b9f975391055a6d69e8e88851bc37d2d226970b35dc03fdfc"
         },
-        "signerCommit": "fa10e9f693f1c1ab3ee5df0906f5babff5f0c3d0"
+        "signerCommit": "dfae62a59b6ef09896ea52efab19c6bc38466ea6"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -919,13 +919,13 @@
         }
       },
       "changes": [
-        "QNAP のログイン（QTS）と自己署名証明書の固定、メソッドごとのパスの限定を、モジュールの中で行えるようになります。"
+        "QNAP のログイン（QTS）と自己署名証明書の固定、メソッドごとのパスの限定、ストリームの途中切断と短い SSE の扱いを、モジュールの中で正しく行えるようになります。"
       ]
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "fa10e9f693f1c1ab3ee5df0906f5babff5f0c3d0",
-      "versionId": "86d89fb432eca7008fead9734d4d2f3a261a3b8f808ca2e68a7093e45942fe9b",
+      "sourceCommit": "dfae62a59b6ef09896ea52efab19c6bc38466ea6",
+      "versionId": "92855bfc0aeecee3859b742eac8d39825d38c68e6e0a2f93674ffc24e138472c",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -933,16 +933,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T085431Z/auth-mediation-fa10e9f693f1c1ab3ee5df0906f5babff5f0c3d0-linux-arm64.tar.gz",
-          "bytes": 3739041,
-          "sha256": "86d89fb432eca7008fead9734d4d2f3a261a3b8f808ca2e68a7093e45942fe9b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T092136Z/auth-mediation-dfae62a59b6ef09896ea52efab19c6bc38466ea6-linux-arm64.tar.gz",
+          "bytes": 3739360,
+          "sha256": "92855bfc0aeecee3859b742eac8d39825d38c68e6e0a2f93674ffc24e138472c"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T085431Z/auth-mediation-fa10e9f693f1c1ab3ee5df0906f5babff5f0c3d0-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11132,
-          "sha256": "685fea767b86361090b02b7418095f7159e15c38187f284eba518df200ac8266"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T092136Z/auth-mediation-dfae62a59b6ef09896ea52efab19c6bc38466ea6-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11124,
+          "sha256": "db2cccaf5a59332c1c24f481d9b5007eeb70ccf67d5e83dd54464a624714a4ed"
         },
-        "signerCommit": "fa10e9f693f1c1ab3ee5df0906f5babff5f0c3d0"
+        "signerCommit": "dfae62a59b6ef09896ea52efab19c6bc38466ea6"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -954,7 +954,7 @@
         }
       },
       "changes": [
-        "QNAP のログイン（QTS）と自己署名証明書の固定、メソッドごとのパスの限定を、モジュールの中で行えるようになります。"
+        "QNAP のログイン（QTS）と自己署名証明書の固定、メソッドごとのパスの限定、ストリームの途中切断と短い SSE の扱いを、モジュールの中で正しく行えるようになります。"
       ]
     }
   ],
