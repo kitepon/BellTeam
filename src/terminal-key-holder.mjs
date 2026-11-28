@@ -8,8 +8,8 @@ export const TERMINAL_AGENT_PATH = '/tmp/bellteam-terminals/agent/module.sock'
 export const AUTH_CLIENT = '/srv/bellteam/shared/tools/auth-mediation/bin/auth'
 // terminalId -> the module's key name (item "sshkey <name>"); the only terminals this reader owns.
 export const TERMINAL_KEYS = Object.freeze({ 'fox-windows': 'fox', macbook: 'macbook', 'rabbit-linux': 'rabbit' })
-// $1 = the symlink. Repoint atomically, drop it on exit only while it is still ours (a restarted holder may already own it).
-const HOLDER_SCRIPT = 'ln -sf "$SSH_AUTH_SOCK" "$1.$$" && mv -Tf "$1.$$" "$1" || exit 1; '
+// $1 = the symlink (its folder is made here: a fresh container has no /tmp/bellteam-terminals, live 11/28 Z238). Repoint atomically, drop it on exit only while it is still ours (a restarted holder may already own it).
+const HOLDER_SCRIPT = 'mkdir -p -m 700 "$(dirname "$1")" && ln -sf "$SSH_AUTH_SOCK" "$1.$$" && mv -Tf "$1.$$" "$1" || exit 1; '
   + 'trap \'[ "$(readlink "$1")" = "$SSH_AUTH_SOCK" ] && rm -f "$1"; exit 0\' TERM INT; while :; do sleep 600 & wait $!; done'
 const RESTART_FIRST_MS = 2000, RESTART_MAX_MS = 30_000, HEALTHY_MS = 60_000, FRESH_MS = 15_000, RETRY_MS = 3000
 

@@ -290,6 +290,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   // The module's ssh agent holds the three terminal keys (terminal-keys-module-agent): started once, it needs the operator Bot's folder as its caller identity.
   const operatorProject = bots.get(TERMINAL_KEY_OPERATOR)?.project ?? null
   const terminalKeyLoader = operatorProject ? createTerminalKeyHolder({ run: createSeatProcessRunner(operatorProject, { environment: 'base' }), report: report => diagnostics.record(report) }) : null
+  void terminalKeyLoader?.start() // the symlink must exist before the first remote launch; nothing waits for it
   const seatCredentials = createSeatCredentials({ path: join(root, 'state/seat-credentials.json') })
   // remote-user-tools.md U1: names/kinds of the user-global MCP servers for a Bot's harness, read as the seat user.
   const listUserToolsFor = async botId => {

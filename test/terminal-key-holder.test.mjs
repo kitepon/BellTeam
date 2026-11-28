@@ -22,6 +22,21 @@ function rig({ list = LIST, holderResults = [] } = {}) {
   return { holder, calls, holderRuns, tick: ms => { clock += ms } }
 }
 
+test('the holder script makes the link folder first and repoints the link (a fresh container has no /tmp/bellteam-terminals)', async () => {
+  const { holder, holderRuns } = rig({ holderResults: ['hang'] })
+  void holder.start()
+  await new Promise(resolve => setImmediate(resolve))
+  const script = holderRuns[0][holderRuns[0].indexOf('-c') + 1]
+  assert.match(script, /^mkdir -p -m 700 "\$\(dirname "\$1"\)" && ln -sf /u)
+  const { mkdtemp, readlink } = await import('node:fs/promises'); const { spawnSync } = await import('node:child_process'); const { tmpdir } = await import('node:os'); const { join } = await import('node:path')
+  const dir = await mkdtemp(join(tmpdir(), 'holder-'))
+  const link = join(dir, 'new', 'agent', 'module.sock')
+  const run = spawnSync('/bin/sh', ['-c', script.split('; trap')[0], 'x', link], { env: { SSH_AUTH_SOCK: '/dev/shm/auth-x/agent.sock', PATH: '/usr/bin:/bin' } })
+  assert.equal(run.status, 0)
+  assert.equal(await readlink(link), '/dev/shm/auth-x/agent.sock')
+  holder.stop()
+})
+
 test('owns only the three terminals; agentSocket is the one stable path; an unknown terminal is refused', async () => {
   const { holder } = rig({ holderResults: ['hang'] })
   assert.deepEqual(['fox-windows', 'macbook', 'rabbit-linux', 'other'].map(holder.owns), [true, true, true, false])
