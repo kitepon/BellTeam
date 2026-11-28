@@ -28,7 +28,7 @@ public sealed record RecentMessage
     public string? Kind { get; init; }
     public string? Direction { get; init; }
     public Member? Sender { get; init; }
-    public string Preview => Kind == "peer" ? "他のメンバーと連絡しました" : string.IsNullOrWhiteSpace(Message) ? "画像" : Message.Replace('\n', ' ');
+    public string Preview => Kind == "peer" ? CoreStrings.Models_Preview_1 : string.IsNullOrWhiteSpace(Message) ? CoreStrings.Models_Preview_2 : Message.Replace('\n', ' ');
 }
 public sealed record Bot
 {
@@ -68,11 +68,11 @@ public sealed record CurrentWork(string? State, string? Summary, string? Summary
 {
     public static string Label(CurrentWork? work) => (work?.State, work?.SummaryStatus) switch
     {
-        ("working", "current") => work!.Summary ?? "作業中・要約未設定",
-        ("working", "stale") => "作業中・要約期限切れ",
-        ("working", _) => "作業中・要約未設定",
-        ("idle", _) => "待機中",
-        _ => "仕事状況を未取得"
+        ("working", "current") => work!.Summary ?? CoreStrings.Models_Label_1,
+        ("working", "stale") => CoreStrings.Models_Label_2,
+        ("working", _) => CoreStrings.Models_Label_1,
+        ("idle", _) => CoreStrings.Models_Label_4,
+        _ => CoreStrings.Models_Label_5
     };
 }
 public sealed record Room
@@ -143,7 +143,9 @@ public sealed record ForwardSource(string Kind, string Id, string MessageId);
 // Content another app shared into BellTeam (forward.md "Share-in"): the sender's app name, text and URLs; shared images travel as the request's images.
 public sealed record ShareContent(string? App, string? Text, string[] Urls)
 {
-    public const int TextLimit = 20000, UrlLimit = 20, UrlLength = 2000;
+    public const int TextLimit = 20000;
+    public const int UrlLimit = 20;
+    public const int UrlLength = 2000;
     // At least one of text, a URL or an image (the caller counts images) is needed; the server enforces the same.
     public bool HasContent(int images) => !string.IsNullOrWhiteSpace(Text) || Urls.Length != 0 || images != 0;
     // Only http(s) links are shared as URLs (the server refuses other schemes), at most 20 of at most 2000 characters.
@@ -207,8 +209,8 @@ public sealed record SecretRequest
     public bool UsedOnce => IsLoginPassword || OneTime;
     public bool OnePasswordOffered => !UsedOnce && InputOptions?.OnePasswordAvailable == true;
     public bool OpensWithOnePassword => OnePasswordOffered && InputOptions?.OpensWithOnePassword == true;
-    public const string LoginPasswordText = "このMacのログインパスワード（1回だけ使い、保存しません）";
-    public const string OneTimeText = "1回だけ使い、使い終わったら消します。保存せず、会話にも送られません。";
+    public static string LoginPasswordText  => CoreStrings.Models_LoginPasswordText_1;
+    public static string OneTimeText  => CoreStrings.Models_OneTimeText_1;
 }
 public sealed record OwnerQuestion
 {

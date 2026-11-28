@@ -23,7 +23,7 @@ internal static class TerminalParts
         TerminalKeyStatus.Pending => (state.Text, SettingsIcons.Waiting, Orange),
         TerminalKeyStatus.Configured => (state.Text, Icons.Check, Mint),
         TerminalKeyStatus.Missing => (state.Text, SettingsIcons.Ring, Orange),
-        _ => configured ? ("設定済み", Icons.Check, Mint) : ("未設定", SettingsIcons.Ring, Orange)
+        _ => configured ? (LinuxStrings.TerminalsView_KeyLook_1, Icons.Check, Mint) : (LinuxStrings.FeatureEditor_InitializeAsync_7, SettingsIcons.Ring, Orange)
     };
 
     // Mac BellDate.short.
@@ -114,18 +114,18 @@ internal sealed class TerminalListView : StackPanel
         Children.Clear();
         switch (model.State)
         {
-            case TerminalListState.NotLoaded: Children.Add(Text("端末の一覧を読み込んでいます…", 13, Secondary, null, new Thickness(20, 14, 0, 0))); break;
-            case TerminalListState.Unsupported: Children.Add(FormSection(null, new GroupCard(Row(TerminalParts.Calm("このBellTeamはまだ端末の登録に対応していません"))))); break;
+            case TerminalListState.NotLoaded: Children.Add(Text(LinuxStrings.MemberFolderView_MemberTerminalSection_1, 13, Secondary, null, new Thickness(20, 14, 0, 0))); break;
+            case TerminalListState.Unsupported: Children.Add(FormSection(null, new GroupCard(Row(TerminalParts.Calm(LinuxStrings.MemberFolderView_Render_1))))); break;
             case TerminalListState.Failed:
-                var retry = EditorFormView.LinkButton("もう一度読み込む", () => _ = model.RefreshAsync(), enabled: !model.Loading);
+                var retry = EditorFormView.LinkButton(LinuxStrings.MemberFolderView_MemberTerminalSection_2, () => _ = model.RefreshAsync(), enabled: !model.Loading);
                 Children.Add(FormSection(null, new GroupCard(Row(Banner(model.FailedMessage ?? "")), Row(retry)))); break;
             default:
                 var group = new GroupCard();
-                if (model.Terminals.Length == 0) group.Add(Row(Text("まだ端末がありません。メンバーの席を動かすMac・Windows PC・Linuxマシンを登録します。", 14, Secondary)));
+                if (model.Terminals.Length == 0) group.Add(Row(Text(LinuxStrings.TerminalsView_Render_4, 14, Secondary)));
                 foreach (var terminal in model.Terminals) group.Add(TerminalRow(terminal));
-                group.Add(Row(TerminalParts.IconRow(Icons.PlusCircle, "端末を追加", Violet, add)));
-                Children.Add(FormSection("登録した端末", group, "メンバーの席を、BellTeamの外のMac・Windows PC・Linuxマシンで動かす時に使います。鍵は状態だけを表示し、中身は表示しません。"));
-                if (model.ReadError is { } error) Children.Add(FormSection(null, new GroupCard(Row(Banner("最新の一覧を読み込めませんでした。前に読んだ一覧を表示しています。")), Row(Text(error, 12, Secondary)))));
+                group.Add(Row(TerminalParts.IconRow(Icons.PlusCircle, LinuxStrings.SettingsTerminals_OpenTerminalEditor_2, Violet, add)));
+                Children.Add(FormSection(LinuxStrings.TerminalsView_Render_6, group, LinuxStrings.TerminalsView_Render_7));
+                if (model.ReadError is { } error) Children.Add(FormSection(null, new GroupCard(Row(Banner(LinuxStrings.TerminalsView_Render_8)), Row(Text(error, 12, Secondary)))));
                 break;
         }
     }
@@ -169,9 +169,9 @@ internal sealed class TerminalDetailView : Grid, IDisposable
     public TerminalDetailView(LinuxWorkspace workspace, string id, CancellationToken token, Func<SecretRequest, Action<SecretRequest>, Task>? openSecret = null)
     {
         this.workspace = workspace; model = workspace.Terminals; this.id = id; this.token = token;
-        this.openSecret = openSecret ?? ((request, completed) => OwnerWindow.Of(this) is { } owner ? SecretInputWindow.ShowAsync(owner, request, submission => workspace.FinishSecretAsync(request.Id, submission), () => workspace.SecretKeysAsync(request.Id), completed) : throw new InvalidOperationException("入力欄を開く窓がありません。"));
-        EditButton = Capsule("編集", Brushes.White, Ink, 16, 13, new Thickness(14, 6)); AutomationProperties.SetName(EditButton, "編集");
-        EditButton.Click += (_, _) => { if (model.Find(id) is { } terminal) OpenSheet("端末を編集", new TerminalEditorView(workspace, model, terminal)); };
+        this.openSecret = openSecret ?? ((request, completed) => OwnerWindow.Of(this) is { } owner ? SecretInputWindow.ShowAsync(owner, request, submission => workspace.FinishSecretAsync(request.Id, submission), () => workspace.SecretKeysAsync(request.Id), completed) : throw new InvalidOperationException(LinuxStrings.TerminalsView_TerminalDetailView_1));
+        EditButton = Capsule(LinuxStrings.GoalViews_Build_2, Brushes.White, Ink, 16, 13, new Thickness(14, 6)); AutomationProperties.SetName(EditButton, LinuxStrings.GoalViews_Build_2);
+        EditButton.Click += (_, _) => { if (model.Find(id) is { } terminal) OpenSheet(LinuxStrings.TerminalsView_TerminalDetailView_4, new TerminalEditorView(workspace, model, terminal)); };
         var scroller = new ScrollViewer { Content = body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
         Children.Add(scroller); Children.Add(alertLayer);
         model.Changed += Render; token.Register(Dispose); Render();
@@ -194,7 +194,7 @@ internal sealed class TerminalDetailView : Grid, IDisposable
 
     private void OpenSheet(string title, EditorFormView view)
     {
-        if (TopLevel.GetTopLevel(this) is not ISheetHost host) { view.Dispose(); workspace.ReportActionError("この画面では開けません。"); return; }
+        if (TopLevel.GetTopLevel(this) is not ISheetHost host) { view.Dispose(); workspace.ReportActionError(LinuxStrings.SettingsTerminals_OpenTerminalEditor_1); return; }
         view.Closer = host.CloseSheet; host.OpenSheet(title, view);
     }
 
@@ -203,18 +203,18 @@ internal sealed class TerminalDetailView : Grid, IDisposable
         if (disposed) return;
         EditButton.IsEnabled = Current is not null && !working;
         body.Children.Clear();
-        if (Current is not { } terminal) { body.Children.Add(FormSection(null, new GroupCard(Row(TerminalParts.Calm("この端末の登録が見つかりません。一覧へ戻って読み直してください。"))))); return; }
-        body.Children.Add(FormSection("接続先", new GroupCard(Row(LabeledRow("ホスト", terminal.Host)), Row(LabeledRow("ユーザー", terminal.User)), Row(LabeledRow("ポート", terminal.Port.ToString(CultureInfo.InvariantCulture))), Row(LabeledRow("OS", terminal.OsLabel)), Row(LabeledRow("持ち主", terminal.OwnerLabel)))));
-        body.Children.Add(FormSection("つながるか", ReachabilityGroup(terminal), "SSHで一度だけつないで、すぐに閉じます。メンバーの席は起動しません。"));
-        body.Children.Add(FormSection("ホスト鍵", HostKeyGroup(terminal), "ホスト鍵は、つなぐ相手が本当にこの端末かを見分ける印です。端末で読んだ指紋と同じ時だけ信用します。"));
-        body.Children.Add(FormSection("鍵", KeyGroup(terminal), terminal.KeysRouteAvailable && !keysRouteMissing ? "鍵は専用の入力欄だけに入れます。1Passwordの参照を先に選べます。中身や参照は、この画面にも会話にも出しません。" : null));
+        if (Current is not { } terminal) { body.Children.Add(FormSection(null, new GroupCard(Row(TerminalParts.Calm(LinuxStrings.TerminalsView_Render_9))))); return; }
+        body.Children.Add(FormSection(LinuxStrings.MainWindow_MainWindow_9, new GroupCard(Row(LabeledRow(LinuxStrings.TerminalsView_Render_11, terminal.Host)), Row(LabeledRow(LinuxStrings.TerminalsView_Render_12, terminal.User)), Row(LabeledRow(LinuxStrings.TerminalsView_Render_13, terminal.Port.ToString(CultureInfo.InvariantCulture))), Row(LabeledRow("OS", terminal.OsLabel)), Row(LabeledRow(LinuxStrings.TerminalsView_Render_14, terminal.OwnerLabel)))));
+        body.Children.Add(FormSection(LinuxStrings.TerminalsView_Render_15, ReachabilityGroup(terminal), LinuxStrings.TerminalsView_Render_16));
+        body.Children.Add(FormSection(LinuxStrings.TerminalsView_Render_17, HostKeyGroup(terminal), LinuxStrings.TerminalsView_Render_18));
+        body.Children.Add(FormSection(LinuxStrings.TerminalsView_Render_19, KeyGroup(terminal), terminal.KeysRouteAvailable && !keysRouteMissing ? LinuxStrings.TerminalsView_Render_20 : null));
         if (terminal.Maintenance is { } maintenance)
         {
             var group = new GroupCard(Row(Text(maintenance.Text, 13, maintenance.Outcome == "failed" ? Orange : Ink)));
-            if (maintenance.ObservedAt is { } at) group.Add(Row(LabeledRow("確かめた日時", TerminalParts.ShortTime(at))));
-            body.Children.Add(FormSection("Claude Codeの更新", group));
+            if (maintenance.ObservedAt is { } at) group.Add(Row(LabeledRow(LinuxStrings.TerminalsView_Render_21, TerminalParts.ShortTime(at))));
+            body.Children.Add(FormSection(LinuxStrings.TerminalsView_Render_22, group));
         }
-        body.Children.Add(FormSection(null, new GroupCard(Row(TerminalParts.IconRow(SettingsIcons.Trash, "端末の登録を消す", Red, working ? null : AskRemove)))));
+        body.Children.Add(FormSection(null, new GroupCard(Row(TerminalParts.IconRow(SettingsIcons.Trash, LinuxStrings.TerminalsView_Render_23, Red, working ? null : AskRemove)))));
         if (errorText is not null) body.Children.Add(FormSection(null, new GroupCard(Row(Banner(errorText)))));
     }
 
@@ -224,12 +224,12 @@ internal sealed class TerminalDetailView : Grid, IDisposable
         var block = new StackPanel();
         var head = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
         if (check is not null) head.Children.Add(TerminalParts.IconLabel(SettingsIcons.Bolt, check.Summary, check.Reachable ? TerminalParts.Mint : Red, 14, FontWeight.SemiBold));
-        else head.Children.Add(Text("まだ確かめていません", 14, Secondary));
+        else head.Children.Add(Text(LinuxStrings.TerminalsView_ReachabilityGroup_1, 14, Secondary));
         if (check?.ObservedAt is { } observed) { var time = Text(TerminalParts.ShortTime(observed), 12, Secondary); time.VerticalAlignment = VerticalAlignment.Center; Grid.SetColumn(time, 1); head.Children.Add(time); }
         block.Children.Add(head);
         if (check?.Explanation(terminal.Os) is { } explanation) block.Children.Add(Text(explanation, 14, Ink, null, new Thickness(0, 6, 0, 0)));
-        if (check?.ExtraAction is { } extra) block.Children.Add(Text("サーバーの案内: " + extra, 12, Secondary, null, new Thickness(0, 4, 0, 0)));
-        AutomationProperties.SetName(block, "つながるか: " + (check?.Summary ?? "まだ確かめていません"));
+        if (check?.ExtraAction is { } extra) block.Children.Add(Text(LinuxStrings.TerminalsView_ReachabilityGroup_2(extra), 12, Secondary, null, new Thickness(0, 4, 0, 0)));
+        AutomationProperties.SetName(block, LinuxStrings.TerminalsView_ReachabilityGroup_4((check?.Summary ?? LinuxStrings.TerminalsView_ReachabilityGroup_1)));
         group.Add(Row(block));
         model.Authorizations.TryGetValue(id, out var state);
         switch (state)
@@ -238,9 +238,9 @@ internal sealed class TerminalDetailView : Grid, IDisposable
             case AuthorizeState.Shown shown: group.Add(Row(Text(shown.Note.Text, 14, Ink))); break;
         }
         if ((state is null && check?.OffersAuthorize == true) || state?.Retry == true)
-            group.Add(Row(TerminalParts.IconRow(SettingsIcons.Key, $"この{TerminalOS.Machine(terminal.Os)}にこの鍵を入れる", Violet, working || Checking ? null : () => _ = AuthorizeKeyAsync())));
-        var press = TerminalParts.IconRow(SettingsIcons.Bolt, "つながるか確かめる", Violet, Checking || working ? null : () => _ = RunCheckAsync());
-        if (Checking) { var busy = Text("確かめています…", 12, Secondary); busy.HorizontalAlignment = HorizontalAlignment.Right; busy.VerticalAlignment = VerticalAlignment.Center; Grid.SetColumn(busy, 1); press.Children.Add(busy); }
+            group.Add(Row(TerminalParts.IconRow(SettingsIcons.Key, LinuxStrings.TerminalsView_ReachabilityGroup_5(TerminalOS.Machine(terminal.Os)), Violet, working || Checking ? null : () => _ = AuthorizeKeyAsync())));
+        var press = TerminalParts.IconRow(SettingsIcons.Bolt, LinuxStrings.TerminalsView_ReachabilityGroup_6, Violet, Checking || working ? null : () => _ = RunCheckAsync());
+        if (Checking) { var busy = Text(LinuxStrings.TerminalsView_ReachabilityGroup_7, 12, Secondary); busy.HorizontalAlignment = HorizontalAlignment.Right; busy.VerticalAlignment = VerticalAlignment.Center; Grid.SetColumn(busy, 1); press.Children.Add(busy); }
         group.Add(Row(press));
         return group;
     }
@@ -248,19 +248,19 @@ internal sealed class TerminalDetailView : Grid, IDisposable
     private GroupCard HostKeyGroup(Terminal terminal)
     {
         var group = new GroupCard();
-        var status = HostKeyReported ? terminal.HostTrusted ? "変わりました" : "まだ確かめていません" : terminal.HostTrusted ? "信用しています" : "まだ確かめていません";
+        var status = HostKeyReported ? terminal.HostTrusted ? LinuxStrings.TerminalsView_HostKeyGroup_1 : LinuxStrings.TerminalsView_ReachabilityGroup_1 : terminal.HostTrusted ? LinuxStrings.TerminalsView_HostKeyGroup_3 : LinuxStrings.TerminalsView_ReachabilityGroup_1;
         var warn = !terminal.HostTrusted || HostKeyReported;
         var line = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
-        line.Children.Add(Text("ホスト鍵", 13));
+        line.Children.Add(Text(LinuxStrings.TerminalsView_Render_17, 13));
         var value = TerminalParts.IconLabel(warn ? SettingsIcons.ShieldWarn : SettingsIcons.ShieldOk, status, warn ? Orange : TerminalParts.Mint); Grid.SetColumn(value, 1); line.Children.Add(value);
         group.Add(Row(line));
         if (HostKeyReported)
         {
             var other = new StackPanel();
-            other.Children.Add(Text($"その{TerminalOS.Machine(terminal.Os)}にBellTeamアプリが無い時や、うまく確かめられない時は、端末で読んだ指紋を入れて確かめます。", 14, Secondary));
-            var confirm = TerminalParts.Bordered(SettingsIcons.Key, "ホスト鍵を確かめる", () => OpenSheet("ホスト鍵", new HostKeyView(workspace, model, terminal, Check)), enabled: !working); confirm.HorizontalAlignment = HorizontalAlignment.Left; confirm.Margin = new Thickness(0, 10, 0, 0);
+            other.Children.Add(Text(LinuxStrings.TerminalsView_HostKeyGroup_6(TerminalOS.Machine(terminal.Os)), 14, Secondary));
+            var confirm = TerminalParts.Bordered(SettingsIcons.Key, LinuxStrings.TerminalsView_HostKeyGroup_7, () => OpenSheet(LinuxStrings.TerminalsView_Render_17, new HostKeyView(workspace, model, terminal, Check)), enabled: !working); confirm.HorizontalAlignment = HorizontalAlignment.Left; confirm.Margin = new Thickness(0, 10, 0, 0);
             other.Children.Add(confirm);
-            group.Add(Row(TerminalParts.Disclosure("ほかの方法", other, otherWaysOpen, open => otherWaysOpen = open)));
+            group.Add(Row(TerminalParts.Disclosure(LinuxStrings.MemberFolderView_MemberTerminalSection_8, other, otherWaysOpen, open => otherWaysOpen = open)));
         }
         return group;
     }
@@ -280,18 +280,18 @@ internal sealed class TerminalDetailView : Grid, IDisposable
         var stack = new StackPanel();
         var head = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
         var names = new StackPanel(); names.Children.Add(Text(kind.Title(), 13));
-        names.Children.Add(Text(kind == TerminalKeyKind.Ssh ? "必須。これが無いと端末につなげません。" : "任意。自分の端末では不要です。", 11, Secondary, null, new Thickness(0, 2, 0, 0)));
+        names.Children.Add(Text(kind == TerminalKeyKind.Ssh ? LinuxStrings.TerminalsView_KeyRow_1 : LinuxStrings.TerminalsView_KeyRow_2, 11, Secondary, null, new Thickness(0, 2, 0, 0)));
         head.Children.Add(names);
         var right = new StackPanel { HorizontalAlignment = HorizontalAlignment.Right }; right.Children.Add(TerminalParts.IconLabel(look.Glyph, look.Text, look.Color, 14));
         if (state.SourceText is { } source) right.Children.Add(Right(Text(source, 11, Secondary, null, new Thickness(0, 3, 0, 0))));
         Grid.SetColumn(right, 1); head.Children.Add(right); stack.Children.Add(head);
-        AutomationProperties.SetName(head, $"{kind.Title()}: {look.Text}{(state.SourceText is null ? "" : "、" + state.SourceText)}");
-        if (state.Status == TerminalKeyStatus.Pending) stack.Children.Add(Text($"入力を待っています。入力欄を閉じた時は「{state.SetTitle}」でもう一度開けます。", 11, Secondary, null, new Thickness(0, 8, 0, 0)));
+        AutomationProperties.SetName(head, $"{kind.Title()}: {look.Text}{(state.SourceText is null ? "" : LinuxStrings.LatticeWindow_RenderRail_5(state.SourceText))}");
+        if (state.Status == TerminalKeyStatus.Pending) stack.Children.Add(Text(LinuxStrings.TerminalsView_KeyRow_5(state.SetTitle), 11, Secondary, null, new Thickness(0, 8, 0, 0)));
         if (state.Status != TerminalKeyStatus.Unsupported)
         {
             var buttons = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 2) };
             var set = TerminalParts.Bordered(SettingsIcons.Key, state.SetTitle, () => _ = SetKeyAsync(kind), enabled: !working); set.Margin = new Thickness(0, 0, 10, 0); buttons.Children.Add(set);
-            if (state.Removable) buttons.Children.Add(TerminalParts.Bordered(SettingsIcons.Remove, "外す", () => AskRemoveKey(kind), destructive: true, enabled: !working));
+            if (state.Removable) buttons.Children.Add(TerminalParts.Bordered(SettingsIcons.Remove, LinuxStrings.TerminalsView_KeyRow_6, () => AskRemoveKey(kind), destructive: true, enabled: !working));
             stack.Children.Add(buttons);
         }
         return stack;
@@ -369,12 +369,12 @@ internal sealed class TerminalDetailView : Grid, IDisposable
     private void Ask(string title, string message, string accept, Action act)
     {
         alertLayer.Children.Clear();
-        alertLayer.Children.Add(EditorFormView.AlertFrame(title, message, () => alertLayer.IsVisible = false, new AlertChoice(accept, act, Destructive: true), new AlertChoice("キャンセル", Bold: true)));
+        alertLayer.Children.Add(EditorFormView.AlertFrame(title, message, () => alertLayer.IsVisible = false, new AlertChoice(accept, act, Destructive: true), new AlertChoice(LinuxStrings.EditorForm_CloseLabel_2, Bold: true)));
         alertLayer.IsVisible = true;
     }
-    internal void AskRemoveKey(TerminalKeyKind kind) => Ask($"「{id}」の{kind.Title()}を外しますか？",
-        kind == TerminalKeyKind.Ssh ? "外すと、鍵を設定し直すまでこの端末につなげません。設定待ちの入力欄も取り消します。" : "外すと、sudoが要る作業は鍵を設定し直すまで止まります。設定待ちの入力欄も取り消します。", "外す", () => _ = RemoveKeyAsync(kind));
-    internal void AskRemove() => Ask($"「{id}」の登録を消しますか？", "この端末を使うメンバーの設定と、届いていないメッセージは残ります。メンバーの「端末とフォルダ」は、あとで選び直してください。", "登録を消す", () => _ = RemoveAsync());
+    internal void AskRemoveKey(TerminalKeyKind kind) => Ask(LinuxStrings.TerminalsView_AskRemoveKey_1(id, kind.Title()),
+        kind == TerminalKeyKind.Ssh ? LinuxStrings.TerminalsView_AskRemoveKey_2 : LinuxStrings.TerminalsView_AskRemoveKey_3, LinuxStrings.TerminalsView_KeyRow_6, () => _ = RemoveKeyAsync(kind));
+    internal void AskRemove() => Ask(LinuxStrings.TerminalsView_AskRemove_1(id), LinuxStrings.TerminalsView_AskRemove_2, LinuxStrings.TerminalsView_AskRemove_3, () => _ = RemoveAsync());
 }
 
 // Mac TerminalEditor: 端末を追加 / 端末を編集. The fields are checked the way the server checks them; keys are never part of it.
@@ -402,27 +402,27 @@ internal sealed class TerminalEditorView : EditorFormView
         }
         if (initial is null)
         {
-            var id = TerminalParts.TextRow("端末ID", "owner-macbook", draft.TerminalId); Track(TerminalField.TerminalId, id, text => draft.TerminalId = text);
-            Form.Children.Add(FormSection("端末", new GroupCard(id.Row), "あとから変えられない名前です。英小文字・数字・ハイフンで付けます。"));
+            var id = TerminalParts.TextRow(LinuxStrings.TerminalsView_TerminalEditorView_1, "owner-macbook", draft.TerminalId); Track(TerminalField.TerminalId, id, text => draft.TerminalId = text);
+            Form.Children.Add(FormSection(LinuxStrings.SettingsUi_Title_3, new GroupCard(id.Row), LinuxStrings.TerminalsView_TerminalEditorView_3));
         }
-        else Form.Children.Add(FormSection("端末", new GroupCard(Row(LabeledRow("端末ID", draft.TerminalId))), "端末IDは変えられません。"));
-        var host = TerminalParts.TextRow("ホスト", "192.168.1.12", draft.Host); Track(TerminalField.Host, host, text => draft.Host = text);
-        var user = TerminalParts.TextRow("ユーザー", "kite", draft.User); Track(TerminalField.User, user, text => draft.User = text);
-        var port = TerminalParts.TextRow("ポート", "22", draft.Port); Track(TerminalField.Port, port, text => draft.Port = text);
+        else Form.Children.Add(FormSection(LinuxStrings.SettingsUi_Title_3, new GroupCard(Row(LabeledRow(LinuxStrings.TerminalsView_TerminalEditorView_1, draft.TerminalId))), LinuxStrings.TerminalsView_TerminalEditorView_6));
+        var host = TerminalParts.TextRow(LinuxStrings.TerminalsView_Render_11, "192.168.1.12", draft.Host); Track(TerminalField.Host, host, text => draft.Host = text);
+        var user = TerminalParts.TextRow(LinuxStrings.TerminalsView_Render_12, "kite", draft.User); Track(TerminalField.User, user, text => draft.User = text);
+        var port = TerminalParts.TextRow(LinuxStrings.TerminalsView_Render_13, "22", draft.Port); Track(TerminalField.Port, port, text => draft.Port = text);
         var options = TerminalOS.All.Select(os => new FormOption(os, TerminalOS.Label(os))).ToList();
         if (!TerminalOS.All.Contains(draft.Os)) options.Add(new(draft.Os, draft.Os));
         var picker = OsPicker = Popup("OS", options, draft.Os);
         picker.SelectionChanged += (_, _) => { if (TerminalParts.Value(picker) is { } os) { draft.Os = os; Sync(); } };
-        Form.Children.Add(FormSection("SSHの接続先", new GroupCard(host.Row, user.Row, port.Row, Labeled("OS", picker)), "端末のOSを選びます。フォルダのパスの形と、つなぐための案内がOSで変わります。"));
+        Form.Children.Add(FormSection(LinuxStrings.TerminalsView_TerminalEditorView_10, new GroupCard(host.Row, user.Row, port.Row, Labeled("OS", picker)), LinuxStrings.TerminalsView_TerminalEditorView_11));
         var owner = new GroupCard();
-        foreach (var (value, label) in new[] { ("owner", "自分の端末"), ("terminal-owner", "その端末の持ち主") })
+        foreach (var (value, label) in new[] { ("owner", LinuxStrings.TerminalsView_TerminalEditorView_12), ("terminal-owner", LinuxStrings.TerminalsView_TerminalEditorView_13) })
         {
             var choice = Violeted(new RadioButton { GroupName = "terminal-owner", FontSize = 13, Content = label, IsChecked = draft.AccountOwner == value });
             AutomationProperties.SetName(choice, label);
             choice.IsCheckedChanged += (_, _) => { if (choice.IsChecked == true) { draft.AccountOwner = value; Sync(); } };
             owner.Add(Row(choice));
         }
-        var ownerSection = FormSection("持ち主", owner, "-"); ownerFooter = (TextBlock)ownerSection.Children[^1];
+        var ownerSection = FormSection(LinuxStrings.TerminalsView_Render_14, owner, "-"); ownerFooter = (TextBlock)ownerSection.Children[^1];
         Form.Children.Add(ownerSection);
         Form.Children.Add(FormSection(null, new GroupCard(Row(keysNote))));
         Form.Children.Add(errorHost);
@@ -441,9 +441,9 @@ internal sealed class TerminalEditorView : EditorFormView
     private void Sync()
     {
         var machine = TerminalOS.Machine(draft.Os);
-        precondition.Text = $"{TerminalOS.SshStep(draft.Os)}BellTeamがSSHでつなぐのに必要です。";
-        ownerFooter.Text = draft.AccountOwner == "owner" ? $"あなた自身の{machine}です。メンバーはあなたのClaudeアカウントを使えます。" : $"ほかの人の{machine}です。その端末のClaudeログインを使い、あなたのアカウントは渡りません。";
-        keysNote.Text = TerminalOS.UsesSudoKey(draft.Os) ? "SSH鍵とsudo鍵は、登録した後に端末の画面で設定します。鍵の中身はここに入れません。" : "SSH鍵は、登録した後に端末の画面で設定します。Windowsはsudo鍵を使いません。鍵の中身はここに入れません。";
+        precondition.Text = LinuxStrings.TerminalsView_Sync_1(TerminalOS.SshStep(draft.Os));
+        ownerFooter.Text = draft.AccountOwner == "owner" ? LinuxStrings.TerminalsView_Sync_2(machine) : LinuxStrings.TerminalsView_Sync_3(machine);
+        keysNote.Text = TerminalOS.UsesSudoKey(draft.Os) ? LinuxStrings.TerminalsView_Sync_4 : LinuxStrings.TerminalsView_Sync_5;
     }
 
     private void ShowProblems()
@@ -465,7 +465,7 @@ internal sealed class TerminalEditorView : EditorFormView
     public override Task SaveAsync() => !CanSave ? Task.CompletedTask : RunAsync(async () =>
     {
         attempted = true; SetError(null); ShowProblems();
-        if (draft.Problems(initial is null).Count != 0) { SetError("赤字の欄を直してください。"); return; }
+        if (draft.Problems(initial is null).Count != 0) { SetError(LinuxStrings.TerminalsView_SaveAsync_1); return; }
         try { await model.SaveAsync(draft.TerminalId, draft, Token); }
         catch (OperationCanceledException) when (Token.IsCancellationRequested) { throw; }
         catch (Exception error) { SetError(TerminalErrorText.Message(error)); return; }
@@ -488,26 +488,26 @@ internal sealed class HostKeyView : EditorFormView
     {
         this.model = model; this.terminal = terminal; this.check = check;
         var mono = BellTheme.Mono;
-        var how = Text($"つなぐ相手が本当に「{terminal.TerminalId}」かを、指紋で確かめます。その端末で次のコマンドを実行し、表示された「SHA256:」で始まる指紋を入れてください。", 14, Ink);
+        var how = Text(LinuxStrings.TerminalsView_HostKeyView_1(terminal.TerminalId), 14, Ink);
         // The Mac sheet always names the POSIX path; the host key of a Windows OpenSSH server is under ProgramData (terminals README S2).
         var command = terminal.Os == TerminalOS.Windows ? @"ssh-keygen -lf C:\ProgramData\ssh\ssh_host_ed25519_key.pub" : "ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub";
         var code = Text(command, 12, Ink); code.FontFamily = mono;
-        Form.Children.Add(FormSection("確かめ方", new GroupCard(Row(how), Row(code))));
+        Form.Children.Add(FormSection(LinuxStrings.TerminalsView_HostKeyView_2, new GroupCard(Row(how), Row(code))));
         if (check?.ReportedFingerprint is { } reported)
         {
             var seen = Text(reported, 12, Ink); seen.FontFamily = mono;
             matchHost.Children.Add(seen); matchHost.Children.Add(match);
-            Form.Children.Add(FormSection("サーバーが見た指紋", new GroupCard(Row(matchHost))));
+            Form.Children.Add(FormSection(LinuxStrings.TerminalsView_HostKeyView_3, new GroupCard(Row(matchHost))));
         }
         var (field, box) = Field("SHA256:…", "", multiline: true, minHeight: 20); input = box; input.FontFamily = mono; input.FontSize = 14;
-        AutomationProperties.SetName(input, "端末で読んだ指紋");
+        AutomationProperties.SetName(input, LinuxStrings.TerminalsView_HostKeyView_4);
         var typed = new StackPanel { Children = { field, problem, answer } };
-        Form.Children.Add(FormSection("端末で読んだ指紋", new GroupCard(Row(typed)), "BellTeamは端末の鍵をもう一度読み、入れた指紋と同じ時だけ信用し直します。違う時は何も変えません。"));
-        if (!terminal.SshKeyConfigured) Form.Children.Add(FormSection(null, new GroupCard(Row(Banner("先にSSH鍵を設定してください。鍵が無いと、BellTeamは端末のホスト鍵を読みに行けません。")))));
+        Form.Children.Add(FormSection(LinuxStrings.TerminalsView_HostKeyView_4, new GroupCard(Row(typed)), LinuxStrings.TerminalsView_HostKeyView_6));
+        if (!terminal.SshKeyConfigured) Form.Children.Add(FormSection(null, new GroupCard(Row(Banner(LinuxStrings.TerminalsView_HostKeyView_7)))));
         input.TextChanged += (_, _) => { entered = (input.Text ?? "").Trim(); Show(); Notify(); };
         Show(); Ready = true; Notify();
     }
-    public override string SaveLabel => "信用する";
+    public override string SaveLabel => LinuxStrings.TerminalsView_SaveLabel_1;
     protected override bool SaveBlocked => HostKeyFingerprint.Problem(entered) is not null || !terminal.SshKeyConfigured;
     internal TextBox Input => input;
 
@@ -518,7 +518,7 @@ internal sealed class HostKeyView : EditorFormView
         if (check?.ReportedFingerprint is { } reported && found is null)
         {
             var same = entered == reported;
-            match.Text = same ? "入れた指紋と一致しています" : "入れた指紋と一致しません"; match.Foreground = same ? TerminalParts.Mint : Red; match.Margin = new Thickness(0, 8, 0, 0); match.IsVisible = true;
+            match.Text = same ? LinuxStrings.TerminalsView_Show_1 : LinuxStrings.TerminalsView_Show_2; match.Foreground = same ? TerminalParts.Mint : Red; match.Margin = new Thickness(0, 8, 0, 0); match.IsVisible = true;
         }
         else match.IsVisible = false;
     }

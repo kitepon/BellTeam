@@ -92,7 +92,7 @@ public sealed class LatticeReminderSettingsTests
 
     [Theory]
     [InlineData("NOT_FOUND", "このサーバーでは催促の設定を変更できません。")]
-    [InlineData("LATTICE_CHART_NOT_FOUND", LatticeChart.NotFound)]
+    [InlineData("LATTICE_CHART_NOT_FOUND", "この工程表は見つかりません。")]
     public Task MissingRouteAndMissingChartHaveDifferentActions(string error, string message) => Ui.Run(async () =>
     {
         var server = new ReminderServer { NotFound = error };

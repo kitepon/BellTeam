@@ -12,7 +12,7 @@ public sealed class PlanningApi(BellApi api)
         {
             var response = await api.GetAsync<AllSchedulesResponse>("/api/schedules", token);
             if (response.Sources is null || response.Sources.Any(source => source is null || source.Kind is not ("bot" or "room") || string.IsNullOrEmpty(source.Id) || source.Name is null || source.Schedules is null))
-                throw new BellApiException("予定の一覧を読み取れませんでした。");
+                throw new BellApiException(CoreStrings.PlanningApi_AllSchedulesAsync_1);
             return response.Sources;
         }
         catch (BellApiException error) when (error.Status == System.Net.HttpStatusCode.NotFound)
@@ -39,7 +39,7 @@ public sealed class PlanningApi(BellApi api)
     public async Task<FeatureSetting[]> FeaturesAsync(CancellationToken token = default)
     {
         try { return (await api.GetAsync<JsonElement>("/api/settings", token)).GetProperty("settings").EnumerateArray().Select(FeatureSetting.Read).ToArray(); }
-        catch (Exception) { throw new BellApiException("追加機能の設定を読み取れませんでした。接続と認証を確認してください。"); }
+        catch (Exception) { throw new BellApiException(CoreStrings.PlanningApi_FeaturesAsync_1); }
     }
     public async Task<FeatureSetting> SaveFeatureAsync(string id, bool? enabled, Dictionary<string, string> values, CancellationToken token = default)
     {
@@ -50,6 +50,6 @@ public sealed class PlanningApi(BellApi api)
             var result = await api.WriteAsync<JsonElement>(HttpMethod.Patch, "/api/settings/" + Uri.EscapeDataString(id), body, token);
             return FeatureSetting.Read(result.GetProperty("setting"));
         }
-        catch (Exception) { throw new BellApiException("設定の保存・反映結果を確認できませんでした。閉じて最新の状態を確認してください。"); }
+        catch (Exception) { throw new BellApiException(CoreStrings.PlanningApi_SaveFeatureAsync_1); }
     }
 }

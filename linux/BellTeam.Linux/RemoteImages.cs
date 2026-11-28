@@ -12,7 +12,8 @@ namespace BellTeam.Linux;
 // Mac MessageImages: one image up to 230 wide, or a fanned stack of up to three 230x322 cards captioned "画像N枚".
 public sealed class RemoteImages(LinuxWorkspace workspace) : StackPanel
 {
-    private const double CardWidth = 230, CardHeight = CardWidth * 1.4;
+    private const double CardWidth = 230;
+    private const double CardHeight = CardWidth * 1.4;
     private string[] paths = [];
     private bool outgoing;
     public void Update(string[] urls, bool outgoing)
@@ -22,7 +23,7 @@ public sealed class RemoteImages(LinuxWorkspace workspace) : StackPanel
         HorizontalAlignment = outgoing ? HorizontalAlignment.Right : HorizontalAlignment.Left;
         if (urls.Length == 0) return;
         var button = new Button { Classes = { "plain" }, Background = Brushes.Transparent, Padding = default, Margin = default, HorizontalAlignment = outgoing ? HorizontalAlignment.Right : HorizontalAlignment.Left };
-        AutomationProperties.SetName(button, urls.Length > 1 ? $"画像{urls.Length}枚を開く" : "画像を開く");
+        AutomationProperties.SetName(button, urls.Length > 1 ? LinuxStrings.RemoteImages_Update_1(urls.Length) : LinuxStrings.RemoteImages_Update_2);
         button.Click += (_, _) => this.FindAncestorOfType<IMessageHost>()?.ShowGallery(paths, 0);
         if (urls.Length == 1) { button.Content = Round.Clip(new RemoteImage(workspace, urls[0]) { Width = CardWidth }, 13); Children.Add(button); return; }
         // Mac: padding on the side the fan leans away from, 8 above and 22% of the card width below, so the fan stays inside its frame.
@@ -43,7 +44,7 @@ public sealed class RemoteImages(LinuxWorkspace workspace) : StackPanel
         }
         var caption = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Margin = new Thickness(0, 10, 0, 0), HorizontalAlignment = outgoing ? HorizontalAlignment.Right : HorizontalAlignment.Left };
         caption.Children.Add(Icons.Draw(Icons.Image, 14, BellTheme.Muted, thickness: 1.6));
-        caption.Children.Add(new TextBlock { Text = $"画像{urls.Length}枚", FontSize = 13, Foreground = BellTheme.Muted });
+        caption.Children.Add(new TextBlock { Text = LinuxStrings.ForwardViews_Share_2(urls.Length), FontSize = 13, Foreground = BellTheme.Muted });
         button.Content = canvas; Children.Add(button); Children.Add(caption);
     }
 }
@@ -54,7 +55,7 @@ public sealed class RemoteImage : Grid
     private readonly LinuxWorkspace workspace;
     private readonly string path;
     private readonly Image image;
-    private readonly TextBlock status = new() { Text = "画像を読込中…", TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock status = new() { Text = LinuxStrings.RemoteImages_status_1, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
     public Task LoadTask { get; private set; } = Task.CompletedTask;
     // The original bytes and their decoded picture once loaded (the viewer saves, opens and copies from them).
     public byte[]? Bytes { get; private set; }
@@ -64,7 +65,7 @@ public sealed class RemoteImage : Grid
     {
         this.workspace = workspace; this.path = path;
         image = new Image { Stretch = cover ? Stretch.UniformToFill : Stretch.Uniform };
-        if (cover) { ClipToBounds = true; status.Text = "読込中…"; status.FontSize = 12; }
+        if (cover) { ClipToBounds = true; status.Text = LinuxStrings.RemoteImages_RemoteImage_1; status.FontSize = 12; }
         else MinHeight = 90; // Mac AuthenticatedImage placeholder (120x90) while loading
         Children.Add(image); Children.Add(status);
     }
@@ -85,7 +86,7 @@ public sealed class RemoteImage : Grid
             token.ThrowIfCancellationRequested(); Bytes = bytes; Bitmap = bitmap; image.Source = bitmap; status.IsVisible = false; MinHeight = 0;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-        catch (Exception error) { if (!token.IsCancellationRequested) { status.Text = "画像を読み込めません"; status.Foreground = Brushes.Firebrick; ToolTip.SetTip(this, error.Message); } }
+        catch (Exception error) { if (!token.IsCancellationRequested) { status.Text = LinuxStrings.RemoteImages_LoadAsync_1; status.Foreground = Brushes.Firebrick; ToolTip.SetTip(this, error.Message); } }
     }
 }
 
@@ -109,12 +110,12 @@ public sealed class ImageGallery : Grid
         this.workspace = workspace; this.paths = paths; this.close = close; Background = Brushes.Black;
         RowDefinitions = new RowDefinitions("Auto,*");
         var header = new Grid { Margin = new Thickness(16, 16, 16, 0), ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
-        header.Children.Add(Control(Icons.Close, "閉じる", "閉じる（Esc）", close));
+        header.Children.Add(Control(Icons.Close, LinuxStrings.ApprovalsViews_NotUsable_1, LinuxStrings.RemoteImages_ImageGallery_2, close));
         SetColumn(position, 1); header.Children.Add(position);
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        actions.Children.Add(Control(Icons.Download, "ダウンロード", "ダウンロード（Ctrl+S）", () => _ = RunAsync(SaveAsync)));
-        actions.Children.Add(Control(Icons.Export, "ほかのアプリで開く", "ほかのアプリで開く（Ctrl+O）", () => _ = RunAsync(OpenWithAsync)));
-        actions.Children.Add(Control(Icons.Copy, "画像をコピー", "画像をコピー（Ctrl+C）", () => _ = RunAsync(CopyAsync)));
+        actions.Children.Add(Control(Icons.Download, LinuxStrings.RemoteImages_ImageGallery_3, LinuxStrings.RemoteImages_ImageGallery_4, () => _ = RunAsync(SaveAsync)));
+        actions.Children.Add(Control(Icons.Export, LinuxStrings.RemoteImages_ImageGallery_5, LinuxStrings.RemoteImages_ImageGallery_6, () => _ = RunAsync(OpenWithAsync)));
+        actions.Children.Add(Control(Icons.Copy, LinuxStrings.RemoteImages_ImageGallery_7, LinuxStrings.RemoteImages_ImageGallery_8, () => _ = RunAsync(CopyAsync)));
         SetColumn(actions, 2); header.Children.Add(actions); Children.Add(header);
         SetRow(content, 1); content.Margin = new Thickness(16); content.HorizontalContentAlignment = HorizontalAlignment.Stretch; content.VerticalContentAlignment = VerticalAlignment.Stretch; Children.Add(content);
         noticeBack = new Border { Child = notice, Background = new SolidColorBrush(Color.Parse("#CC202020")), CornerRadius = new CornerRadius(12), IsVisible = false, MaxWidth = 720, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(16, 0, 16, 24) };
@@ -122,9 +123,9 @@ public sealed class ImageGallery : Grid
         SetRow(noticeBack, 1); Children.Add(noticeBack);
         if (paths.Length > 1)
         {
-            var previous = Control(Icons.ChevronRight, "前の画像", "前の画像（←）", () => Move(-1)); previous.RenderTransform = new ScaleTransform(-1, 1); previous.RenderTransformOrigin = RelativePoint.Center;
+            var previous = Control(Icons.ChevronRight, LinuxStrings.RemoteImages_ImageGallery_9, LinuxStrings.RemoteImages_ImageGallery_10, () => Move(-1)); previous.RenderTransform = new ScaleTransform(-1, 1); previous.RenderTransformOrigin = RelativePoint.Center;
             previous.HorizontalAlignment = HorizontalAlignment.Left; previous.VerticalAlignment = VerticalAlignment.Center; previous.Margin = new Thickness(16, 0, 0, 0); SetRow(previous, 1); Children.Add(previous);
-            var next = Control(Icons.ChevronRight, "次の画像", "次の画像（→）", () => Move(1));
+            var next = Control(Icons.ChevronRight, LinuxStrings.RemoteImages_ImageGallery_11, LinuxStrings.RemoteImages_ImageGallery_12, () => Move(1));
             next.HorizontalAlignment = HorizontalAlignment.Right; next.VerticalAlignment = VerticalAlignment.Center; next.Margin = new Thickness(0, 0, 16, 0); SetRow(next, 1); Children.Add(next);
         }
         Show(initial);
@@ -161,16 +162,16 @@ public sealed class ImageGallery : Grid
         try
         {
             await pane.Image.LoadTask;
-            if (pane.Image.Bytes is null) { Say("画像を読み込めていません。", true); return; }
+            if (pane.Image.Bytes is null) { Say(LinuxStrings.RemoteImages_RunAsync_1, true); return; }
             Say(await action(pane));
         }
         catch (Exception error) { Say(error.Message, true); }
     }
     private async Task<string?> SaveAsync(ZoomPane pane)
     {
-        var bytes = pane.Image.Bytes!; var saved = await ImageActions.SaveAsync(TopLevel.GetTopLevel(this) ?? throw new InvalidOperationException("ウィンドウがありません。"), ImageActions.FileName(pane.Image.Path, bytes), bytes);
-        return saved is null ? null : $"{saved} を保存しました";
+        var bytes = pane.Image.Bytes!; var saved = await ImageActions.SaveAsync(TopLevel.GetTopLevel(this) ?? throw new InvalidOperationException(LinuxStrings.RemoteImages_SaveAsync_1), ImageActions.FileName(pane.Image.Path, bytes), bytes);
+        return saved is null ? null : LinuxStrings.RemoteImages_SaveAsync_2(saved);
     }
-    private async Task<string?> OpenWithAsync(ZoomPane pane) { await ImageActions.OpenWithAsync(ImageActions.FileName(pane.Image.Path, pane.Image.Bytes!), pane.Image.Bytes!); return "ほかのアプリで開きました"; }
-    private async Task<string?> CopyAsync(ZoomPane pane) { await ImageActions.CopyAsync(TopLevel.GetTopLevel(this) ?? throw new InvalidOperationException("ウィンドウがありません。"), pane.Image.Bitmap!); return "画像をコピーしました"; }
+    private async Task<string?> OpenWithAsync(ZoomPane pane) { await ImageActions.OpenWithAsync(ImageActions.FileName(pane.Image.Path, pane.Image.Bytes!), pane.Image.Bytes!); return LinuxStrings.RemoteImages_OpenWithAsync_1; }
+    private async Task<string?> CopyAsync(ZoomPane pane) { await ImageActions.CopyAsync(TopLevel.GetTopLevel(this) ?? throw new InvalidOperationException(LinuxStrings.RemoteImages_SaveAsync_1), pane.Image.Bitmap!); return LinuxStrings.RemoteImages_CopyAsync_2; }
 }

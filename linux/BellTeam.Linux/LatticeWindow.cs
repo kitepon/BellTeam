@@ -51,7 +51,7 @@ public sealed class LatticeWindow : Window
     internal LatticeWindow(LinuxWorkspace workspace, Func<string, Task> openChat)
     {
         this.workspace = workspace; this.openChat = openChat; origin = workspace.Server;
-        Title = "工程表"; Width = 1360; Height = 860; MinWidth = 900; MinHeight = 600; UseLayoutRounding = true; Background = BellTheme.ConversationBackground;
+        Title = LinuxStrings.LatticeWindow_LatticeWindow_1; Width = 1360; Height = 860; MinWidth = 900; MinHeight = 600; UseLayoutRounding = true; Background = BellTheme.ConversationBackground;
         pill = Glass(Row(Spinner(14), Spaced(pillText, 8)), 99, new Thickness(14, 7, 16, 7), 0xF2);
         pill.HorizontalAlignment = HorizontalAlignment.Center; pill.VerticalAlignment = VerticalAlignment.Bottom; pill.Margin = new Thickness(0, 0, 0, 18); pill.IsVisible = false; pill.IsHitTestVisible = false;
         AutomationProperties.SetAutomationId(pillText, "lattice-list-status");
@@ -139,24 +139,24 @@ public sealed class LatticeWindow : Window
         var header = new DockPanel { Margin = new Thickness(0, 0, 0, 22) };
         if (back is not null)
         {
-            var backButton = Plain(Glass(Row(BackIcon(12, Muted), Spaced(Text(back.ChartName, 15, Ink, FontWeight.SemiBold), 8)), 14, new Thickness(12, 8, 14, 8), 0xB3), $"{back.ChartName}へ戻る");
+            var backButton = Plain(Glass(Row(BackIcon(12, Muted), Spaced(Text(back.ChartName, 15, Ink, FontWeight.SemiBold), 8)), 14, new Thickness(12, 8, 14, 8), 0xB3), LinuxStrings.LatticeWindow_RenderList_1(back.ChartName));
             backButton.Margin = new Thickness(0, 0, 18, 0); backButton.Click += (_, _) => ReturnToChart(); DockPanel.SetDock(backButton, Dock.Left);
             AutomationProperties.SetAutomationId(backButton, "lattice-back"); header.Children.Add(backButton);
         }
-        header.Children.Add(Text("工程表", 28, Ink, FontWeight.Bold));
+        header.Children.Add(Text(LinuxStrings.LatticeWindow_LatticeWindow_1, 28, Ink, FontWeight.Bold));
         body.Children.Add(header);
         if (list is null && listProblem is { } problem && problem != LatticeChart.Reconnecting)
         {
-            body.Children.Add(Notice(problem, problem == LatticeChart.OldServer ? LatticeChart.OldServerNext : null, problem == LatticeChart.OldServer ? ("閉じる", () => Close()) : null));
+            body.Children.Add(Notice(problem, problem == LatticeChart.OldServer ? LatticeChart.OldServerNext : null, problem == LatticeChart.OldServer ? (LinuxStrings.ApprovalsViews_NotUsable_1, () => Close()) : null));
         }
-        else if (list is null) body.Children.Add(Notice(listProblem ?? "読み込んでいます…", null, null));
-        else if (LatticeChart.Shown(list).Length == 0) body.Children.Add(Notice(LatticeChart.ListEmpty, null, ("閉じる", () => Close())));
+        else if (list is null) body.Children.Add(Notice(listProblem ?? LinuxStrings.FeatureEditor_InitializeAsync_1, null, null));
+        else if (LatticeChart.Shown(list).Length == 0) body.Children.Add(Notice(LatticeChart.ListEmpty, null, (LinuxStrings.ApprovalsViews_NotUsable_1, () => Close())));
         else
         {
             var items = LatticeChart.ListItems(list, Roster);
             var pinned = items.Where(item => item.Coordinator).ToList();
-            if (pinned.Count > 0) { body.Children.Add(Section("ピン留め")); body.Children.Add(Cards(pinned, true)); }
-            body.Children.Add(Section("すべての工程表"));
+            if (pinned.Count > 0) { body.Children.Add(Section(LinuxStrings.ConversationRow_Update_2)); body.Children.Add(Cards(pinned, true)); }
+            body.Children.Add(Section(LinuxStrings.LatticeWindow_RenderList_7));
             var rest = Cards(items.Where(item => !item.Coordinator).ToList(), false);
             rest.Children.Add(NewChartCard()); body.Children.Add(rest);
         }
@@ -182,7 +182,7 @@ public sealed class LatticeWindow : Window
         if (item.Updated.Length > 0) { var updated = Text(item.Updated + " JST", 12, Muted); updated.Margin = new Thickness(0, 4, 0, 12); left.Children.Add(updated); }
         var faces = new StackPanel { Orientation = Orientation.Horizontal };
         foreach (var (member, index) in item.Members.Select((member, index) => (member, index))) faces.Children.Add(new LatticeAvatar(member, 30, Avatar) { Margin = new Thickness(index == 0 ? 0 : -8, 0, 0, 0) });
-        var waiting = Pill(Row(Shape(LinkGeometry, 11, item.Connections > 0 ? Violet : Muted), Spaced(Text($"接続 {item.Connections}", 12, item.Connections > 0 ? Violet : Muted, FontWeight.SemiBold), 5)), item.Connections > 0 ? Violet : Muted, 0x1A);
+        var waiting = Pill(Row(Shape(LinkGeometry, 11, item.Connections > 0 ? Violet : Muted), Spaced(Text(LinuxStrings.LatticeBoard_CardView_1(item.Connections), 12, item.Connections > 0 ? Violet : Muted, FontWeight.SemiBold), 5)), item.Connections > 0 ? Violet : Muted, 0x1A);
         // 催促 sits LEFT of 接続 with a 6px gap (Rapi's Apple reference); no badge when it is off.
         var chips = Row(faces);
         if (item.Reminders) { var nudge = ReminderBadge(); nudge.Margin = new Thickness(12, 0, 0, 0); chips.Children.Add(nudge); }
@@ -200,7 +200,7 @@ public sealed class LatticeWindow : Window
     private static Border NewChartCard()
     {
         var body = new StackPanel();
-        body.Children.Add(Row(PlusIcon(14, Muted), Spaced(Text("新しい工程表", 16, Muted, FontWeight.SemiBold), 8)));
+        body.Children.Add(Row(PlusIcon(14, Muted), Spaced(Text(LinuxStrings.LatticeWindow_NewChartCard_1, 16, Muted, FontWeight.SemiBold), 8)));
         var text = Text(LatticeChart.NewChart, 13, Muted, wrap: true); text.Margin = new Thickness(0, 8, 0, 0); body.Children.Add(text);
         var dashed = new Grid { Width = Compact ? double.NaN : 360, Margin = new Thickness(0, 0, Compact ? 0 : 16, 16) };
         dashed.Children.Add(new Rectangle { RadiusX = 20, RadiusY = 20, Stroke = Brush(Muted, 0x80), StrokeThickness = 1.3, StrokeDashArray = [5, 4], Fill = Brush(Colors.White, 0x40) });
@@ -238,7 +238,7 @@ public sealed class LatticeWindow : Window
     internal async Task OpenChatAsync(string botId)
     {
         try { await openChat(botId); }
-        catch (Exception) { Chart?.Say("会話を開けませんでした。本体の窓からもう一度お試しください。"); }
+        catch (Exception) { Chart?.Say(LinuxStrings.LatticeWindow_OpenChatAsync_1); }
     }
 }
 
@@ -324,10 +324,10 @@ internal sealed class LatticeChartPage : Grid
         SetColumn(board, 1); board.Margin = new Thickness(4, 4, 6, 16); stage.Children.Add(board);
         var waitScroll = waitScroller = new ScrollViewer { Content = waits, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
         var waitBody = new DockPanel(); var heading = new DockPanel { Margin = new Thickness(4, 0, 0, 12) }; DockPanel.SetDock(heading, Dock.Top);
-        var fold = Plain(Row(RightIcon(12, Muted), RightIcon(12, Muted)), "接続を閉じる"); fold.Width = 30; fold.Height = 30; fold.HorizontalContentAlignment = HorizontalAlignment.Center; fold.VerticalContentAlignment = VerticalAlignment.Center;
-        fold.Click += (_, _) => ToggleWaits(); ToolTip.SetTip(fold, "接続を閉じる"); AutomationProperties.SetAutomationId(fold, "lattice-waits-close"); DockPanel.SetDock(fold, Dock.Right); heading.Children.Add(fold);
+        var fold = Plain(Row(RightIcon(12, Muted), RightIcon(12, Muted)), LinuxStrings.LatticeWindow_LatticeChartPage_1); fold.Width = 30; fold.Height = 30; fold.HorizontalContentAlignment = HorizontalAlignment.Center; fold.VerticalContentAlignment = VerticalAlignment.Center;
+        fold.Click += (_, _) => ToggleWaits(); ToolTip.SetTip(fold, LinuxStrings.LatticeWindow_LatticeChartPage_1); AutomationProperties.SetAutomationId(fold, "lattice-waits-close"); DockPanel.SetDock(fold, Dock.Right); heading.Children.Add(fold);
         var countPill = Pill(waitCount, Violet, 0x1F, new Thickness(9, 3, 9, 3)); countPill.Margin = new Thickness(0, 0, 4, 0); DockPanel.SetDock(countPill, Dock.Right); heading.Children.Add(countPill);
-        heading.Children.Add(Row(Shape(LinkGeometry, 14, Violet), Spaced(Text("接続", 16, Ink, FontWeight.Bold), 8)));
+        heading.Children.Add(Row(Shape(LinkGeometry, 14, Violet), Spaced(Text(LinuxStrings.LatticeWindow_LatticeChartPage_3, 16, Ink, FontWeight.Bold), 8)));
         waitBody.Children.Add(heading); waitBody.Children.Add(waitScroll);
         waitPanel = Glass(waitBody, 22, new Thickness(14, 16, 14, 12), 0xC7); waitPanel.Margin = new Thickness(6, 4, 16, 16); waitPanel.Width = 338;
         SetColumn(waitColumn, 2); stage.Children.Add(waitColumn);
@@ -402,11 +402,11 @@ internal sealed class LatticeChartPage : Grid
         // Views that replace the chart: not found, not on this server, sign-in, not readable yet.
         Control? replaced = Feed.Connection switch
         {
-            LatticeConnection.NotFound => LatticeWindow.Notice(LatticeChart.NotFound, null, ("一覧へ戻る", () => window.ShowList())),
-            LatticeConnection.Unsupported => LatticeWindow.Notice(LatticeChart.OldServer, LatticeChart.OldServerNext, ("閉じる", () => window.Close())),
+            LatticeConnection.NotFound => LatticeWindow.Notice(LatticeChart.NotFound, null, (LinuxStrings.LatticeReminderSettings_LatticeReminderSettings_3, () => window.ShowList())),
+            LatticeConnection.Unsupported => LatticeWindow.Notice(LatticeChart.OldServer, LatticeChart.OldServerNext, (LinuxStrings.ApprovalsViews_NotUsable_1, () => window.Close())),
             LatticeConnection.Login when snapshot is null => LatticeWindow.Notice(LatticeChart.LoginRequired, null, null),
-            _ when snapshot is { State: "unavailable" } => LatticeWindow.Notice(LatticeChart.Unavailable, LatticeChart.UnavailableNext, ("一覧へ戻る", () => window.ShowList()), bud: true),
-            _ when snapshot is null => LatticeWindow.Notice(Feed.Connection == LatticeConnection.Reconnecting ? LatticeChart.Reconnecting : "読み込んでいます…", null, null),
+            _ when snapshot is { State: "unavailable" } => LatticeWindow.Notice(LatticeChart.Unavailable, LatticeChart.UnavailableNext, (LinuxStrings.LatticeReminderSettings_LatticeReminderSettings_3, () => window.ShowList()), bud: true),
+            _ when snapshot is null => LatticeWindow.Notice(Feed.Connection == LatticeConnection.Reconnecting ? LatticeChart.Reconnecting : LinuxStrings.FeatureEditor_InitializeAsync_1, null, null),
             _ => null
         };
         if (replaced is not null) { overlay.Children.Clear(); overlay.Children.Add(replaced); overlay.Children.Add(pills); RenderPills(); return; }
@@ -461,23 +461,23 @@ internal sealed class LatticeChartPage : Grid
         switcherContent.Children.Add(Spaced(Text(ChartName, 20, Ink, FontWeight.Bold), 10));
         if (Coordinator) switcherContent.Children.Add(Spaced(CoordinatorBadge(), 10));
         switcherContent.Children.Add(Spaced(DownIcon(11, Muted), 10));
-        var switcher = Plain(Glass(switcherContent, 14, new Thickness(12, 8, 14, 8), 0xB3), $"{ChartName}{(Coordinator ? "、統括の工程表" : "")}。一覧へ戻る");
+        var switcher = Plain(Glass(switcherContent, 14, new Thickness(12, 8, 14, 8), 0xB3), LinuxStrings.LatticeWindow_RenderToolbar_2(ChartName, (Coordinator ? LinuxStrings.LatticeWindow_RenderToolbar_1 : "")));
         switcher.Click += (_, _) => window.ShowList(fromChart: true);
         AutomationProperties.SetAutomationId(switcher, "lattice-switcher");
         var lead = Row(switcher); toolbar.Children.Add(lead);
         var live = Feed.Connection == LatticeConnection.Live;
         var dot = new Ellipse { Width = 8, Height = 8, Fill = Brush(live ? Color.FromRgb(0x2E, 0xB3, 0x9E) : Muted) };
         if (live) Loop(dot, Pulse(1, .35, TimeSpan.FromSeconds(1.2)));
-        var livePill = Pill(Row(dot, Spaced(Text(live ? "ライブ" : "再接続中", 12, live ? Color.FromRgb(0x1F, 0x86, 0x76) : Muted, FontWeight.SemiBold), 6)), live ? Color.FromRgb(0x2E, 0xB3, 0x9E) : Muted, 0x1F);
+        var livePill = Pill(Row(dot, Spaced(Text(live ? LinuxStrings.ApprovalsViews_Toolbar_4 : LinuxStrings.LatticeWindow_RenderToolbar_4, 12, live ? Color.FromRgb(0x1F, 0x86, 0x76) : Muted, FontWeight.SemiBold), 6)), live ? Color.FromRgb(0x2E, 0xB3, 0x9E) : Muted, 0x1F);
         livePill.Margin = new Thickness(14, 0, 0, 0); lead.Children.Add(livePill);
         if (snapshot is null or { State: "unavailable" }) return;
         lead.Children.Add(ViewSwitch(LatticeChart.HistoryCount(snapshot)));
         var counts = LatticeChart.Counts(snapshot);
         var stats = Row(new LatticeRing(counts.Done, counts.Total, 40)); toolbar.Children.Add(stats);
-        stats.Children.Add(Spaced(new StackPanel { Children = { Text("完了", 11, Muted), Text($"{counts.Done} / {counts.Total}", 14, Ink, FontWeight.SemiBold) }, VerticalAlignment = VerticalAlignment.Center }, 8));
-        stats.Children.Add(Counter(Arc(14, Violet, 1.8), "作業中", counts.Working, Violet, 22));
-        stats.Children.Add(Counter(Shape(LinkGeometry, 13, Violet), "接続", counts.Connections, Violet, 8));
-        stats.Children.Add(Counter(Shape(OctagonGeometry, 13, Red), "ブロック", counts.Blocked, Red, 8));
+        stats.Children.Add(Spaced(new StackPanel { Children = { Text(LinuxStrings.LatticeWindow_RenderToolbar_5, 11, Muted), Text($"{counts.Done} / {counts.Total}", 14, Ink, FontWeight.SemiBold) }, VerticalAlignment = VerticalAlignment.Center }, 8));
+        stats.Children.Add(Counter(Arc(14, Violet, 1.8), LinuxStrings.LatticeWindow_RenderToolbar_6, counts.Working, Violet, 22));
+        stats.Children.Add(Counter(Shape(LinkGeometry, 13, Violet), LinuxStrings.LatticeWindow_LatticeChartPage_3, counts.Connections, Violet, 8));
+        stats.Children.Add(Counter(Shape(OctagonGeometry, 13, Red), LinuxStrings.LatticeWindow_RenderToolbar_8, counts.Blocked, Red, 8));
     }
     /// <summary>The segmented control ツリー / 担当 / 過去ログ N.</summary>
     private Border ViewSwitch(int finished)
@@ -487,12 +487,12 @@ internal sealed class LatticeChartPage : Grid
             var on = View == view;
             var face = new Border { Child = Text(label, 12.5, on ? Ink : Muted, on ? FontWeight.SemiBold : FontWeight.Normal), CornerRadius = new CornerRadius(8), Padding = new Thickness(14, 5, 14, 5), Background = on ? Brush(Colors.White) : Brushes.Transparent };
             if (on) face.BoxShadow = new BoxShadows(new BoxShadow { OffsetY = 1, Blur = 6, Color = Color.FromArgb(20, Ink.R, Ink.G, Ink.B) });
-            var button = Plain(face, label + (on ? "、表示中" : "で表示"));
+            var button = Plain(face, label + (on ? LinuxStrings.LatticeWindow_ViewSwitch_1 : LinuxStrings.LatticeWindow_ViewSwitch_2));
             AutomationProperties.SetAutomationId(button, "lattice-view-" + view);
             button.Click += (_, _) => SetView(view);
             return button;
         }
-        return new Border { Child = Row(Segment("ツリー", "tree"), Segment("担当", "lanes"), Segment($"過去ログ {finished}", "history")), CornerRadius = new CornerRadius(10), Padding = new Thickness(3), Background = Brush(Muted, 0x1F), Margin = new Thickness(14, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        return new Border { Child = Row(Segment(LinuxStrings.LatticeWindow_ViewSwitch_3, "tree"), Segment(LinuxStrings.LatticeWindow_ViewSwitch_4, "lanes"), Segment(LinuxStrings.LatticeWindow_ViewSwitch_5(finished), "history")), CornerRadius = new CornerRadius(10), Padding = new Thickness(3), Background = Brush(Muted, 0x1F), Margin = new Thickness(14, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
     }
     /// <summary>Switches the center between the tree, the lanes and 過去ログ; 詳細, highlight and the selected card's scroll position carry over.</summary>
     internal void SetView(string view)
@@ -517,7 +517,7 @@ internal sealed class LatticeChartPage : Grid
     {
         history.Children.Clear(); historyRows.Clear(); historyFrames.Clear();
         var log = LatticeChart.History(snapshot, now);
-        if (log.Count == 0 && !past.Loading) { var none = Text("まだ終わった工程はありません。", 14, Muted); none.Margin = new Thickness(4, 10, 0, 0); history.Children.Add(none); return; }
+        if (log.Count == 0 && !past.Loading) { var none = Text(LinuxStrings.LatticeWindow_RenderHistory_1, 14, Muted); none.Margin = new Thickness(4, 10, 0, 0); history.Children.Add(none); return; }
         foreach (var group in log.Groups)
         {
             var heading = Text(group.Heading, 12.5, Muted, FontWeight.SemiBold); heading.Margin = new Thickness(4, 10, 0, 8); history.Children.Add(heading);
@@ -539,10 +539,10 @@ internal sealed class LatticeChartPage : Grid
         // The rows already known stay; one row ends the list: the failed page (a 読み直す asks it again) or the page being read.
         if (past.Failed)
         {
-            var again = Action("読み直す"); again.Click += (_, _) => past.Retry(); AutomationProperties.SetAutomationId(again, "lattice-history-retry");
-            var failed = Row(Text("続きを読めませんでした。", 13, Muted), Spaced(again, 12)); failed.Margin = new Thickness(4, 10, 0, 0); history.Children.Add(failed);
+            var again = Action(LinuxStrings.ApprovalsViews_LinkPanel_12); again.Click += (_, _) => past.Retry(); AutomationProperties.SetAutomationId(again, "lattice-history-retry");
+            var failed = Row(Text(LinuxStrings.LatticeWindow_RenderHistory_3, 13, Muted), Spaced(again, 12)); failed.Margin = new Thickness(4, 10, 0, 0); history.Children.Add(failed);
         }
-        else if (past.Loading) { var reading = Row(Spinner(14), Spaced(Text("読み込んでいます…", 13, Muted), 8)); reading.Margin = new Thickness(4, 10, 0, 0); history.Children.Add(reading); }
+        else if (past.Loading) { var reading = Row(Spinner(14), Spaced(Text(LinuxStrings.FeatureEditor_InitializeAsync_1, 13, Muted), 8)); reading.Margin = new Thickness(4, 10, 0, 0); history.Children.Add(reading); }
         ApplyHistory();
     }
     /// <summary>The selected card's ring and the member highlight on 過去ログ rows, as the tree and the lanes show them.</summary>
@@ -571,7 +571,7 @@ internal sealed class LatticeChartPage : Grid
         var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         text.Children.Add(Text(banner.Text, 14, Ink, FontWeight.SemiBold, wrap: true)); text.Children.Add(Text(banner.Next, 12.5, Muted, wrap: true));
         var dock = new DockPanel();
-        var talk = Action("統括と話す", ChatGlyph); talk.Margin = new Thickness(12, 0, 0, 0); DockPanel.SetDock(talk, Dock.Right);
+        var talk = Action(LinuxStrings.LatticeWindow_Banner_1, ChatGlyph); talk.Margin = new Thickness(12, 0, 0, 0); DockPanel.SetDock(talk, Dock.Right);
         talk.IsEnabled = CoordinatorBotId is not null; talk.Click += (_, _) => { if (CoordinatorBotId is { } coordinator) _ = window.OpenChatAsync(coordinator); };
         dock.Children.Add(talk);
         var glyph = amber ? WarningIcon(18, color) : InfoIcon(18, color); glyph.Margin = new Thickness(0, 0, 12, 0); DockPanel.SetDock(glyph, Dock.Left); dock.Children.Add(glyph);
@@ -597,8 +597,8 @@ internal sealed class LatticeChartPage : Grid
                 var badge = Pill(Row(Shape(LinkGeometry, 9, Colors.White), Spaced(Text(item.Connections.ToString(), 10, Colors.White, FontWeight.Bold), 3)), Violet, 0xFF, new Thickness(5, 1, 6, 1));
                 badge.HorizontalAlignment = HorizontalAlignment.Right; badge.VerticalAlignment = VerticalAlignment.Bottom; badge.Margin = new Thickness(0, 0, -4, -2); face.Children.Add(badge);
             }
-            var state = string.Join("、", new[] { item.Working ? "作業中" : null, item.Blocked ? "ブロックあり" : null, item.Connections > 0 ? $"接続 {item.Connections}" : null }.OfType<string>());
-            var button = Plain(face, $"{item.Member.Name}{(state.Length > 0 ? "、" + state : "")}。押すとこのメンバーの工程だけを強調します");
+            var state = string.Join(LinuxStrings.ApprovalsDetail_Answered_4, new[] { item.Working ? LinuxStrings.LatticeWindow_RenderToolbar_6 : null, item.Blocked ? LinuxStrings.LatticeWindow_RenderRail_3 : null, item.Connections > 0 ? LinuxStrings.LatticeBoard_CardView_1(item.Connections) : null }.OfType<string>());
+            var button = Plain(face, LinuxStrings.LatticeWindow_RenderRail_6(item.Member.Name, (state.Length > 0 ? LinuxStrings.LatticeWindow_RenderRail_5(state) : "")));
             ToolTip.SetTip(button, item.Member.Name); var id = item.BotId; button.Click += (_, _) => Highlight(HighlightedMember == id ? null : id);
             rail.Children.Add(button);
         }
@@ -611,16 +611,16 @@ internal sealed class LatticeChartPage : Grid
     {
         waits.Children.Clear();
         var rows = LatticeChart.ConnectionRows(snapshot, now);
-        waitCount.Text = $"{rows.Count}件";
+        waitCount.Text = LinuxStrings.LatticeWindow_RenderWaits_1(rows.Count);
         waitColumn.Content = WaitsOpen ? waitPanel : WaitHandle(rows.Count, rows.Any(row => row.Emphasized));
         var on =HighlightedMember is { } member ? LatticeChart.Highlight(snapshot, member).Connections : null;
-        if (rows.Count == 0) { var none = Text("接続している工程はありません。", 13, Muted, wrap: true); none.Margin = new Thickness(4); waits.Children.Add(none); return; }
+        if (rows.Count == 0) { var none = Text(LinuxStrings.LatticeWindow_RenderWaits_2, 13, Muted, wrap: true); none.Margin = new Thickness(4); waits.Children.Add(none); return; }
         foreach (var row in rows)
         {
             var body = new StackPanel();
             // Reads on its own (screen-spec 接続 and ブロック): the connected card + owner, the entry's reason, then what the 接続 is and, for a task of another chart, who makes it.
             var head = new DockPanel();
-            var length = Text($"接続 {row.Length}", 12, Muted); length.Margin = new Thickness(8, 0, 0, 0); DockPanel.SetDock(length, Dock.Right); head.Children.Add(length);
+            var length = Text(LinuxStrings.LatticeBoard_CardView_1(row.Length), 12, Muted); length.Margin = new Thickness(8, 0, 0, 0); DockPanel.SetDock(length, Dock.Right); head.Children.Add(length);
             var face = new LatticeAvatar(row.Owner, 24, window.Avatar); DockPanel.SetDock(face, Dock.Left); head.Children.Add(face);
             head.Children.Add(Spaced(Text(row.Headline, 14, Ink, FontWeight.Bold, wrap: true), 8));
             body.Children.Add(head);
@@ -639,15 +639,15 @@ internal sealed class LatticeChartPage : Grid
                 var title = new Border { Child = awaited, CornerRadius = new CornerRadius(12), Padding = new Thickness(10, 7, 10, 7), Margin = new Thickness(0, 0, 0, 8), Background = Brush(Muted, 0x12), BorderBrush = Brush(LatticeLook.Line), BorderThickness = new Thickness(1) };
                 body.Children.Add(title);
                 if (row.Chart is { } chartName) { var chartLine = Text(chartName, 12, Muted); chartLine.Margin = new Thickness(0, -4, 0, 8); body.Children.Add(chartLine); }
-                var producerLine = Row(Text("つくっている", 11.5, Muted), Spaced(new LatticeAvatar(row.Producer, 20, window.Avatar), 8), Spaced(Text(LatticeChart.NameOf(row.Producer), 13, row.Producer is { Known: true } ? Ink : Muted, FontWeight.SemiBold), 6));
+                var producerLine = Row(Text(LinuxStrings.LatticeWindow_RenderWaits_4, 11.5, Muted), Spaced(new LatticeAvatar(row.Producer, 20, window.Avatar), 8), Spaced(Text(LatticeChart.NameOf(row.Producer), 13, row.Producer is { Known: true } ? Ink : Muted, FontWeight.SemiBold), 6));
                 body.Children.Add(producerLine);
                 var stateLine = Row(StateGlyph(GlyphState(row.Info.Tone), 13, Violet), Spaced(Text(row.StateText, 12.5, row.Emphasized ? Red : Muted, row.Emphasized ? FontWeight.SemiBold : FontWeight.Normal, wrap: true), 6));
                 stateLine.Margin = new Thickness(0, 6, 0, 10); body.Children.Add(stateLine);
             }
-            var chat = Action("会話を開く", ChatGlyph); chat.IsEnabled = row.CanChat; var producerId = row.Producer?.BotId;
+            var chat = Action(LinuxStrings.LatticeWindow_RenderWaits_5, ChatGlyph); chat.IsEnabled = row.CanChat; var producerId = row.Producer?.BotId;
             chat.Click += (_, _) => { if (producerId is not null) _ = window.OpenChatAsync(producerId); };
-            if (!row.CanChat) ToolTip.SetTip(chat, "名簿にないメンバーとは会話を開けません。");
-            var go = Action("工程へ移動", ForwardGlyph); var target = row.CardId; var external = row.External;
+            if (!row.CanChat) ToolTip.SetTip(chat, LinuxStrings.LatticeWindow_RenderWaits_6);
+            var go = Action(LinuxStrings.LatticeWindow_RenderWaits_7, ForwardGlyph); var target = row.CardId; var external = row.External;
             go.Click += (_, _) => { if (external is not null) window.OpenCard(external.ProjectId, external.CardId); else GoTo(target); };
             // task: 会話を開く + 工程へ移動 (the awaited task); priority: 工程へ移動 (the connected card); schedule: no button (Lattice gives only its id).
             if (row.Kind == "task") body.Children.Add(Row(chat, go)); else if (row.Kind == "priority") body.Children.Add(Row(go));
@@ -668,8 +668,8 @@ internal sealed class LatticeChartPage : Grid
         stack.Children.Add(Shape(LinkGeometry, 16, Ink));
         stack.Children.Add(Pill(Text(count.ToString(), 13, tone, FontWeight.Bold), tone, 0x1F, new Thickness(7, 2, 7, 2)));
         var glass = Glass(stack, 22, new Thickness(0, 18, 0, 12), 0xC7); glass.Width = 48;
-        var handle = Plain(glass, $"接続を開く、{count}件"); handle.Margin = new Thickness(6, 4, 16, 16); handle.VerticalAlignment = VerticalAlignment.Stretch;
-        handle.Click += (_, _) => ToggleWaits(); ToolTip.SetTip(handle, "接続を開く"); AutomationProperties.SetAutomationId(handle, "lattice-waits-open");
+        var handle = Plain(glass, LinuxStrings.LatticeWindow_WaitHandle_1(count)); handle.Margin = new Thickness(6, 4, 16, 16); handle.VerticalAlignment = VerticalAlignment.Stretch;
+        handle.Click += (_, _) => ToggleWaits(); ToolTip.SetTip(handle, LinuxStrings.LatticeWindow_WaitHandle_2); AutomationProperties.SetAutomationId(handle, "lattice-waits-open");
         return handle;
     }
     internal void ToggleWaits() { WaitsOpen = !WaitsOpen; if (Feed.Snapshot is { } snapshot) RenderWaits(snapshot, window.Now()); }
@@ -722,22 +722,22 @@ internal sealed class LatticeChartPage : Grid
         var body = new StackPanel();
         var head = new DockPanel();
         var close = Action(""); close.Content = CloseIcon(14, Violet); close.Padding = new Thickness(8); close.Margin = new Thickness(8, 0, 0, 0); DockPanel.SetDock(close, Dock.Right); close.Click += (_, _) => CloseDetail();
-        AutomationProperties.SetName(close, "詳細を閉じる"); head.Children.Add(close);
+        AutomationProperties.SetName(close, LinuxStrings.LatticeWindow_ShowDetail_1); head.Children.Add(close);
         head.Children.Add(Row(StateGlyph(detail.Card.State, 18, accent), Spaced(Text(detail.Info.Badge, 13, detail.Card.State == "blocked" ? Red : accent, FontWeight.SemiBold), 7)));
         body.Children.Add(head);
         var title = Text(LatticeChart.Title(detail.Card), 21, Ink, FontWeight.Bold, wrap: true); title.Margin = new Thickness(0, 10, 0, 10); body.Children.Add(title);
         body.Children.Add(Row(new LatticeAvatar(detail.Producer, 26, window.Avatar), Spaced(Text(LatticeChart.NameOf(detail.Producer), 14, Ink, FontWeight.SemiBold), 8), Spaced(Text(detail.StateText, 13, detail.Card.State == "blocked" ? Red : Muted, wrap: true), 10)));
         var started = Text(detail.StartedText, 12.5, Muted); started.Margin = new Thickness(0, 8, 0, 0); body.Children.Add(started);
-        Section(body, "設計メモ", detail.Card.DesignMemo);
-        Section(body, "終了条件", detail.Card.DoneCondition);
+        Section(body, LinuxStrings.LatticeWindow_ShowDetail_2, detail.Card.DesignMemo);
+        Section(body, LinuxStrings.LatticeWindow_ShowDetail_3, detail.Card.DoneCondition);
         // The id never shows; 決裁を開く opens the 決裁箱 screen with that decision selected.
         if (decisions.GetValueOrDefault(cardId) is { } decision)
         {
-            Section(body, "決裁", string.IsNullOrEmpty(decision.Title) ? LatticeChart.DecisionStates[decision.Status] : $"{decision.Title}（{LatticeChart.DecisionStates[decision.Status]}）");   // by-task loses the title at the /v1 close
-            if (window.OpenDecision is { } openDecision) { var open = Action("決裁を開く", ForwardGlyph); open.Margin = new Thickness(0, 8, 0, 0); var id = decision.DecisionId; open.Click += (_, _) => openDecision(id); body.Children.Add(open); }
+            Section(body, LinuxStrings.LatticeWindow_ShowDetail_4, string.IsNullOrEmpty(decision.Title) ? LatticeChart.DecisionStates[decision.Status] : LinuxStrings.LatticeWindow_ShowDetail_5(decision.Title, LatticeChart.DecisionStates[decision.Status]));   // by-task loses the title at the /v1 close
+            if (window.OpenDecision is { } openDecision) { var open = Action(LinuxStrings.LatticeWindow_ShowDetail_6, ForwardGlyph); open.Margin = new Thickness(0, 8, 0, 0); var id = decision.DecisionId; open.Click += (_, _) => openDecision(id); body.Children.Add(open); }
         }
-        Links(body, "前の工程", detail.Previous);
-        Links(body, "次の工程", detail.Next);
+        Links(body, LinuxStrings.LatticeWindow_ShowDetail_7, detail.Previous);
+        Links(body, LinuxStrings.LatticeWindow_ShowDetail_8, detail.Next);
         var panel = Glass(new ScrollViewer { Content = body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled }, 22, new Thickness(20, 16, 18, 18), 0xFA);
         panel.Width = 400; panel.VerticalAlignment = VerticalAlignment.Top; panel.MaxHeight = 4000;
         AutomationProperties.SetAutomationId(panel, "lattice-detail"); AutomationProperties.SetName(panel, LatticeChart.CardLabel(detail.Card, detail.Producer));
@@ -770,15 +770,15 @@ internal sealed class LatticeChartPage : Grid
     private void Links(StackPanel body, string heading, IReadOnlyList<LatticeLink> links)
     {
         var label = Text(heading, 12, Muted, FontWeight.SemiBold); label.Margin = new Thickness(0, 18, 0, 6); body.Children.Add(label);
-        if (links.Count == 0) { body.Children.Add(Text("なし", 13, Muted)); return; }
+        if (links.Count == 0) { body.Children.Add(Text(LinuxStrings.LatticeWindow_Links_1, 13, Muted)); return; }
         foreach (var link in links)
         {
             var row = new DockPanel();
             var glyph = StateGlyph(link.State, 15, link.Producer is { Known: true } ? Accent(link.Producer.Color) : Violet); glyph.Margin = new Thickness(0, 0, 10, 0); DockPanel.SetDock(glyph, Dock.Left); row.Children.Add(glyph);
             var arrow = RightIcon(11, Muted); DockPanel.SetDock(arrow, Dock.Right); row.Children.Add(arrow);
-            row.Children.Add(new StackPanel { Children = { Text(link.Title, 13.5, Ink, FontWeight.SemiBold), Text($"{LatticeChart.NameOf(link.Producer)}・{link.StateText}", 11.5, Muted) } });
+            row.Children.Add(new StackPanel { Children = { Text(link.Title, 13.5, Ink, FontWeight.SemiBold), Text(LinuxStrings.LatticeWindow_Links_2(LatticeChart.NameOf(link.Producer), link.StateText), 11.5, Muted) } });
             var frame = new Border { Child = row, CornerRadius = new CornerRadius(12), Padding = new Thickness(10, 8, 10, 8), Margin = new Thickness(0, 0, 0, 6), Background = Brush(Colors.White, 0xB0), BorderBrush = Brush(LatticeLook.Line), BorderThickness = new Thickness(1) };
-            var button = Plain(frame, $"{link.Title}、{LatticeChart.StateInfo(link.State).Badge}、つくっている {LatticeChart.NameOf(link.Producer)}");
+            var button = Plain(frame, LinuxStrings.LatticeWindow_Links_3(link.Title, LatticeChart.StateInfo(link.State).Badge, LatticeChart.NameOf(link.Producer)));
             var id = link.Id; button.Click += (_, _) => GoTo(id);
             body.Children.Add(button);
         }

@@ -19,7 +19,7 @@ public sealed class GoalsApi(BellApi api)
         if (objective is not null) body["objective"] = objective;
         if (tokenBudget is not null) body["tokenBudget"] = tokenBudget;
         var root = await api.PostAsync<JsonElement>(Path(botId), body, token);
-        if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("outcome", out var outcome) || outcome.ValueKind != JsonValueKind.String || outcome.GetString() is not ("confirmed" or "unconfirmed")) throw new BellApiException("BellTeamからの応答を読み取れませんでした。（outcome）");
+        if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("outcome", out var outcome) || outcome.ValueKind != JsonValueKind.String || outcome.GetString() is not ("confirmed" or "unconfirmed")) throw new BellApiException(CoreStrings.GoalsApi_ChangeAsync_1);
         return new GoalChangeResult(outcome.GetString() == "confirmed", GoalParser.ParseDetail(root));
     }
     private static string Path(string botId) => $"/api/bots/{Uri.EscapeDataString(botId)}/goal";
@@ -90,13 +90,13 @@ public sealed class GoalModel(GoalsApi api)
         catch (Exception error) { ErrorText = error.Message; Notify(); }
     }
 
-    private const string Invalid = "ゴールの応答を確認できませんでした。更新して確認してください。";
+    private static string Invalid  => CoreStrings.GoalsApi_Invalid_1;
     public async Task ChangeAsync(GoalSnapshot snapshot, string action, string? objective = null, long? tokenBudget = null)
     {
-        if (Loading) throw new GoalChangeException("ゴールの更新が終わってから保存してください。");
-        if (Mutating || NeedsRefresh) throw new GoalChangeException("変更結果を確認できませんでした。現在の状態を確認してから操作してください。");
+        if (Loading) throw new GoalChangeException(CoreStrings.GoalsApi_ChangeAsync_2);
+        if (Mutating || NeedsRefresh) throw new GoalChangeException(CoreStrings.GoalsApi_ChangeAsync_3);
         var current = Snapshots.FirstOrDefault(item => item.BotId == snapshot.BotId);
-        if (current is null || snapshot.Binding is not { } binding || current.Binding != binding) throw new GoalChangeException("会話が変わりました。現在のゴールを更新してから操作してください。");
+        if (current is null || snapshot.Binding is not { } binding || current.Binding != binding) throw new GoalChangeException(CoreStrings.GoalsApi_ChangeAsync_4);
         Mutating = true; Notify();
         try
         {
@@ -108,14 +108,14 @@ public sealed class GoalModel(GoalsApi api)
                 // The result of the write is unknown: read the state back once and say so. The write itself is not repeated.
                 GoalSnapshot latest;
                 try { latest = await api.InspectAsync(snapshot.BotId); }
-                catch (Exception) { NeedsRefresh = true; throw new GoalChangeException("変更結果と現在の状態を確認できませんでした。更新して確認してください。"); }
+                catch (Exception) { NeedsRefresh = true; throw new GoalChangeException(CoreStrings.GoalsApi_ChangeAsync_5); }
                 if (latest.BotId != snapshot.BotId) { NeedsRefresh = true; throw new GoalChangeException(Invalid); }
                 Replace(latest);
-                throw new GoalChangeException("変更の応答を確認できませんでした。現在取得できた状態を表示しています。操作前に確認してください。");
+                throw new GoalChangeException(CoreStrings.GoalsApi_ChangeAsync_6);
             }
             if (response.Snapshot.BotId != snapshot.BotId) { NeedsRefresh = true; throw new GoalChangeException(Invalid); }
             Replace(response.Snapshot);
-            if (!response.Confirmed) { NeedsRefresh = true; throw new GoalChangeException("変更結果を確認できませんでした。現在の状態を確認してから操作してください。"); }
+            if (!response.Confirmed) { NeedsRefresh = true; throw new GoalChangeException(CoreStrings.GoalsApi_ChangeAsync_3); }
             ErrorText = null;
         }
         finally { Mutating = false; Notify(); }
@@ -164,7 +164,7 @@ public sealed class GoalEditorModel(GoalSnapshot selection, string action, strin
         if (EditsBudget(current) && BudgetChanged && Budget.Length != 0)
         {
             var parsed = ParseBudget(Budget);
-            if (parsed is not > 0) return (null, null, "トークン予算は1以上の整数で入力してください。");
+            if (parsed is not > 0) return (null, null, CoreStrings.GoalsApi_Prepare_1);
             budget = parsed;
         }
         return (objective, budget, null);

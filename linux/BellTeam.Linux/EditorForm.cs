@@ -16,8 +16,8 @@ public interface ISheetSave
     event Action? CanSaveChanged;
     Task SaveAsync();
     // The header's two buttons: the left one closes (the editors say キャンセル until something is saved), the right one saves.
-    string CloseLabel => "閉じる";
-    string SaveLabel => "保存";
+    string CloseLabel => LinuxStrings.ApprovalsViews_NotUsable_1;
+    string SaveLabel => LinuxStrings.EditorForm_SaveLabel_1;
     bool CanClose => true;
     // Escape closes an open alert before it closes the sheet; true when something was closed.
     bool DismissPopup() => false;
@@ -52,8 +52,8 @@ public abstract partial class EditorFormView : Grid, ISheetSave, IDisposable
     public virtual bool CanSave => Ready && !busy && !SaveBlocked;
     public virtual bool CanClose => !busy;
     protected virtual bool SaveBlocked => false;
-    public virtual string CloseLabel => "キャンセル";
-    public virtual string SaveLabel => "保存";
+    public virtual string CloseLabel => LinuxStrings.EditorForm_CloseLabel_2;
+    public virtual string SaveLabel => LinuxStrings.EditorForm_SaveLabel_1;
     public abstract Task SaveAsync();
     protected void Notify() => CanSaveChanged?.Invoke();
 

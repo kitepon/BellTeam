@@ -35,9 +35,14 @@ public sealed record LatticeUnblockOutcome(LatticeUnblockKind Kind, string Reaso
 public static partial class LatticeStops
 {
     public const string Schema = "bellteam.lattice-blockers.v1";
-    public const string Loading = "ブロックを読んでいます…", Empty = "ブロックされている工程はありません。", Retry = "ブロック一覧を読み直しています…", Old = "このサーバーではまだブロック一覧を使えません。",
-        Unread = "一部の工程表を読めませんでした。読めた分だけ表示しています。", Ask = "このブロックを外しますか？", Later = "いまは外せませんでした。少し待ってからもう一度お試しください。";
-    public static string Refused(string reason) => reason.Length > 0 ? $"外せませんでした: {reason}" : "外せませんでした";
+    public static string Loading  => CoreStrings.LatticeStops_Loading_1;
+    public static string Empty  => CoreStrings.LatticeStops_Empty_1;
+    public static string Retry  => CoreStrings.LatticeStops_Retry_1;
+    public static string Old  => CoreStrings.LatticeStops_Old_1;
+    public static string Unread  => CoreStrings.LatticeStops_Unread_1;
+    public static string Ask  => CoreStrings.LatticeStops_Ask_1;
+    public static string Later  => CoreStrings.LatticeStops_Later_1;
+    public static string Refused(string reason) => reason.Length > 0 ? CoreStrings.LatticeStops_Refused_1(reason) : CoreStrings.LatticeStops_Refused_2;
 
     private static readonly TimeZoneInfo Jst = TimeZoneInfo.CreateCustomTimeZone("JST", TimeSpan.FromHours(9), "JST", "JST");
     private static DateTimeOffset? At(string? value) => DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var at) ? at : null;
@@ -46,8 +51,8 @@ public static partial class LatticeStops
     {
         if (At(value) is not { } at) return "";
         var local = TimeZoneInfo.ConvertTime(at, Jst); var today = TimeZoneInfo.ConvertTime(now, Jst).Date;
-        var time = local.ToString("HH:mm", CultureInfo.InvariantCulture);
-        return local.Date == today ? $"今日 {time}" : local.Date == today.AddDays(-1) ? $"昨日 {time}" : LatticeChart.FormatJst(at);
+        var time = local.ToString(CoreStrings.Pattern_TimePadded);
+        return local.Date == today ? CoreStrings.LatticeStops_StopTime_1(time) : local.Date == today.AddDays(-1) ? CoreStrings.LatticeStops_StopTime_2(time) : LatticeChart.FormatJst(at);
     }
 
     [GeneratedRegex("^bot-[0-9a-z]+$")] private static partial Regex BotId();
@@ -69,7 +74,7 @@ public static partial class LatticeStops
             {
                 var title = stop.Title ?? ""; var chart = LatticeChart.ChartName(stop.ChartName, stop.ChartCreatedBy, id => roster(id)?.Name); var reason = stop.Reason ?? "";
                 var lane = face(stop.Lane); var by = face(stop.BlockedBy); var time = StopTime(stop.BlockedAt, now);
-                var label = $"ブロック、{title}、{chart}、{(lane is null ? LatticeChart.Unassigned : $"担当 {lane.Name}")}{(reason.Length > 0 ? $"、理由 {reason}" : "")}、{LatticeChart.NameOf(by)}が{(time.Length > 0 ? $"{time}に" : "")}ブロックしました";
+                var label = CoreStrings.LatticeStops_Rows_4(title, chart, (lane is null ? LatticeChart.Unassigned : CoreStrings.LatticeChart_CardNote_1(lane.Name)), (reason.Length > 0 ? CoreStrings.LatticeStops_Rows_2(reason) : ""), LatticeChart.NameOf(by), (time.Length > 0 ? CoreStrings.LatticeStops_Rows_3(time) : ""));
                 return new LatticeStopRow(stop.StopId!, stop.ProjectId!, stop.CardId, title, chart, lane, reason, by, time, label);
             }).ToList();
     }

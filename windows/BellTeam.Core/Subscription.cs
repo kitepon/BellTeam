@@ -56,27 +56,27 @@ public static class SubscriptionText
     // docs/billing-client-contract.md (a358): Windows and Linux list Stripe first, then the other two stores, as equal rows; only Stripe can be bought here.
     public static readonly string[] Stores = ["Stripe", "App Store", "Google Play"];
     // a485/a486 7e (Owner 2026-11-22): shown instead of the native app when the server's entitlement is "none"; there is no browser version.
-    public const string Paywall = "このアプリは購読が必要です。無料で使うには、公開されているソースコードから自分でビルドしたものを使ってください。";
-    public const string Start = "購入";
-    public const string Price = "月980円（税込）";
-    public const string FreeMonth = "最初の1か月無料";
-    public static string Unavailable(string store) => $"この端末では購入できません。{store}で購入した購読も、同じサーバーでこのアプリに使えます。";
-    public static string Active(string store) => $"購読中（{store}）";
+    public static string Paywall  => CoreStrings.Subscription_Paywall_1;
+    public static string Start  => CoreStrings.Subscription_Start_1;
+    public static string Price  => CoreStrings.Subscription_Price_1;
+    public static string FreeMonth  => CoreStrings.Subscription_FreeMonth_1;
+    public static string Unavailable(string store) => CoreStrings.Subscription_Unavailable_1(store);
+    public static string Active(string store) => CoreStrings.Subscription_Active_1(store);
     // The server's subscription source ("apple" | "stripe" | "google") as the store name on a row.
     public static string? StoreOf(string? source) => source switch { "apple" => "App Store", "stripe" => "Stripe", "google" => "Google Play", _ => null };
     // The server's source name for a store row, the inverse of StoreOf.
     public static string SourceOf(string store) => store switch { "App Store" => "apple", "Google Play" => "google", _ => "stripe" };
-    public const string Manage = "購読を管理・解約";
+    public static string Manage  => CoreStrings.Subscription_Manage_1;
     // a389: Apple and Google Play have no server call; the manage button opens the store's own subscription page (Stripe's page comes from POST /api/subscription/stripe/manage).
     public static string? ManageUrl(string store) => store switch { "App Store" => "https://apps.apple.com/account/subscriptions", "Google Play" => "https://play.google.com/store/account/subscriptions", _ => null };
     // Shown on the active row while the subscription is cancelled but paid up to validUntil; it is undone through the manage button, never by a second purchase.
-    public static string NotRenewingRow(DateTimeOffset until) => $"次回の更新はありません。{until.ToLocalTime():yyyy年M月d日 H:mm}まで使えます。";
-    public const string Verify = "購入を確認";
-    public const string Recheck = "再確認";
+    public static string NotRenewingRow(DateTimeOffset until) => CoreStrings.Subscription_NotRenewingRow_1(until.ToLocalTime());
+    public static string Verify  => CoreStrings.Subscription_Verify_1;
+    public static string Recheck  => CoreStrings.StoreAccount_Refresh_1;
     // a485 (Bready's final wording): where the server has no live contract or is not logged in, no app buys anything here.
-    public const string BuyOnApple = "iPhone・iPad・Macで購入し、このサーバーをログインさせてください。";
-    public const string Trial = "無料期間中です。";
-    public static string ValidUntil(DateTimeOffset value) => "有効期限：" + value.ToLocalTime().ToString("yyyy年M月d日 H:mm");
+    public static string BuyOnApple  => CoreStrings.Subscription_BuyOnApple_1;
+    public static string Trial  => CoreStrings.Subscription_Trial_1;
+    public static string ValidUntil(DateTimeOffset value) => CoreStrings.Subscription_ValidUntil_2(value.ToLocalTime().ToString(CoreStrings.GoalModels_Date_1));
     // The state lines of a plan that is active: expiry, then the trial note when it applies (the non-renewing line sits on the source's row: NotRenewingRow).
     public static IEnumerable<string> StateLines(SubscriptionState state)
     {

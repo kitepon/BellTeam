@@ -34,9 +34,9 @@ public sealed class ScreenView : Grid
     {
         this.workspace = workspace;
         RowDefinitions = new RowDefinitions("Auto,*,Auto,Auto");
-        var back = InspectorUi.Bordered("プロフィールに戻る", InspectorIcons.Left, size: 14); back.HorizontalAlignment = HorizontalAlignment.Left; back.Margin = new Thickness(0, 0, 12, 0); back.Click += (_, _) => workspace.ReturnToProfile();
+        var back = InspectorUi.Bordered(LinuxStrings.ScreenView_ScreenView_1, InspectorIcons.Left, size: 14); back.HorizontalAlignment = HorizontalAlignment.Left; back.Margin = new Thickness(0, 0, 12, 0); back.Click += (_, _) => workspace.ReturnToProfile();
         var header = new DockPanel { Margin = new Thickness(16) }; DockPanel.SetDock(back, Dock.Left); header.Children.Add(back); header.Children.Add(title);
-        AutomationProperties.SetName(terminal, "Botの画面");
+        AutomationProperties.SetName(terminal, LinuxStrings.ScreenView_ScreenView_2);
         scroller.Content = terminal;
         var body = new Border { Background = Black, Child = scroller };
         SetRow(header, 0); SetRow(body, 1); SetRow(bar, 2); SetRow(statusLine, 3);
@@ -65,7 +65,7 @@ public sealed class ScreenView : Grid
             input = workspace.ScreenInput; barState = null; showDigits = false;
             if (input is not null) input.Changed += RenderBarOnUi;
         }
-        title.Text = (workspace.Selected?.Name ?? "") + "の画面";
+        title.Text = LinuxStrings.ScreenView_Refresh_1((workspace.Selected?.Name ?? ""));
         ShowText(workspace.Screen);
         var line = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
         line.Children.Add(new Shapes.Ellipse { Width = 7, Height = 7, Fill = workspace.ScreenOnline ? BellTheme.Mint : BellTheme.Muted, Margin = new Thickness(0, 0, 7, 0), VerticalAlignment = VerticalAlignment.Center });
@@ -105,9 +105,9 @@ public sealed class ScreenView : Grid
             if (bar.IsVisible) { column.Children[0].Margin = new Thickness(0); bar.Child = new StackPanel { Children = { new Border { Height = 1, Background = Hairline }, column } }; } else bar.Child = null;
             return;
         }
-        column.Children.Add(Spaced(Row(8, Key(model, "Escape", "取消", Symbol(Icons.Close), KeyTint, false), Key(model, "Tab", "Tab", TabIcon(), KeyTint, false), Key(model, "Enter", "決定", EnterIcon(), BellTheme.Violet, false), Key(model, "C-c", "中断", StopIcon(), Destructive, false))));
-        var toggle = Plain(ToggleCap(showDigits), "数字"); toggle.Click += (_, _) => { showDigits = !showDigits; barState = null; RenderBar(); };
-        column.Children.Add(Spaced(Row(8, Key(model, "Left", "左", Symbol(InspectorIcons.Left), KeyTint, true), Key(model, "Up", "上", Symbol(InspectorIcons.Up), KeyTint, true), Key(model, "Down", "下", Symbol(InspectorIcons.Down), KeyTint, true), Key(model, "Right", "右", Symbol(InspectorIcons.Right), KeyTint, true), toggle)));
+        column.Children.Add(Spaced(Row(8, Key(model, "Escape", LinuxStrings.ScreenView_RenderBar_1, Symbol(Icons.Close), KeyTint, false), Key(model, "Tab", "Tab", TabIcon(), KeyTint, false), Key(model, "Enter", LinuxStrings.ScreenView_RenderBar_2, EnterIcon(), BellTheme.Violet, false), Key(model, "C-c", LinuxStrings.ScreenView_RenderBar_3, StopIcon(), Destructive, false))));
+        var toggle = Plain(ToggleCap(showDigits), LinuxStrings.ScreenView_RenderBar_4); toggle.Click += (_, _) => { showDigits = !showDigits; barState = null; RenderBar(); };
+        column.Children.Add(Spaced(Row(8, Key(model, "Left", LinuxStrings.ScreenView_RenderBar_5, Symbol(InspectorIcons.Left), KeyTint, true), Key(model, "Up", LinuxStrings.ScreenView_RenderBar_6, Symbol(InspectorIcons.Up), KeyTint, true), Key(model, "Down", LinuxStrings.ScreenView_RenderBar_7, Symbol(InspectorIcons.Down), KeyTint, true), Key(model, "Right", LinuxStrings.ScreenView_RenderBar_8, Symbol(InspectorIcons.Right), KeyTint, true), toggle)));
         if (showDigits) column.Children.Add(Spaced(Row(5, Enumerable.Range(0, 10).Select(digit => Digit(model, digit.ToString())).ToArray())));
         column.Children[0].Margin = new Thickness(0);
         // The hairline is a row of its own: a translucent border would show the window behind it.
@@ -151,7 +151,7 @@ public sealed class ScreenView : Grid
         var content = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         // Mac: "number" while closed, "chevron.down" while the digits row is open.
         content.Children.Add(open ? Symbol(Icons.ChevronDown) : new TextBlock { Text = "#", FontSize = 20, FontWeight = FontWeight.Bold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, LineHeight = 17 });
-        content.Children.Add(new TextBlock { Text = "数字", FontSize = 11, FontWeight = FontWeight.Medium, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 3, 0, 0) });
+        content.Children.Add(new TextBlock { Text = LinuxStrings.ScreenView_RenderBar_4, FontSize = 11, FontWeight = FontWeight.Medium, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 3, 0, 0) });
         return CapOf(content, KeyTint, true);
     }
     private Button Digit(ScreenInputModel model, string id)
@@ -159,7 +159,7 @@ public sealed class ScreenView : Grid
         var content = new Grid { VerticalAlignment = VerticalAlignment.Center };
         content.Children.Add(new TextBlock { Text = id, FontSize = 17, FontWeight = FontWeight.SemiBold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, Opacity = model.SendingKey == id ? 0 : 1 });
         if (model.SendingKey == id) content.Children.Add(new Spinner(Brushes.White, 16) { HorizontalAlignment = HorizontalAlignment.Center });
-        var button = Plain(CapOf(content, KeyTint, true), "数字" + id); button.IsEnabled = model.SendingKey is null;
+        var button = Plain(CapOf(content, KeyTint, true), LinuxStrings.ScreenView_Digit_1(id)); button.IsEnabled = model.SendingKey is null;
         button.Click += async (_, _) => await model.SendKeyAsync(id);
         return button;
     }
@@ -175,7 +175,7 @@ public sealed class ScreenView : Grid
         var column = new StackPanel();
         var head = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         head.Children.Add(Icons.Draw(InspectorIcons.Hand, 16, Amber, filled: true, thickness: 0));
-        head.Children.Add(new TextBlock { Text = "許可を求められています", FontSize = 15, FontWeight = FontWeight.SemiBold, Foreground = Amber, VerticalAlignment = VerticalAlignment.Center });
+        head.Children.Add(new TextBlock { Text = LinuxStrings.ScreenView_Banner_1, FontSize = 15, FontWeight = FontWeight.SemiBold, Foreground = Amber, VerticalAlignment = VerticalAlignment.Center });
         column.Children.Add(head);
         var buttons = Row(8, approval.Choices!.Select(choice => Choice(model, choice)).ToArray()); buttons.Margin = new Thickness(0, 10, 0, 0); column.Children.Add(buttons);
         return new Border { Background = AmberFill, BorderBrush = AmberLine, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(14), Padding = new Thickness(12), Child = column };

@@ -11,9 +11,9 @@ namespace BellTeam.Linux;
 
 internal sealed class LatticeReminderSettings : Grid, IDisposable
 {
-    internal const string Heading = "工程表の設定";
-    private const string SwitchLabel = "1分ごとの催促";
-    private const string SaveFailure = "設定を保存できませんでした。";
+    internal static string Heading  => LinuxStrings.LatticeReminderSettings_Heading_1;
+    private static string SwitchLabel  => LinuxStrings.LatticeReminderSettings_SwitchLabel_1;
+    private static string SaveFailure  => LinuxStrings.LatticeReminderSettings_SaveFailure_1;
     private readonly BellApi api;
     private readonly string projectId;
     private readonly string path;
@@ -21,7 +21,7 @@ internal sealed class LatticeReminderSettings : Grid, IDisposable
     private readonly CancellationTokenSource lifetime;
     private readonly CancellationToken token;
     private readonly IosSwitch reminder = FormKit.Switch();
-    private readonly TextBlock value = FormKit.Text("未確認", color: BellTheme.Secondary);
+    private readonly TextBlock value = FormKit.Text(LinuxStrings.LatticeReminderSettings_value_1, color: BellTheme.Secondary);
     private readonly TextBlock status = FormKit.Text("", color: BellTheme.Secondary);
     private readonly TextBlock saveError = FormKit.Text(SaveFailure, color: BellTheme.Red);
     private readonly Button closeButton;
@@ -47,9 +47,9 @@ internal sealed class LatticeReminderSettings : Grid, IDisposable
         previousConnection = feed.Connection;
         Background = new SolidColorBrush(Color.FromArgb(0x59, 0, 0, 0));
 
-        closeButton = FormKit.LinkButton("閉じる", close);
-        retryButton = FormKit.LinkButton("読み直す", Refresh);
-        listButton = FormKit.LinkButton("一覧へ戻る", showList);
+        closeButton = FormKit.LinkButton(LinuxStrings.ApprovalsViews_NotUsable_1, close);
+        retryButton = FormKit.LinkButton(LinuxStrings.ApprovalsViews_LinkPanel_12, Refresh);
+        listButton = FormKit.LinkButton(LinuxStrings.LatticeReminderSettings_LatticeReminderSettings_3, showList);
         var heading = new DockPanel();
         DockPanel.SetDock(closeButton, Dock.Right);
         heading.Children.Add(closeButton);
@@ -65,7 +65,7 @@ internal sealed class LatticeReminderSettings : Grid, IDisposable
         var rows = new StackPanel { Children = { FormKit.Labeled(SwitchLabel, control), feedback } };
         var group = new Border { Background = Brushes.White, CornerRadius = new CornerRadius(12), Child = rows };
         var section = FormKit.Section(chartName, group);
-        section.Children.Add(BellTheme.Text("着手できる工程や作業中の工程があるとき、手が空いている担当に知らせます。",
+        section.Children.Add(BellTheme.Text(LinuxStrings.LatticeReminderSettings_LatticeReminderSettings_4,
             13, BellTheme.Secondary, margin: new Thickness(20, 8, 20, 0)));
         var frame = new Border
         {
@@ -77,7 +77,7 @@ internal sealed class LatticeReminderSettings : Grid, IDisposable
         AutomationProperties.SetName(frame, Heading);
         Children.Add(frame);
         saveError.IsVisible = false;
-        Show("設定を読み込んでいます。");
+        Show(LinuxStrings.LatticeReminderSettings_LatticeReminderSettings_5);
         reminder.IsCheckedChanged += (_, _) =>
         {
             if (reminder.IsEnabled && reminder.IsChecked is { } next && next != confirmed)
@@ -124,7 +124,7 @@ internal sealed class LatticeReminderSettings : Grid, IDisposable
             {
                 saving = true;
                 saveError.IsVisible = false;
-                Show("設定を保存しています。");
+                Show(LinuxStrings.LatticeReminderSettings_RunAsync_1);
                 try
                 {
                     var result = await api.WriteAsync<Setting>(HttpMethod.Put, path, new { enabled }, token);
@@ -150,7 +150,7 @@ internal sealed class LatticeReminderSettings : Grid, IDisposable
     {
         for (var attempt = 0; !token.IsCancellationRequested; attempt++)
         {
-            Show("設定を読み込んでいます。");
+            Show(LinuxStrings.LatticeReminderSettings_LatticeReminderSettings_5);
             try
             {
                 Confirm(await api.GetAsync<Setting>(path, token));
@@ -160,22 +160,22 @@ internal sealed class LatticeReminderSettings : Grid, IDisposable
             catch (Exception) when (token.IsCancellationRequested) { return; }
             catch (BellApiException error) when (error.RequiresLogin) { Show(LatticeChart.LoginRequired); return; }
             catch (BellApiException error) when (error is { Status: HttpStatusCode.NotFound, Code: "NOT_FOUND" })
-            { Show("このサーバーでは催促の設定を変更できません。"); return; }
+            { Show(LinuxStrings.LatticeReminderSettings_ReadAsync_2); return; }
             catch (BellApiException error) when (error is { Status: HttpStatusCode.NotFound, Code: "LATTICE_CHART_NOT_FOUND" })
             { Show(LatticeChart.NotFound, missing: true); return; }
             catch (BellApiException error) when (error.Status == HttpStatusCode.Forbidden)
-            { Show("催促の設定を読む権限がありません。", retry: true); return; }
+            { Show(LinuxStrings.LatticeReminderSettings_ReadAsync_3, retry: true); return; }
             catch (Exception error)
             {
                 var reason = error switch
                 {
-                    BellApiException { Status: HttpStatusCode.ServiceUnavailable } => "サーバーが応答できません。",
-                    BellApiException { Status: null } => "サーバーから届いた設定を読み取れません。",
-                    HttpRequestException => "サーバーに接続できません。",
-                    OperationCanceledException => "サーバーの応答が時間内に届きませんでした。",
-                    _ => "サーバーから設定を読み込めませんでした。"
+                    BellApiException { Status: HttpStatusCode.ServiceUnavailable } => LinuxStrings.LatticeReminderSettings_ReadAsync_4,
+                    BellApiException { Status: null } => LinuxStrings.LatticeReminderSettings_ReadAsync_5,
+                    HttpRequestException => LinuxStrings.LatticeReminderSettings_ReadAsync_6,
+                    OperationCanceledException => LinuxStrings.LatticeReminderSettings_ReadAsync_7,
+                    _ => LinuxStrings.LatticeReminderSettings_ReadAsync_8
                 };
-                Show(reason + " 再試行します。", retry: true);
+                Show(LinuxStrings.LatticeReminderSettings_ReadAsync_9(reason), retry: true);
             }
             using var delay = CancellationTokenSource.CreateLinkedTokenSource(token);
             backoff = delay;
@@ -189,7 +189,7 @@ internal sealed class LatticeReminderSettings : Grid, IDisposable
     {
         token.ThrowIfCancellationRequested();
         if (result.Schema != "bellteam.lattice-reminders.v1" || result.ProjectId != projectId || result.Enabled is not { } enabled)
-            throw new BellApiException("BellTeamからの催促設定の応答を読み取れませんでした。");
+            throw new BellApiException(LinuxStrings.LatticeReminderSettings_Confirm_1);
         confirmed = enabled;
     }
 
@@ -197,7 +197,7 @@ internal sealed class LatticeReminderSettings : Grid, IDisposable
     {
         reminder.IsEnabled = false;
         reminder.IsChecked = confirmed == true;
-        value.Text = confirmed switch { true => "オン", false => "オフ", null => "未確認" };
+        value.Text = confirmed switch { true => LinuxStrings.LatticeReminderSettings_Show_1, false => LinuxStrings.LatticeReminderSettings_Show_2, null => LinuxStrings.LatticeReminderSettings_value_1 };
         AutomationProperties.SetHelpText(reminder, value.Text);
         reminder.IsEnabled = ready;
         status.Text = text;

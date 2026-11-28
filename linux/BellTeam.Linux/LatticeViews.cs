@@ -25,12 +25,17 @@ internal static class LatticeLook
     public static bool Motion { get; set; } = true;
 
     // Vector icons (24x24 canvas, like Icons): the Segoe glyphs of the Windows window have no Linux font.
-    private const string ChevronLeft = "M15,6 L9,12 L15,18", Plus = "M12,5 V19 M5,12 H19", Play = "M8,5 L19,12 L8,19 Z",
-        SealCheck = "M12,3 a9,9 0 1 0 0.01,0 Z M7.5,12.5 L10.5,15.5 L16.5,9", Archive = "M3.5,5 H20.5 V9 H3.5 Z M5,9 V19 H19 V9 M10,13 H14",
-        Info = "M12,3 a9,9 0 1 0 0.01,0 Z M12,11 V16.5 M12,7.8 V8.2", Forward = "M5,12 H19 M13,6 L19,12 L13,18";
+    private const string ChevronLeft = "M15,6 L9,12 L15,18";
+        private const string Plus = "M12,5 V19 M5,12 H19";
+        private const string Play = "M8,5 L19,12 L8,19 Z";
+        private const string SealCheck = "M12,3 a9,9 0 1 0 0.01,0 Z M7.5,12.5 L10.5,15.5 L16.5,9";
+        private const string Archive = "M3.5,5 H20.5 V9 H3.5 Z M5,9 V19 H19 V9 M10,13 H14";
+        private const string Info = "M12,3 a9,9 0 1 0 0.01,0 Z M12,11 V16.5 M12,7.8 V8.2";
+        private const string Forward = "M5,12 H19 M13,6 L19,12 L13,18";
     // The 工程表 sidebar entry: a bulleted list.
     public const string ListGlyph = "M9,6 H20 M9,12 H20 M9,18 H20 M4.5,6 H5 M4.5,12 H5 M4.5,18 H5";
-    public const string ChatGlyph = Icons.Chat, ForwardGlyph = Forward;
+    public const string ChatGlyph = Icons.Chat;
+    public const string ForwardGlyph = Forward;
     public static Control Icon(string data, double size, Color color, bool filled = false) => Icons.Draw(data, size, Brush(color), filled, 2);
     public static Control BackIcon(double size, Color color) => Icon(ChevronLeft, size, color);
     public static Control PlusIcon(double size, Color color) => Icon(Plus, size, color);
@@ -78,8 +83,8 @@ internal static class LatticeLook
     public static Control Crown(double size = 15) => Shape(CrownGeometry, size, Color.FromRgb(0xD9, 0x9A, 0x1E));
     // Material "notifications" (24 x 24): the bell of the 催促 badge on a chart card.
     public static Geometry BellGeometry { get; } = Geometry.Parse("M12,22 C13.1,22 14,21.1 14,20 H10 C10,21.1 10.9,22 12,22 Z M18,16 V11 C18,7.93 16.37,5.36 13.5,4.68 V4 C13.5,3.17 12.83,2.5 12,2.5 C11.17,2.5 10.5,3.17 10.5,4 V4.68 C7.64,5.36 6,7.92 6,11 V16 L4,18 V19 H20 V18 Z");
-    public static Border ReminderBadge() => Pill(Row(Shape(BellGeometry, 11, Violet), Spaced(Text("催促", 12, Violet, FontWeight.SemiBold), 5)), Violet, 0x1F, new Thickness(9, 4, 9, 4));   // Rapi's Apple reference: violet on violet 12%, 9/4 padding
-    public static Border CoordinatorBadge() => Pill(Row(Crown(13), Spaced(Text("統括", 12, Color.FromRgb(0x9A, 0x63, 0x00), FontWeight.SemiBold), 5)), Color.FromRgb(0xF5, 0xB7, 0x2E), 0x2E, new Thickness(8, 3, 9, 3));
+    public static Border ReminderBadge() => Pill(Row(Shape(BellGeometry, 11, Violet), Spaced(Text(LinuxStrings.LatticeViews_ReminderBadge_1, 12, Violet, FontWeight.SemiBold), 5)), Violet, 0x1F, new Thickness(9, 4, 9, 4));   // Rapi's Apple reference: violet on violet 12%, 9/4 padding
+    public static Border CoordinatorBadge() => Pill(Row(Crown(13), Spaced(Text(LinuxStrings.LatticeViews_CoordinatorBadge_1, 12, Color.FromRgb(0x9A, 0x63, 0x00), FontWeight.SemiBold), 5)), Color.FromRgb(0xF5, 0xB7, 0x2E), 0x2E, new Thickness(8, 3, 9, 3));
     public static T Spaced<T>(T element, double left) where T : Control { element.Margin = new Thickness(left, 0, 0, 0); return element; }
 
     /// <summary>Runs an animation while the control is on screen and stops it when it leaves, so a rebuilt page leaves no running loop behind.</summary>
@@ -167,7 +172,7 @@ internal sealed class LatticeRing : Control
     public LatticeRing(int done, int total, double size, bool showLabel = true)
     {
         fraction = total > 0 ? Math.Min(1, (double)done / total) : 0; label = showLabel ? $"{done}/{total}" : ""; this.size = size; Width = Height = size; VerticalAlignment = VerticalAlignment.Center;
-        AutomationProperties.SetName(this, $"完了 {done}/{total}");
+        AutomationProperties.SetName(this, LinuxStrings.LatticeViews_LatticeRing_1(done, total));
     }
     public override void Render(DrawingContext context)
     {

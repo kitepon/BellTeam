@@ -10,6 +10,8 @@ windows/**/obj/
 windows/TestResults/
 windows/artifacts/
 linux/**/bin/
+scripts/i18n/bin/
+scripts/i18n/obj/
 linux/**/obj/
 android/**/bin/
 android/**/obj/

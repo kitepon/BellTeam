@@ -54,7 +54,7 @@ internal sealed class WebViewHost : NativeControlHost
 public sealed class AccessLoginPage : Grid
 {
     private readonly WebViewHost host = new();
-    private readonly TextBlock status = new() { Text = "ログイン画面を開いています…", TextWrapping = TextWrapping.Wrap, Foreground = BellTheme.Ink, FontSize = 14, Margin = new Thickness(12, 8) };
+    private readonly TextBlock status = new() { Text = AndroidStrings.AccessLogin_status_1, TextWrapping = TextWrapping.Wrap, Foreground = BellTheme.Ink, FontSize = 14, Margin = new Thickness(12, 8) };
     private readonly CancellationTokenSource life = new();
     private readonly AccessSession access;
     private readonly Uri origin;
@@ -65,15 +65,15 @@ public sealed class AccessLoginPage : Grid
     {
         this.access = access; this.origin = origin; this.loggedIn = loggedIn;
         RowDefinitions = new RowDefinitions("*,Auto"); Background = Brushes.White;
-        var change = SettingsUi.Capsule("接続先を変更", SettingsUi.Fill, SettingsUi.Ink, 8, 13, new Thickness(14, 8)); change.FontWeight = FontWeight.Normal; change.HorizontalAlignment = HorizontalAlignment.Right; change.Margin = new Thickness(12, 0, 12, 12); change.Click += (_, _) => changeServer();
+        var change = SettingsUi.Capsule(AndroidStrings.AccessLogin_AccessLoginPage_1, SettingsUi.Fill, SettingsUi.Ink, 8, 13, new Thickness(14, 8)); change.FontWeight = FontWeight.Normal; change.HorizontalAlignment = HorizontalAlignment.Right; change.Margin = new Thickness(12, 0, 12, 12); change.Click += (_, _) => changeServer();
         var bottom = new StackPanel { Background = BellTheme.BandFill, Children = { status, change } }; SetRow(bottom, 1);
         Children.Add(host); Children.Add(bottom);
-        if (origin.Scheme != Uri.UriSchemeHttps) { status.Text = "外部ログインにはHTTPSの接続先を指定してください。"; return; }
+        if (origin.Scheme != Uri.UriSchemeHttps) { status.Text = AndroidStrings.AccessLogin_AccessLoginPage_2; return; }
         host.Created = view =>
         {
             view.SetWebViewClient(new Client(this));
             view.LoadUrl(new Uri(origin, "api/session").AbsoluteUri);
-            status.Text = "Cloudflare Accessでログインしてください。完了すると自動で接続します。";
+            status.Text = AndroidStrings.AccessLogin_AccessLoginPage_3;
         };
     }
 
@@ -92,7 +92,7 @@ public sealed class AccessLoginPage : Grid
         }
         catch (BellApiException error) when (error.RequiresLogin) { }
         catch (OperationCanceledException) when (life.IsCancellationRequested) { }
-        catch (Exception) { if (!done) status.Text = "ログイン後の接続を確認できませんでした。接続先を確認してください。"; }
+        catch (Exception) { if (!done) status.Text = AndroidStrings.AccessLogin_CheckAsync_1; }
         finally { checking = false; }
     }
 

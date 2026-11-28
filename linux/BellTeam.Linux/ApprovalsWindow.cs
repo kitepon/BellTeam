@@ -44,7 +44,7 @@ internal sealed partial class ApprovalsWindow : Window, IPageBack
     internal ApprovalsWindow(ApprovalsHub hub, LinuxWorkspace workspace, Action<string, string> openCard, Action<string> openChat)
     {
         this.hub = hub; this.workspace = workspace; this.openCard = openCard; this.openChat = openChat;
-        Title = "決裁箱"; Width = 1360; Height = 860; MinWidth = 1100; MinHeight = 640; UseLayoutRounding = true; Background = BellTheme.ConversationBackground;
+        Title = LinuxStrings.ApprovalsViews_Toolbar_1; Width = 1360; Height = 860; MinWidth = 1100; MinHeight = 640; UseLayoutRounding = true; Background = BellTheme.ConversationBackground;
         root.RowDefinitions = new RowDefinitions("Auto,*"); root.Children.Add(toolbarHost); Grid.SetRow(body, 1); root.Children.Add(body); Content = root;
         hub.Changed += OnHub; hub.DeviceChanged += OnDevice;
         Activated += (_, _) => hub.ReadLinks();
@@ -166,7 +166,7 @@ internal sealed partial class ApprovalsWindow : Window, IPageBack
             var start = await workspace.Management.Api.ApprovalConnectAsync(loop.Token);
             if (start.Start?.AuthorizationUrl is { } url && url.StartsWith("https://", StringComparison.Ordinal))
             {
-                connectUrl = url; if (!OpenUrl(url)) connectNote = "決裁箱の画面が開かなかったようです。「もう一度開く」を押してください。";
+                connectUrl = url; if (!OpenUrl(url)) connectNote = LinuxStrings.ApprovalsViews_LinkPanel_6;
                 connect = Connect.Waiting; Render(); await PollConnectAsync(loop.Token); return;
             }
             connect = Connect.Idle; connectNote = Approvals.ConnectFailed; Render();
@@ -184,7 +184,7 @@ internal sealed partial class ApprovalsWindow : Window, IPageBack
                 case "connected": connect = Connect.Idle; linkState = "connected"; Render(); return;
                 case "denied": connect = Connect.Denied; Render(); return;
                 case "waiting": break;
-                case "not_connected" or "expired": connect = Connect.Idle; connectNote = "許可の待ち時間が過ぎました。もう一度つないでください。"; linkState = "not_connected"; Render(); return;
+                case "not_connected" or "expired": connect = Connect.Idle; connectNote = LinuxStrings.ApprovalsWindow_PollConnectAsync_1; linkState = "not_connected"; Render(); return;
             }
         }
     }

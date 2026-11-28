@@ -93,19 +93,19 @@ internal static class GoalCard
             if (snapshot.ObservedText is { } observed) Add(GoalUi.Text(observed, 13, muted));
             var actions = new WrapPanel();
             void Button(string label, Action click, bool destructive = false) => actions.Children.Add(GoalUi.ActionButton(label, click, destructive, !busy));
-            if (snapshot.CanCreate) Button("設定", () => onEdit("create"));
-            if (snapshot.CanEdit) Button("編集", () => onEdit("edit"));
-            if (snapshot.CanPause) Button("一時停止", () => onAction("pause"));
-            if (snapshot.CanResume) Button("再開", () => onAction("resume"));
-            if (snapshot.CanClear) Button("取り消す", () => onAction("clear"), destructive: true);
+            if (snapshot.CanCreate) Button(LinuxStrings.FeatureEditor_InitializeAsync_5, () => onEdit("create"));
+            if (snapshot.CanEdit) Button(LinuxStrings.GoalViews_Build_2, () => onEdit("edit"));
+            if (snapshot.CanPause) Button(LinuxStrings.GoalViews_Build_3, () => onAction("pause"));
+            if (snapshot.CanResume) Button(LinuxStrings.GoalViews_Build_4, () => onAction("resume"));
+            if (snapshot.CanClear) Button(LinuxStrings.GoalViews_Build_5, () => onAction("clear"), destructive: true);
             Add(actions);
-            if (snapshot.Goal is null && !snapshot.HasAction) Add(GoalUi.Text("このメンバーでは今、ゴールの設定を利用できません。", 13, muted));
-            if (snapshot.UnavailableActions is { Length: > 0 } unavailable) Add(GoalUi.Text($"今のゴールでは{string.Join("・", unavailable)}を操作できません。", 13, muted));
+            if (snapshot.Goal is null && !snapshot.HasAction) Add(GoalUi.Text(LinuxStrings.GoalViews_Build_6, 13, muted));
+            if (snapshot.UnavailableActions is { Length: > 0 } unavailable) Add(GoalUi.Text(LinuxStrings.GoalViews_Build_8(string.Join(LinuxStrings.GoalViews_Build_7, unavailable)), 13, muted));
             if (!chat && snapshot.Goal is not null) Add(GoalUi.Text(snapshot.PageFootnote, 13, muted));
         }
         var card = new Border { Child = stack, Padding = new Thickness(18), CornerRadius = new CornerRadius(24), Background = new SolidColorBrush(Color.FromArgb(0xE8, 255, 255, 255)), BorderBrush = BellTheme.Line, BorderThickness = new Thickness(1) };
         if (chat) card.BoxShadow = BoxShadows.Parse("0 7 14 0 #26000000");
-        AutomationProperties.SetName(card, name + "のゴール");
+        AutomationProperties.SetName(card, LinuxStrings.GoalViews_Build_9(name));
         return card;
     }
 }
@@ -155,7 +155,7 @@ public sealed class GoalsPage : ListPage
     private void Edit(GoalSnapshot snapshot, string action)
     {
         var harness = workspace.Bots.FirstOrDefault(bot => bot.Id == snapshot.BotId)?.Harness ?? "";
-        host.OpenSheet(NameOf(snapshot.BotId) + "のゴール", new GoalEditorView(new GoalEditorModel(snapshot, action, harness), goals, host.CloseSheet));
+        host.OpenSheet(LinuxStrings.GoalViews_Build_9(NameOf(snapshot.BotId)), new GoalEditorView(new GoalEditorModel(snapshot, action, harness), goals, host.CloseSheet));
     }
     private void Render()
     {
@@ -166,12 +166,12 @@ public sealed class GoalsPage : ListPage
         Body.Children.Clear();
         var header = new DockPanel { Margin = new Thickness(0, 0, 0, 18) };
         var tools = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 0, 0) };
-        var refresh = GoalUi.Round(RequestIcons.Refresh, "ゴールを更新", filled: true); refresh.IsEnabled = !goals.Loading && !goals.Mutating; refresh.Click += (_, _) => _ = goals.LoadListAsync(Token);
+        var refresh = GoalUi.Round(RequestIcons.Refresh, LinuxStrings.GoalViews_Render_1, filled: true); refresh.IsEnabled = !goals.Loading && !goals.Mutating; refresh.Click += (_, _) => _ = goals.LoadListAsync(Token);
         tools.Children.Add(refresh);
         var candidates = goals.CurrentSnapshots.Where(snapshot => snapshot.Availability == GoalAvailability.Available && snapshot.Goal is null && snapshot.Capabilities.Create && snapshot.FieldCapabilities.Create.Objective).ToArray();
         if (candidates.Length != 0)
         {
-            var add = GoalUi.Round(RequestIcons.Plus, "ゴールを設定", filled: false, chevron: candidates.Length > 1); add.IsEnabled = !goals.Busy;
+            var add = GoalUi.Round(RequestIcons.Plus, LinuxStrings.GoalViews_Render_2, filled: false, chevron: candidates.Length > 1); add.IsEnabled = !goals.Busy;
             add.Click += (_, _) =>
             {
                 if (candidates.Length == 1) { Edit(candidates[0], "create"); return; }
@@ -182,16 +182,16 @@ public sealed class GoalsPage : ListPage
             tools.Children.Add(add);
         }
         DockPanel.SetDock(tools, Dock.Right); header.Children.Add(tools);
-        var title = new StackPanel(); title.Children.Add(new TextBlock { Text = "ゴール", FontSize = 34, FontWeight = FontWeight.Bold }); title.Children.Add(GoalUi.Text("設定済みのゴールと、現在取得できた状態。", 14, BellTheme.Muted, margin: new Thickness(0, 14, 0, 0)));
+        var title = new StackPanel(); title.Children.Add(new TextBlock { Text = LinuxStrings.GoalViews_Render_3, FontSize = 34, FontWeight = FontWeight.Bold }); title.Children.Add(GoalUi.Text(LinuxStrings.GoalViews_Render_4, 14, BellTheme.Muted, margin: new Thickness(0, 14, 0, 0)));
         header.Children.Add(title); Body.Children.Add(header);
         if (goals.ErrorText is { } error) Body.Children.Add(GoalUi.Text(error, 13, BellTheme.Red, margin: new Thickness(0, 0, 0, 18)));
         if (goals.Loading && !goals.Loaded) Body.Children.Add(new Spinner(BellTheme.Muted, 20) { Margin = new Thickness(0, 75, 0, 0), HorizontalAlignment = HorizontalAlignment.Center });
-        else if (!goals.Loaded) Body.Children.Add(GoalUi.Unavailable(Icons.Warning, "ゴールを読み込めませんでした", "更新して確認してください。"));
-        else if (goals.NeedsRefresh) Body.Children.Add(GoalUi.Unavailable(Icons.Warning, "現在のゴールを確認できません", "状態を更新して確認してください。"));
+        else if (!goals.Loaded) Body.Children.Add(GoalUi.Unavailable(Icons.Warning, LinuxStrings.GoalViews_Render_5, LinuxStrings.GoalViews_Render_6));
+        else if (goals.NeedsRefresh) Body.Children.Add(GoalUi.Unavailable(Icons.Warning, LinuxStrings.GoalViews_Render_7, LinuxStrings.GoalViews_Render_8));
         else
         {
             var configured = goals.CurrentSnapshots.Where(snapshot => snapshot.Availability == GoalAvailability.Available && snapshot.Goal is not null).ToArray();
-            if (configured.Length == 0) Body.Children.Add(GoalUi.Unavailable(Icons.Target, "設定済みのゴールはありません", null));
+            if (configured.Length == 0) Body.Children.Add(GoalUi.Unavailable(Icons.Target, LinuxStrings.GoalViews_Render_9, null));
             foreach (var snapshot in configured)
             {
                 var card = GoalCard.Build(snapshot, NameOf(snapshot.BotId), goals.Busy, chat: false, action => Edit(snapshot, action), action => _ = goals.RunAsync(snapshot, action));
@@ -242,11 +242,11 @@ public sealed class GoalPill : StackPanel
 
     public static string Title(GoalModel goals, string botId)
     {
-        if (goals.NeedsRefresh) return "ゴールを取得できません";
-        if (!goals.Loaded) return goals.ErrorText is null ? "ゴールを確認中" : "ゴールを取得できません";
-        return goals.CurrentSnapshot(botId) is not { } snapshot ? "ゴールを取得できません" : snapshot.Availability switch
+        if (goals.NeedsRefresh) return LinuxStrings.GoalViews_Title_1;
+        if (!goals.Loaded) return goals.ErrorText is null ? LinuxStrings.GoalViews_Title_2 : LinuxStrings.GoalViews_Title_1;
+        return goals.CurrentSnapshot(botId) is not { } snapshot ? LinuxStrings.GoalViews_Title_1 : snapshot.Availability switch
         {
-            GoalAvailability.Unsupported => "ゴール未対応", GoalAvailability.Unavailable => snapshot.IsIdle ? "休止中" : "ゴールを取得できません", _ => snapshot.StatusTitle
+            GoalAvailability.Unsupported => LinuxStrings.GoalViews_Title_5, GoalAvailability.Unavailable => snapshot.IsIdle ? LinuxStrings.GoalViews_Title_6 : LinuxStrings.GoalViews_Title_1, _ => snapshot.StatusTitle
         };
     }
 
@@ -267,10 +267,10 @@ public sealed class GoalPill : StackPanel
             else
             {
                 var note = new Border { Padding = new Thickness(18), CornerRadius = new CornerRadius(24), Background = new SolidColorBrush(Color.FromArgb(0xE8, 255, 255, 255)), BorderBrush = BellTheme.Line, BorderThickness = new Thickness(1) };
-                note.Child = GoalUi.Text(goals.NeedsRefresh ? "現在のゴールを確認できません。状態を更新してください。" : "ゴールの状態を取得できません。", 13);
+                note.Child = GoalUi.Text(goals.NeedsRefresh ? LinuxStrings.GoalViews_Render_10 : LinuxStrings.GoalViews_Render_11, 13);
                 details.Children.Add(note);
             }
-            var update = FormKit.LinkButton("状態を更新", Reload, enabled: !goals.Loading && !goals.Mutating); update.HorizontalAlignment = HorizontalAlignment.Center; update.Margin = new Thickness(0, 6, 0, 0);
+            var update = FormKit.LinkButton(LinuxStrings.GoalViews_Render_12, Reload, enabled: !goals.Loading && !goals.Mutating); update.HorizontalAlignment = HorizontalAlignment.Center; update.Margin = new Thickness(0, 6, 0, 0);
             details.Children.Add(update); Children.Add(details);
         }
         var label = new StackPanel { Orientation = Orientation.Horizontal };
@@ -289,7 +289,7 @@ public sealed class GoalPill : StackPanel
         if (host is null || goals is null || botId is null) return null;
         var name = workspace?.Bots.FirstOrDefault(bot => bot.Id == botId)?.DisplayName ?? botId;
         var view = new GoalEditorView(new GoalEditorModel(snapshot, action, harness ?? ""), goals, host.CloseSheet);
-        host.OpenSheet(name + "のゴール", view); return view;
+        host.OpenSheet(LinuxStrings.GoalViews_Build_9(name), view); return view;
     }
     // Render seam: the editor sheet for the snapshot already read.
     public GoalEditorView? OpenEditorForRender(string action) => botId is not null && goals?.CurrentSnapshot(botId) is { } snapshot ? Edit(snapshot, action) : null;
@@ -322,30 +322,30 @@ public sealed class GoalEditorView : ScrollViewer, ISheetSave
         VerticalScrollBarVisibility = ScrollBarVisibility.Auto; HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled; Background = BellTheme.ConversationBackground;
         var form = new StackPanel { Margin = new Thickness(20, 8, 20, 24), MaxWidth = 720 };
         // 変更する項目: a segmented control, shown only when the CLI takes one field at a time.
-        choice.Children.Add(Header("変更する項目"));
+        choice.Children.Add(Header(LinuxStrings.GoalViews_GoalEditorView_1));
         var segments = new UniformGrid { Rows = 1, Margin = new Thickness(0, 0, 0, 8) };
         var segmentFrame = new Border { Child = segments, Background = new SolidColorBrush(Color.FromRgb(0xE3, 0xE3, 0xE8)), CornerRadius = new CornerRadius(9), Padding = new Thickness(2) };
-        segments.Children.Add(Segment("目的", GoalEditField.Objective, objectiveSegment)); segments.Children.Add(Segment("トークン予算", GoalEditField.Budget, budgetSegment));
+        segments.Children.Add(Segment(LinuxStrings.GoalViews_GoalEditorView_2, GoalEditField.Objective, objectiveSegment)); segments.Children.Add(Segment(LinuxStrings.GoalViews_GoalEditorView_3, GoalEditField.Budget, budgetSegment));
         choice.Children.Add(segmentFrame);
-        choice.Children.Add(GoalUi.Text("目的と予算は、一項目ずつ保存してください。", 13, muted, margin: new Thickness(4, 0, 0, 0)));
+        choice.Children.Add(GoalUi.Text(LinuxStrings.GoalViews_GoalEditorView_4, 13, muted, margin: new Thickness(4, 0, 0, 0)));
         form.Children.Add(choice);
-        objectiveSection.Children.Add(Header("目的"));
+        objectiveSection.Children.Add(Header(LinuxStrings.GoalViews_GoalEditorView_2));
         objective.Text = editor.Objective; objective.AcceptsReturn = true; objective.TextWrapping = TextWrapping.Wrap; objective.MinHeight = 120; objective.VerticalContentAlignment = VerticalAlignment.Top;
         ScrollViewer.SetVerticalScrollBarVisibility(objective, ScrollBarVisibility.Auto);
-        AutomationProperties.SetAutomationId(objective, "goal-objective-input"); AutomationProperties.SetName(objective, "目的");
+        AutomationProperties.SetAutomationId(objective, "goal-objective-input"); AutomationProperties.SetName(objective, LinuxStrings.GoalViews_GoalEditorView_2);
         objective.OnText(() => { editor.Objective = objective.Text ?? ""; Update(); });
         objectiveSection.Children.Add(objective);
         count.FontSize = 13; count.Foreground = muted; count.Margin = new Thickness(4, 6, 0, 0); objectiveSection.Children.Add(count);
         form.Children.Add(objectiveSection);
-        budgetSection.Children.Add(Header("トークン予算（任意）"));
-        budget.Text = editor.Budget; budget.PlaceholderText = "指定しない"; budget.PlaceholderForeground = muted;
-        AutomationProperties.SetAutomationId(budget, "goal-budget-input"); AutomationProperties.SetName(budget, "トークン予算（任意）");
+        budgetSection.Children.Add(Header(LinuxStrings.GoalViews_GoalEditorView_7));
+        budget.Text = editor.Budget; budget.PlaceholderText = LinuxStrings.GoalViews_GoalEditorView_8; budget.PlaceholderForeground = muted;
+        AutomationProperties.SetAutomationId(budget, "goal-budget-input"); AutomationProperties.SetName(budget, LinuxStrings.GoalViews_GoalEditorView_7);
         budget.OnText(() => { editor.Budget = budget.Text ?? ""; editor.BudgetChanged = true; Update(); });
         budgetSection.Children.Add(budget);
-        if (editor.Action == "edit") budgetSection.Children.Add(GoalUi.Text("予算を空にした場合、現在の指定は変更しません。", 13, muted, margin: new Thickness(4, 6, 0, 0)));
+        if (editor.Action == "edit") budgetSection.Children.Add(GoalUi.Text(LinuxStrings.GoalViews_GoalEditorView_10, 13, muted, margin: new Thickness(4, 6, 0, 0)));
         form.Children.Add(budgetSection);
-        codexNote = GoalUi.Text("目的を変えると使用量が初期化されます。", 13, muted, margin: new Thickness(4, 14, 0, 0));
-        staleNote = GoalUi.Text("会話が変わりました。この編集を閉じて、現在のゴールから編集し直してください。", 13, BellTheme.Red, margin: new Thickness(4, 14, 0, 0));
+        codexNote = GoalUi.Text(LinuxStrings.GoalViews_GoalEditorView_11, 13, muted, margin: new Thickness(4, 14, 0, 0));
+        staleNote = GoalUi.Text(LinuxStrings.GoalViews_GoalEditorView_12, 13, BellTheme.Red, margin: new Thickness(4, 14, 0, 0));
         errorText = GoalUi.Text("", 16, BellTheme.Red, margin: new Thickness(4, 14, 0, 0));
         form.Children.Add(codexNote); form.Children.Add(staleNote); form.Children.Add(errorText);
         Content = form;

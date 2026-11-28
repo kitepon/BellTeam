@@ -9,11 +9,11 @@ public sealed record MessageNotification(string Server, ChatTarget? Target, stri
         if (!incoming) return null;
         var body = current.Kind switch
         {
-            "secret_request" => "秘密情報の入力が必要です。",
-            "owner_question" => "選んでほしいことがあります。",
-            _ => target.IsRoom ? "ルームに新しいメッセージが届きました。" : "返信が届きました。"
+            "secret_request" => CoreStrings.MessageNotification_FromRecent_1,
+            "owner_question" => CoreStrings.MessageNotification_FromRecent_2,
+            _ => target.IsRoom ? CoreStrings.MessageNotification_FromRecent_3 : CoreStrings.MessageNotification_FromRecent_4
         };
-        var heading = target.IsRoom ? $"{current.Sender?.Name ?? current.Sender?.DisplayName ?? "メンバー"} · {title}" : title;
+        var heading = target.IsRoom ? $"{current.Sender?.Name ?? current.Sender?.DisplayName ?? CoreStrings.MessageNotification_FromRecent_5} · {title}" : title;
         return new(server,target,heading,body);
     }
 }

@@ -52,9 +52,9 @@ public sealed class LoginFlow(LoginApi api, string kind, Func<int, CancellationT
     }
 
     public static string RefusedText(string? reason) => reason == "not_owner_account"
-        ? "このサーバーの持ち主のアカウントではないため、ログインできませんでした。"
-        : reason == "second_hand_denied" ? "すでにログインしているアプリで拒否されました。" : reason == "phone_denied" ? "スマートフォンで拒否されました。"
-        : "サーバーがログインを断りました。" + (string.IsNullOrWhiteSpace(reason) ? "" : "（" + reason + "）");
+        ? CoreStrings.AppLogin_RefusedText_1
+        : reason == "second_hand_denied" ? CoreStrings.AppLogin_RefusedText_2 : reason == "phone_denied" ? CoreStrings.AppLogin_RefusedText_3
+        : CoreStrings.AppLogin_RefusedText_5((string.IsNullOrWhiteSpace(reason) ? "" : CoreStrings.AppLogin_RefusedText_4(reason)));
 
     // Returns when the attempt ended (approved, refused, failed or cancelled); Phase says which.
     public async Task RunAsync(CancellationToken token)
@@ -63,18 +63,18 @@ public sealed class LoginFlow(LoginApi api, string kind, Func<int, CancellationT
         LoginStatus current;
         try { current = await api.StartAsync(kind, token); }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
-        catch (Exception error) { Set(LoginPhase.Failed, message: "ログインを始められませんでした。" + error.Message); return; }
-        if (current.LoginId is null) { Set(LoginPhase.Failed, message: "サーバーからログインの番号を受け取れませんでした。"); return; }
+        catch (Exception error) { Set(LoginPhase.Failed, message: CoreStrings.AppLogin_RunAsync_1(error.Message)); return; }
+        if (current.LoginId is null) { Set(LoginPhase.Failed, message: CoreStrings.AppLogin_RunAsync_2); return; }
         loginId = current.LoginId;
         var attempt = 0;
         while (true)
         {
             if (Apply(current)) return;
-            if (current.ExpiresAt is { } end && clock() >= end) { Set(LoginPhase.Failed, message: "有効期限が切れました。もう一度始めてください。"); return; }
+            if (current.ExpiresAt is { } end && clock() >= end) { Set(LoginPhase.Failed, message: CoreStrings.AppLogin_RunAsync_3); return; }
             try { await wait(attempt, token); current = await api.PollAsync(loginId, token); attempt = 0; }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
-            catch (BellApiException missing) when (missing.Status == HttpStatusCode.NotFound) { Set(LoginPhase.Failed, message: "ログインの時間が切れました。もう一度始めてください。"); return; }
-            catch (Exception error) { Set(Phase, message: "サーバーの返事を読めませんでした。つなぎ直しています。" + error.Message); attempt++; }
+            catch (BellApiException missing) when (missing.Status == HttpStatusCode.NotFound) { Set(LoginPhase.Failed, message: CoreStrings.AppLogin_RunAsync_4); return; }
+            catch (Exception error) { Set(Phase, message: CoreStrings.AppLogin_RunAsync_5(error.Message)); attempt++; }
         }
     }
 
@@ -85,10 +85,10 @@ public sealed class LoginFlow(LoginApi api, string kind, Func<int, CancellationT
         {
             case "approved" when !string.IsNullOrEmpty(status.Token): Token = status.Token; Set(LoginPhase.Approved, status); return true;
             case "refused": Set(LoginPhase.Refused, status, RefusedText(status.Reason)); return true;
-            case "expired": Set(LoginPhase.Failed, status, "ログインの時間が切れました。もう一度始めてください。"); return true;
-            case "cancelled": Set(LoginPhase.Failed, status, "取り消しました。"); return true;
+            case "expired": Set(LoginPhase.Failed, status, CoreStrings.AppLogin_RunAsync_4); return true;
+            case "cancelled": Set(LoginPhase.Failed, status, CoreStrings.AppLogin_Apply_2); return true;
             // The token is given once; a later "delivered" without it means this app lost it.
-            case "approved" or "delivered": Set(LoginPhase.Failed, status, "承認は済みましたが、この端末はログインの鍵を受け取れませんでした。もう一度始めてください。"); return true;
+            case "approved" or "delivered": Set(LoginPhase.Failed, status, CoreStrings.AppLogin_Apply_3); return true;
             case "waiting_phone": Set(LoginPhase.WaitingPhone, status); return false;
             default: Set(LoginPhase.WaitingSecondHand, status); return false;
         }

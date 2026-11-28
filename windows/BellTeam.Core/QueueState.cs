@@ -14,7 +14,7 @@ public sealed record QueueItem
     public string? WorkingWord { get; init; }
     public static QueueItem[] DisplayItems(IEnumerable<QueueItem> items)
         => items.DistinctBy(item => (item.BotId is not null, item.BotId ?? item.Id, item.BotId is null ? "" : item.Steered == true ? "running" : item.Status)).ToArray();
-    public string Line(string fallbackName) => $"{BotName ?? fallbackName} · {(Status == "queued" ? "送信待ち" : WorkingWord is { Length: > 0 } word ? word + "…" : "処理中")}";
+    public string Line(string fallbackName) => $"{BotName ?? fallbackName} · {(Status == "queued" ? CoreStrings.QueueState_Line_1 : WorkingWord is { Length: > 0 } word ? word + "…" : CoreStrings.QueueState_Line_2)}";
     public bool IsActive => Status is "running" or "queued";
     // A room row gets the stop button only for the first active row of a member of that room.
     public static bool IsStopRow(QueueItem item, IReadOnlyList<QueueItem> display, bool isRoom, IEnumerable<string> roomMemberIds)
@@ -38,9 +38,9 @@ public sealed record BotStopResponse
 }
 public sealed record StopNotice(string Message, bool IsError)
 {
-    public static readonly StopNotice Sent = new("停止操作を送りました。会話は続けられます。", false);
-    public static readonly StopNotice Unconfirmed = new("停止操作の結果を確認できませんでした。状況を確認してから操作してください。", true);
-    public static StopNotice Confirmed(string name) => new($"{name}は今、処理を実行していません。同じ会話で新しい依頼を続けられます。", false);
+    public static readonly StopNotice Sent = new(CoreStrings.QueueState_Sent_1, false);
+    public static readonly StopNotice Unconfirmed = new(CoreStrings.QueueState_Unconfirmed_1, true);
+    public static StopNotice Confirmed(string name) => new(CoreStrings.QueueState_Confirmed_1(name), false);
     public static StopNotice FromOutcome(BotStopOutcome outcome, string name) => outcome == BotStopOutcome.Sent ? Sent : Confirmed(name);
     public static StopNotice FromFailure(Exception error) => error is OperationCanceledException || BellApiException.IsResultUnconfirmed(error) ? Unconfirmed : new(error.Message, true);
 }

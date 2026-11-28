@@ -12,7 +12,7 @@ public static class ServerOrigin
             || string.IsNullOrEmpty(uri.Host) || uri.UserInfo.Length != 0
             || uri.Query.Length != 0 || uri.Fragment.Length != 0 || uri.AbsolutePath != "/"
             || !(uri.Scheme == "https" || uri.Scheme == "http" && IsLocalHost(uri.Host)))
-            throw new ArgumentException("HTTPS、またはlocalhost・LANのHTTP接続先URLを入力してください。パス・認証情報・クエリー・フラグメントは指定できません。");
+            throw new ArgumentException(CoreStrings.ServerOrigin_Parse_1);
         return new Uri(uri.GetLeftPart(UriPartial.Authority) + "/");
     }
 

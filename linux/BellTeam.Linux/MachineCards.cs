@@ -41,14 +41,14 @@ public sealed class MachineRequestCard(LinuxWorkspace workspace, string author) 
         error.IsVisible = (error.Text ?? "").Length != 0;
         Children.Add(error);
     }
-    private string Heading => currentAuthor + (current!.View == "approval" ? " · 実行の確認" : " · 選んでほしいこと");
+    private string Heading => currentAuthor + (current!.View == "approval" ? LinuxStrings.MachineCards_Heading_1 : LinuxStrings.MachineCards_Heading_2);
 
     private void DrawApproval(MachineEvent machine, MachineRequest request)
     {
-        Children.Add(SecretCard.CardBody(machine.Tool?.Name is { Length: > 0 } name ? name : machine.Title ?? "ツール"));
+        Children.Add(SecretCard.CardBody(machine.Tool?.Name is { Length: > 0 } name ? name : machine.Title ?? LinuxStrings.MachineCards_DrawApproval_1));
         if (machine.Tool?.Summary is { Length: > 0 } summary) Children.Add(SecretCard.CardText(summary, size: 14, muted: true));
-        if (!request.IsPending()) { Closed(request, request.Decision == "allow" ? "許可しました" : request.Decision == "deny" ? "拒否しました" : null); return; }
-        var allow = MacUi.Prominent("許可", () => _ = AnswerAsync(null, "allow")); var deny = MacUi.Bordered("拒否", () => _ = AnswerAsync(null, "deny"));
+        if (!request.IsPending()) { Closed(request, request.Decision == "allow" ? LinuxStrings.MachineCards_DrawApproval_2 : request.Decision == "deny" ? LinuxStrings.MachineCards_DrawApproval_3 : null); return; }
+        var allow = MacUi.Prominent(LinuxStrings.MachineCards_DrawApproval_4, () => _ = AnswerAsync(null, "allow")); var deny = MacUi.Bordered(LinuxStrings.MachineCards_DrawApproval_5, () => _ = AnswerAsync(null, "deny"));
         allow.Margin = new Thickness(0, 0, 8, 0); inputs.Add(allow); inputs.Add(deny);
         Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0), Children = { allow, deny } });
     }
@@ -60,12 +60,12 @@ public sealed class MachineRequestCard(LinuxWorkspace workspace, string author) 
             var question = request.AskedOf()[i];
             if (question.Header is { Length: > 0 } head) Children.Add(SecretCard.CardText(head, size: 13, muted: true));
             Children.Add(SecretCard.CardBody(question.Question));
-            if (request.IsPending()) DrawChoices(i, question); else if (request.AnswerLine(i) is { Length: > 0 } line) Children.Add(SecretCard.CardStatus(Icons.Check, "回答: " + line, strong: true));
+            if (request.IsPending()) DrawChoices(i, question); else if (request.AnswerLine(i) is { Length: > 0 } line) Children.Add(SecretCard.CardStatus(Icons.Check, LinuxStrings.MachineCards_DrawQuestions_1(line), strong: true));
         }
         if (!request.IsPending()) { Closed(request, null); return; }
         if (!Immediate)
         {
-            send = MacUi.Prominent("送る", () => _ = AnswerAsync(Collect(), null)); send.Margin = new Thickness(0, 12, 0, 0); send.IsEnabled = false; inputs.Add(send);
+            send = MacUi.Prominent(LinuxStrings.MachineCards_DrawQuestions_2, () => _ = AnswerAsync(Collect(), null)); send.Margin = new Thickness(0, 12, 0, 0); send.IsEnabled = false; inputs.Add(send);
             Children.Add(send);
         }
     }
@@ -87,13 +87,13 @@ public sealed class MachineRequestCard(LinuxWorkspace workspace, string author) 
         Children.Add(choices);
         if (question.AllowOther)
         {
-            var other = new TextBox { AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MaxHeight = 110, FontSize = 14, Padding = new Thickness(8, 6), PlaceholderText = "その他（文章で答える）", PlaceholderForeground = BellTheme.Muted, Background = Brushes.White, BorderBrush = BellTheme.Line, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8) };
+            var other = new TextBox { AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MaxHeight = 110, FontSize = 14, Padding = new Thickness(8, 6), PlaceholderText = LinuxStrings.MachineCards_DrawChoices_1, PlaceholderForeground = BellTheme.Muted, Background = Brushes.White, BorderBrush = BellTheme.Line, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8) };
             ScrollViewer.SetVerticalScrollBarVisibility(other, ScrollBarVisibility.Auto);
             other.OnText(() => { if (!question.MultiSelect && !string.IsNullOrWhiteSpace(other.Text)) { picked[i].Clear(); Paint(i); } Refresh(); });
             inputs.Add(other); others.Add(other);
             if (Immediate)
             {
-                var sendOther = MacUi.Bordered("送る", () => _ = AnswerAsync(Collect(), null)); sendOther.VerticalAlignment = VerticalAlignment.Bottom; sendOther.IsEnabled = false; sendOther.Margin = new Thickness(8, 0, 0, 0); send = sendOther; inputs.Add(sendOther);
+                var sendOther = MacUi.Bordered(LinuxStrings.MachineCards_DrawQuestions_2, () => _ = AnswerAsync(Collect(), null)); sendOther.VerticalAlignment = VerticalAlignment.Bottom; sendOther.IsEnabled = false; sendOther.Margin = new Thickness(8, 0, 0, 0); send = sendOther; inputs.Add(sendOther);
                 DockPanel.SetDock(sendOther, Dock.Right);
                 Children.Add(new DockPanel { Margin = new Thickness(0, 4, 0, 0), Children = { sendOther, other } });
             }
@@ -126,8 +126,8 @@ public sealed class MachineRequestCard(LinuxWorkspace workspace, string author) 
 
     private void Closed(MachineRequest request, string? decision)
     {
-        if (request.Status == "answered") Children.Add(SecretCard.CardStatus(Icons.Check, decision is null ? "回答しました" : decision, strong: true));
-        else Children.Add(SecretCard.CardStatus(Icons.Close, "メンバーはこの確認を待っていません"));
+        if (request.Status == "answered") Children.Add(SecretCard.CardStatus(Icons.Check, decision is null ? LinuxStrings.MachineCards_Closed_1 : decision, strong: true));
+        else Children.Add(SecretCard.CardStatus(Icons.Close, LinuxStrings.MachineCards_Closed_2));
     }
 
     private async Task AnswerAsync(MachineAnswer[]? answers, string? decision)
@@ -144,7 +144,7 @@ public sealed class MachineRequestCard(LinuxWorkspace workspace, string author) 
         {
             Update(current! with { Request = Request with { Status = "expired" } }, currentAuthor);
         }
-        catch (Exception exception) { error.Text = "操作の結果を確認できませんでした。現在の状態を更新して確認してください。\n" + exception.Message; error.IsVisible = true; }
+        catch (Exception exception) { error.Text = LinuxStrings.MachineCards_AnswerAsync_1(exception.Message); error.IsVisible = true; }
         finally { sending = false; if (Request.IsPending()) { foreach (var control in inputs) control.IsEnabled = true; Refresh(); } }
     }
 }
@@ -158,7 +158,7 @@ internal static class MachineRequestExtensions
     public static string Fingerprint(this MachineRequest request) => string.Join("|", request.Status, request.Decision, string.Join(",", (request.Answers ?? []).Select(a => string.Join("+", a.Indexes) + ":" + a.Other)), string.Join(",", request.AskedOf().Select(q => q.Question)));
     // The labels the Owner chose for question i, then the free text (the card's 「回答」 line).
     public static string AnswerLine(this MachineRequest request, int i) => request.Answers is { } answers && i < answers.Length && i < request.AskedOf().Length
-        ? string.Join("、", answers[i].Indexes.Select(n => request.AskedOf()[i].Options.FirstOrDefault(o => o.Index == n)?.Label).Append(answers[i].Other).Where(label => !string.IsNullOrEmpty(label))) : "";
+        ? string.Join(LinuxStrings.ApprovalsDetail_Answered_4, answers[i].Indexes.Select(n => request.AskedOf()[i].Options.FirstOrDefault(o => o.Index == n)?.Label).Append(answers[i].Other).Where(label => !string.IsNullOrEmpty(label))) : "";
     public static MachineQuestion[] AskedOf(this MachineRequest request) => request.Questions ?? [];
 }
 
@@ -220,13 +220,13 @@ public sealed class MachineEntry(LinuxWorkspace workspace) : Decorator
         panel.Children.Add(box);
         if (entry.Truncated && !raw.ContainsKey(id) && member.Sender?.Id is { } botId)
         {
-            var more = MacUi.Bordered("全文を読み込む", () => { });
+            var more = MacUi.Bordered(LinuxStrings.MachineCards_Opened_1, () => { });
             var failure = SecretCard.CardText("", size: 12, error: true); failure.IsVisible = false;
             more.Click += async (_, _) =>
             {
                 more.IsEnabled = false; failure.IsVisible = false;
                 try { raw[id] = box.Text = await workspace.MachineLineAsync(botId, entry.Seq); more.IsVisible = false; }
-                catch (Exception error) { failure.Text = "全文を読み込めませんでした。" + error.Message; failure.IsVisible = true; more.IsEnabled = true; }
+                catch (Exception error) { failure.Text = LinuxStrings.MachineCards_Opened_2(error.Message); failure.IsVisible = true; more.IsEnabled = true; }
             };
             more.HorizontalAlignment = HorizontalAlignment.Left; more.Margin = new Thickness(0, 4, 0, 0);
             panel.Children.Add(more); panel.Children.Add(failure);

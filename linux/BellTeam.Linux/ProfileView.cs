@@ -106,7 +106,7 @@ public sealed class ProfileView : StackPanel
         rendered = key; Children.Clear(); status = null; epoch++; largeError = false; LoadTask = Task.CompletedTask;
         if (session is not null) session.Changed -= SessionChanged;
         session = null;
-        if (entry is null) { versions = null; Children.Add(new TextBlock { Text = "メンバーやルームを選ぶと、ここに詳細を表示します。", FontSize = 16, Foreground = Brushes.Gray, TextWrapping = TextWrapping.Wrap }); return; }
+        if (entry is null) { versions = null; Children.Add(new TextBlock { Text = LinuxStrings.ProfileView_Render_1, FontSize = 16, Foreground = Brushes.Gray, TextWrapping = TextWrapping.Wrap }); return; }
         if (entry.Bot is { } bot)
         {
             session = workspace.ImageSession(bot.Id); session.Changed += SessionChanged;
@@ -116,9 +116,9 @@ public sealed class ProfileView : StackPanel
             AddBlock(Hero(entry, bot));
             AddBlock(Divider());
             AddBlock(AiCard(entry, bot));
-            AddBlock(Heading("プロフィール"));
+            AddBlock(Heading(LinuxStrings.MemberEditors_Build_16));
             var details = new StackPanel();
-            foreach (var (title, value) in new[] { ("役職", bot.Position), ("背景・見た目・関係性", bot.ProfileText), ("性格・考え方", bot.Personality), ("口調", bot.SpeechStyle), ("担当する仕事", bot.Role) }) details.Children.Add(Detail(title, value, details.Children.Count != 0));
+            foreach (var (title, value) in new[] { (LinuxStrings.MemberEditors_Build_2, bot.Position), (LinuxStrings.MemberEditors_Build_12, bot.ProfileText), (LinuxStrings.MemberEditors_Build_13, bot.Personality), (LinuxStrings.MemberEditors_Build_14, bot.SpeechStyle), (LinuxStrings.MemberEditors_Build_15, bot.Role) }) details.Children.Add(Detail(title, value, details.Children.Count != 0));
             AddBlock(details);
         }
         else if (entry.Room is { } room)
@@ -129,9 +129,9 @@ public sealed class ProfileView : StackPanel
             header.Children.Add(new TextBlock { Text = entry.Name, FontSize = 20, FontWeight = FontWeight.Bold, Foreground = BellTheme.Ink, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 13, 0, 0) });
             AddBlock(header, first: true);
             AddBlock(Divider());
-            AddBlock(Heading("この部屋で共有する仕事"));
-            AddBlock(Body(room.Purpose.Length == 0 ? "未設定" : room.Purpose, BellTheme.Ink, "この部屋で共有する仕事"));
-            AddBlock(Heading("参加メンバー"));
+            AddBlock(Heading(LinuxStrings.MemberEditors_Build_18));
+            AddBlock(Body(room.Purpose.Length == 0 ? LinuxStrings.FeatureEditor_InitializeAsync_7 : room.Purpose, BellTheme.Ink, LinuxStrings.MemberEditors_Build_18));
+            AddBlock(Heading(LinuxStrings.ProfileView_Render_11));
             foreach (var id in room.MemberIds)
             {
                 if (workspace.MemberEntry(id) is not { } member) continue;
@@ -156,10 +156,10 @@ public sealed class ProfileView : StackPanel
         var area = new SquareGrid();
         var large = new Border { CornerRadius = new CornerRadius(20), Background = new LinearGradientBrush { StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative), EndPoint = new RelativePoint(1, 1, RelativeUnit.Relative), GradientStops = [new GradientStop(Color.FromArgb(190, accent.R, accent.G, accent.B), 0), new GradientStop(accent, 1)] } };
         largeImage = large;
-        var largeButton = InspectorUi.Plain(large, "大画像の操作"); largeButton.Click += (_, _) => OpenActions(AvatarVariant.Large);
+        var largeButton = InspectorUi.Plain(large, LinuxStrings.ProfileView_Hero_1); largeButton.Click += (_, _) => OpenActions(AvatarVariant.Large);
         AutomationProperties.SetAutomationId(largeButton, "profile-large-avatar"); area.Children.Add(largeButton);
         var small = new AvatarTile { Entry = entry, Workspace = workspace, Width = 152, Height = 152, BorderBrush = Brushes.White, BorderThickness = new Thickness(2) };
-        var smallButton = InspectorUi.Plain(small, "小画像の操作"); smallButton.HorizontalAlignment = HorizontalAlignment.Left; smallButton.VerticalAlignment = VerticalAlignment.Top; smallButton.Margin = new Thickness(16); smallButton.Click += (_, _) => OpenActions(AvatarVariant.Small);
+        var smallButton = InspectorUi.Plain(small, LinuxStrings.ProfileView_Hero_2); smallButton.HorizontalAlignment = HorizontalAlignment.Left; smallButton.VerticalAlignment = VerticalAlignment.Top; smallButton.Margin = new Thickness(16); smallButton.Click += (_, _) => OpenActions(AvatarVariant.Small);
         AutomationProperties.SetAutomationId(smallButton, "profile-small-avatar"); area.Children.Add(smallButton);
         heroButtons = [largeButton, smallButton];
         hero.Children.Add(area);
@@ -168,7 +168,7 @@ public sealed class ProfileView : StackPanel
         var presence = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
         var color = bot.Online ? BellTheme.Mint : BellTheme.Muted;
         presence.Children.Add(new Shapes.Ellipse { Width = 11, Height = 11, Fill = color, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 7, 0) });
-        presence.Children.Add(new TextBlock { Text = bot.Online ? "オンライン" : "オフライン", FontSize = 14, Foreground = color, VerticalAlignment = VerticalAlignment.Center });
+        presence.Children.Add(new TextBlock { Text = bot.Online ? LinuxStrings.ProfileView_Hero_3 : LinuxStrings.ProfileView_Hero_4, FontSize = 14, Foreground = color, VerticalAlignment = VerticalAlignment.Center });
         hero.Children.Add(presence);
         return hero;
     }
@@ -180,18 +180,18 @@ public sealed class ProfileView : StackPanel
         if (status is null || session is null || workspace.Selected?.Bot is not { } bot) return;
         status.Children.Clear();
         void Add(Control element) { element.Margin = new Thickness(0, 10, 0, 0); status.Children.Add(element); }
-        if (largeError) Add(InspectorUi.Note("大画像を読み込めませんでした。", BellTheme.Red));
-        if (session.Saving) Add(InspectorUi.Progress("画像を保存しています…"));
+        if (largeError) Add(InspectorUi.Note(LinuxStrings.ProfileView_RenderStatus_1, BellTheme.Red));
+        if (session.Saving) Add(InspectorUi.Progress(LinuxStrings.ProfileView_RenderStatus_2));
         if (session.Message is { } message) Add(InspectorUi.Note(message, BellTheme.Mint));
         foreach (var variant in new[] { AvatarVariant.Small, AvatarVariant.Large })
         {
             if (session.Error(variant) is { } error) Add(InspectorUi.Note(BotProfileText.Failed(variant, error), BellTheme.Red));
             if (session.Pending(variant) is null) continue;
             var line = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, IsEnabled = !session.Saving };
-            var confirm = InspectorUi.Bordered(variant.Label() + "の保存結果を確認");
+            var confirm = InspectorUi.Bordered(LinuxStrings.ProfileView_RenderStatus_3(variant.Label()));
             var current = variant;
             confirm.Click += async (_, _) => await session.ConfirmAsync(workspace.Management, bot.Id, current, kind => workspace.AvatarVersion(bot.Id, kind), workspace.RefreshForImageAsync, workspace.ConnectionToken);
-            var discard = InspectorUi.Bordered(variant.Label() + "の選択を破棄", destructive: true); discard.Click += (_, _) => session.Discard(current);
+            var discard = InspectorUi.Bordered(LinuxStrings.ProfileView_RenderStatus_4(variant.Label()), destructive: true); discard.Click += (_, _) => session.Discard(current);
             line.Children.Add(confirm); line.Children.Add(discard); Add(line);
         }
         foreach (var button in heroButtons) button.IsEnabled = !session.Saving;
@@ -227,19 +227,19 @@ public sealed class ProfileView : StackPanel
     private Control AiCard(ConversationEntry entry, Bot bot)
     {
         var card = new StackPanel();
-        card.Children.Add(new TextBlock { Text = "AIと操作", FontSize = 14, FontWeight = FontWeight.Bold, Foreground = BellTheme.Muted });
+        card.Children.Add(new TextBlock { Text = LinuxStrings.ProfileView_AiCard_1, FontSize = 14, FontWeight = FontWeight.Bold, Foreground = BellTheme.Muted });
         // The seat's Claude account slot; no row when the server sends none (older body, null, another harness).
-        var rows = new List<(string, string)> { ("ハーネス", bot.Harness), ("希望モデル", BotProfileText.OrDefault(bot.Model)), ("希望エフォート", BotProfileText.OrDefault(bot.ReasoningEffort)) };
-        if (bot.Account is { Harness: "claude", Slot: { } slot }) rows.Add(("アカウント", AccountText.SlotName(slot)));
+        var rows = new List<(string, string)> { (LinuxStrings.ProfileView_AiCard_2, bot.Harness), (LinuxStrings.ProfileView_AiCard_3, BotProfileText.OrDefault(bot.Model)), (LinuxStrings.ProfileView_AiCard_4, BotProfileText.OrDefault(bot.ReasoningEffort)) };
+        if (bot.Account is { Harness: "claude", Slot: { } slot }) rows.Add((LinuxStrings.ProfileView_AiCard_5, AccountText.SlotName(slot)));
         foreach (var (label, value) in rows)
         {
             var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0), Spacing = 10 };
             row.Children.Add(new TextBlock { Text = label, FontSize = 14, Foreground = BellTheme.Ink }); row.Children.Add(new TextBlock { Text = value, FontSize = 14, Foreground = BellTheme.Ink, TextWrapping = TextWrapping.Wrap });
-            AutomationProperties.SetName(row, label + "　" + value); card.Children.Add(row);
+            AutomationProperties.SetName(row, LinuxStrings.ProfileView_AiCard_6(label, value)); card.Children.Add(row);
         }
-        var screen = InspectorUi.Bordered("Botの画面を見る", InspectorIcons.Terminal); screen.Margin = new Thickness(0, 12, 0, 0); screen.Click += async (_, _) => await workspace.OpenScreenAsync(); card.Children.Add(screen);
+        var screen = InspectorUi.Bordered(LinuxStrings.ProfileView_AiCard_7, InspectorIcons.Terminal); screen.Margin = new Thickness(0, 12, 0, 0); screen.Click += async (_, _) => await workspace.OpenScreenAsync(); card.Children.Add(screen);
         chartButtons = new StackPanel(); card.Children.Add(chartButtons); RenderCharts();
-        restartButton = InspectorUi.Bordered("会話セッションを再起動"); restartButton.Margin = new Thickness(0, 12, 0, 0); card.Children.Add(restartButton);
+        restartButton = InspectorUi.Bordered(LinuxStrings.ProfileView_AiCard_8); restartButton.Margin = new Thickness(0, 12, 0, 0); card.Children.Add(restartButton);
         restartNote = InspectorUi.Note("", BellTheme.Muted); restartNote.Margin = new Thickness(0, 12, 0, 0); card.Children.Add(restartNote);
         restartError = InspectorUi.Note("", BellTheme.Red); restartError.Margin = new Thickness(0, 12, 0, 0); card.Children.Add(restartError);
         var id = entry.Target.Id; restartButton.Click += async (_, _) => await RestartAsync(id);
@@ -272,7 +272,7 @@ public sealed class ProfileView : StackPanel
             catch (OperationCanceledException) when (token.IsCancellationRequested) { if (generation == chartsEpoch) chartsFor = null; return; }
             catch (BellApiException error) when (error.RequiresLogin) { if (generation == chartsEpoch) chartsFor = null; return; }
             catch (BellApiException error) when (error.Status == HttpStatusCode.NotFound) { return; }
-            catch (Exception) { if (generation != chartsEpoch) return; chartsProblem = "工程表の一覧を読めませんでした。再試行しています…"; RenderCharts(); }
+            catch (Exception) { if (generation != chartsEpoch) return; chartsProblem = LinuxStrings.ProfileView_LoadChartsAsync_1; RenderCharts(); }
         }
     }
     private void RenderCharts()
@@ -282,7 +282,7 @@ public sealed class ProfileView : StackPanel
         foreach (var chart in ownedCharts)
         {
             var name = LatticeChart.ChartName(chart.Name, chart.CreatedBy, id => workspace.Bots.FirstOrDefault(bot => bot.Id == id)?.DisplayName);
-            var button = InspectorUi.Bordered($"工程表「{name}」を開く", InspectorIcons.Stack); button.Margin = new Thickness(0, 12, 0, 0);
+            var button = InspectorUi.Bordered(LinuxStrings.ProfileView_RenderCharts_1(name), InspectorIcons.Stack); button.Margin = new Thickness(0, 12, 0, 0);
             var id = chart.ProjectId; button.Click += (_, _) => Host?.OpenChart(id);
             AutomationProperties.SetAutomationId(button, "bot-lattice-chart-" + id); chartButtons.Children.Add(button);
         }
@@ -299,7 +299,7 @@ public sealed class ProfileView : StackPanel
     {
         if (restart is { Busy: true } && restart.Id == id) return;
         var token = workspace.ConnectionToken; restart = new(id, Busy: true); RenderRestart(id);
-        try { await workspace.Management.RestartBotAsync(id, token); await workspace.RefreshManagementAsync(); restart = new(id, Note: "会話を再起動しました。"); }
+        try { await workspace.Management.RestartBotAsync(id, token); await workspace.RefreshManagementAsync(); restart = new(id, Note: LinuxStrings.ProfileView_RestartAsync_1); }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { restart = null; }
         catch (Exception failure) { restart = new(id, Error: failure.Message); }
         RenderRestart(id);
@@ -308,16 +308,16 @@ public sealed class ProfileView : StackPanel
     {
         if (restartButton is null || workspace.Selected?.Target.Id != id) return;
         var state = restart is { } current && current.Id == id ? current : null;
-        InspectorUi.Relabel(restartButton, state?.Busy == true ? "再起動しています…" : "会話セッションを再起動"); restartButton.IsEnabled = state?.Busy != true;
+        InspectorUi.Relabel(restartButton, state?.Busy == true ? LinuxStrings.ProfileView_RenderRestart_1 : LinuxStrings.ProfileView_AiCard_8); restartButton.IsEnabled = state?.Busy != true;
         restartNote!.Text = state?.Note ?? ""; restartNote.IsVisible = state?.Note is not null;
         restartError!.Text = state?.Error ?? ""; restartError.IsVisible = state?.Error is not null;
     }
     // Render seam: the in-progress and success states of the restart, which would need a POST the mock never answers.
-    internal void SetRestartForRender(string id, bool busy) { restart = busy ? new(id, Busy: true) : new(id, Note: "会話を再起動しました。"); RenderRestart(id); }
+    internal void SetRestartForRender(string id, bool busy) { restart = busy ? new(id, Busy: true) : new(id, Note: LinuxStrings.ProfileView_RestartAsync_1); RenderRestart(id); }
 
     private Control EditButton(ConversationEntry entry)
     {
-        var edit = InspectorUi.Prominent(entry.Target.IsRoom ? "ルームを編集" : "メンバーを編集", InspectorIcons.Pencil); edit.HorizontalAlignment = HorizontalAlignment.Left; edit.Margin = new Thickness(0);
+        var edit = InspectorUi.Prominent(entry.Target.IsRoom ? LinuxStrings.MainWindow_Inspector_ShowRoomSheet_2 : LinuxStrings.MemberEditors_MemberEditorWindow_1, InspectorIcons.Pencil); edit.HorizontalAlignment = HorizontalAlignment.Left; edit.Margin = new Thickness(0);
         edit.Click += (_, _) => { if (entry.Target.IsRoom) Host?.EditRoom(entry.Target.Id); else Host?.EditMember(entry.Target.Id); };
         return edit;
     }
@@ -325,7 +325,7 @@ public sealed class ProfileView : StackPanel
     {
         var item = new StackPanel { Margin = new Thickness(0, spaced ? 18 : 0, 0, 0) };
         var heading = Heading(title); heading.Margin = new Thickness(0, 0, 0, 6); item.Children.Add(heading);
-        item.Children.Add(Body(value.Length == 0 ? "未設定" : value, value.Length == 0 ? BellTheme.Muted : BellTheme.Ink, title));
+        item.Children.Add(Body(value.Length == 0 ? LinuxStrings.FeatureEditor_InitializeAsync_7 : value, value.Length == 0 ? BellTheme.Muted : BellTheme.Ink, title));
         return item;
     }
     // Selectable, read-only text (Windows SelectableBody).

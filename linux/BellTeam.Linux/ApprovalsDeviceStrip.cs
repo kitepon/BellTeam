@@ -45,7 +45,7 @@ internal sealed partial class ApprovalsWindow
             info.Children.Add(code);
             info.Children.Add(Text(Approvals.DeviceApprovalHow, 13, Ink, FontWeight.SemiBold, wrap: true));
             info.Children.Add(Text(Approvals.DeviceApprovalLeft(offer.ExpiresAt - Now()), 12, Muted));
-            var stop = Action("やめる", null); stop.HorizontalAlignment = HorizontalAlignment.Left; stop.Margin = new Thickness(0, 10, 0, 0); stop.Click += (_, _) => hub.CancelApproval?.Invoke(); info.Children.Add(stop);
+            var stop = Action(LinuxStrings.ApprovalsDetail_Answering_5, null); stop.HorizontalAlignment = HorizontalAlignment.Left; stop.Margin = new Thickness(0, 10, 0, 0); stop.Click += (_, _) => hub.CancelApproval?.Invoke(); info.Children.Add(stop);
             var qr = new QrView(offer.QrPayload, 150); Grid.SetColumn(info, 1);
             panel.Children.Add(Frame(new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), Children = { qr, info } }, 16, "approvals-device-waiting"));
         }
@@ -53,16 +53,16 @@ internal sealed partial class ApprovalsWindow
         switch (state.Status)
         {
             case ClientStatus.Joining: Line(Approvals.DeviceJoining); break;
-            case ClientStatus.Reconnecting: Line(Approvals.DeviceReconnecting, "今すぐ試す", device.Refresh); break;   // the reason is a short word, never shown to the person (Delta)
+            case ClientStatus.Reconnecting: Line(Approvals.DeviceReconnecting, LinuxStrings.ApprovalsDeviceStrip_DeviceStrip_2, device.Refresh); break;   // the reason is a short word, never shown to the person (Delta)
             case ClientStatus.Waiting when state.Offer is { } offer: Waiting(offer); break;
             case ClientStatus.NeedsApproval:
                 var ended = state.Note switch { "offer_expired" => Approvals.DeviceApprovalExpired, "offer_failed" => Approvals.DeviceApprovalFailed, _ => null };
                 if (ended is not null) Line(ended);
-                Line(state.Note == "device_removed" ? Approvals.DeviceRemoved : Approvals.DeviceNeedsApproval, hub.RequestApproval is null ? null : ended is null ? Approvals.DeviceAskApproval : "もう一度", () => hub.RequestApproval?.Invoke());
+                Line(state.Note == "device_removed" ? Approvals.DeviceRemoved : Approvals.DeviceNeedsApproval, hub.RequestApproval is null ? null : ended is null ? Approvals.DeviceAskApproval : LinuxStrings.ApprovalsDeviceStrip_DeviceStrip_3, () => hub.RequestApproval?.Invoke());
                 break;
             case ClientStatus.SignedOut: break;   // not joined (or the credential is gone): the join screen (child-join.md) takes the window, there is no sign-in here any more
-            case ClientStatus.NotEntitled: Line(Approvals.DeviceNotEntitled, "確かめ直す", device.Refresh); break;
-            case ClientStatus.UpdateRequired: Line(Approvals.DeviceUpdateNeeded, "今すぐ試す", device.Refresh); break;   // /v1 is closed, or peer_channel is on and this build has no engine for it
+            case ClientStatus.NotEntitled: Line(Approvals.DeviceNotEntitled, LinuxStrings.ApprovalsDeviceStrip_DeviceStrip_4, device.Refresh); break;
+            case ClientStatus.UpdateRequired: Line(Approvals.DeviceUpdateNeeded, LinuxStrings.ApprovalsDeviceStrip_DeviceStrip_2, device.Refresh); break;   // /v1 is closed, or peer_channel is on and this build has no engine for it
         }
         return panel.Children.Count == 0 ? null : panel;
     }

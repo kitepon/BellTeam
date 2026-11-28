@@ -18,6 +18,9 @@
   <ItemGroup>
     <Compile Include="../../linux/BellTeam.Linux/*.cs" Exclude="../../linux/BellTeam.Linux/Program.cs;../../linux/BellTeam.Linux/App.cs;../../linux/BellTeam.Linux/MainWindow*.cs;../../linux/BellTeam.Linux/Launcher*.cs;../../linux/BellTeam.Linux/*Render.cs;../../linux/BellTeam.Linux/*Fixture.cs;../../linux/BellTeam.Linux/SingleInstance.cs;../../linux/BellTeam.Linux/LinuxAccountAbxAccount.cs;../../linux/BellTeam.Linux/LinuxAccountCard.cs;../../linux/BellTeam.Linux/LinuxAccountGate.cs;../../linux/BellTeam.Linux/LinuxAccountStore.cs" LinkBase="LinuxViews" />
     <ProjectReference Include="../../windows/BellTeam.Core/BellTeam.Core.csproj" />
+    <!-- i18n step 1: the Linux views' text catalog (accessor + resx) is linked like the views; Android's own text is Text/Strings.resx. The Japanese catalog is the neutral language; other languages are satellite resx files. -->
+    <Compile Include="../../linux/BellTeam.Linux/Resources/LinuxStrings.cs" LinkBase="LinuxViews/Resources" />
+    <EmbeddedResource Include="../../linux/BellTeam.Linux/Resources/Strings.resx" Link="LinuxViews/Resources/Strings.resx" ManifestResourceName="BellTeam.Linux.Resources.Strings" />
     <EmbeddedResource Include="../../ios/BellBot/BellBot/Assets.xcassets/AppIcon.appiconset/bellbot-icon.png" LogicalName="BellTeam.png" />
     <EmbeddedResource Include="../../ios/BellBot/BellBot/Assets.xcassets/BellPortrait.imageset/bell-portrait.png" LogicalName="BellPortrait.png" />
     <EmbeddedResource Include="../../docs/server-installation.md" LogicalName="server-installation.md" />

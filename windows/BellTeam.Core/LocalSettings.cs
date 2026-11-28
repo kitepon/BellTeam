@@ -21,7 +21,7 @@ public sealed class SettingsStore(string directory)
     {
         if (!File.Exists(FilePath)) return new();
         return JsonSerializer.Deserialize<LocalSettings>(File.ReadAllText(FilePath), BellApi.Json)
-            ?? throw new InvalidDataException("このPCの設定ファイルが空です。");
+            ?? throw new InvalidDataException(CoreStrings.LocalSettings_Load_1);
     }
     public void Save(LocalSettings settings)
     {

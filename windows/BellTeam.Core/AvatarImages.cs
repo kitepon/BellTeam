@@ -8,7 +8,7 @@ public static class AvatarVariants
 {
     // The crop canvas edge in pixels: Mac AvatarCropVariant.canvas.
     public static int Side(this AvatarVariant variant) => variant == AvatarVariant.Small ? 512 : 1024;
-    public static string Label(this AvatarVariant variant) => variant == AvatarVariant.Small ? "小画像" : "大画像";
+    public static string Label(this AvatarVariant variant) => variant == AvatarVariant.Small ? CoreStrings.AvatarImages_Label_1 : CoreStrings.AvatarImages_Label_2;
 }
 
 public sealed record AvatarCropRect(double X, double Y, double Width, double Height);
@@ -54,24 +54,24 @@ public sealed class AvatarSelectionDrafts
 
 public static class BotProfileText
 {
-    public const string DefaultValue = "CLIの既定";
+    public static string DefaultValue  => CoreStrings.AvatarImages_DefaultValue_1;
     public static string OrDefault(string value) => value.Length == 0 ? DefaultValue : value;
     // Mac BotProfileAISection (#1124): the AI's name (an unknown harness shows its id) and one line on what it runs with.
     public static string HarnessName(string harness) => harness switch { "claude" => "Claude", "codex" => "Codex", "grok" => "Grok", "cursor" => "Cursor", _ => harness };
     public static string AiSummary(string model, string effort) => (model.Length == 0, effort.Length == 0) switch
     {
-        (true, true) => "モデルとエフォートはCLIの既定で動きます", (true, false) => "モデルはCLIの既定で動きます",
-        (false, true) => "エフォートはCLIの既定で動きます", _ => "選んだモデルとエフォートで動きます"
+        (true, true) => CoreStrings.AvatarImages_AiSummary_1, (true, false) => CoreStrings.AvatarImages_AiSummary_2,
+        (false, true) => CoreStrings.AvatarImages_AiSummary_3, _ => CoreStrings.AvatarImages_AiSummary_4
     };
-    public const string UnsupportedServer = "画像の独立編集はサーバー更新後に利用できます。";
-    public const string PendingKept = "保存結果を確認できていない画像の選択を保持しています。";
-    public const string ChangeBlocked = "別の画像に変更するには、保持中の選択を破棄してください。";
-    public const string NoSourceNote = "元画像が残っていない場合、現在の切り抜きの外側は復元できません。";
-    public const string Different = "サーバーの画像は選んだ内容と一致しません。選択は保持しています。";
-    public const string LoginNeeded = "認証が必要です。選択は保持しています。";
-    public static string Unconfirmed(Exception? error) => "保存結果を確認できませんでした。選択は保持しています。\n" + error?.Message;
-    public static string RefreshFailed(Exception error) => "画像を保存しましたが、表示を更新できませんでした。\n" + error.Message;
-    public static string Failed(AvatarVariant variant, string error) => variant.Label() + "：" + error;
+    public static string UnsupportedServer  => CoreStrings.AvatarImages_UnsupportedServer_1;
+    public static string PendingKept  => CoreStrings.AvatarImages_PendingKept_1;
+    public static string ChangeBlocked  => CoreStrings.AvatarImages_ChangeBlocked_1;
+    public static string NoSourceNote  => CoreStrings.AvatarImages_NoSourceNote_1;
+    public static string Different  => CoreStrings.AvatarImages_Different_1;
+    public static string LoginNeeded  => CoreStrings.AvatarImages_LoginNeeded_1;
+    public static string Unconfirmed(Exception? error) => CoreStrings.AvatarImages_Unconfirmed_1(error?.Message);
+    public static string RefreshFailed(Exception error) => CoreStrings.AvatarImages_RefreshFailed_1(error.Message);
+    public static string Failed(AvatarVariant variant, string error) => CoreStrings.AvatarImages_Failed_1(variant.Label(), error);
 }
 
 // Mac BotProfileImageState without the UI: the pending selection, the busy flag and every message the inspector shows.
@@ -93,13 +93,13 @@ public sealed class AvatarImageSession
     public void Discard(AvatarVariant variant)
     {
         if (Saving) return;
-        pending.Discard(variant); refreshFailed.Remove(variant); SetError(variant, null); Message = "選択を破棄しました。"; Changed?.Invoke();
+        pending.Discard(variant); refreshFailed.Remove(variant); SetError(variant, null); Message = CoreStrings.AvatarImages_Discard_1; Changed?.Invoke();
     }
     // The roster moved to a newer image: an old refresh failure is stale now.
     public void VersionChanged(AvatarVariant variant)
     {
         if (!refreshFailed.Remove(variant)) return;
-        SetError(variant, null); Message = "画像を保存しました。"; Changed?.Invoke();
+        SetError(variant, null); Message = CoreStrings.AvatarImages_VersionChanged_1; Changed?.Invoke();
     }
     // Test and render seam: a selection kept from an earlier unconfirmed save.
     public void Keep(AvatarVariant variant, AvatarSelection selection, string? error = null) { pending.Select(selection, variant); SetError(variant, error); Changed?.Invoke(); }
@@ -119,7 +119,7 @@ public sealed class AvatarImageSession
         {
             var result = await api.SaveAvatarAsync(botId, variant, selection, token);
             if (!pending.Finish(result, variant, selection)) return;
-            await ApplyAsync(result, variant, before, version, refresh, "画像を保存しました。");
+            await ApplyAsync(result, variant, before, version, refresh, CoreStrings.AvatarImages_VersionChanged_1);
         }
         catch (BellApiException error) when (error.RequiresLogin) { if (pending.Selection(variant) == selection) SetError(variant, BotProfileText.LoginNeeded); }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
@@ -138,7 +138,7 @@ public sealed class AvatarImageSession
         {
             var result = await api.ConfirmAvatarAsync(botId, variant, selection, token);
             if (!pending.Finish(result, variant, selection)) return false;
-            return await ApplyAsync(result, variant, before, version, refresh, "画像の保存を確認しました。");
+            return await ApplyAsync(result, variant, before, version, refresh, CoreStrings.AvatarImages_ConfirmAsync_1);
         }
         catch (BellApiException error) when (error.RequiresLogin) { if (pending.Selection(variant) == selection) SetError(variant, BotProfileText.LoginNeeded); }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }

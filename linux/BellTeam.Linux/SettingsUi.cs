@@ -22,14 +22,14 @@ public static class SettingsPageInfo
     ];
     public static string Title(SettingsPage page) => page switch
     {
-        SettingsPage.Profile => "プロフィール", SettingsPage.Ai => "AIの設定", SettingsPage.Terminals => "端末", SettingsPage.Features => "追加機能", SettingsPage.Notifications => "通知", SettingsPage.Connection => "接続",
-        SettingsPage.Display => "表示", SettingsPage.Billing => "利用と課金", SettingsPage.Update => "アップデート", SettingsPage.About => "このアプリについて", _ => "全体停止"
+        SettingsPage.Profile => LinuxStrings.MemberEditors_Build_16, SettingsPage.Ai => LinuxStrings.SettingsUi_Title_2, SettingsPage.Terminals => LinuxStrings.SettingsUi_Title_3, SettingsPage.Features => LinuxStrings.SettingsPages_FeaturesPageAsync_1, SettingsPage.Notifications => LinuxStrings.SettingsUi_Title_5, SettingsPage.Connection => LinuxStrings.LatticeWindow_LatticeChartPage_3,
+        SettingsPage.Display => LinuxStrings.SettingsUi_Title_7, SettingsPage.Billing => LinuxStrings.SettingsUi_Title_8, SettingsPage.Update => LinuxStrings.MainWindow_BuildUpdateBadge_2, SettingsPage.About => LinuxStrings.SettingsUi_Title_10, _ => LinuxStrings.SettingsUi_Title_11
     };
     public static string Detail(SettingsPage page) => page switch
     {
-        SettingsPage.Profile => "名前・写真・紹介文と、チームが守るあなたの決まり", SettingsPage.Ai => "AIのアカウントと、仕事の要約を書くAI", SettingsPage.Terminals => "メンバーの席を動かす端末と、その鍵", SettingsPage.Features => "通知の送信などを使うための設定",
-        SettingsPage.Notifications => "メンバーからの連絡をこの端末に届ける", SettingsPage.Connection => "つないでいるサーバーとログイン方法", SettingsPage.Display => "会話を開く時の動き",
-        SettingsPage.Billing => "料金と、サーバーとAIの契約", SettingsPage.Update => "サーバーの部品を最新にする", SettingsPage.About => "アプリの版と接続先", _ => "全員のAIの動作をまとめて止める"
+        SettingsPage.Profile => LinuxStrings.SettingsUi_Detail_1, SettingsPage.Ai => LinuxStrings.SettingsUi_Detail_2, SettingsPage.Terminals => LinuxStrings.SettingsUi_Detail_3, SettingsPage.Features => LinuxStrings.SettingsUi_Detail_4,
+        SettingsPage.Notifications => LinuxStrings.SettingsUi_Detail_5, SettingsPage.Connection => LinuxStrings.SettingsUi_Detail_6, SettingsPage.Display => LinuxStrings.SettingsUi_Detail_7,
+        SettingsPage.Billing => LinuxStrings.SettingsUi_Detail_8, SettingsPage.Update => LinuxStrings.SettingsUi_Detail_9, SettingsPage.About => LinuxStrings.SettingsUi_Detail_10, _ => LinuxStrings.SettingsUi_Detail_11
     };
     public static string Glyph(SettingsPage page) => page switch
     {
@@ -82,7 +82,7 @@ internal static class SettingsUi
     public static void OpenExternal(string url, Action<string> failed)
     {
         try { ExternalLink.Launch(new Uri(url)); }
-        catch (Exception error) { failed("ページを開けませんでした。" + error.Message); }
+        catch (Exception error) { failed(LinuxStrings.SettingsUi_OpenExternal_1(error.Message)); }
     }
 
     public static TextBlock Text(string text, double size = 13, IBrush? color = null, FontWeight? weight = null, Thickness? margin = null)

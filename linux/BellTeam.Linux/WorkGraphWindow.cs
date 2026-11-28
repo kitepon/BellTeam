@@ -35,7 +35,7 @@ public sealed class WorkGraphWindow : Window
     {
         this.workspace = workspace; this.openMember = openMember; this.clock = clock;
         // The size is the whole window; the graph itself gets at least 480x360 (the window's content is the graph, so the minimum is the content's).
-        Title = "相関図"; Width = 960; Height = 640; MinWidth = 480; MinHeight = 360; UseLayoutRounding = true; Background = BellTheme.ConversationBackground;
+        Title = LinuxStrings.MainWindow_BuildSidebar_8; Width = 960; Height = 640; MinWidth = 480; MinHeight = 360; UseLayoutRounding = true; Background = BellTheme.ConversationBackground;
         Origin = workspace.Server;
         Graph = NewGraph();
         pillFrame = new Border { Child = Pill, Background = new Avalonia.Media.Immutable.ImmutableSolidColorBrush(Color.FromRgb(0xE8, 0xE0, 0xFF)), CornerRadius = new CornerRadius(12), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 12, 0, 0), IsVisible = false, IsHitTestVisible = false };
@@ -93,7 +93,7 @@ public sealed class WorkGraphWindow : Window
     {
         openError = null; Refresh();
         try { await open(botId); }
-        catch (Exception error) { openError = "メインの窓を開けませんでした: " + error.Message; Refresh(); }
+        catch (Exception error) { openError = LinuxStrings.WorkGraphWindow_OpenAsync_1(error.Message); Refresh(); }
     }
 
     private void Refresh()

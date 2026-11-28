@@ -18,8 +18,8 @@ public sealed class ModelPicker : Border
     private readonly TextBox custom;
     private readonly Border installRow, cliRow, modelRow, customRow, effortRow, loadingRow, reasonRow, configRow;
     private readonly StackPanel configLine = new() { Orientation = Orientation.Horizontal };
-    private readonly CheckBox fast = Violetize(new CheckBox { Content = "ファストモード", FontSize = 13, VerticalContentAlignment = VerticalAlignment.Center });
-    private readonly CheckBox locked = Violetize(new CheckBox { Content = "固定", FontSize = 13, VerticalContentAlignment = VerticalAlignment.Center });
+    private readonly CheckBox fast = Violetize(new CheckBox { Content = LinuxStrings.MemberEditors_fast_1, FontSize = 13, VerticalContentAlignment = VerticalAlignment.Center });
+    private readonly CheckBox locked = Violetize(new CheckBox { Content = LinuxStrings.MemberEditors_locked_1, FontSize = 13, VerticalContentAlignment = VerticalAlignment.Center });
     private readonly TextBlock reason = Text("", 12, Red), installLine = Text("", 13, Orange);
     private Dictionary<string, HarnessCliInstall> installs = [];
     private bool updating, loading = true;
@@ -32,11 +32,11 @@ public sealed class ModelPicker : Border
     {
         selection = new(initial.Harness, initial.Model, initial.ReasoningEffort);
         var harnesses = new List<FormOption> { new("codex", "Codex"), new("claude", "Claude"), new("grok", "Grok"), new("cursor", "Cursor") };
-        if (!harnesses.Any(option => option.Id == initial.Harness)) harnesses.Add(new(initial.Harness, initial.Harness + "（現在の設定）"));
-        harness = Combo("CLI", harnesses); model = Combo("モデル", []); effort = Combo("エフォート", []);
-        var customField = Field("モデルID", ""); custom = customField.Box;
+        if (!harnesses.Any(option => option.Id == initial.Harness)) harnesses.Add(new(initial.Harness, LinuxStrings.MemberEditors_ModelPicker_1(initial.Harness)));
+        harness = Combo("CLI", harnesses); model = Combo(LinuxStrings.MemberEditors_ModelPicker_2, []); effort = Combo(LinuxStrings.MemberEditors_ModelPicker_3, []);
+        var customField = Field(LinuxStrings.MemberEditors_ModelPicker_4, ""); custom = customField.Box;
         var spinner = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 }; spinner.Children.Add(new Spinner(Muted, 16)); spinner.Children.Add(Text(EditorText.LoadingModels, 13, Secondary));
-        cliRow = Labeled("CLI", harness); modelRow = Labeled("モデル", model); customRow = Row(customField.Element); effortRow = Labeled("エフォート", effort); loadingRow = Row(spinner);
+        cliRow = Labeled("CLI", harness); modelRow = Labeled(LinuxStrings.MemberEditors_ModelPicker_2, model); customRow = Row(customField.Element); effortRow = Labeled(LinuxStrings.MemberEditors_ModelPicker_3, effort); loadingRow = Row(spinner);
         var fastRow = Row(fast); var noteRow = Row(Text(EditorText.FastModeNote, 12, Muted)); reasonRow = Row(reason); configRow = Row(configLine);
         // a318: the Owner's switch for the AI settings; absent on a BellTeam that predates configurationLocked.
         var lockRow = Row(locked); var lockNote = Row(Text(EditorText.LockNote, 12, Muted));
@@ -45,10 +45,10 @@ public sealed class ModelPicker : Border
         installRow = Row(installLine);
         foreach (var row in new Control[] { loadingRow, cliRow, installRow, modelRow, customRow, effortRow, fastRow, noteRow, reasonRow, lockRow, lockNote, configRow }) card.Add(row);
         card.SetVisible(configRow, false); card.SetVisible(installRow, false); card.SetVisible(lockRow, initial.ConfigurationLocked is not null); card.SetVisible(lockNote, initial.ConfigurationLocked is not null);
-        locked.IsChecked = initial.ConfigurationLocked == true; AutomationProperties.SetName(locked, "AI設定の固定");
+        locked.IsChecked = initial.ConfigurationLocked == true; AutomationProperties.SetName(locked, LinuxStrings.MemberEditors_ModelPicker_7);
         locked.IsCheckedChanged += (_, _) => Edited?.Invoke();
         Child = card; CornerRadius = new CornerRadius(10); Background = Brushes.White;
-        fast.IsChecked = initial.FastMode; AutomationProperties.SetName(fast, "ファストモード");
+        fast.IsChecked = initial.FastMode; AutomationProperties.SetName(fast, LinuxStrings.MemberEditors_fast_1);
         fast.IsCheckedChanged += (_, _) => { RenderFast(); Edited?.Invoke(); };
         harness.SelectionChanged += (_, _) => { if (updating || harness.SelectedId() is not { } id) return; selection.SelectHarness(id); Render(); Edited?.Invoke(); };
         model.SelectionChanged += (_, _) =>
@@ -91,8 +91,8 @@ public sealed class ModelPicker : Border
         updating = true;
         harness.SelectId(selection.Harness);
         var catalog = selection.Catalog.GetValueOrDefault(selection.Harness);
-        var options = new List<FormOption> { new("", "CLIの既定") };
-        options.AddRange((catalog?.Models ?? []).Select(choice => new FormOption(choice.Id, choice.Label))); options.Add(new(Custom, "その他"));
+        var options = new List<FormOption> { new("", LinuxStrings.MemberEditors_Render_1) };
+        options.AddRange((catalog?.Models ?? []).Select(choice => new FormOption(choice.Id, choice.Label))); options.Add(new(Custom, LinuxStrings.MemberEditors_Render_2));
         model.SetOptions(options);
         var known = options.Any(option => option.Id == selection.Model);
         model.SelectId(known ? selection.Model : Custom);
@@ -104,9 +104,9 @@ public sealed class ModelPicker : Border
     private void RenderEffort()
     {
         updating = true;
-        var choices = new List<FormOption> { new("", "CLIの既定") };
+        var choices = new List<FormOption> { new("", LinuxStrings.MemberEditors_Render_1) };
         choices.AddRange(selection.Efforts.Where(value => value.Length != 0).Select(value => new FormOption(value, value)));
-        if (selection.Effort.Length != 0 && !choices.Any(choice => choice.Id == selection.Effort)) choices.Add(new(selection.Effort, selection.Effort + "（現在の設定）"));
+        if (selection.Effort.Length != 0 && !choices.Any(choice => choice.Id == selection.Effort)) choices.Add(new(selection.Effort, LinuxStrings.MemberEditors_ModelPicker_1(selection.Effort)));
         effort.SetOptions(choices); effort.SelectId(selection.Effort); updating = false;
         RenderFast();
     }
@@ -114,7 +114,7 @@ public sealed class ModelPicker : Border
     private string? FastReasonText()
     {
         if (loading) return EditorText.FastLoading;
-        if (!selection.Catalog.ContainsKey(selection.Harness)) return loadError ?? "モデル候補を読み込めませんでした。";
+        if (!selection.Catalog.ContainsKey(selection.Harness)) return loadError ?? LinuxStrings.MemberEditors_FastReasonText_1;
         if (CustomSelected && string.IsNullOrWhiteSpace(custom.Text)) return EditorText.FastCustomEmpty;
         return selection.FastUnavailableReason;
     }
@@ -196,13 +196,13 @@ public sealed class MemberEditorView : EditorFormView
     private bool Locked => DeletionPending || deletionUnconfirmed;
     private bool HasSavedResult => outcome is Outcome.Saved or Outcome.Confirmed;
     protected override bool SaveBlocked => Locked;
-    public override string CloseLabel => HasSavedResult || Locked ? "閉じる" : "キャンセル";
+    public override string CloseLabel => HasSavedResult || Locked ? LinuxStrings.ApprovalsViews_NotUsable_1 : LinuxStrings.EditorForm_CloseLabel_2;
     internal string NameText => name.Text ?? "";
     internal string? ErrorText => errorText;
 
     public async Task InitializeAsync()
     {
-        var loading = Text("読み込んでいます…", 13, Secondary, FontWeight.Normal, new Thickness(20, 16, 0, 0)); Form.Children.Add(loading);
+        var loading = Text(LinuxStrings.FeatureEditor_InitializeAsync_1, 13, Secondary, FontWeight.Normal, new Thickness(20, 16, 0, 0)); Form.Children.Add(loading);
         try
         {
             var api = workspace.Management;
@@ -219,34 +219,34 @@ public sealed class MemberEditorView : EditorFormView
         var edited = new Action(Edited);
         // メンバー
         var member = new FormGroup();
-        var nameField = Field("名前", original.Name); name = nameField.Box; var positionField = Field("役職", original.Position); position = positionField.Box;
-        color = Popup("テーマ色", [new("violet", "紫"), new("rose", "ローズ"), new("indigo", "インディゴ")], original.Color);
+        var nameField = Field(LinuxStrings.MemberEditors_Build_1, original.Name); name = nameField.Box; var positionField = Field(LinuxStrings.MemberEditors_Build_2, original.Position); position = positionField.Box;
+        color = Popup(LinuxStrings.MemberEditors_Build_3, [new("violet", LinuxStrings.MemberEditors_Build_4), new("rose", LinuxStrings.MemberEditors_Build_5), new("indigo", LinuxStrings.MemberEditors_Build_6)], original.Color);
         if (id is null)
         {
-            avatar = new AvatarPicker("", name: "", color: original.Color, changeLabel: "小画像を変更", keepSelection: true) { HorizontalAlignment = HorizontalAlignment.Center };
+            avatar = new AvatarPicker("", name: "", color: original.Color, changeLabel: LinuxStrings.MemberEditors_Build_7, keepSelection: true) { HorizontalAlignment = HorizontalAlignment.Center };
             avatar.Chosen += chosen => { small = chosen.Selection is { } selection ? BotImageFields.From(AvatarVariant.Small, selection) : small; Edited(); RenderImages(); };
             member.Add(Row(avatar, 0));
         }
-        member.Add(Row(nameField.Element)); member.Add(Row(positionField.Element)); member.Add(Labeled("テーマ色", color));
+        member.Add(Row(nameField.Element)); member.Add(Row(positionField.Element)); member.Add(Labeled(LinuxStrings.MemberEditors_Build_3, color));
         name.TextChanged += (_, _) => { avatar?.SetIdentity(name.Text ?? "", color.SelectedId() ?? "violet"); terminal?.NameChanged(); Edited(); }; position.TextChanged += (_, _) => Edited();
         color.SelectionChanged += (_, _) => { avatar?.SetIdentity(name.Text ?? "", color.SelectedId() ?? "violet"); Edited(); };
-        Form.Children.Add(Section("メンバー", member));
+        Form.Children.Add(Section(LinuxStrings.MemberEditors_Build_9, member));
         if (avatar is not null) InitialLoads.Add(avatar.LoadAsync());
         // 画像 (a new member only: an existing member's images are changed from the inspector)
-        if (id is null) { canEditImages = workspace.Bots.Any(bot => bot.AvatarLargeVersion is not null); if (avatar is not null) avatar.IsEnabled = canEditImages; RenderImages(); Form.Children.Add(Section("画像", imageCard)); }
+        if (id is null) { canEditImages = workspace.Bots.Any(bot => bot.AvatarLargeVersion is not null); if (avatar is not null) avatar.IsEnabled = canEditImages; RenderImages(); Form.Children.Add(Section(LinuxStrings.AvatarEditor_Images_1, imageCard)); }
         // AI
         models = new ModelPicker(original); models.Edited += edited; ModelLoad = models.LoadAsync(api, Token); InitialLoads.Add(ModelLoad); ShowConfiguration();
         Form.Children.Add(Section("AI", models));
         // 端末とフォルダ: the terminal list is read when the editor opens (Mac .task refreshTerminals); fields are sent only when it answered and the member has them.
         terminal = new MemberTerminalSection(workspace.Terminals, id is null || original.TerminalId is not null, original.TerminalId ?? "", original.ProjectRoot ?? "", () => name.Text ?? "", edited, OpenPicker, manageTerminals);
-        var terminalSection = Section("端末とフォルダ", terminal.Card, "-"); terminal.Footer = (TextBlock)terminalSection.Children[^1]; terminal.Render();
+        var terminalSection = Section(LinuxStrings.MemberEditors_Build_11, terminal.Card, "-"); terminal.Footer = (TextBlock)terminalSection.Children[^1]; terminal.Render();
         Form.Children.Add(terminalSection); InitialLoads.Add(workspace.Terminals.RefreshAsync(Token));
         // プロフィール
         var profileCard = new FormGroup();
-        var rows = new[] { Paragraph("背景・見た目・関係性", original.ProfileText), Paragraph("性格・考え方", original.Personality), Paragraph("口調", original.SpeechStyle), Paragraph("担当する仕事", original.Role) };
+        var rows = new[] { Paragraph(LinuxStrings.MemberEditors_Build_12, original.ProfileText), Paragraph(LinuxStrings.MemberEditors_Build_13, original.Personality), Paragraph(LinuxStrings.MemberEditors_Build_14, original.SpeechStyle), Paragraph(LinuxStrings.MemberEditors_Build_15, original.Role) };
         foreach (var row in rows) { profileCard.Add(row.Row); row.Box.TextChanged += (_, _) => Edited(); }
         (profile, personality, speech, role) = (rows[0].Box, rows[1].Box, rows[2].Box, rows[3].Box);
-        Form.Children.Add(Section("プロフィール", profileCard));
+        Form.Children.Add(Section(LinuxStrings.MemberEditors_Build_16, profileCard));
         Form.Children.Add(deleteHost); Form.Children.Add(notices);
         RenderDelete(); RenderNotices(); Lock();
     }
@@ -272,21 +272,21 @@ public sealed class MemberEditorView : EditorFormView
         imageCard.Clear();
         if (!canEditImages) imageCard.Add(Row(Text(EditorText.ImagesNeedServerUpdate, 13, Secondary)));
         var smallRender = small?.Render ?? "";
-        imageCard.Add(Row(LinkButton("小画像を再調整", () => _ = ReopenAsync(AvatarVariant.Small), smallRender.Length != 0 && canEditImages)));
+        imageCard.Add(Row(LinkButton(LinuxStrings.MemberEditors_RenderImages_1, () => _ = ReopenAsync(AvatarVariant.Small), smallRender.Length != 0 && canEditImages)));
         if (smallRender.Length != 0 && (small?.Source ?? "").Length == 0) imageCard.Add(Row(Text(EditorText.SmallNoSource, 13, Secondary)));
         var largeRender = large?.Render ?? "";
         var content = new StackPanel(); var preview = new Border { Width = 160, Height = 160, CornerRadius = new CornerRadius(14), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 8), IsVisible = false, ClipToBounds = true };
-        content.Children.Add(preview); content.Children.Add(Text("大画像を変更", 13, Violet));
+        content.Children.Add(preview); content.Children.Add(Text(LinuxStrings.MemberEditors_RenderImages_2, 13, Violet));
         var pick = new Button { Classes = { "plain" }, Content = content, Padding = default, Background = Brushes.Transparent, HorizontalAlignment = HorizontalAlignment.Left, IsEnabled = canEditImages };
         pick.Click += async (_, _) => await PickLargeAsync();
-        AutomationProperties.SetName(pick, "大画像を変更");
+        AutomationProperties.SetName(pick, LinuxStrings.MemberEditors_RenderImages_2);
         imageCard.Add(Row(pick));
         ImagesReady = ShowLargePreviewAsync(preview, largeRender.Length != 0 ? largeRender : smallRender);
-        imageCard.Add(Row(LinkButton("大画像を再調整", () => _ = ReopenAsync(AvatarVariant.Large), largeRender.Length != 0 && canEditImages)));
+        imageCard.Add(Row(LinkButton(LinuxStrings.MemberEditors_RenderImages_4, () => _ = ReopenAsync(AvatarVariant.Large), largeRender.Length != 0 && canEditImages)));
         if (largeRender.Length != 0)
         {
             if ((large?.Source ?? "").Length == 0) imageCard.Add(Row(Text(EditorText.LargeNoSource, 13, Secondary)));
-            imageCard.Add(Row(LinkButton("大画像を小画像と同じに戻す", () => { large = BotImageFields.Cleared(AvatarVariant.Large); Edited(); RenderImages(); }, canEditImages)));
+            imageCard.Add(Row(LinkButton(LinuxStrings.MemberEditors_RenderImages_5, () => { large = BotImageFields.Cleared(AvatarVariant.Large); Edited(); RenderImages(); }, canEditImages)));
         }
     }
     // Mac AvatarPortraitCache.image(for:): the picture shown above 大画像を変更 is the large image, or the small one standing in for it.
@@ -299,12 +299,12 @@ public sealed class MemberEditorView : EditorFormView
     private async Task PickLargeAsync()
     {
         var host = AvatarHost.Of(this);
-        var path = await AvatarHost.PickImageAsync(host?.OwnerWindow, "大画像を選ぶ");
+        var path = await AvatarHost.PickImageAsync(host?.OwnerWindow, LinuxStrings.MemberEditors_PickLargeAsync_1);
         if (path is null) return;
         try
         {
             var loaded = await AvaloniaImageCodec.Instance.ReadAsync(path);
-            var chosen = await (host ?? throw new InvalidOperationException("画像の調整画面を開けません。")).CropAsync(loaded.Preview, AvatarVariant.Large, null, true);
+            var chosen = await (host ?? throw new InvalidOperationException(LinuxStrings.AvatarEditor_ChooseAsync_2)).CropAsync(loaded.Preview, AvatarVariant.Large, null, true);
             if (chosen?.Selection is not { } selection) return;
             large = BotImageFields.From(AvatarVariant.Large, selection); Edited(); RenderImages();
         }
@@ -318,7 +318,7 @@ public sealed class MemberEditorView : EditorFormView
         try
         {
             var image = await AvatarHost.DecodeAsync(source.Length == 0 ? render : source);
-            var chosen = await (AvatarHost.Of(this) ?? throw new InvalidOperationException("画像の調整画面を開けません。")).CropAsync(image, variant, source.Length == 0 ? null : fields!.Crop, true);
+            var chosen = await (AvatarHost.Of(this) ?? throw new InvalidOperationException(LinuxStrings.AvatarEditor_ChooseAsync_2)).CropAsync(image, variant, source.Length == 0 ? null : fields!.Crop, true);
             if (chosen?.Selection is not { } selection) return;
             if (variant == AvatarVariant.Small) { small = BotImageFields.From(variant, selection); if (avatar is not null) await avatar.ShowAsync(selection.Render, selection); }
             else large = BotImageFields.From(variant, selection);
@@ -336,16 +336,16 @@ public sealed class MemberEditorView : EditorFormView
         if (Locked)
         {
             group.Add(Row(Text(DeletionPending ? EditorText.DeletePending : EditorText.DeleteUnconfirmed, 12, Muted)));
-            group.Add(Row(LinkButton("削除結果を確認", () => _ = ConfirmDeletionAsync())));
+            group.Add(Row(LinkButton(LinuxStrings.MemberEditors_RenderDelete_1, () => _ = ConfirmDeletionAsync())));
         }
-        else group.Add(Row(LinkButton("メンバーを削除", AskDelete, destructive: true)));
+        else group.Add(Row(LinkButton(LinuxStrings.MemberEditors_RenderDelete_2, AskDelete, destructive: true)));
         deleteHost.Children.Add(FormSection(null, group, EditorText.MemberDeleteFooter));
     }
     internal void AskDelete()
     {
         if (id is null || Locked) return;
         var shown = workspace.Conversations.FirstOrDefault(entry => entry.Target == new ChatTarget(id, false))?.Name ?? original.Name;
-        ShowAlert(EditorText.MemberDeleteTitle(shown), EditorText.MemberDeleteMessage, new AlertChoice("削除", () => _ = DeleteAsync(), Destructive: true), new AlertChoice("キャンセル", Bold: true));
+        ShowAlert(EditorText.MemberDeleteTitle(shown), EditorText.MemberDeleteMessage, new AlertChoice(LinuxStrings.MemberEditors_AskDelete_1, () => _ = DeleteAsync(), Destructive: true), new AlertChoice(LinuxStrings.EditorForm_CloseLabel_2, Bold: true));
     }
     // One DELETE, never repeated by this editor. An answer that cannot be told apart from "not sent" leaves the 削除結果を確認 exit.
     internal Task DeleteAsync() => RunAsync(async () =>
@@ -367,7 +367,7 @@ public sealed class MemberEditorView : EditorFormView
         RenderDelete(); RenderNotices(); Lock();
     });
     // Render seam: the state a lost DELETE answer leaves.
-    internal void ShowDeletionUnconfirmedForRender() { deletionUnconfirmed = true; errorText = EditorText.Failure(new BellApiException("接続が切れました。")); RenderDelete(); RenderNotices(); Lock(); }
+    internal void ShowDeletionUnconfirmedForRender() { deletionUnconfirmed = true; errorText = EditorText.Failure(new BellApiException(LinuxStrings.MemberEditors_ShowDeletionUnconfirmedForRender_1)); RenderDelete(); RenderNotices(); Lock(); }
 
     // ---- 保存 ----
     public override Task SaveAsync() => SaveAsync(createFolder: false);
@@ -445,8 +445,8 @@ public sealed class MemberEditorView : EditorFormView
         {
             case Outcome.Saved: group.Add(Row(Text(EditorText.Applying, 12, mint))); break;
             case Outcome.Confirmed: group.Add(Row(Text(EditorText.SaveConfirmed, 12, mint))); break;
-            case Outcome.Different: group.Add(Row(Text(EditorText.SaveDifferent, 12, Red))); group.Add(Row(LinkButton("保存結果を確認", () => _ = ConfirmSaveAsync()))); break;
-            case Outcome.Unconfirmed: group.Add(Row(Text(EditorText.SaveUnconfirmed(outcomeError ?? new BellApiException("")), 12, Red))); group.Add(Row(LinkButton("保存結果を確認", () => _ = ConfirmSaveAsync()))); break;
+            case Outcome.Different: group.Add(Row(Text(EditorText.SaveDifferent, 12, Red))); group.Add(Row(LinkButton(LinuxStrings.AvatarActions_Rebuild_4, () => _ = ConfirmSaveAsync()))); break;
+            case Outcome.Unconfirmed: group.Add(Row(Text(EditorText.SaveUnconfirmed(outcomeError ?? new BellApiException("")), 12, Red))); group.Add(Row(LinkButton(LinuxStrings.AvatarActions_Rebuild_4, () => _ = ConfirmSaveAsync()))); break;
         }
         if (errorText is not null) group.Add(Row(Text(errorText, 12, Red)));
         if (offersCreate) group.Add(Row(IconRow(InspectorIcons.FolderPlus, MemberFolder.CreateTitle, Violet, () => _ = CreateFolderAndSaveAsync())));
@@ -497,7 +497,7 @@ public sealed class RoomEditorView : EditorFormView
     internal IReadOnlyList<(Bot Bot, CheckBox Choice)> Members => toggles;
     public async Task InitializeAsync()
     {
-        var loading = Text("読み込んでいます…", 13, Secondary, FontWeight.Normal, new Thickness(20, 16, 0, 0)); Form.Children.Add(loading);
+        var loading = Text(LinuxStrings.FeatureEditor_InitializeAsync_1, 13, Secondary, FontWeight.Normal, new Thickness(20, 16, 0, 0)); Form.Children.Add(loading);
         try
         {
             var api = workspace.Management;
@@ -512,8 +512,8 @@ public sealed class RoomEditorView : EditorFormView
     {
         members.UnionWith(original.MemberIds); representative = original.RepresentativeId ?? "";
         avatar = new AvatarPicker(original.Avatar, name: original.Name, isRoom: true) { HorizontalAlignment = HorizontalAlignment.Center }; InitialLoads.Add(avatar.LoadAsync());
-        var nameField = Field("ルーム名", original.Name); name = nameField.Box; var purposeField = Field("この部屋で共有する仕事", original.Purpose, multiline: true, minHeight: 48); purpose = purposeField.Box; purpose.MaxHeight = 150;
-        Form.Children.Add(FormSection("ルーム", new FormGroup(Row(avatar, 0), Row(nameField.Element), Row(purposeField.Element))));
+        var nameField = Field(LinuxStrings.MemberEditors_Build_17, original.Name); name = nameField.Box; var purposeField = Field(LinuxStrings.MemberEditors_Build_18, original.Purpose, multiline: true, minHeight: 48); purpose = purposeField.Box; purpose.MaxHeight = 150;
+        Form.Children.Add(FormSection(LinuxStrings.MemberEditors_Build_19, new FormGroup(Row(avatar, 0), Row(nameField.Element), Row(purposeField.Element))));
         var group = new FormGroup();
         foreach (var bot in workspace.Bots)
         {
@@ -521,11 +521,11 @@ public sealed class RoomEditorView : EditorFormView
             choice.IsCheckedChanged += (_, _) => Toggled(bot.Id, choice.IsChecked == true);
             toggles.Add((bot, choice)); group.Add(Row(choice));
         }
-        Form.Children.Add(FormSection("メンバー", group));
-        picker = Popup("代表Bot", [], representative); picker.MinWidth = 180;
+        Form.Children.Add(FormSection(LinuxStrings.MemberEditors_Build_9, group));
+        picker = Popup(LinuxStrings.MemberEditors_Build_21, [], representative); picker.MinWidth = 180;
         picker.SelectionChanged += (_, _) => { if (!updating && picker.SelectedId() is { } value) representative = value; };
-        Form.Children.Add(FormSection("代表", new FormGroup(Labeled("代表Bot", picker)))); ShowRepresentatives();
-        if (id is not null) Form.Children.Add(FormSection(null, new FormGroup(Row(LinkButton("ルームを削除", AskDelete, destructive: true))), EditorText.RoomDeleteFooter));
+        Form.Children.Add(FormSection(LinuxStrings.MemberEditors_Build_22, new FormGroup(Labeled(LinuxStrings.MemberEditors_Build_21, picker)))); ShowRepresentatives();
+        if (id is not null) Form.Children.Add(FormSection(null, new FormGroup(Row(LinkButton(LinuxStrings.MemberEditors_Build_24, AskDelete, destructive: true))), EditorText.RoomDeleteFooter));
     }
     // Mac: unchecking the representative clears the choice; the list offers only the members checked now.
     private void Toggled(string botId, bool on)
@@ -536,15 +536,15 @@ public sealed class RoomEditorView : EditorFormView
     private void ShowRepresentatives()
     {
         updating = true;
-        picker.SetOptions(new[] { new FormOption("", "代表なし") }.Concat(toggles.Where(item => members.Contains(item.Bot.Id)).Select(item => new FormOption(item.Bot.Id, item.Bot.DisplayName))));
+        picker.SetOptions(new[] { new FormOption("", LinuxStrings.MemberEditors_ShowRepresentatives_1) }.Concat(toggles.Where(item => members.Contains(item.Bot.Id)).Select(item => new FormOption(item.Bot.Id, item.Bot.DisplayName))));
         picker.SelectId(representative); updating = false;
     }
     internal void AskDelete()
     {
         if (id is null) return;
-        ShowAlert(EditorText.RoomDeleteTitle(original.Name), EditorText.RoomDeleteMessage, new AlertChoice("削除", () => _ = DeleteAsync(), Destructive: true), new AlertChoice("キャンセル", Bold: true));
+        ShowAlert(EditorText.RoomDeleteTitle(original.Name), EditorText.RoomDeleteMessage, new AlertChoice(LinuxStrings.MemberEditors_AskDelete_1, () => _ = DeleteAsync(), Destructive: true), new AlertChoice(LinuxStrings.EditorForm_CloseLabel_2, Bold: true));
     }
-    private void Fail(string message) => ShowAlert(EditorText.RoomErrorTitle, message, new AlertChoice("閉じる", Bold: true));
+    private void Fail(string message) => ShowAlert(EditorText.RoomErrorTitle, message, new AlertChoice(LinuxStrings.ApprovalsViews_NotUsable_1, Bold: true));
     internal Task DeleteAsync() => RunAsync(async () =>
     {
         if (id is null) return;
@@ -578,10 +578,10 @@ public sealed class MemberEditorWindow : Window
     public MemberEditorWindow(LinuxWorkspace workspace, string id, Action? manageTerminals = null)
     {
         Background = BellTheme.ConversationBackground;
-        Title = "メンバーを編集"; Width = 1120; Height = 900; MinWidth = 600; MinHeight = 500; WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        Title = LinuxStrings.MemberEditors_MemberEditorWindow_1; Width = 1120; Height = 900; MinWidth = 600; MinHeight = 500; WindowStartupLocation = WindowStartupLocation.CenterOwner;
         view = new MemberEditorView(workspace, id, manageTerminals) { Closer = Close };
         var white = Brushes.White;
-        cancel = Capsule("キャンセル", white, Ink, 16, 13, new Thickness(14, 6)); save = Capsule("保存", white, Ink, 16, 13, new Thickness(14, 6)); save.Margin = new Thickness(8, 0, 0, 0);
+        cancel = Capsule(LinuxStrings.EditorForm_CloseLabel_2, white, Ink, 16, 13, new Thickness(14, 6)); save = Capsule(LinuxStrings.EditorForm_SaveLabel_1, white, Ink, 16, 13, new Thickness(14, 6)); save.Margin = new Thickness(8, 0, 0, 0);
         cancel.FontWeight = save.FontWeight = FontWeight.Normal;
         cancel.Click += (_, _) => { if (view.CanClose) Close(); }; save.Click += async (_, _) => await view.SaveAsync();
         var bar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 8, 14, 8) }; bar.Children.Add(cancel); bar.Children.Add(save);

@@ -34,9 +34,13 @@ public sealed record SeatApprovalOutcome(SeatApprovalResult Result, string? Text
 
 public static class SeatApprovalText
 {
-    public const string Heading = "承認を待っています", Badge = "承認待ち", SeeScreen = "Botの画面を見てください",
-        Closed = "別の場所で答えられたか、もう承認待ちではありません。", Failed = "いまは送れませんでした。もう一度押してください。", Sending = "答えを送っています…";
-    public static readonly SeatApprovalChoice[] DefaultChoices = [new() { Decision = "approve_once", Label = "1回だけ許可する" }, new() { Decision = "deny", Label = "許可しない" }];
+    public static string Heading  => CoreStrings.SeatApprovals_Heading_1;
+    public static string Badge  => CoreStrings.SeatApprovals_Badge_1;
+    public static string SeeScreen  => CoreStrings.SeatApprovals_SeeScreen_1;
+    public static string Closed  => CoreStrings.SeatApprovals_Closed_1;
+    public static string Failed  => CoreStrings.SeatApprovals_Failed_1;
+    public static string Sending  => CoreStrings.SeatApprovals_Sending_1;
+    public static readonly SeatApprovalChoice[] DefaultChoices = [new() { Decision = "approve_once", Label = CoreStrings.SeatApprovals_DefaultChoices_1 }, new() { Decision = "deny", Label = CoreStrings.SeatApprovals_DefaultChoices_2 }];
     /// <summary>The one line over the command: the tool and which harness stopped, e.g. 「Bash · Claude Code」; just the harness when the seat gave no tool.</summary>
     public static string Source(SeatApproval approval)
     {

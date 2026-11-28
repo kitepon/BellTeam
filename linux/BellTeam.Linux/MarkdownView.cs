@@ -106,7 +106,7 @@ public sealed class MarkdownView : ContentControl
             case ThematicBreakBlock: return new TextBlock { Text = "────────────────", Foreground = Brushes.LightGray };
             // A reference link definition is resolved into its links and draws nothing.
             case LinkReferenceDefinitionGroup: return new Panel();
-            default: throw new NotSupportedException($"Markdownの表示に未対応の要素があります: {block.GetType().Name}");
+            default: throw new NotSupportedException(LinuxStrings.MarkdownView_Render_1(block.GetType().Name));
         }
     }
 
@@ -147,9 +147,9 @@ public sealed class MarkdownView : ContentControl
                 }
                 return span;
             case LinkInline link:
-                return Link(link.Url, map, () => { var content = Children(link, map); if (link.IsImage) { content.Inlines.Add(new Run("（画像）")); map.Length += 4; } return content; });
+                return Link(link.Url, map, () => { var content = Children(link, map); if (link.IsImage) { content.Inlines.Add(new Run(LinuxStrings.ForwardViews_Forward_1)); map.Length += 4; } return content; });
             case ContainerInline container: return Children(container, map);
-            default: throw new NotSupportedException($"Markdownの表示に未対応の要素があります: {inline.GetType().Name}");
+            default: throw new NotSupportedException(LinuxStrings.MarkdownView_Render_1(inline.GetType().Name));
         }
     }
     private static Span Children(ContainerInline container, LinkMap map)
@@ -166,6 +166,6 @@ public sealed class MarkdownView : ContentControl
     private static void Open(Uri uri)
     {
         try { ExternalLink.Launch(uri); }
-        catch (Exception error) { LinkFailed?.Invoke("リンクを開けませんでした。" + error.Message); }
+        catch (Exception error) { LinkFailed?.Invoke(LinuxStrings.MarkdownView_Open_1(error.Message)); }
     }
 }

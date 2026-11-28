@@ -4,31 +4,28 @@ namespace BellTeam.Core;
 // Only the sentences about the subscription belong to each platform's store: the caller passes its own (Windows: Subscription / Cancel below).
 public static class AccountDeletionText
 {
-    public const string Button = "アカウントを削除";
-    public const string ConfirmTitle = "アカウントを削除しますか？";
-    public const string ConfirmYes = "削除する";
-    public const string ConfirmNo = "やめる";
-    public const string ResultTitle = "アカウントを削除しました";
+    public static string Button  => CoreStrings.AccountDeletionText_Button_1;
+    public static string ConfirmTitle  => CoreStrings.AccountDeletionText_ConfirmTitle_1;
+    public static string ConfirmYes  => CoreStrings.AccountDeletionText_ConfirmYes_1;
+    public static string ConfirmNo  => CoreStrings.AccountDeletionText_ConfirmNo_1;
+    public static string ResultTitle  => CoreStrings.AccountDeletionText_ResultTitle_1;
 
     // a540 (Rapi's final table, Poli approved 2026-11-23): BellTeam holds nothing on any server; what stays is the user's own server's conversations and the Approval Box account. Only the store sentence is each OS's own.
     public static string ConfirmBody(string subscription) =>
-        "この端末のBellTeamのサインインと、受け取った購読の確認を消します。決裁箱のサインインと鍵、サーバーのトークン、保存した会話の写しも消して、最初の画面に戻ります。"
-        + "BellTeamは、名前・メールアドレス・購入の記録を、サーバーにも運営にも持っていません。決裁箱は、サインインを終えるだけです。決裁箱のアカウントと申請は消えません。消すには、決裁箱のアプリでアカウントを削除してください。"
-        + "決裁箱の運営には、止めたサインインのランダムな番号も最長14日残ります。ほかの端末のサインインは、その端末で終えてください。"
-        + subscription + "サーバーの会話や設定は消えません。";
+        CoreStrings.AccountDeletionText_ConfirmBody_1(subscription);
 
     public static string ResultBody(string cancel) =>
-        "この端末のサインインとデータを消しました。BellTeamの運営は、あなたに関する情報を持っていません。あなたのサーバーの会話と設定は残ります。決裁箱のアカウントは、決裁箱のアプリで削除するまで残ります。" + cancel;
+        CoreStrings.AccountDeletionText_ResultBody_1(cancel);
 
     // A Windows PC never buys: its subscription is the one the phone (or the web) bought, so the store words name no single store.
-    public const string Subscription = "購読は購入した先（AppleやGoogle Playなど）のものなので、この操作では解約されません。解約は、購入した先の購読の管理から行ってください。";
-    public const string Cancel = "購読を止めるには、購入した先の購読の管理から解約してください。";
+    public static string Subscription  => CoreStrings.AccountDeletionText_Subscription_1;
+    public static string Cancel  => CoreStrings.AccountDeletionText_Cancel_1;
 
     // The result is told only when every step returned; otherwise this names the part that could not be removed and one of three reasons, and pressing again continues (the steps done stay done).
-    public const string FailedTitle = "アカウントの削除を終えられませんでした";
-    public const string NoNetwork = "ネットワークにつながっていません";
-    public const string OperatorUnreachable = "決裁箱の運営に届きません";
-    public const string NotProcessed = "処理できませんでした";
+    public static string FailedTitle  => CoreStrings.AccountDeletionText_FailedTitle_1;
+    public static string NoNetwork  => CoreStrings.AccountDeletionText_NoNetwork_1;
+    public static string OperatorUnreachable  => CoreStrings.AccountDeletionText_OperatorUnreachable_1;
+    public static string NotProcessed  => CoreStrings.AccountDeletionText_NotProcessed_1;
     public static string Failed(string part, string reason) =>
-        part + "を消せませんでした（" + reason + "）。つながる場所でもう一度「" + Button + "」を押すと、続きから終えます。すでに終えた手順はそのままです。";
+        CoreStrings.AccountDeletionText_Failed_1(part, reason, Button);
 }

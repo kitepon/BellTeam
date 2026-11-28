@@ -24,7 +24,7 @@ public sealed record Schedule
     public int? StartHour { get; init; }
     public int? EndHour { get; init; }
     public int? Minute { get; init; }
-    [JsonIgnore] public string Title => Name.Length == 0 ? Prompt ?? Command ?? "予定" : Name;
+    [JsonIgnore] public string Title => Name.Length == 0 ? Prompt ?? Command ?? CoreStrings.PlanningModels_Title_1 : Name;
 }
 public sealed record SchedulesResponse { public required Schedule[] Schedules { get; init; } }
 public sealed record AllSchedulesResponse { public required ScheduleSource[] Sources { get; init; } }
@@ -34,7 +34,7 @@ public sealed record ScheduleSource
     public required string Id { get; init; }
     public required string Name { get; init; }
     public required Schedule[] Schedules { get; init; }
-    public ChatTarget Target => Kind switch { "bot" => new(Id, false), "room" => new(Id, true), _ => throw new BellApiException("予定の所有者を読み取れませんでした。") };
+    public ChatTarget Target => Kind switch { "bot" => new(Id, false), "room" => new(Id, true), _ => throw new BellApiException(CoreStrings.PlanningModels_Target_1) };
 }
 public sealed record ScheduleResponse { public required Schedule Schedule { get; init; } }
 public sealed record ScheduledEntry(ChatTarget Target, string OwnerName, Schedule Schedule)
@@ -65,7 +65,7 @@ public sealed class ScheduleDraft
         var zone = TimeZoneInfo.Local;
         if (zone.HasIanaId) return zone.Id;
         if (TimeZoneInfo.TryConvertWindowsIdToIanaId(zone.Id, out var iana)) return iana;
-        throw new ArgumentException("このPCのタイムゾーンをIANA名へ変換できません。");
+        throw new ArgumentException(CoreStrings.PlanningModels_LocalTimezone_1);
     }
     public static ScheduleDraft From(Schedule item)
     {
@@ -94,8 +94,8 @@ public sealed class ScheduleDraft
     private static bool Plain(string text, int max, out int value) => int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out value) && value <= max && value.ToString(CultureInfo.InvariantCulture) == text;
     public Dictionary<string, object?> Payload(bool room, string[] targets)
     {
-        if (string.IsNullOrWhiteSpace(Content)) throw new ArgumentException("実行内容を入力してください。");
-        if (room && Action == "command") throw new ArgumentException("ルームではAIへの指示を選んでください。");
+        if (string.IsNullOrWhiteSpace(Content)) throw new ArgumentException(CoreStrings.PlanningModels_Payload_1);
+        if (room && Action == "command") throw new ArgumentException(CoreStrings.PlanningModels_Payload_2);
         var body = new Dictionary<string, object?> { ["name"] = Name.Trim(), ["kind"] = Frequency is "once" or "interval_days" or "interval_hours" ? Frequency : "cron", [Action] = TextContent.Normalize(Content), ["enabled"] = Enabled };
         if (room) body["targets"] = targets.Length == 0 ? null : targets;
         if (Frequency == "once") body["at"] = new DateTimeOffset(DateTime.SpecifyKind(Date, DateTimeKind.Local)).ToUniversalTime().ToString("O");
@@ -106,12 +106,12 @@ public sealed class ScheduleDraft
             {
                 case "interval_days": body["intervalDays"] = IntervalDays; body["startDate"] = StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture); body["time"] = $"{Hour:00}:{Minute:00}"; break;
                 case "interval_hours": body["intervalHours"] = IntervalHours; body["startHour"] = StartHour; body["endHour"] = EndHour; body["minute"] = Minute; break;
-                case "weekly" when Weekdays.Count == 0: throw new ArgumentException("曜日を選んでください。");
+                case "weekly" when Weekdays.Count == 0: throw new ArgumentException(CoreStrings.PlanningModels_Payload_3);
                 case "hourly": body["expression"] = $"{Minute} * * * *"; break;
                 case "daily": body["expression"] = $"{Minute} {Hour} * * *"; break;
                 case "weekly": body["expression"] = $"{Minute} {Hour} * * {string.Join(',', Weekdays.Order())}"; break;
                 case "cron": body["expression"] = Expression.Trim(); break;
-                default: throw new ArgumentException("予定の繰り返しが未対応です。");
+                default: throw new ArgumentException(CoreStrings.PlanningModels_Payload_4);
             }
         }
         return body;
@@ -121,9 +121,9 @@ public sealed class ScheduleDraft
 // What the Mac schedule card prints: the next run as "次回 10月14日(水) 9:00" (BellDate.long), "次回未定" when the server has none, and the kind icon choice.
 public static class ScheduleText
 {
-    private const string Weekdays = "日月火水木金土";
-    public static string Format(DateTime local) => $"{local.Month}月{local.Day}日({Weekdays[(int)local.DayOfWeek]}) {local.Hour}:{local.Minute:00}";
-    public static string Next(string? nextRunAt) => nextRunAt is null ? "次回未定" : "次回 " + (DateTimeOffset.TryParse(nextRunAt, CultureInfo.InvariantCulture, DateTimeStyles.None, out var at) ? Format(at.LocalDateTime) : "未定");
+    private static string Weekdays  => CoreStrings.PlanningModels_Weekdays_1;
+    public static string Format(DateTime local) => CoreStrings.PlanningModels_Format_1(local.Month, local.Day, Weekdays[(int)local.DayOfWeek], local.Hour, local.Minute);
+    public static string Next(string? nextRunAt) => nextRunAt is null ? CoreStrings.PlanningModels_Next_1 : CoreStrings.PlanningModels_Next_3((DateTimeOffset.TryParse(nextRunAt, CultureInfo.InvariantCulture, DateTimeStyles.None, out var at) ? Format(at.LocalDateTime) : CoreStrings.PlanningModels_Next_2));
     public static bool IsOneTime(string kind) => kind == "once";
 }
 
@@ -166,7 +166,7 @@ public sealed class FeatureSetting
     // onePassword only. Read leniently (OnePasswordItem.Lenient): a body that does not match shows nothing new and never fails the list.
     public FeatureGuide? Guide { get; init; }
     public OnePasswordConnection? Connection { get; init; }
-    public string StatusText => ApplyFailed ? "反映エラー" : Status switch { "enabled" => "有効", "disabled" => "無効", _ => "未設定" };
+    public string StatusText => ApplyFailed ? CoreStrings.PlanningModels_StatusText_1 : Status switch { "enabled" => CoreStrings.PlanningModels_StatusText_2, "disabled" => CoreStrings.PlanningModels_StatusText_3, _ => CoreStrings.PlanningModels_StatusText_4 };
     public static FeatureSetting Read(JsonElement value) => new()
     {
         Id = value.GetProperty("id").GetString()!, Title = value.GetProperty("title").GetString()!, Enabled = value.GetProperty("enabled").GetBoolean(), Status = value.GetProperty("status").GetString()!,

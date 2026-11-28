@@ -20,18 +20,18 @@ public sealed class SecretCard(LinuxWorkspace workspace, string author) : StackP
     {
         if (current == request && currentAuthor == sender) return;
         current = request; currentAuthor = sender; Children.Clear();
-        Children.Add(CardTitle(Icons.Lock, currentAuthor + " · 秘密情報の入力"));
+        Children.Add(CardTitle(Icons.Lock, LinuxStrings.RequestCards_Update_1(currentAuthor)));
         Children.Add(CardBody(request.Message));
         Children.Add(CardText(request.Label + " / " + request.ToolId, size: 14, muted: true));
         if (request.Status == "pending")
         {
-            var open = MacUi.Bordered("安全な入力欄を開く", () => Open(request)); open.Margin = new Thickness(0, 12, 0, 0);
+            var open = MacUi.Bordered(LinuxStrings.RequestCards_Update_2, () => Open(request)); open.Margin = new Thickness(0, 12, 0, 0);
             Children.Add(open);
         }
-        else if (request.Status == "submitted") Children.Add(CardStatus(Icons.Check, "登録済み"));
-        else if (request.Status == "cancelled") Children.Add(CardStatus(Icons.Close, "入力を取り消しました"));
-        else Children.Add(CardText("不明な入力状態: " + request.Status, error: true));
-        if (request.Notification == "failed") Children.Add(CardText("AIへの通知に失敗しました。チャットで完了を知らせてください。", size: 14, error: true));
+        else if (request.Status == "submitted") Children.Add(CardStatus(Icons.Check, LinuxStrings.RequestCards_Update_3));
+        else if (request.Status == "cancelled") Children.Add(CardStatus(Icons.Close, LinuxStrings.RequestCards_Update_4));
+        else Children.Add(CardText(LinuxStrings.RequestCards_Update_5(request.Status), error: true));
+        if (request.Notification == "failed") Children.Add(CardText(LinuxStrings.RequestCards_Update_6, size: 14, error: true));
     }
     internal SecretInputWindow CreateInput(SecretRequest request) => new(request, submission => workspace.FinishSecretAsync(request.Id, submission), () => workspace.SecretKeysAsync(request.Id), Update);
     private void Open(SecretRequest request)
@@ -118,7 +118,7 @@ public sealed class SecretInputWindow : Window
     private readonly Border pickerCard, referenceCard, pasteCard, passwordCard;
     private readonly ChoiceRow onePasswordChoice = new(), inputChoice = new();
     private readonly StackPanel keysHost = new();
-    private readonly RowButton submit = new("", BellTheme.Violet), decline = new("入力を断る", BellTheme.Red);
+    private readonly RowButton submit = new("", BellTheme.Violet), decline = new(LinuxStrings.RequestCards_decline_1, BellTheme.Red);
     private readonly Button close;
     private bool sending, syncing;
 
@@ -128,8 +128,8 @@ public sealed class SecretInputWindow : Window
         this.finish = finish; this.loadKeys = loadKeys; this.completed = completed; model = new SecretInputModel(request);
         Title = request.Label; Width = 720; SizeToContent = SizeToContent.Height; WindowStartupLocation = WindowStartupLocation.CenterOwner; Background = FormKit.Canvas;
         Opened += (_, _) => { if (Screens.ScreenFromWindow(this) is { } screen) MaxHeight = screen.WorkingArea.Height / screen.Scaling; };
-        Search = BigField("名前や保管庫で絞り込む");
-        Reference = BigField("op://保管庫/アイテム/フィールド");
+        Search = BigField(LinuxStrings.RequestCards_SecretInputWindow_1);
+        Reference = BigField(LinuxStrings.RequestCards_SecretInputWindow_2);
         // The Mac TextEditor has no hint; the box keeps its own name for screen readers.
         Paste = FormKit.Field("", "", multiline: true, minHeight: 120, fontSize: 16); Paste.FontFamily = BellTheme.Mono; AutomationProperties.SetName(Paste, request.Label);
         // The Mac SecureField: the label is the hint.
@@ -144,10 +144,10 @@ public sealed class SecretInputWindow : Window
         unsupportedRow = FormKit.Row(unsupported); top.Add(unsupportedRow);
         onePasswordChoice.GroupName = inputChoice.GroupName = "source";
         onePasswordChoice.IsCheckedChanged += (_, _) => { if (onePasswordChoice.IsChecked == true) ChooseSource(true); }; inputChoice.IsCheckedChanged += (_, _) => { if (inputChoice.IsChecked == true) ChooseSource(false); };
-        choices = FormKit.Section("入力方法", new FormGroup(onePasswordChoice, inputChoice));
+        choices = FormKit.Section(LinuxStrings.RequestCards_SecretInputWindow_3, new FormGroup(onePasswordChoice, inputChoice));
 
         statusRow = FormKit.Row(pickerStatus); searchRow = FormKit.Row(Search);
-        retryRow = Divided(FormKit.Row(FormKit.LinkButton("もう一度読み込む", () => KeysReady = LoadKeysAsync()))); countRow = Divided(FormKit.Row(count));
+        retryRow = Divided(FormKit.Row(FormKit.LinkButton(LinuxStrings.MemberFolderView_MemberTerminalSection_2, () => KeysReady = LoadKeysAsync()))); countRow = Divided(FormKit.Row(count));
         pickerCard = Card(statusRow, retryRow, searchRow, countRow, keysHost); referenceCard = Card(FormKit.Row(Reference)); pasteCard = Card(FormKit.Row(Paste)); passwordCard = Card(FormKit.Row(Input));
         var value = new StackPanel { Children = { pickerCard, referenceCard, pasteCard, passwordCard } };
 
@@ -158,10 +158,10 @@ public sealed class SecretInputWindow : Window
 
         close = new Button
         {
-            Classes = { "plain" }, Content = "閉じる", Padding = new Thickness(16, 7), CornerRadius = new CornerRadius(99), FontWeight = FontWeight.Normal, Foreground = BellTheme.Ink, Background = new SolidColorBrush(Color.Parse("#80FFFFFF")),
+            Classes = { "plain" }, Content = LinuxStrings.ApprovalsViews_NotUsable_1, Padding = new Thickness(16, 7), CornerRadius = new CornerRadius(99), FontWeight = FontWeight.Normal, Foreground = BellTheme.Ink, Background = new SolidColorBrush(Color.Parse("#80FFFFFF")),
             BorderBrush = new SolidColorBrush(Color.Parse("#C9C4DE")), BorderThickness = new Thickness(1), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0)
         };
-        AutomationProperties.SetName(close, "閉じる"); close.Click += (_, _) => Close();
+        AutomationProperties.SetName(close, LinuxStrings.ApprovalsViews_NotUsable_1); close.Click += (_, _) => Close();
         var heading = FormKit.Text(request.Label, 15, BellTheme.Ink, FontWeight.SemiBold); heading.HorizontalAlignment = HorizontalAlignment.Center; heading.VerticalAlignment = VerticalAlignment.Center;
         var header = new Grid { Height = 52, Children = { heading, close } }; DockPanel.SetDock(header, Dock.Top);
         Content = new DockPanel { Children = { header, new ScrollViewer { Content = form, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled } } };
@@ -237,7 +237,7 @@ public sealed class SecretInputWindow : Window
             var content = new StackPanel { Children = { new TextBlock { Text = key.Title, FontSize = 16 } } };
             if (!string.IsNullOrEmpty(key.Vault)) content.Children.Add(FormKit.Text(key.Vault, 13, BellTheme.Secondary, margin: new Thickness(0, 2, 0, 0)));
             var choice = new ChoiceRow { GroupName = "keys", Caption = content, IsChecked = model.Reference == key.Reference };
-            AutomationProperties.SetName(choice, key.Title + (string.IsNullOrEmpty(key.Vault) ? "" : "（" + key.Vault + "）"));
+            AutomationProperties.SetName(choice, key.Title + (string.IsNullOrEmpty(key.Vault) ? "" : LinuxStrings.RequestCards_RefreshKeys_1(key.Vault)));
             choice.IsCheckedChanged += (_, _) => { if (choice.IsChecked != true) return; model.Reference = key.Reference; UpdateButtons(); };
             keysHost.Children.Add(new StackPanel { Children = { Divider(), choice } });
         }
@@ -268,7 +268,7 @@ public sealed class SecretInputWindow : Window
         catch (Exception)
         {
             // 入力値を含み得る例外の本文・スタックを画面やログへ渡さない。
-            ErrorText.Text = "登録結果を確認できませんでした。閉じて最新の状態を確認してください。";
+            ErrorText.Text = LinuxStrings.RequestCards_SubmitAsync_1;
             return;
         }
         finally
@@ -303,15 +303,15 @@ public sealed class QuestionCard(LinuxWorkspace workspace, string author) : Stac
         if (current is { } old && old.Id == question.Id && old.Status == question.Status && old.Question == question.Question && old.AllowOther == question.AllowOther && old.Answer == question.Answer && old.Options.SequenceEqual(question.Options))
         {
             current = question; currentAuthor = sender;
-            title!.Text = currentAuthor + " · 選んでほしいこと";
+            title!.Text = LinuxStrings.RequestCards_Update_7(currentAuthor);
             return;
         }
         current = question; currentAuthor = sender; Children.Clear(); inputs.Clear();
-        var header = (StackPanel)SecretCard.CardTitle(RequestIcons.List, currentAuthor + " · 選んでほしいこと"); title = (TextBlock)header.Children[1];
+        var header = (StackPanel)SecretCard.CardTitle(RequestIcons.List, LinuxStrings.RequestCards_Update_7(currentAuthor)); title = (TextBlock)header.Children[1];
         Children.Add(header);
         Children.Add(SecretCard.CardBody(question.Question));
-        if (question.Status == "answered") { Children.Add(SecretCard.CardStatus(Icons.Check, "回答: " + question.Answer, strong: true)); return; }
-        if (question.Status != "open") { Children.Add(SecretCard.CardText("不明な回答状態: " + question.Status, error: true)); return; }
+        if (question.Status == "answered") { Children.Add(SecretCard.CardStatus(Icons.Check, LinuxStrings.MachineCards_DrawQuestions_1(question.Answer), strong: true)); return; }
+        if (question.Status != "open") { Children.Add(SecretCard.CardText(LinuxStrings.RequestCards_Update_10(question.Status), error: true)); return; }
         var choices = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
         foreach (var option in question.Options)
         {
@@ -321,9 +321,9 @@ public sealed class QuestionCard(LinuxWorkspace workspace, string author) : Stac
         Children.Add(choices);
         if (question.AllowOther)
         {
-            var other = new TextBox { AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MaxHeight = 110, IsEnabled = !sending, FontSize = 14, Padding = new Thickness(8, 6), PlaceholderText = "その他（文章で答える）", PlaceholderForeground = BellTheme.Muted, Background = Brushes.White, BorderBrush = BellTheme.Line, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8) };
+            var other = new TextBox { AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MaxHeight = 110, IsEnabled = !sending, FontSize = 14, Padding = new Thickness(8, 6), PlaceholderText = LinuxStrings.MachineCards_DrawChoices_1, PlaceholderForeground = BellTheme.Muted, Background = Brushes.White, BorderBrush = BellTheme.Line, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8) };
             ScrollViewer.SetVerticalScrollBarVisibility(other, ScrollBarVisibility.Auto);
-            var send = MacUi.Bordered("送る", () => { if (!string.IsNullOrWhiteSpace(other.Text)) _ = AnswerAsync(question.Id, null, other.Text); }); send.VerticalAlignment = VerticalAlignment.Bottom; send.IsEnabled = false; send.Margin = new Thickness(8, 0, 0, 0);
+            var send = MacUi.Bordered(LinuxStrings.MachineCards_DrawQuestions_2, () => { if (!string.IsNullOrWhiteSpace(other.Text)) _ = AnswerAsync(question.Id, null, other.Text); }); send.VerticalAlignment = VerticalAlignment.Bottom; send.IsEnabled = false; send.Margin = new Thickness(8, 0, 0, 0);
             other.OnText(() => send.IsEnabled = !sending && !string.IsNullOrWhiteSpace(other.Text));
             DockPanel.SetDock(send, Dock.Right);
             var row = new DockPanel { Margin = new Thickness(0, 4, 0, 0), Children = { send, other } };
@@ -339,7 +339,7 @@ public sealed class QuestionCard(LinuxWorkspace workspace, string author) : Stac
         if (sending) return;
         sending = true; foreach (var control in inputs) control.IsEnabled = false; if (sendOther is not null) sendOther.IsEnabled = false; error.Text = ""; error.IsVisible = false;
         try { Update(await workspace.AnswerAsync(id, choice, text)); }
-        catch (Exception exception) { error.Text = "操作の結果を確認できませんでした。現在の状態を更新して確認してください。\n" + exception.Message; error.IsVisible = true; }
+        catch (Exception exception) { error.Text = LinuxStrings.MachineCards_AnswerAsync_1(exception.Message); error.IsVisible = true; }
         finally { sending = false; foreach (var control in inputs) control.IsEnabled = true; if (sendOther is not null) sendOther.IsEnabled = !string.IsNullOrWhiteSpace(otherInput?.Text); }
     }
 }

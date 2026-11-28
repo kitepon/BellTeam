@@ -13,17 +13,19 @@ namespace BellTeam.Core;
 // is shown as sent; every text defaults to macOS wording.
 public static class TerminalOS
 {
-    public const string Macos = "macos", Windows = "windows", Linux = "linux";
+    public const string Macos = "macos";
+    public const string Windows = "windows";
+    public const string Linux = "linux";
     public static readonly string[] All = [Macos, Windows, Linux];
     public static string Label(string os) => os switch { Macos => "macOS", Windows => "Windows", Linux => "Linux", _ => os };
     // The terminal as the noun of a sentence.
-    public static string Machine(string os) => os switch { Macos => "Mac", Windows => "Windows PC", Linux => "Linuxマシン", _ => "端末" };
+    public static string Machine(string os) => os switch { Macos => "Mac", Windows => "Windows PC", Linux => CoreStrings.Terminals_Machine_1, _ => CoreStrings.SettingsStatus_Title_4 };
     // The one step that lets BellTeam reach the terminal over SSH (terminals CONNECTION_REFUSED action, per OS).
     public static string SshStep(string os) => os switch
     {
-        Windows => "Windowsの「設定 > システム > オプション機能」でOpenSSH サーバーを追加し、sshdサービスを開始してください。",
-        Linux => "Linuxにopenssh-serverを入れて、sshdを開始してください（systemctl enable --now ssh）。",
-        _ => "Macの「システム設定 > 一般 > 共有」で「リモートログイン」をオンにしてください。"
+        Windows => CoreStrings.Terminals_SshStep_1,
+        Linux => CoreStrings.Terminals_SshStep_2,
+        _ => CoreStrings.Terminals_SshStep_3
     };
     // Windows has no sudo key (terminals: a sudoKeyRef on a windows record is refused).
     public static bool UsesSudoKey(string os) => os != Windows;
@@ -32,7 +34,7 @@ public static class TerminalOS
 public enum TerminalKeyKind { Ssh, Sudo }
 public static class TerminalKeyKinds
 {
-    public static string Title(this TerminalKeyKind kind) => kind == TerminalKeyKind.Ssh ? "SSH鍵" : "sudo鍵";
+    public static string Title(this TerminalKeyKind kind) => kind == TerminalKeyKind.Ssh ? CoreStrings.Terminals_Title_1 : CoreStrings.Terminals_Title_2;
     public static string Wire(this TerminalKeyKind kind) => kind == TerminalKeyKind.Ssh ? "ssh" : "sudo";
 }
 
@@ -42,17 +44,17 @@ public enum TerminalKeyStatus { Unsupported, Missing, Pending, Configured }
 public sealed record TerminalKeyState(TerminalKeyStatus Status, bool Configured = false, string? Source = null)
 {
     public static readonly TerminalKeyState Unsupported = new(TerminalKeyStatus.Unsupported), Missing = new(TerminalKeyStatus.Missing);
-    public static string SourceLabel(string source) => source == "terminal-native" ? "端末にある鍵" : "BellTeamに預けた鍵";
+    public static string SourceLabel(string source) => source == "terminal-native" ? CoreStrings.Terminals_SourceLabel_1 : CoreStrings.Terminals_SourceLabel_2;
     public string Text => Status switch
     {
-        TerminalKeyStatus.Unsupported => "このBellTeamはまだアプリからの鍵の設定に対応していません",
-        TerminalKeyStatus.Missing => "未設定",
-        TerminalKeyStatus.Pending => "設定待ち",
-        _ => "設定済み"
+        TerminalKeyStatus.Unsupported => CoreStrings.Terminals_Text_1,
+        TerminalKeyStatus.Missing => CoreStrings.PlanningModels_StatusText_4,
+        TerminalKeyStatus.Pending => CoreStrings.Terminals_Text_3,
+        _ => CoreStrings.SettingsStatus_Terminals_8
     };
     // A configured key stays in use until a pending one binds, so its source is shown in both states.
     public string? SourceText => Status is TerminalKeyStatus.Configured or TerminalKeyStatus.Pending ? Source : null;
-    public string SetTitle => Status == TerminalKeyStatus.Configured || Status == TerminalKeyStatus.Pending && Configured ? "設定し直す" : "設定する";
+    public string SetTitle => Status == TerminalKeyStatus.Configured || Status == TerminalKeyStatus.Pending && Configured ? CoreStrings.Terminals_SetTitle_1 : CoreStrings.Terminals_SetTitle_2;
     public bool Removable => Status is TerminalKeyStatus.Configured or TerminalKeyStatus.Pending;
 }
 
@@ -61,10 +63,10 @@ public sealed record TerminalMaintenance(string? ObservedAt, string? Before, str
 {
     public string Text => Outcome switch
     {
-        "current" => "Claude Codeは最新です" + (After is null ? "" : $"（{After}）"),
-        "updated" => "Claude Codeを更新しました" + ((Before ?? After) is null ? "" : $"（{Before ?? "-"} → {After ?? "-"}）"),
-        "failed" => "Claude Codeを更新できませんでした。入っている版のまま使います",
-        _ => "Claude Codeの更新結果を読み取れませんでした"
+        "current" => CoreStrings.Terminals_Text_6((After is null ? "" : CoreStrings.AppLogin_RefusedText_4(After))),
+        "updated" => CoreStrings.Terminals_Text_8(((Before ?? After) is null ? "" : CoreStrings.Terminals_Text_7(Before ?? "-", After ?? "-"))),
+        "failed" => CoreStrings.Terminals_Text_9,
+        _ => CoreStrings.Terminals_Text_10
     };
 }
 
@@ -97,7 +99,7 @@ public sealed record Terminal
 
     public string Address => $"{User}@{Host}:{Port}";
     public string OsLabel => TerminalOS.Label(Os);
-    public string OwnerLabel => AccountOwner == "terminal-owner" ? "その端末の持ち主" : "自分の端末";
+    public string OwnerLabel => AccountOwner == "terminal-owner" ? CoreStrings.Terminals_OwnerLabel_1 : CoreStrings.Terminals_OwnerLabel_2;
 
     public TerminalKeyState Key(TerminalKeyKind kind)
     {
@@ -118,11 +120,11 @@ public sealed class TerminalReader : JsonConverter<Terminal>
     {
         using var document = JsonDocument.ParseValue(ref reader);
         var e = document.RootElement;
-        if (e.ValueKind != JsonValueKind.Object) throw new JsonException("端末の形が違います。");
+        if (e.ValueKind != JsonValueKind.Object) throw new JsonException(CoreStrings.Terminals_Read_1);
         var ssh = Flag(e, "sshKeyPending");
         return new Terminal
         {
-            TerminalId = Text(e, "terminalId") ?? throw new JsonException("terminalIdがありません。"),
+            TerminalId = Text(e, "terminalId") ?? throw new JsonException(CoreStrings.Terminals_Read_2),
             Host = Text(e, "host") ?? "", User = Text(e, "user") ?? "", Port = Port(e), Os = Text(e, "os") ?? TerminalOS.Macos, AccountOwner = Text(e, "accountOwner") ?? "owner",
             SshKeyConfigured = Flag(e, "sshKeyConfigured") ?? false, SudoKeyConfigured = Flag(e, "sudoKeyConfigured") ?? false,
             HostTrusted = e.TryGetProperty("hostTrust", out var trust) && trust.ValueKind == JsonValueKind.Object,
@@ -136,11 +138,11 @@ public sealed class TerminalReader : JsonConverter<Terminal>
     public override void Write(Utf8JsonWriter writer, Terminal value, JsonSerializerOptions options) => throw new NotSupportedException();
 
     private static string? Text(JsonElement e, string name)
-        => !e.TryGetProperty(name, out var value) || value.ValueKind == JsonValueKind.Null ? null : value.ValueKind == JsonValueKind.String ? value.GetString() : throw new JsonException(name + "が文字列ではありません。");
+        => !e.TryGetProperty(name, out var value) || value.ValueKind == JsonValueKind.Null ? null : value.ValueKind == JsonValueKind.String ? value.GetString() : throw new JsonException(CoreStrings.Terminals_Text_11(name));
     private static bool? Flag(JsonElement e, string name)
-        => !e.TryGetProperty(name, out var value) || value.ValueKind == JsonValueKind.Null ? null : value.ValueKind is JsonValueKind.True or JsonValueKind.False ? value.GetBoolean() : throw new JsonException(name + "が真偽値ではありません。");
+        => !e.TryGetProperty(name, out var value) || value.ValueKind == JsonValueKind.Null ? null : value.ValueKind is JsonValueKind.True or JsonValueKind.False ? value.GetBoolean() : throw new JsonException(CoreStrings.Terminals_Flag_1(name));
     private static int Port(JsonElement e)
-        => !e.TryGetProperty("port", out var value) || value.ValueKind == JsonValueKind.Null ? 22 : value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var port) ? port : throw new JsonException("portが整数ではありません。");
+        => !e.TryGetProperty("port", out var value) || value.ValueKind == JsonValueKind.Null ? 22 : value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var port) ? port : throw new JsonException(CoreStrings.Terminals_Port_1);
     private static T? Lenient<T>(JsonElement e, string name, string[] fields, Func<string?[], T> build) where T : class
     {
         if (!e.TryGetProperty(name, out var value) || value.ValueKind != JsonValueKind.Object) return null;
@@ -190,7 +192,7 @@ public sealed record TerminalCheck
         }
     }
 
-    public string Summary => Reachable ? "つながる" : "つながらない";
+    public string Summary => Reachable ? CoreStrings.Terminals_Summary_1 : CoreStrings.Terminals_Summary_2;
 
     // Reasons are evidence, not diagnoses (terminals README step 4): the sentence names the likely fix. The server's own Japanese action
     // text wins when the body carries it; older bodies get the same meaning from here.
@@ -200,15 +202,15 @@ public sealed record TerminalCheck
         return Problem switch
         {
             null => null,
-            ProblemKind.Refused => ActionText ?? (os == TerminalOS.Macos ? "Macが接続を断りました。Macの「システム設定 > 一般 > 共有」で「リモートログイン」がオンか確かめてください。" : $"{machine}が接続を断りました。{TerminalOS.SshStep(os)}"),
-            ProblemKind.AuthFailed => ActionText ?? $"この鍵がまだ{machine}に入っていないかもしれません。",
+            ProblemKind.Refused => ActionText ?? (os == TerminalOS.Macos ? CoreStrings.Terminals_Explanation_1 : CoreStrings.Terminals_Explanation_2(machine, TerminalOS.SshStep(os))),
+            ProblemKind.AuthFailed => ActionText ?? CoreStrings.Terminals_Explanation_3(machine),
             ProblemKind.Unreachable => Reason == "UNREACHABLE"
-                ? $"{machine}が届きませんでした。{machine}が起きていて、同じネットワークにあるか確かめてください。起きれば自動で再開します。"
-                : "端末が眠っているか、ネットワークで届きません。端末が起きれば自動で再開します。",
-            ProblemKind.Credential => "SSH鍵がまだ無いか、使えません。下の「鍵」を確かめてください。",
-            ProblemKind.HostKey => "この端末のホスト鍵をまだ信用していないか、鍵が変わりました。「ホスト鍵を確かめる」から指紋を確かめてください。",
-            ProblemKind.NotFound => "この端末の登録が見つかりません。一覧を読み直してください。",
-            _ => "つながらない理由を読み取れませんでした。少し待ってから、もう一度確かめてください。"
+                ? CoreStrings.Terminals_Explanation_4(machine, machine)
+                : CoreStrings.Terminals_Explanation_5,
+            ProblemKind.Credential => CoreStrings.Terminals_Explanation_6,
+            ProblemKind.HostKey => CoreStrings.Terminals_Explanation_7,
+            ProblemKind.NotFound => CoreStrings.Terminals_Explanation_8,
+            _ => CoreStrings.Terminals_Explanation_9
         };
     }
     private string? ActionText => string.IsNullOrWhiteSpace(Action) ? null : Action.Trim();
@@ -233,8 +235,8 @@ public static class HostKeyFingerprint
     public static string? Problem(string value)
     {
         var text = value.Trim();
-        if (text.Length == 0) return "端末で読んだ指紋を入れてください。";
-        return TerminalPattern.Whole(text, "SHA256:[A-Za-z0-9+/]{43}") ? null : "指紋は「SHA256:」で始まり、続けて43文字です。端末に表示されたとおりに入れてください。";
+        if (text.Length == 0) return CoreStrings.Terminals_Problem_1;
+        return TerminalPattern.Whole(text, "SHA256:[A-Za-z0-9+/]{43}") ? null : CoreStrings.Terminals_Problem_2;
     }
 }
 
@@ -254,10 +256,10 @@ public sealed class TerminalDraft
     public Dictionary<TerminalField, string> Problems(bool isNew)
     {
         var result = new Dictionary<TerminalField, string>();
-        if (isNew && !TerminalPattern.Whole(TerminalId, "[a-z0-9][a-z0-9-]{0,62}")) result[TerminalField.TerminalId] = "端末IDは英小文字・数字・ハイフンで、先頭は英小文字か数字です（例 owner-macbook）。";
-        if (!ValidHost(Host)) result[TerminalField.Host] = "ホストはIPアドレスかホスト名だけを入れます（例 192.168.1.12）。user@・ポート・パスは含めません。";
-        if (!TerminalPattern.Whole(User, "[a-z_][a-z0-9_.-]*[$]?", RegexOptions.IgnoreCase)) result[TerminalField.User] = "ユーザーは端末にログインする名前です（例 kite）。";
-        if (PortNumber(Port) is null) result[TerminalField.Port] = "ポートは1から65535の数字です（ふつうは22）。";
+        if (isNew && !TerminalPattern.Whole(TerminalId, "[a-z0-9][a-z0-9-]{0,62}")) result[TerminalField.TerminalId] = CoreStrings.Terminals_Problems_1;
+        if (!ValidHost(Host)) result[TerminalField.Host] = CoreStrings.Terminals_Problems_2;
+        if (!TerminalPattern.Whole(User, "[a-z_][a-z0-9_.-]*[$]?", RegexOptions.IgnoreCase)) result[TerminalField.User] = CoreStrings.Terminals_Problems_3;
+        if (PortNumber(Port) is null) result[TerminalField.Port] = CoreStrings.Terminals_Problems_4;
         return result;
     }
 
@@ -284,8 +286,8 @@ public abstract record AuthorizeState
 
 public static class TerminalAuthorize
 {
-    public static string WaitingText(string os = TerminalOS.Macos) => $"{TerminalOS.Machine(os)}に鍵を入れています…";
-    public const string ReadFailedText = "状態を読み込めませんでした。つながり直したら続けます…";
+    public static string WaitingText(string os = TerminalOS.Macos) => CoreStrings.Terminals_WaitingText_1(TerminalOS.Machine(os));
+    public static string ReadFailedText  => CoreStrings.Terminals_ReadFailedText_1;
 
     // null = the key is on the terminal (AUTHORIZED / ALREADY_AUTHORIZED): the check runs by itself.
     public static AuthorizeNote? Note(string? outcome, string os = TerminalOS.Macos)
@@ -294,13 +296,13 @@ public static class TerminalAuthorize
         return (outcome ?? "") switch
         {
             "AUTHORIZED" or "ALREADY_AUTHORIZED" => null,
-            "PASSWORD_REJECTED" => new("パスワードが違いました。", true),
-            "PASSWORD_AUTH_DISABLED" => new($"この{m}はパスワードでのログインを受け付けていません。{m}の設定を変えるか、鍵をほかの方法で入れてください。"),
-            "AUTHORIZATION_UNCONFIRMED" => new("入れられたか確かめられませんでした。もう一度お試しください", true),
-            "TERMINAL_CHANGED" => new("入れている間に、端末の接続先が変わりました。もう一度お試しください。", true),
-            "TERMINAL_UNAVAILABLE" => new($"{m}につながりませんでした。{m}が起きていて同じネットワークにあるか確かめて、もう一度お試しください。", true),
-            "CREDENTIAL_UNAVAILABLE" => new("SSH鍵が使えませんでした。下の「鍵」で設定し直してから、もう一度お試しください。"),
-            _ => new($"{m}に鍵を入れられませんでした。もう一度お試しください。", true)
+            "PASSWORD_REJECTED" => new(CoreStrings.Terminals_Note_1, true),
+            "PASSWORD_AUTH_DISABLED" => new(CoreStrings.Terminals_Note_2(m, m)),
+            "AUTHORIZATION_UNCONFIRMED" => new(CoreStrings.Terminals_Note_3, true),
+            "TERMINAL_CHANGED" => new(CoreStrings.Terminals_Note_4, true),
+            "TERMINAL_UNAVAILABLE" => new(CoreStrings.Terminals_Note_5(m, m), true),
+            "CREDENTIAL_UNAVAILABLE" => new(CoreStrings.Terminals_Note_6),
+            _ => new(CoreStrings.Terminals_Note_7(m), true)
         };
     }
 
@@ -312,10 +314,10 @@ public static class TerminalAuthorize
         var code = TerminalErrorText.Code(error);
         return ((int)status, code) switch
         {
-            (409, "HOST_TRUST_MISSING") => new($"先にこの{m}を確かめてください。ホスト鍵を確かめる前は、パスワードを聞きません。"),
-            (409, "SSH_KEY_UNSET") => new("先にSSH鍵を設定してください。入れる鍵がまだありません。"),
-            (503, "CREDENTIAL_UNAVAILABLE") => new("いまはパスワードの入力欄を開けません。少し待ってから、もう一度お試しください。", true),
-            (404, not "TERMINAL_NOT_FOUND") => new($"このBellTeamはまだ、アプリから{m}に鍵を入れることに対応していません。"),
+            (409, "HOST_TRUST_MISSING") => new(CoreStrings.Terminals_Refusal_1(m)),
+            (409, "SSH_KEY_UNSET") => new(CoreStrings.Terminals_Refusal_2),
+            (503, "CREDENTIAL_UNAVAILABLE") => new(CoreStrings.Terminals_Refusal_3, true),
+            (404, not "TERMINAL_NOT_FOUND") => new(CoreStrings.Terminals_Refusal_4(m)),
             _ => null
         };
     }
@@ -338,10 +340,10 @@ public static class TerminalErrorText
     // The member save's input refusals (members C1), worded for the terminal's OS.
     public static string? Member(string code, string os = TerminalOS.Macos) => code switch
     {
-        "BOT_TERMINAL_ID_INVALID" => "端末の指定が正しくありません。一覧から端末を選び直してください。",
-        "BOT_PROJECT_ROOT_INVALID" when os == TerminalOS.Windows => "フォルダはドライブから始まる端末上の絶対パスにします（例 C:\\Users\\kite\\work\\app）。区切りは「\\」だけで、「/」「.」「..」や空の区切り、末尾の「\\」は使えません。",
-        "BOT_PROJECT_ROOT_INVALID" => "フォルダは「/」で始まる端末上の絶対パスにします（例 /Users/kite/work/app）。「.」「..」や空の区切り、末尾の「/」は使えません。",
-        "BOT_REMOTE_BINDING_INVALID" => "端末とフォルダは両方を指定します。BellTeamの中で動かす時は、両方を空にします。",
+        "BOT_TERMINAL_ID_INVALID" => CoreStrings.Terminals_Member_1,
+        "BOT_PROJECT_ROOT_INVALID" when os == TerminalOS.Windows => CoreStrings.Terminals_Member_2,
+        "BOT_PROJECT_ROOT_INVALID" => CoreStrings.Terminals_Member_3,
+        "BOT_REMOTE_BINDING_INVALID" => CoreStrings.Terminals_Member_4,
         _ => null
     };
 
@@ -355,26 +357,26 @@ public static class TerminalErrorText
                 case "INVALID_TERMINAL":
                     return (api.Message.StartsWith("BellTeam: ", StringComparison.Ordinal) ? api.Message[10..] : api.Message).Split(' ')[0] switch
                     {
-                        "host" => "ホストの形が違います。IPアドレスかホスト名だけを入れてください。",
-                        "user" => "ユーザーの形が違います。端末にログインする名前を入れてください。",
-                        "port" => "ポートは1から65535の数字にしてください。",
-                        "terminalId" => "端末IDは英小文字・数字・ハイフンにしてください。",
-                        "accountOwner" => "端末の持ち主を選び直してください。",
-                        _ => "入力の形が違います。各欄を確かめてください。"
+                        "host" => CoreStrings.Terminals_Message_1,
+                        "user" => CoreStrings.Terminals_Message_2,
+                        "port" => CoreStrings.Terminals_Message_3,
+                        "terminalId" => CoreStrings.Terminals_Message_4,
+                        "accountOwner" => CoreStrings.Terminals_Message_5,
+                        _ => CoreStrings.Terminals_Message_6
                     };
-                case "TERMINAL_NOT_FOUND": return "この端末の登録が見つかりません。一覧を読み直してください。";
-                case "TERMINAL_EXISTS": return "同じ端末IDがもう登録されています。別のIDにしてください。";
-                case "HOST_KEY_FINGERPRINT_MISMATCH": return "入れた指紋が端末の今のホスト鍵と一致しませんでした。信用し直していません。端末で指紋をもう一度確かめてください。";
-                case "INVALID_TERMINAL_STORE": return "BellTeamに保存された端末の一覧を読めませんでした。管理者に確かめてもらってください。";
-                case "TERMINALS_UNAVAILABLE": return "端末の機能が、いま本体で動いていません。少し待ってから、もう一度読み込んでください。";
-                case "KEY_IN_REQUEST_REFUSED": return "鍵の中身はこの画面から送りません。開いた入力欄だけに入れてください。";
-                case "INVALID_KEY_KIND": return "鍵の種類を読み取れませんでした。画面を開き直してください。";
-                case "CREDENTIAL_UNAVAILABLE": return "いまは鍵の入力欄を開けません。少し待ってから、もう一度試してください。";
-                case "TERMINAL_UNAVAILABLE": return "BellTeamが端末への接続を準備できませんでした。BellTeamのAitermを更新してから、もう一度試してください。";
-                case "TERMINAL_CHANGED": return "設定の途中で端末の接続先が変わりました。もう一度「設定する」を押してください。";
+                case "TERMINAL_NOT_FOUND": return CoreStrings.Terminals_Explanation_8;
+                case "TERMINAL_EXISTS": return CoreStrings.Terminals_Message_8;
+                case "HOST_KEY_FINGERPRINT_MISMATCH": return CoreStrings.Terminals_Message_9;
+                case "INVALID_TERMINAL_STORE": return CoreStrings.Terminals_Message_10;
+                case "TERMINALS_UNAVAILABLE": return CoreStrings.Terminals_Message_11;
+                case "KEY_IN_REQUEST_REFUSED": return CoreStrings.Terminals_Message_12;
+                case "INVALID_KEY_KIND": return CoreStrings.Terminals_Message_13;
+                case "CREDENTIAL_UNAVAILABLE": return CoreStrings.Terminals_Message_14;
+                case "TERMINAL_UNAVAILABLE": return CoreStrings.Terminals_Message_15;
+                case "TERMINAL_CHANGED": return CoreStrings.Terminals_Message_16;
             }
         }
-        return BellApiException.IsResultUnconfirmed(error) ? "操作の結果を確認できませんでした。再操作する前に、現在の状態を更新して確認してください。\n" + error.Message : error.Message;
+        return BellApiException.IsResultUnconfirmed(error) ? CoreStrings.ManagementModels_Failure_1(error.Message) : error.Message;
     }
 }
 
@@ -604,6 +606,6 @@ public sealed class TerminalsModel(TerminalsApi api, IThisPc? pc = null)
         try { await CheckAsync(id, token); }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (BellApiException error) when (error.RequiresLogin) { }
-        catch (Exception) { Authorizations[id] = new AuthorizeState.Shown(new($"鍵は{TerminalOS.Machine(os)}に入りました。つながるかは確かめられませんでした。「つながるか確かめる」を押してください。")); Notify(); }
+        catch (Exception) { Authorizations[id] = new AuthorizeState.Shown(new(CoreStrings.Terminals_AwaitKeyAuthorizationAsync_1(TerminalOS.Machine(os)))); Notify(); }
     }
 }

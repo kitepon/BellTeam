@@ -34,7 +34,7 @@ public sealed class SecretSubmission
     public static SecretSubmission Value(string value) => new(new() { ["value"] = value });
     public static SecretSubmission OnePassword(string reference) => new(new() { ["source"] = "onepassword", ["reference"] = reference.Trim() });
     // Same check as the Web and Mac cards; the server validates the full form.
-    public static string? ReferenceProblem(string reference) => reference.Trim().StartsWith("op://", StringComparison.Ordinal) ? null : "1Passwordの参照（op://で始まる）を入力してください。";
+    public static string? ReferenceProblem(string reference) => reference.Trim().StartsWith("op://", StringComparison.Ordinal) ? null : CoreStrings.SecretInput_ReferenceProblem_1;
 }
 
 // GET /api/secret-requests/{id}/onepassword-items -> { items: [{ title, vault, reference }] }. The reference is only submitted, never shown.
@@ -48,7 +48,7 @@ public sealed record OnePasswordKey(string Title, string? Vault, string Referenc
         return keys.Where(key => (!sudo || key.Reference.EndsWith("/password", StringComparison.Ordinal)) && (query.Length == 0 || $"{key.Title}\n{key.Vault}".Contains(query, StringComparison.OrdinalIgnoreCase))).ToArray();
     }
     // The first line above the rows. noun is 鍵 or パスワード.
-    public static string CountLine(int shown, string search, string noun) => shown > 0 ? $"{shown}件から選んでください" : $"「{search.Trim()}」に合う{noun}がありません";
+    public static string CountLine(int shown, string search, string noun) => shown > 0 ? CoreStrings.SecretInput_CountLine_1(shown) : CoreStrings.SecretInput_CountLine_2(search.Trim(), noun);
 }
 public sealed record OnePasswordKeysResponse { public OnePasswordKey[] Items { get; init; } = []; }
 
@@ -79,16 +79,16 @@ public sealed class SecretInputModel
     // An OpenSSH private key is multiline; a password box would drop its newlines.
     public bool Multiline => Request.Purpose == "terminal.ssh";
     public bool Sudo => Request.Purpose == "terminal.sudo";
-    public string Noun => Multiline ? "鍵" : "パスワード";
+    public string Noun => Multiline ? CoreStrings.SecretInput_Noun_1 : CoreStrings.SecretInput_Noun_2;
     public bool OnePasswordOffered => Request.OnePasswordOffered;
     // An SSH key or sudo card with 1Password connected picks an existing item by name; other cards type a reference.
     public bool Picker => (Multiline || Sudo) && OnePasswordOffered && Keys != KeyListState.Unsupported;
     public bool ChoicesShown => OnePasswordOffered && !((Multiline || Sudo) && Keys == KeyListState.Unsupported);
     // Both choices say where the value comes from; only the note says whether it is kept (Owner 2026-11-11).
-    public string OnePasswordChoice => Picker ? "1Passwordから選ぶ" : "1Passwordから読み出す";
-    public string InputChoice => Multiline ? "ここに貼り付ける" : "ここに入力する";
+    public string OnePasswordChoice => Picker ? CoreStrings.SecretInput_OnePasswordChoice_1 : CoreStrings.SecretInput_OnePasswordChoice_2;
+    public string InputChoice => Multiline ? CoreStrings.SecretInput_InputChoice_1 : CoreStrings.SecretInput_InputChoice_2;
     // Mac SecretInputSheet: the login password reads 「パスワードを渡す」, another one-time value 「渡して続ける」.
-    public string SubmitLabel => Request.IsLoginPassword ? "パスワードを渡す" : Request.UsedOnce ? "渡して続ける" : "登録して続ける";
+    public string SubmitLabel => Request.IsLoginPassword ? CoreStrings.SecretInput_SubmitLabel_1 : Request.UsedOnce ? CoreStrings.SecretInput_SubmitLabel_2 : CoreStrings.SecretInput_SubmitLabel_3;
     public bool Ready(string value) => UseOnePassword ? Reference.Trim().Length != 0 : value.Length != 0;
 
     public string Note
@@ -98,19 +98,19 @@ public sealed class SecretInputModel
             // The server words the login card per terminal OS (このMac／このPC／このLinux); the constant is only for a server that sends no message.
             if (Request.IsLoginPassword) return Request.Message.Length != 0 ? Request.Message : SecretRequest.LoginPasswordText;
             if (Request.IsOneTime) return SecretRequest.OneTimeText;
-            if (UseOnePassword) return Picker ? $"選んだ{Noun}は、使うときに1Passwordから読み出します。{Noun}は会話に送られません。" : "参照は会話に送信されません。値は1Passwordから読み出します。";
-            if (Sudo) return "sudoのパスワードを入力してください。1Passwordを使っている場合は、設定の「1Password連携」を済ませると、ここで一覧から選べます。値は会話に送信されず、BellTeamの利用者領域へ保存します。";
+            if (UseOnePassword) return Picker ? CoreStrings.SecretInput_Note_1(Noun, Noun) : CoreStrings.SecretInput_Note_2;
+            if (Sudo) return CoreStrings.SecretInput_Note_3;
             return Multiline
-                ? "秘密鍵（「-----BEGIN OPENSSH PRIVATE KEY-----」で始まる文字）をそのまま貼ってください。1Passwordを使っている場合は、設定の「1Password連携」を済ませると、ここで鍵を一覧から選べます。値は会話に送信されません。"
-                : "値は会話に送信されません。BellTeamの利用者領域へ保存します。";
+                ? CoreStrings.SecretInput_Note_4
+                : CoreStrings.SecretInput_Note_5;
         }
     }
     // Shown under the note when the server has no list (older body).
     public string? UnsupportedLine => (Multiline || Sudo) && OnePasswordOffered && Keys == KeyListState.Unsupported
-        ? Multiline ? "この版のサーバーには1Passwordの鍵の一覧がありません。鍵を貼り付けて保存してください。" : "この版のサーバーには1Passwordのパスワードの一覧がありません。パスワードを入力して保存してください。" : null;
-    public string EmptyLine => Multiline ? "1Passwordで読めるSSH鍵がありません。" : "1Passwordで読めるパスワードがありません。";
-    public string FailedLine => $"1Passwordの{Noun}一覧を読めませんでした。";
-    public string LoadingLine => $"1Passwordの{Noun}を読み込んでいます…";
+        ? Multiline ? CoreStrings.SecretInput_UnsupportedLine_1 : CoreStrings.SecretInput_UnsupportedLine_2 : null;
+    public string EmptyLine => Multiline ? CoreStrings.SecretInput_EmptyLine_1 : CoreStrings.SecretInput_EmptyLine_2;
+    public string FailedLine => CoreStrings.SecretInput_FailedLine_1(Noun);
+    public string LoadingLine => CoreStrings.SecretInput_LoadingLine_1(Noun);
 
     public OnePasswordKey[] Shown => OnePasswordKey.Choices(loaded, Sudo, Search);
     public string CountLine => OnePasswordKey.CountLine(Shown.Length, Search, Noun);

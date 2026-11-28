@@ -29,9 +29,9 @@ public sealed partial class SettingsWindow
 
     private void OpenTerminalEditor()
     {
-        if (TopLevel.GetTopLevel(pane) is not ISheetHost host) { workspace.ReportActionError("この画面では開けません。"); return; }
+        if (TopLevel.GetTopLevel(pane) is not ISheetHost host) { workspace.ReportActionError(LinuxStrings.SettingsTerminals_OpenTerminalEditor_1); return; }
         var view = new TerminalEditorView(workspace, workspace.Terminals, null) { Closer = host.CloseSheet };
-        host.OpenSheet("端末を追加", view);
+        host.OpenSheet(LinuxStrings.SettingsTerminals_OpenTerminalEditor_2, view);
     }
 }
 
@@ -43,5 +43,5 @@ internal sealed class NoThisPc : IThisPc
     public string UserName => Environment.UserName;
     public string UserDomain => Environment.UserDomainName;
     public Task<OpenSshState> OpenSshAsync(int port, CancellationToken token) => Task.FromResult(OpenSshState.Unknown);
-    public Task<string> ReadHostKeyAsync(CancellationToken token) => throw new NotSupportedException("このPCのホスト鍵はLinux版では読みません。");
+    public Task<string> ReadHostKeyAsync(CancellationToken token) => throw new NotSupportedException(LinuxStrings.SettingsTerminals_ReadHostKeyAsync_1);
 }

@@ -56,7 +56,7 @@ public sealed class FreedesktopNotificationSink(Func<INotificationBus>? createBu
         {
             await connecting.ConfigureAwait(false);
             var hints = new Dictionary<string, string> { ["desktop-entry"] = "bellteam" };
-            var id = await current.NotifyAsync(new NotifyCall("BellTeam", 0, "", message.Title, message.Body, [DefaultAction, "開く"], hints, -1)).ConfigureAwait(false);
+            var id = await current.NotifyAsync(new NotifyCall("BellTeam", 0, "", message.Title, message.Body, [DefaultAction, LinuxStrings.DesktopNotifications_ShowAsync_1], hints, -1)).ConfigureAwait(false);
             lock (gate) visible[id] = message;
         }
         catch (Exception error) { Fail(error); }
@@ -68,7 +68,7 @@ public sealed class FreedesktopNotificationSink(Func<INotificationBus>? createBu
         if (message is not null) activated?.Invoke(message.Server, message.Target);
     }
     private void OnClosed(uint id, uint reason) { lock (gate) visible.Remove(id); }
-    private void Fail(Exception error) => failed?.Invoke("デスクトップ通知を表示できませんでした。" + error.Message);
+    private void Fail(Exception error) => failed?.Invoke(LinuxStrings.DesktopNotifications_Fail_1(error.Message));
     public async Task StopAsync()
     {
         activated = null; failed = null;
@@ -87,12 +87,13 @@ public sealed class FreedesktopNotificationSink(Func<INotificationBus>? createBu
 // The real bus: org.freedesktop.Notifications on the session bus, through Tmds.DBus.Protocol (the package Avalonia already uses).
 internal sealed class DBusNotificationBus : INotificationBus
 {
-    private const string Service = "org.freedesktop.Notifications", Path = "/org/freedesktop/Notifications";
+    private const string Service = "org.freedesktop.Notifications";
+    private const string Path = "/org/freedesktop/Notifications";
     private DBusConnection? connection;
     private readonly List<IDisposable> watches = [];
     public async Task ConnectAsync(Action<uint, string> actionInvoked, Action<uint, uint> closed)
     {
-        var address = DBusAddress.Session ?? throw new InvalidOperationException("D-Busのセッションバスが見つかりません。");
+        var address = DBusAddress.Session ?? throw new InvalidOperationException(LinuxStrings.DesktopNotifications_ConnectAsync_1);
         var created = new DBusConnection(address);
         await created.ConnectAsync().ConfigureAwait(false);
         connection = created;
@@ -104,7 +105,7 @@ internal sealed class DBusNotificationBus : INotificationBus
     }
     public Task<uint> NotifyAsync(NotifyCall call)
     {
-        var current = connection ?? throw new InvalidOperationException("D-Busに接続していません。");
+        var current = connection ?? throw new InvalidOperationException(LinuxStrings.DesktopNotifications_NotifyAsync_1);
         using var writer = current.GetMessageWriter();
         writer.WriteMethodCallHeader(Service, Path, Service, "Notify", "susssasa{sv}i");
         writer.WriteString(call.AppName); writer.WriteUInt32(call.ReplacesId); writer.WriteString(call.Icon); writer.WriteString(call.Summary); writer.WriteString(call.Body);
@@ -115,7 +116,7 @@ internal sealed class DBusNotificationBus : INotificationBus
     }
     public Task CloseAsync(uint id)
     {
-        var current = connection ?? throw new InvalidOperationException("D-Busに接続していません。");
+        var current = connection ?? throw new InvalidOperationException(LinuxStrings.DesktopNotifications_NotifyAsync_1);
         using var writer = current.GetMessageWriter();
         writer.WriteMethodCallHeader(Service, Path, Service, "CloseNotification", "u");
         writer.WriteUInt32(id);
@@ -130,7 +131,7 @@ public sealed class DesktopNotifications(INotificationSink sink, SettingsStore s
     Task INotificationSwitch.SetEnabledAsync(bool enabled) => SetEnabledAsync(enabled);
     public bool Enabled { get; private set; }
     public string? Error { get; private set; }
-    public string Status => Error ?? (Enabled ? "アプリが起きている間だけ通知します。" : "通知はオフです。");
+    public string Status => Error ?? (Enabled ? LinuxStrings.DesktopNotifications_Status_1 : LinuxStrings.DesktopNotifications_Status_2);
     public event PropertyChangedEventHandler? PropertyChanged;
     private readonly SemaphoreSlim changing = new(1);
     private readonly SemaphoreSlim updateChanging = new(1);
@@ -148,8 +149,8 @@ public sealed class DesktopNotifications(INotificationSink sink, SettingsStore s
         }
         catch (Exception error)
         {
-            Enabled = false; Error = "通知の設定を変更できませんでした。" + error.Message;
-            try { await sink.StopAsync(); } catch (Exception cleanup) { Error += "\n通知の終了処理も完了できませんでした。" + cleanup.Message; }
+            Enabled = false; Error = LinuxStrings.DesktopNotifications_SetEnabledAsync_1(error.Message);
+            try { await sink.StopAsync(); } catch (Exception cleanup) { Error += LinuxStrings.DesktopNotifications_SetEnabledAsync_2(cleanup.Message); }
         }
         finally { Changed(nameof(Enabled)); Changed(nameof(Error)); Changed(nameof(Status)); changing.Release(); }
     }
@@ -163,8 +164,8 @@ public sealed class DesktopNotifications(INotificationSink sink, SettingsStore s
         }
         catch (Exception error)
         {
-            Enabled = false; Error = "通知を停止しました。" + error.Message;
-            try { await sink.StopAsync(); } catch (Exception cleanup) { Error += "\n通知の終了処理も完了できませんでした。" + cleanup.Message; }
+            Enabled = false; Error = LinuxStrings.DesktopNotifications_NotifyAsync_2(error.Message);
+            try { await sink.StopAsync(); } catch (Exception cleanup) { Error += LinuxStrings.DesktopNotifications_SetEnabledAsync_2(cleanup.Message); }
             Changed(nameof(Enabled)); Changed(nameof(Error)); Changed(nameof(Status));
         }
         finally { changing.Release(); }
@@ -172,7 +173,7 @@ public sealed class DesktopNotifications(INotificationSink sink, SettingsStore s
     public async Task NotifyUpdatesAsync(string server, UpdateCandidate[]? candidates)
     {
         if (candidates is null || !Enabled) return;
-        if (candidates.Length > 9 || candidates.Any(item => item is null || item.ComponentId is not ("container" or "web-gateway" or "notifications" or "members" or "conversation" or "execution" or "usage" or "memory" or "diagnostics") || item.Id is null || item.Id.Length != 64 || item.Id.Any(ch => ch is not (>= '0' and <= '9') and not (>= 'a' and <= 'f'))) || candidates.Select(item => item.ComponentId).Distinct().Count() != candidates.Length) throw new BellApiException("更新通知の候補を確認できません。");
+        if (candidates.Length > 9 || candidates.Any(item => item is null || item.ComponentId is not ("container" or "web-gateway" or "notifications" or "members" or "conversation" or "execution" or "usage" or "memory" or "diagnostics") || item.Id is null || item.Id.Length != 64 || item.Id.Any(ch => ch is not (>= '0' and <= '9') and not (>= 'a' and <= 'f'))) || candidates.Select(item => item.ComponentId).Distinct().Count() != candidates.Length) throw new BellApiException(LinuxStrings.DesktopNotifications_NotifyUpdatesAsync_1);
         await updateChanging.WaitAsync();
         try
         {
@@ -182,7 +183,7 @@ public sealed class DesktopNotifications(INotificationSink sink, SettingsStore s
                 var saved = settings.Load();
                 if (saved.UpdateNotifications.Any(item => item.Server == server && item.ComponentId == candidate.ComponentId && item.Id == candidate.Id)) continue;
                 settings.Save(saved with { UpdateNotifications = saved.UpdateNotifications.Where(item => item.Server != server || item.ComponentId != candidate.ComponentId).Append(new(server, candidate.ComponentId, candidate.Id)).ToArray() });
-                await NotifyAsync(new(server, null, "BellTeam", "更新があります。Updateで確認してください。", "update", candidate.Id));
+                await NotifyAsync(new(server, null, "BellTeam", LinuxStrings.DesktopNotifications_NotifyUpdatesAsync_2, "update", candidate.Id));
             }
         }
         finally { updateChanging.Release(); }
@@ -190,7 +191,7 @@ public sealed class DesktopNotifications(INotificationSink sink, SettingsStore s
     private async Task HandleFailureAsync(string error)
     {
         await changing.WaitAsync();
-        try { Enabled = false; Error = "通知を停止しました。" + error; try { await sink.StopAsync(); } catch (Exception cleanup) { Error += "\n通知の終了処理も完了できませんでした。" + cleanup.Message; } Changed(nameof(Enabled)); Changed(nameof(Error)); Changed(nameof(Status)); }
+        try { Enabled = false; Error = LinuxStrings.DesktopNotifications_NotifyAsync_2(error); try { await sink.StopAsync(); } catch (Exception cleanup) { Error += LinuxStrings.DesktopNotifications_SetEnabledAsync_2(cleanup.Message); } Changed(nameof(Enabled)); Changed(nameof(Error)); Changed(nameof(Status)); }
         finally { changing.Release(); }
     }
     public async ValueTask DisposeAsync() { await changing.WaitAsync(); try { Enabled = false; await sink.StopAsync(); } finally { changing.Release(); } }

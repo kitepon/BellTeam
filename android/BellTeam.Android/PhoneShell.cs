@@ -42,7 +42,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
     private readonly Border root = new() { Background = BellTheme.Canvas };
     private readonly StackPanel list = new();
     private readonly Dictionary<ChatTarget, ConversationRow> rows = [];
-    private readonly TextBox search = new() { Classes = { "bare" }, FontSize = 16, PlaceholderText = "メンバー・ルームを検索", MinHeight = 44, VerticalContentAlignment = VerticalAlignment.Center };
+    private readonly TextBox search = new() { Classes = { "bare" }, FontSize = 16, PlaceholderText = AndroidStrings.PhoneShell_search_1, MinHeight = 44, VerticalContentAlignment = VerticalAlignment.Center };
     private readonly TextBlock title = new() { FontSize = 17, FontWeight = FontWeight.SemiBold, Foreground = BellTheme.Ink, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly TextBlock status = new() { FontSize = 13, Foreground = BellTheme.Red, TextWrapping = TextWrapping.Wrap, IsVisible = false, Margin = new Thickness(12, 6) };
     private readonly Grid listPage = new() { RowDefinitions = new RowDefinitions("Auto,Auto,*"), Background = BellTheme.SidebarFill };
@@ -55,10 +55,10 @@ public sealed class PhoneShell : UserControl, IMessageHost
     private bool unreadNew; // a row arrived while the reader was away from the newest
     // The same button as the Linux window (a471-latest-button-android): 最新へ when away from the newest, 新着メッセージ when a row arrived below; a tap returns to the newest and follows again.
     private readonly SeatApprovalBar seatApprovalBar = new();
-    private readonly Button latest = new() { Classes = { "plain" }, Content = "最新へ ↓", HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 12), Background = BellTheme.ProminentFill, Foreground = Brushes.White, IsVisible = false };
+    private readonly Button latest = new() { Classes = { "plain" }, Content = AndroidStrings.PhoneShell_latest_1, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 12), Background = BellTheme.ProminentFill, Foreground = Brushes.White, IsVisible = false };
     private StackPanel? messageStack;
-    private readonly TextBox composer = new() { Classes = { "bare" }, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 24, MaxHeight = 124, FontSize = 16, PlaceholderText = "メッセージ" };
-    private readonly Button send = new() { Classes = { "plain" }, Content = "送信", Background = BellTheme.Violet, Foreground = Brushes.White, Padding = new Thickness(18, 10) };
+    private readonly TextBox composer = new() { Classes = { "bare" }, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 24, MaxHeight = 124, FontSize = 16, PlaceholderText = AndroidStrings.PhoneShell_composer_1 };
+    private readonly Button send = new() { Classes = { "plain" }, Content = AndroidStrings.PhoneShell_send_1, Background = BellTheme.Violet, Foreground = Brushes.White, Padding = new Thickness(18, 10) };
     private readonly TextBlock sendError = new() { Foreground = BellTheme.Red, FontSize = 14, TextWrapping = TextWrapping.Wrap, IsVisible = false };
     private readonly Button edit;
     private readonly Button attach = new() { Classes = { "plain" }, Content = Icons.Draw(Icons.Paperclip, 22, BellTheme.Violet), Background = Brushes.Transparent, Width = 44, Height = 44, Padding = default, VerticalAlignment = VerticalAlignment.Bottom };
@@ -94,8 +94,8 @@ public sealed class PhoneShell : UserControl, IMessageHost
         var searchBar = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(12, 8), Children = { new Border { Background = Brushes.White, CornerRadius = new CornerRadius(12), Padding = new Thickness(12, 0), Child = search }, settingsButton } };
         Grid.SetColumn(settingsButton, 1);
         approvalsEntry.Click += (_, _) => ShowApprovals();
-        var chart = SettingsUi.Capsule("工程表", Brushes.White, BellTheme.Ink, 12, 14, new Thickness(14, 8)); chart.Click += (_, _) => ShowLattice();
-        var graph = SettingsUi.Capsule("相関図", Brushes.White, BellTheme.Ink, 12, 14, new Thickness(14, 8)); graph.Click += (_, _) => ShowWorkGraph();
+        var chart = SettingsUi.Capsule(AndroidStrings.PhoneShell_PhoneShell_1, Brushes.White, BellTheme.Ink, 12, 14, new Thickness(14, 8)); chart.Click += (_, _) => ShowLattice();
+        var graph = SettingsUi.Capsule(AndroidStrings.PhoneShell_PhoneShell_2, Brushes.White, BellTheme.Ink, 12, 14, new Thickness(14, 8)); graph.Click += (_, _) => ShowWorkGraph();
         var entries = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(12, 0, 12, 8), Children = { approvalsEntry, chart, graph } };
         var barAndEntries = new StackPanel { Children = { searchBar, entries } };
         listPage.Children.Add(barAndEntries); Grid.SetRow(status, 1); listPage.Children.Add(status);
@@ -109,7 +109,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
         messageStack.PropertyChanged += (_, args) => { if (args.Property == BoundsProperty) FillScreen(); };
         messageColumn.Children.Add(messageStack); messageScroll.Content = messageColumn;
         Grid.SetRow(messageScroll, 1); Grid.SetRow(latest, 1);
-        latest.Click += (_, _) => { unreadNew = false; messageColumn.FollowNewest(); latest.IsVisible = false; }; Avalonia.Automation.AutomationProperties.SetName(latest, "最新へ");
+        latest.Click += (_, _) => { unreadNew = false; messageColumn.FollowNewest(); latest.IsVisible = false; }; Avalonia.Automation.AutomationProperties.SetName(latest, AndroidStrings.PhoneShell_PhoneShell_3);
         composer.TextChanged += (_, _) => { if (syncingComposer) return; syncingComposer = true; try { model.DraftText = composer.Text ?? ""; } finally { syncingComposer = false; } };
         send.Click += (_, _) => _ = model.SendAsync();
         attachmentScroll.Content = attachments;
@@ -128,7 +128,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
 
         var settingsBack = new Button { Classes = { "plain" }, Content = Icons.Draw(Icons.ChevronRight, 22, BellTheme.Ink), Background = Brushes.Transparent, RenderTransform = new ScaleTransform(-1, 1), Width = 52, Height = 52 };
         settingsBack.Click += (_, _) => ShowList();
-        var settingsHeader = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), Background = BellTheme.BandFill, Children = { settingsBack, new TextBlock { Text = "設定", FontSize = 17, FontWeight = FontWeight.SemiBold, Foreground = BellTheme.Ink, VerticalAlignment = VerticalAlignment.Center } } };
+        var settingsHeader = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), Background = BellTheme.BandFill, Children = { settingsBack, new TextBlock { Text = AndroidStrings.PhoneShell_PhoneShell_4, FontSize = 17, FontWeight = FontWeight.SemiBold, Foreground = BellTheme.Ink, VerticalAlignment = VerticalAlignment.Center } } };
         Grid.SetColumn(settingsHeader.Children[1], 1); settingsPage.Children.Add(settingsHeader);
         var pageHost = new Grid { Children = { listPage, conversationPage, settingsPage } };
         var column = new Grid { RowDefinitions = new RowDefinitions("*,Auto"), Children = { pageHost } };
@@ -210,9 +210,9 @@ public sealed class PhoneShell : UserControl, IMessageHost
     private async Task DeleteAccountAsync()
     {
         var failed = new DeletionFailures();
-        if (await PushRegistration.UnregisterAsync(model) is { } pushFailure) { failed.Add("通知の登録", pushFailure); ShowDeletionResult(AccountDeletionText.FailedTitle, failed.Text); return; }
-        if (approvalBox is { } device) try { await device.DeleteLocalAsync(); } catch (Exception error) { failed.Add("決裁箱のサインイン", error, (error as Kitepon.LoginBilling.LoginBillingException)?.Status ?? 0); }
-        try { AccountStore.Local?.SignOutLocal(); } catch (Exception error) { failed.Add("BellTeamの購読の確認", error); }
+        if (await PushRegistration.UnregisterAsync(model) is { } pushFailure) { failed.Add(AndroidStrings.PhoneShell_DeleteAccountAsync_1, pushFailure); ShowDeletionResult(AccountDeletionText.FailedTitle, failed.Text); return; }
+        if (approvalBox is { } device) try { await device.DeleteLocalAsync(); } catch (Exception error) { failed.Add(AndroidStrings.PhoneShell_DeleteAccountAsync_2, error, (error as Kitepon.LoginBilling.LoginBillingException)?.Status ?? 0); }
+        try { AccountStore.Local?.SignOutLocal(); } catch (Exception error) { failed.Add(AndroidStrings.PhoneShell_DeleteAccountAsync_3, error); }
         if (failed.Any) { ShowDeletionResult(AccountDeletionText.FailedTitle, failed.Text); return; }
         CloseAllPages();
         if (model.Server is { Length: > 0 } server && Uri.TryCreate(server, UriKind.Absolute, out _)) tokens.Clear(ServerOrigin.Parse(server));
@@ -227,7 +227,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
     private void ShowDeletionResult(string title, string body)
     {
         deletedLayer.Children.Clear();
-        deletedLayer.Children.Add(FormKit.AlertFrame(title, body, () => deletedLayer.IsVisible = false, new AlertChoice("閉じる", Bold: true)));
+        deletedLayer.Children.Add(FormKit.AlertFrame(title, body, () => deletedLayer.IsVisible = false, new AlertChoice(AndroidStrings.PhoneShell_ShowDeletionResult_1, Bold: true)));
         deletedLayer.IsVisible = true;
     }
 
@@ -275,19 +275,19 @@ public sealed class PhoneShell : UserControl, IMessageHost
     private void ShowApprovals(string? decisionId = null)
     {
         if (!model.Connected) return;
-        var window = ApprovalsWindow.Open(approvals, model, (project, card) => ShowLattice()?.OpenCard(project, card), botId => _ = OpenChatAsync(botId, "決裁のメンバーの会話が見つかりません。メンバーとルームの一覧を更新してください。"));
+        var window = ApprovalsWindow.Open(approvals, model, (project, card) => ShowLattice()?.OpenCard(project, card), botId => _ = OpenChatAsync(botId, AndroidStrings.PhoneShell_ShowApprovals_1));
         window.Compact = true; window.Show(); if (decisionId is not null) window.Select(decisionId);
     }
     private LatticeWindow? ShowLattice()
     {
         if (!model.Connected) return null;
-        var window = LatticeWindow.Open(model, botId => OpenChatAsync(botId, "工程表のメンバーの会話が見つかりません。メンバーとルームの一覧を更新してください。"), id => ShowApprovals(id));
+        var window = LatticeWindow.Open(model, botId => OpenChatAsync(botId, AndroidStrings.PhoneShell_ShowLattice_1), id => ShowApprovals(id));
         LatticeWindow.Compact = true; window.Show(); return window;
     }
     private void ShowWorkGraph()
     {
         if (!model.Connected) return;
-        WorkGraphWindow.Open(model, botId => OpenChatAsync(botId, "相関図のメンバーの会話が見つかりません。メンバーとルームの一覧を更新してください。")).Show();
+        WorkGraphWindow.Open(model, botId => OpenChatAsync(botId, AndroidStrings.PhoneShell_ShowWorkGraph_1)).Show();
     }
     // A member's chat opens over the pages, as from a notification.
     private async Task OpenChatAsync(string botId, string missing)
@@ -299,7 +299,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
     private void UpdateApprovalsEntry()
     {
         var view = Approvals.EntryView(approvals.Summary, null);
-        approvalsEntry.Content = view.Pending > 0 ? $"決裁箱 {view.Pending}" : "決裁箱"; approvalsEntry.IsEnabled = model.Connected;
+        approvalsEntry.Content = view.Pending > 0 ? AndroidStrings.PhoneShell_UpdateApprovalsEntry_1(view.Pending) : AndroidStrings.PhoneShell_UpdateApprovalsEntry_2; approvalsEntry.IsEnabled = model.Connected;
         Avalonia.Automation.AutomationProperties.SetName(approvalsEntry, view.Label);
     }
 
@@ -308,7 +308,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
         var quote = model.Quote;
         quoteBar.IsVisible = quote is not null;
         if (quote is null) return;
-        quoteName.Text = (quote.SenderName ?? "") + (quote.Part ? "の発言の一部への返信" : "への返信"); quoteText.Text = Timeline.QuoteBody(quote).ReplaceLineEndings(" ");
+        quoteName.Text = (quote.SenderName ?? "") + (quote.Part ? AndroidStrings.PhoneShell_UpdateQuoteBar_1 : AndroidStrings.PhoneShell_UpdateQuoteBar_2); quoteText.Text = Timeline.QuoteBody(quote).ReplaceLineEndings(" ");
         composer.Focus();
     }
 
@@ -318,7 +318,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
         if (TopLevel.GetTopLevel(this) is not { } top) return;
         try
         {
-            var files = await top.StorageProvider.OpenFilePickerAsync(new Avalonia.Platform.Storage.FilePickerOpenOptions { Title = "画像を添付", AllowMultiple = true, FileTypeFilter = [Avalonia.Platform.Storage.FilePickerFileTypes.ImageAll] });
+            var files = await top.StorageProvider.OpenFilePickerAsync(new Avalonia.Platform.Storage.FilePickerOpenOptions { Title = AndroidStrings.PhoneShell_AttachAsync_1, AllowMultiple = true, FileTypeFilter = [Avalonia.Platform.Storage.FilePickerFileTypes.ImageAll] });
             var paths = new List<string>();
             foreach (var file in files)
             {
@@ -328,7 +328,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
             }
             if (paths.Count != 0) await model.AttachFilesAsync(paths.ToArray());
         }
-        catch (Exception error) { model.ReportDraftError("画像を添付できませんでした。" + error.Message); }
+        catch (Exception error) { model.ReportDraftError(AndroidStrings.PhoneShell_AttachAsync_2(error.Message)); }
     }
 
     private void UpdateAttachments()
@@ -361,8 +361,8 @@ public sealed class PhoneShell : UserControl, IMessageHost
         if (sheetSaving is { } save) save.CanSaveChanged -= SheetSaveChanged;
         sheetSaving = null; sheetSave.IsVisible = false; sheetBody.Content = null; sheetLayer.IsVisible = false;
     }
-    public DestinationSheet ShowForwardSheet(TimelineMessage message) { CloseSheet(); var view = DestinationSheet.Forward(model, message, CloseSheet); OpenSheet("転送", view); return view; }
-    public void ShowPeerSheet(TimelineMessage message) { CloseSheet(); OpenSheet("メンバー間の連絡", new PeerMessageView(model, message)); }
+    public DestinationSheet ShowForwardSheet(TimelineMessage message) { CloseSheet(); var view = DestinationSheet.Forward(model, message, CloseSheet); OpenSheet(AndroidStrings.PhoneShell_ShowForwardSheet_1, view); return view; }
+    public void ShowPeerSheet(TimelineMessage message) { CloseSheet(); OpenSheet(AndroidStrings.PhoneShell_ShowPeerSheet_1, new PeerMessageView(model, message)); }
     public ImageGallery ShowGallery(string[] paths, int initial)
     {
         galleryLayer.Children.Clear();
@@ -387,7 +387,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
         if (target.Kind == "update") { CloseAllPages(); CloseSheet(); await ShowDetailedSettingsAsync(BellTeam.Linux.SettingsPage.Update); return; }
         if (target.Conversation is not { } conversation) return;
         var entry = model.Conversations.FirstOrDefault(item => item.Target == conversation);
-        if (entry is null) { model.ReportActionError("通知の会話が見つかりません。メンバーとルームの一覧を更新してください。"); return; }
+        if (entry is null) { model.ReportActionError(AndroidStrings.PhoneShell_RoutePush_1); return; }
         CloseAllPages(); CloseSheet(); ShowConversation(); await model.SelectAsync(entry);
     }
     // The QR's link opened this app (1.49): show the settings page, whose account card answers it. Before the connection, the Connected change below calls this again.
@@ -422,7 +422,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
     {
         var atBottom = messageScroll.Extent.Height - messageScroll.Viewport.Height - messageScroll.Offset.Y < 80;
         if (atBottom) unreadNew = false;
-        latest.Content = unreadNew ? "新着メッセージ ↓" : "最新へ ↓";
+        latest.Content = unreadNew ? AndroidStrings.PhoneShell_ShowLatestButton_1 : AndroidStrings.PhoneShell_latest_1;
         latest.IsVisible = !(atBottom && !unreadNew) && model.HasSelection && model.Messages.Count != 0;
     }
     private bool CanReadOlder() => model.HasSelection && model.HasMore && !model.Loading;

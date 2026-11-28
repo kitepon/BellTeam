@@ -40,14 +40,14 @@ public sealed class AvatarTile : Border
             if (entry?.Bot?.Avatar is { Length: > 0 } inline)
             {
                 try { var bitmap = await AvaloniaImageCodec.Instance.DecodeAsync(Convert.FromBase64String(inline[(inline.IndexOf(',') + 1)..])); if (Entry?.Bot?.Avatar == inline) { image.Source = bitmap; label.Text = ""; } }
-                catch (Exception error) { ToolTip.SetTip(this, "画像を読み込めませんでした。" + error.Message); label.Text = "!"; }
+                catch (Exception error) { ToolTip.SetTip(this, LinuxStrings.AvatarEditor_LoadAsync_2(error.Message)); label.Text = "!"; }
             }
             return;
         }
         try { var bitmap = await workspace.AvatarAsync(url); if (Entry?.AvatarUrl == url && Workspace == workspace) { image.Source = bitmap; label.Text = ""; roomSymbol.IsVisible = false; } }
         catch (Exception error)
         {
-            if (Entry?.AvatarUrl == url && Workspace == workspace) { label.Text = "!"; ToolTip.SetTip(this, "画像を読み込めませんでした。" + error.Message); }
+            if (Entry?.AvatarUrl == url && Workspace == workspace) { label.Text = "!"; ToolTip.SetTip(this, LinuxStrings.AvatarEditor_LoadAsync_2(error.Message)); }
         }
     }
     // Mac person.3.fill: three heads over three rounded bodies.

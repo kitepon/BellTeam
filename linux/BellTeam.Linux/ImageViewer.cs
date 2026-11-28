@@ -109,8 +109,8 @@ public static class ImageActions
         var extension = Path.GetExtension(name).TrimStart('.');
         var file = await top.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
-            Title = "画像を保存", SuggestedFileName = name, DefaultExtension = extension, ShowOverwritePrompt = true,
-            FileTypeChoices = [new FilePickerFileType("画像") { Patterns = [$"*.{extension}"] }]
+            Title = LinuxStrings.ImageViewer_SaveAsync_1, SuggestedFileName = name, DefaultExtension = extension, ShowOverwritePrompt = true,
+            FileTypeChoices = [new FilePickerFileType(LinuxStrings.AvatarEditor_Images_1) { Patterns = [$"*.{extension}"] }]
         });
         if (file is null) return null;
         await using var stream = await file.OpenWriteAsync(); await stream.WriteAsync(bytes); await stream.FlushAsync();
@@ -124,13 +124,13 @@ public static class ImageActions
         var file = Path.Combine(folder, name); await File.WriteAllBytesAsync(file, bytes);
         int code;
         try { code = await (open ?? XdgOpen)(file); }
-        catch (System.ComponentModel.Win32Exception error) { Console.Error.WriteLine("xdg-open を起動できませんでした: " + error.Message); code = 127; }
+        catch (System.ComponentModel.Win32Exception error) { Console.Error.WriteLine(LinuxStrings.ImageViewer_OpenWithAsync_1(error.Message)); code = 127; }
         if (code == 0) return;
-        Console.Error.WriteLine($"xdg-open が {code} で終了しました: {file}");
+        Console.Error.WriteLine(LinuxStrings.ImageViewer_OpenWithAsync_2(code, file));
         throw new InvalidOperationException(code is 3 or 127 ? OpenWithMissing : OpenWithFailed);
     }
-    public const string OpenWithMissing = "ほかのアプリで開けませんでした。この画像を開けるアプリが見つかりません。ダウンロードして、保存した画像を開いてください。";
-    public const string OpenWithFailed = "ほかのアプリで開けませんでした。ダウンロードして、保存した画像を開いてください。";
+    public static string OpenWithMissing  => LinuxStrings.ImageViewer_OpenWithMissing_1;
+    public static string OpenWithFailed  => LinuxStrings.ImageViewer_OpenWithFailed_1;
     private static async Task<int> XdgOpen(string file)
     {
         var info = new ProcessStartInfo("xdg-open") { UseShellExecute = false }; info.ArgumentList.Add(file);
@@ -140,7 +140,7 @@ public static class ImageActions
 
     public static async Task CopyAsync(TopLevel top, Bitmap bitmap)
     {
-        var clipboard = top.Clipboard ?? throw new InvalidOperationException("クリップボードを使えません。");
+        var clipboard = top.Clipboard ?? throw new InvalidOperationException(LinuxStrings.ImageViewer_CopyAsync_1);
         var item = new DataTransferItem(); item.SetBitmap(bitmap);
         var transfer = new DataTransfer(); transfer.Add(item);
         await clipboard.SetDataAsync(transfer);

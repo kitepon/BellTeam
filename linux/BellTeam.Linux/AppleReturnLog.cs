@@ -20,7 +20,7 @@ internal static class AppleReturnLog
             }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException)
             {
-                Console.Error.WriteLine("Appleの戻りの記録を書けませんでした。" + error.Message);   // a log that cannot be written never stops the sign-in; the reason goes to the process's own output
+                Console.Error.WriteLine(LinuxStrings.AppleReturnLog_Append_1(error.Message));   // a log that cannot be written never stops the sign-in; the reason goes to the process's own output
             }
         }
     }

@@ -70,32 +70,39 @@ public sealed record ApprovalEntryView(int Pending, bool Urgent, string Sub, str
 public static class Approvals
 {
     public const string SummarySchema = "bellteam.approvals-summary.v1";
-    public const string NotAvailable = "この端末では、決裁箱をまだ使えません。Approval Boxのアプリで答えてください。";
-    public const string Loading = "決裁を読んでいます…", Reconnect = "決裁箱に再接続しています…",
-        EmptyPending = "決裁はありません。AIが判断を求めると、ここに並びます。", EmptyHeld = "保留中の決裁はありません。", EmptyDone = "まだ済んだ決裁はありません。",
-        Retry = "いまは送れませんでした。答えは残っています。少し待って、もう一度押してください。",
-        HoldFailed = "いまは保留を切り替えられませんでした。少し待って、もう一度押してください。",
-        Waiting = "決裁箱の画面で、許可してください。終わると、ここが自動で読み込みます。", Denied = "許可されませんでした。もう一度つなげます。",
-        ConnectFailed = "いまは決裁箱につなげませんでした。少し待って、もう一度押してください。";
+    public static string NotAvailable  => CoreStrings.Approvals_NotAvailable_1;
+    public static string Loading  => CoreStrings.Approvals_Loading_1;
+    public static string Reconnect  => CoreStrings.Approvals_Reconnect_1;
+    public static string EmptyPending  => CoreStrings.Approvals_EmptyPending_1;
+    public static string EmptyHeld  => CoreStrings.Approvals_EmptyHeld_1;
+    public static string EmptyDone  => CoreStrings.Approvals_EmptyDone_1;
+    public static string Retry  => CoreStrings.Approvals_Retry_1;
+    public static string HoldFailed  => CoreStrings.Approvals_HoldFailed_1;
+    public static string Waiting  => CoreStrings.Approvals_Waiting_1;
+    public static string Denied  => CoreStrings.Approvals_Denied_1;
+    public static string ConnectFailed  => CoreStrings.Approvals_ConnectFailed_1;
     // The Approval Box device states (design peer-channel-signin.md section 3, Delta: the Japanese copy is the contract).
-    public const string DeviceSignedOut = "決裁箱を使うには、Approval Boxにサインインします。BellTeamのサインインとは別です。",
-        DevicePassEnded = "Approval Boxのサインインが終わりました。もう一度サインインしてください。",
-        DeviceAccountDeleted = "Approval Boxのアカウントは削除されました",
-        DeviceRemoved = "この端末は、ほかの端末から外されました。",
-        DeviceJoining = "この端末を決裁箱につないでいます…",
-        DeviceNeedsApproval = "この端末は、まだ承認されていません。Approval Boxを入れた手持ちの端末で承認してください。",
-        DeviceNotEntitled = "Approval Boxの契約が必要です。契約はApproval Boxのアプリで行います。",
-        DeviceUpdateNeeded = "この版では、決裁箱をまだ使えません。アプリを更新してください。",
-        DeviceUnknown = "届いたか分かりません。結果が出るまで待ってください。もう一度押しても、答えが二重になることはありません。";
-    public const string DeviceAskApproval = "承認をお願いする", DeviceApprovalHow = "Approval Boxのアプリで、この番号を入れるか、QRを読み取ってください。",
-        DeviceApprovalExpired = "承認の待ち時間が過ぎました。", DeviceApprovalFailed = "承認できませんでした。もう一度お願いしてください。";
-    public static string DeviceApprovalLeft(TimeSpan left) => left.TotalMinutes >= 1 ? $"あと{(int)Math.Ceiling(left.TotalMinutes)}分で切れます" : "まもなく切れます";
-    public const string DeviceSigningIn = "ブラウザでサインインしています…";
-    public const string DeviceHandoffHow = "Approval Boxのアプリで、設定の「ほかの端末をログインさせる」から読み取ってください。", DeviceHandoffStart = "QRでサインイン";
+    public static string DeviceSignedOut  => CoreStrings.Approvals_DeviceSignedOut_1;
+        public static string DevicePassEnded  => CoreStrings.Approvals_DevicePassEnded_1;
+        public static string DeviceAccountDeleted  => CoreStrings.Approvals_DeviceAccountDeleted_1;
+        public static string DeviceRemoved  => CoreStrings.Approvals_DeviceRemoved_1;
+        public static string DeviceJoining  => CoreStrings.Approvals_DeviceJoining_1;
+        public static string DeviceNeedsApproval  => CoreStrings.Approvals_DeviceNeedsApproval_1;
+        public static string DeviceNotEntitled  => CoreStrings.Approvals_DeviceNotEntitled_1;
+        public static string DeviceUpdateNeeded  => CoreStrings.Approvals_DeviceUpdateNeeded_1;
+        public static string DeviceUnknown  => CoreStrings.Approvals_DeviceUnknown_1;
+    public static string DeviceAskApproval  => CoreStrings.Approvals_DeviceAskApproval_1;
+    public static string DeviceApprovalHow  => CoreStrings.Approvals_DeviceApprovalHow_1;
+    public static string DeviceApprovalExpired  => CoreStrings.Approvals_DeviceApprovalExpired_1;
+    public static string DeviceApprovalFailed  => CoreStrings.Approvals_DeviceApprovalFailed_1;
+    public static string DeviceApprovalLeft(TimeSpan left) => left.TotalMinutes >= 1 ? CoreStrings.Approvals_DeviceApprovalLeft_1((int)Math.Ceiling(left.TotalMinutes)) : CoreStrings.Approvals_DeviceApprovalLeft_2;
+    public static string DeviceSigningIn  => CoreStrings.Approvals_DeviceSigningIn_1;
+    public static string DeviceHandoffHow  => CoreStrings.Approvals_DeviceHandoffHow_1;
+    public static string DeviceHandoffStart  => CoreStrings.Approvals_DeviceHandoffStart_1;
     // Delta (a490j review): never the runtime's own reason (an exception text); one fixed line.
-    public const string DeviceReconnecting = "つなぎ直しています";
-    public const string AmendedPlain = "内容が直されました。もう一度確かめてください。";   // client-v0.5.md section 7: a 409 on an answer
-    public static string Amended(string name) => $"答える前に、{name}が内容を直しました。もう一度、内容を確かめてください。";
+    public static string DeviceReconnecting  => CoreStrings.Approvals_DeviceReconnecting_1;
+    public static string AmendedPlain  => CoreStrings.Approvals_AmendedPlain_1;   // client-v0.5.md section 7: a 409 on an answer
+    public static string Amended(string name) => CoreStrings.Approvals_Amended_1(name);
 
     // ---- failure: HTTP answer -> kind of view
     public static ApprovalFailure FailureOf(int status, JsonElement? body)
@@ -120,30 +127,30 @@ public static class Approvals
     {
         var origin = decision.Origin; var member = origin?.Kind == "bellteam" && decision.Requester is { } requester ? requester : null;
         var unknown = member is null && origin?.Kind != "external";
-        var tool = unknown ? "出どころ不明" : origin?.Tool is { Length: > 0 } t ? t : "その他";
+        var tool = unknown ? CoreStrings.Approvals_OriginOf_1 : origin?.Tool is { Length: > 0 } t ? t : CoreStrings.Approvals_OriginOf_2;
         var session = origin?.SessionLabel is { Length: > 0 } s ? s : origin?.WorkLabel ?? "";
         var tile = origin?.Client is "claude-code" or "codex" or "cursor" ? "terminal" : origin?.Client is "claude.ai" or "chatgpt" ? "chat" : "globe";
-        var via = origin?.Via == "remote" ? "リモート接続" : origin?.Via == "connector" ? "コネクタ" : "";
-        var name = member is not null ? member.Name ?? "" : unknown ? "出どころ不明" : session.Length > 0 ? $"{tool} · {session}" : tool;
-        return new(member, unknown, member is null, tile, tool, session, via, name, member is not null ? member.Name ?? "" : unknown ? "出したAI" : tool);
+        var via = origin?.Via == "remote" ? CoreStrings.Approvals_OriginOf_3 : origin?.Via == "connector" ? CoreStrings.Approvals_OriginOf_4 : "";
+        var name = member is not null ? member.Name ?? "" : unknown ? CoreStrings.Approvals_OriginOf_1 : session.Length > 0 ? $"{tool} · {session}" : tool;
+        return new(member, unknown, member is null, tile, tool, session, via, name, member is not null ? member.Name ?? "" : unknown ? CoreStrings.Approvals_OriginOf_6 : tool);
     }
 
     // ---- time (JST)
     private static readonly TimeSpan Jst = TimeSpan.FromHours(9);
     private static DateTimeOffset? At(string? value) => DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var at) ? at : null;
     private static DateTime Local(DateTimeOffset value) => value.ToOffset(Jst).DateTime;
-    public static string Clock(string? value) => At(value) is { } at ? Local(at).ToString("HH:mm", CultureInfo.InvariantCulture) : "";
+    public static string Clock(string? value) => At(value) is { } at ? Local(at).ToString(CoreStrings.Pattern_TimePadded) : "";
     public static string AgeText(string? value, DateTimeOffset now)
     {
         if (At(value) is not { } at) return "";
         var minutes = (int)Math.Floor((now - at).TotalMinutes);
-        return minutes < 1 ? "たった今" : minutes < 60 ? $"{minutes}分前" : minutes < 1440 ? $"{minutes / 60}時間前" : LatticeStops.StopTime(value, now);
+        return minutes < 1 ? CoreStrings.Approvals_AgeText_1 : minutes < 60 ? CoreStrings.Approvals_AgeText_2(minutes) : minutes < 1440 ? CoreStrings.Approvals_AgeText_3(minutes / 60) : LatticeStops.StopTime(value, now);
     }
     public static string DayHeading(string? value, DateTimeOffset now)
     {
         if (At(value) is not { } at) return "";
         var day = Local(at).Date; var today = Local(now).Date;
-        return day == today ? "今日" : day == today.AddDays(-1) ? "昨日" : $"{day.Month}月{day.Day}日";
+        return day == today ? CoreStrings.Approvals_DayHeading_1 : day == today.AddDays(-1) ? CoreStrings.Approvals_DayHeading_2 : CoreStrings.Approvals_DayHeading_3(day.Month, day.Day);
     }
 
     // ---- list card
@@ -151,31 +158,31 @@ public static class Approvals
     public static IReadOnlyList<ApprovalBadge> BadgesOf(ViewDecision decision)
     {
         var list = new List<ApprovalBadge>();
-        if (decision.Status == "pending") list.Add(new("回答待ち", "vio", "inbox"));
-        if (decision.Status == "held") list.Add(new("保留", "pen", "pause"));
-        if (decision.Status == "answered") list.Add(new("回答済み", "ok", "seal"));
-        if (decision.Status == "cancelled") list.Add(new("取り下げ", "pen", "xmark"));
-        if (Open(decision) && decision.Urgency == "high") list.Add(new("急ぎ", "amb", "bolt"));
-        if (decision.Amended?.Is == true) list.Add(new("修正あり", "ind", "pencil"));
-        if (OriginOf(decision).External) list.Add(new("外部から", "pen", "globe"));
+        if (decision.Status == "pending") list.Add(new(CoreStrings.Approvals_BadgesOf_1, "vio", "inbox"));
+        if (decision.Status == "held") list.Add(new(CoreStrings.Approvals_BadgesOf_2, "pen", "pause"));
+        if (decision.Status == "answered") list.Add(new(CoreStrings.Approvals_BadgesOf_3, "ok", "seal"));
+        if (decision.Status == "cancelled") list.Add(new(CoreStrings.Approvals_BadgesOf_4, "pen", "xmark"));
+        if (Open(decision) && decision.Urgency == "high") list.Add(new(CoreStrings.Approvals_BadgesOf_5, "amb", "bolt"));
+        if (decision.Amended?.Is == true) list.Add(new(CoreStrings.Approvals_BadgesOf_6, "ind", "pencil"));
+        if (OriginOf(decision).External) list.Add(new(CoreStrings.Approvals_BadgesOf_7, "pen", "globe"));
         return list;
     }
     public static ApprovalNote LinkNote(ViewDecision decision)
     {
         var origin = OriginOf(decision); var link = decision.Link;
-        if (decision.Status == "held") return new(origin.External && link is null ? "保留中です" : "保留中です。戻すまで工程は待ちます", "plain");
-        if (link is null) return origin.External ? new("工程表とはつながっていません", "muted") : decision.NotLinked ? new("この決裁に合う工程は、工程表に見つかっていません", "muted") : new("工程表につなげています", "muted");
-        if (link.State == "diverged") return new("工程はすでに済みです。この決裁は、まだ答えられます。", "plain");
+        if (decision.Status == "held") return new(origin.External && link is null ? CoreStrings.Approvals_LinkNote_1 : CoreStrings.Approvals_LinkNote_2, "plain");
+        if (link is null) return origin.External ? new(CoreStrings.Approvals_LinkNote_3, "muted") : decision.NotLinked ? new(CoreStrings.Approvals_LinkNote_4, "muted") : new(CoreStrings.Approvals_LinkNote_5, "muted");
+        if (link.State == "diverged") return new(CoreStrings.Approvals_LinkNote_6, "plain");
         // by-decision gives ids and state only (no task title): the line says the task without naming it.
-        return new(link.Task?.Title is { Length: > 0 } name ? $"工程表「{name}」が、この回答を待っています" : "工程表の工程が、この回答を待っています", "link");
+        return new(link.Task?.Title is { Length: > 0 } name ? CoreStrings.Approvals_LinkNote_7(name) : CoreStrings.Approvals_LinkNote_8, "link");
     }
     public static ApprovalCardRow CardRow(ViewDecision decision, DateTimeOffset now)
     {
         var origin = OriginOf(decision); var badges = BadgesOf(decision); var note = LinkNote(decision); var chips = new List<string>();
-        if (At(decision.Deadline) is not null && Open(decision)) chips.Add($"期限 {LatticeStops.StopTime(decision.Deadline, now)}");
-        if (decision.Options?.Any(option => option.Recommended) == true) chips.Add("推奨あり");
+        if (At(decision.Deadline) is not null && Open(decision)) chips.Add(CoreStrings.Approvals_CardRow_1(LatticeStops.StopTime(decision.Deadline, now)));
+        if (decision.Options?.Any(option => option.Recommended) == true) chips.Add(CoreStrings.Approvals_CardRow_2);
         var done = decision.Status is "answered" or "cancelled";
-        var label = string.Join("、", badges.Select(b => b.Text).Append(decision.Title ?? "").Append(origin.Name).Append(chips.FirstOrDefault(chip => chip.StartsWith("期限", StringComparison.Ordinal)) ?? "").Append(note.Text).Where(part => part.Length > 0));
+        var label = string.Join(CoreStrings.Approvals_CardRow_3, badges.Select(b => b.Text).Append(decision.Title ?? "").Append(origin.Name).Append(chips.FirstOrDefault(chip => chip.StartsWith(CoreStrings.Approvals_CardRow_4, StringComparison.Ordinal)) ?? "").Append(note.Text).Where(part => part.Length > 0));
         return new(decision.Id ?? "", decision.Status ?? "", decision.Title ?? "", badges, note, chips, origin, decision.Urgency == "high" && !done,
             decision.Status == "held" ? LatticeStops.StopTime(decision.UpdatedAt, now) : AgeText(decision.CreatedAt, now), label);
     }
@@ -185,14 +192,14 @@ public static class Approvals
     public static string AnswerText(ViewDecision d)
     {
         if (d.Answer is not { } answer) return "";
-        if (answer.Text is { Length: > 0 } text) return $"あなたの指示：{text}";
-        return $"あなたの答え：{d.Options?.FirstOrDefault(option => option.Id == answer.OptionId)?.Label ?? ""}";
+        if (answer.Text is { Length: > 0 } text) return CoreStrings.Approvals_AnswerText_1(text);
+        return CoreStrings.Approvals_AnswerText_2(d.Options?.FirstOrDefault(option => option.Id == answer.OptionId)?.Label ?? "");
     }
     public static ApprovalBadge? DeliveryBadge(ViewDecision d)
         => d.Status != "answered" ? null : d.Delivery switch
         {
-            "unknown" => new("届いたか不明", "amb", ""), "waiting" => new("会話に戻ると届きます", "vio", ""), "delivered" or "fetched" => new("届きました", "ok", ""),
-            _ => new("届きを確認中", "pen", "")   // no value yet (or pending): never "届きました" because the status is answered
+            "unknown" => new(CoreStrings.Approvals_DeliveryBadge_1, "amb", ""), "waiting" => new(CoreStrings.Approvals_DeliveryBadge_2, "vio", ""), "delivered" or "fetched" => new(CoreStrings.Approvals_DeliveryBadge_3, "ok", ""),
+            _ => new(CoreStrings.Approvals_DeliveryBadge_4, "pen", "")   // no value yet (or pending): never "届きました" because the status is answered
         };
     public static IReadOnlyList<ApprovalDoneGroup> GroupDone(IEnumerable<ViewDecision> items, DateTimeOffset now)
     {
@@ -211,37 +218,37 @@ public static class Approvals
     public static string ConfirmText(ViewDecision decision, string label = "", string text = "")
     {
         var origin = OriginOf(decision); var title = decision.Link?.Task?.Title;
-        var head = text.Length > 0 ? "この指示を送りますか？ " : $"「{label}」で答えますか？ ";
-        return origin.External && decision.Link is null || string.IsNullOrEmpty(title) ? $"{head}答えると、{origin.Who}に届きます。" : $"{head}答えると、{origin.Who}が続きに進み、工程「{title}」が済みになります。";
+        var head = text.Length > 0 ? CoreStrings.Approvals_ConfirmText_1 : CoreStrings.Approvals_ConfirmText_2(label);
+        return origin.External && decision.Link is null || string.IsNullOrEmpty(title) ? CoreStrings.Approvals_ConfirmText_3(head, origin.Who) : CoreStrings.Approvals_ConfirmText_4(head, origin.Who, title);
     }
     public static ApprovalDeliveryNote DeliveryNote(ViewDecision decision)
     {
         var origin = OriginOf(decision); var who = origin.Who;
-        if (decision.Delivery is not ("waiting" or "unknown" or "delivered" or "fetched")) return new("pen", $"答えました。{who}への届きを確かめています。", false);   // nothing reported yet: grey, no paste request
-        if (decision.Delivery == "waiting") return new("vio", $"答えました。{who}が会話に戻ると受け取ります。", false);
+        if (decision.Delivery is not ("waiting" or "unknown" or "delivered" or "fetched")) return new("pen", CoreStrings.Approvals_DeliveryNote_1(who), false);   // nothing reported yet: grey, no paste request
+        if (decision.Delivery == "waiting") return new("vio", CoreStrings.Approvals_DeliveryNote_2(who), false);
         if (decision.Delivery == "unknown")
         {
-            var next = decision.Link is not null && !origin.External ? "工程は済みになったので、次の担当にはこちらから知らせます。" : "";
-            return new("amb", $"答えは保存しました。ただ、{who}に届いたかを確かめられませんでした。{next}念のため、再開の文を{who}の会話に貼ってください。", true);
+            var next = decision.Link is not null && !origin.External ? CoreStrings.Approvals_DeliveryNote_3 : "";
+            return new("amb", CoreStrings.Approvals_DeliveryNote_4(who, next, who), true);
         }
-        return new("ok", $"答えました。{who}に届きました。", false);
+        return new("ok", CoreStrings.Approvals_DeliveryNote_5(who), false);
     }
 
     // ---- 詳細
-    private static string Field(string field) => field switch { "options" => "選択肢", "title" => "題名", "context" => "背景", "deadline" => "期限", "urgency" => "急ぎ度", "recommendation" => "推奨", _ => "その他" };
+    private static string Field(string field) => field switch { "options" => CoreStrings.Approvals_Field_1, "title" => CoreStrings.Approvals_Field_2, "context" => CoreStrings.Approvals_Field_3, "deadline" => CoreStrings.Approvals_CardRow_4, "urgency" => CoreStrings.Approvals_Field_5, "recommendation" => CoreStrings.Approvals_Field_6, _ => CoreStrings.Approvals_OriginOf_2 };
     public static IReadOnlyList<ApprovalHistoryRow> HistoryRows(ViewDecision decision, DateTimeOffset now)
     {
         var who = OriginOf(decision).Who;
-        string Stamp(DateTimeOffset at) => Local(at).Date == Local(now).Date ? Clock(at.ToString("O")) : $"{Local(at).Month}/{Local(at).Day} {Clock(at.ToString("O"))}";
+        string Stamp(DateTimeOffset at) => Local(at).Date == Local(now).Date ? Clock(at.ToString("O")) : $"{Local(at).ToString(CoreStrings.Pattern_MonthDay)} {Clock(at.ToString("O"))}";
         return (decision.History ?? []).Select(item => (item, at: At(item.At))).Where(pair => pair.at is not null).Select(pair =>
         {
             var (item, at) = (pair.item, pair.at!.Value);
             var text = item.Kind switch
             {
-                "created" => $"{(item.By == "user" ? "あなた" : who)}が申請しました",
-                "amended" => $"{who}が内容を直しました{(item.Fields is { Length: > 0 } ? $"（{string.Join("、", item.Fields.Select(Field))}）" : "")}",
-                "held" => "あなたが保留にしました", "unheld" => "保留を戻しました", "answered" => "あなたが答えました", "cancelled" => $"{who}が取り下げました",
-                _ => "その他の動きがありました"
+                "created" => CoreStrings.Approvals_HistoryRows_2((item.By == "user" ? CoreStrings.Approvals_HistoryRows_1 : who)),
+                "amended" => CoreStrings.Approvals_HistoryRows_5(who, (item.Fields is { Length: > 0 } ? CoreStrings.AppLogin_RefusedText_4(string.Join(CoreStrings.Approvals_CardRow_3, item.Fields.Select(Field))) : "")),
+                "held" => CoreStrings.Approvals_HistoryRows_6, "unheld" => CoreStrings.Approvals_HistoryRows_7, "answered" => CoreStrings.Approvals_HistoryRows_8, "cancelled" => CoreStrings.Approvals_HistoryRows_9(who),
+                _ => CoreStrings.Approvals_HistoryRows_10
             };
             return new ApprovalHistoryRow(Stamp(at), item.Kind ?? "", text, item.Kind == "amended");
         }).ToList();
@@ -251,14 +258,14 @@ public static class Approvals
         var origin = OriginOf(decision); var link = decision.Link;
         if (link is null)
             return origin.External
-                ? new("unlinked", "つながっていません", ["この決裁は、BellTeamの外から届きました。工程は作りません。", $"答えは、出したAI（{origin.Tool}）へそのまま届きます。BellTeamの工程には何も起こりません。",
-                    "出したAIが、BellTeamの工程表の工程を指して申請した時だけ（セッション名に工程の宛先がある時）、通常の決裁と同じようにつながります。"], [], null, [], "", "", null)
-                : decision.NotLinked ? new("unlinked", "この決裁に合う工程は、工程表に見つかっていません", [], [], null, [], "", "", null)
-                : new("connecting", "工程表につなげています", [], [], null, [], "", "", null);
+                ? new("unlinked", CoreStrings.Approvals_LinkPanel_1, [CoreStrings.Approvals_LinkPanel_2, CoreStrings.Approvals_LinkPanel_3(origin.Tool),
+                    CoreStrings.Approvals_LinkPanel_4], [], null, [], "", "", null)
+                : decision.NotLinked ? new("unlinked", CoreStrings.Approvals_LinkNote_4, [], [], null, [], "", "", null)
+                : new("connecting", CoreStrings.Approvals_LinkNote_5, [], [], null, [], "", "", null);
         var next = link.Next?.FirstOrDefault(); var answered = link.State == "answered" || decision.Status == "answered"; var title = link.Task?.Title ?? "";
-        var named = title.Length > 0 ? $"工程「{title}」" : "工程";
-        var sentence = answered ? $"答えました。{named}は済みです。"
-            : $"答えると、{(title.Length > 0 ? $"「{title}」" : "工程")}が済みになり、{(next?.Title is { Length: > 0 } nextTitle ? $"{origin.Who}が「{nextTitle}」へ進めます。" : "次の工程へ進めます。")}答えで決まらない時は、新しい決裁が工程に差し込まれます。";
+        var named = title.Length > 0 ? CoreStrings.Approvals_LinkPanel_7(title) : CoreStrings.Approvals_LinkPanel_8;
+        var sentence = answered ? CoreStrings.Approvals_LinkPanel_9(named)
+            : CoreStrings.Approvals_LinkPanel_14((title.Length > 0 ? CoreStrings.Approvals_LinkPanel_10(title) : CoreStrings.Approvals_LinkPanel_8), (next?.Title is { Length: > 0 } nextTitle ? CoreStrings.Approvals_LinkPanel_12(origin.Who, nextTitle) : CoreStrings.Approvals_LinkPanel_13));
         var ids = link.Chart?.ProjectId is { Length: > 0 } project && link.Task?.CardId is { Length: > 0 } card ? new ApprovalLinkIds(project, card) : null;
         return new("linked", "", [], link.Previous ?? [], link.Task, link.Next ?? [], link.Chart?.Name ?? "", sentence, ids);
     }
@@ -299,7 +306,7 @@ public static class Approvals
     {
         var pending = summary?.Pending ?? 0;
         return new(pending, (summary?.Urgent ?? 0) > 0,
-            summary is not null ? (pending > 0 ? "あなたの回答を待っています" : "待っている決裁はありません") : status == ApprovalFailure.Old ? "このサーバーではまだ使えません" : "決裁箱を開く",
-            pending > 0 ? $"決裁箱、回答待ち{pending}件" : "決裁箱");
+            summary is not null ? (pending > 0 ? CoreStrings.Approvals_EntryView_1 : CoreStrings.Approvals_EntryView_2) : status == ApprovalFailure.Old ? CoreStrings.Approvals_EntryView_3 : CoreStrings.Approvals_EntryView_4,
+            pending > 0 ? CoreStrings.Approvals_EntryView_5(pending) : CoreStrings.Approvals_EntryView_6);
     }
 }

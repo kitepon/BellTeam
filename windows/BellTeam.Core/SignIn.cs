@@ -6,20 +6,20 @@ public enum SignInPhase { Entry, Waiting, ReturnNotReceived, NotOwner }
 
 public static class SignInText
 {
-    public const string Title = "BellTeamにサインイン";
-    public const string Apple = "Appleでサインイン";
-    public const string Google = "Googleでサインイン";
-    public const string Note = "ブラウザーが開きます。サインインが終わると、このアプリに戻ります。";
-    public const string Waiting = "ブラウザーでサインインしています…";
-    public const string Cancel = "やめる";
-    public const string ReturnNotReceived = "サインインの結果がこのアプリに届きませんでした。このパソコン自身のブラウザーで、もう一度サインインしてください。";
-    public const string NotOwner = "このサーバーの持ち主のアカウントではないため、ログインできませんでした。";
-    public const string SetupCodeLabel = "セットアップコード";
-    public const string SetupCodeInvalid = "セットアップコードが正しくないか、期限が切れています。サーバーに出ている新しいコードを入れてください。";
-    public const string SetupCodeRequired = "このサーバーには、サーバーに出ているセットアップコードが要ります。";
+    public static string Title  => CoreStrings.SignIn_Title_1;
+    public static string Apple  => CoreStrings.SignIn_Apple_1;
+    public static string Google  => CoreStrings.SignIn_Google_1;
+    public static string Note  => CoreStrings.SignIn_Note_1;
+    public static string Waiting  => CoreStrings.SignIn_Waiting_1;
+    public static string Cancel  => CoreStrings.AccountDeletionText_ConfirmNo_1;
+    public static string ReturnNotReceived  => CoreStrings.SignIn_ReturnNotReceived_1;
+    public static string NotOwner  => CoreStrings.AppLogin_RefusedText_1;
+    public static string SetupCodeLabel  => CoreStrings.SignIn_SetupCodeLabel_1;
+    public static string SetupCodeInvalid  => CoreStrings.SignIn_SetupCodeInvalid_1;
+    public static string SetupCodeRequired  => CoreStrings.SignIn_SetupCodeRequired_1;
     // app-sessions.md 7f (Mika), as written.
-    public const string AddressNotRegistered = "このサーバーは、この接続先を登録していません。サーバーのコンソールで追加するか、すでに入っているアプリから「いまの接続先を追加」してください。";
-    public const string ServerNotReady = "サーバーの準備中です。";
-    public const string Connecting = "つないでいます…";
-    public const string SetupCodeHint = "このサーバーのコンソールに出ているコードを入れてください。最初の1回だけ使います。";
+    public static string AddressNotRegistered  => CoreStrings.SignIn_AddressNotRegistered_1;
+    public static string ServerNotReady  => CoreStrings.SignIn_ServerNotReady_1;
+    public static string Connecting  => CoreStrings.ChildJoin_Joining_1;
+    public static string SetupCodeHint  => CoreStrings.SignIn_SetupCodeHint_1;
 }

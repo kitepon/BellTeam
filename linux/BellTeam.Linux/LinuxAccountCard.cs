@@ -161,7 +161,8 @@ public sealed class LinuxAccountCard : StackPanel
     }
 
     // 「アカウントを削除」: the last item, under a divider (Rapi's Mac reference). The subscription is the paying phone's store (a desktop never buys), so the words name no single store.
-    private const string Subscription = "購読は購入したストアのものなので、この操作では解約されません。解約は購入したストアの購読の管理から行ってください。", Cancel = "購読を止めるには、購入したストアの購読の管理から解約してください。";
+    private static string Subscription  => LinuxStrings.LinuxAccountCard_Subscription_1;
+        private static string Cancel  => LinuxStrings.LinuxAccountCard_Cancel_1;
     private void RenderDelete()
     {
         if (AccountDeletion.Run is null) return;

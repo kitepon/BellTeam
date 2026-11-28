@@ -35,7 +35,7 @@ public sealed record WorkGraphEdge(string Id, string? RequestId, string From, st
     /// <summary>Dash of the base line (6 pt line, 4 pt gap); the main seat is solid (empty).</summary>
     public double[] BaseDash => IsFork ? [6, 4] : [];
     /// <summary>The chip text: fork edges read 「分身：」 + label as one text; null or empty label means no chip.</summary>
-    public string? ChipText => string.IsNullOrEmpty(Label) ? null : (IsFork ? "分身：" : "") + Label;
+    public string? ChipText => string.IsNullOrEmpty(Label) ? null : (IsFork ? CoreStrings.WorkGraphModel_ChipText_1 : "") + Label;
 
     public static WorkGraphEdge FromJson(JsonElement json) => new(WorkGraphJson.Required(json, "id"), WorkGraphJson.Optional(json, "requestId"), WorkGraphJson.Required(json, "from"),
         WorkGraphJson.Required(json, "to"), WorkGraphJson.Optional(json, "label"), WorkGraphJson.Required(json, "state"), WorkGraphJson.Optional(json, "startedAt"),
@@ -304,7 +304,7 @@ public sealed class WorkGraphModel(Func<string, double> measureName)
             }
             catch (BellApiException error) when (error.RequiresLogin)
             {
-                Connection = WorkGraphConnection.Failed; FailedMessage = "ログインが必要です。";
+                Connection = WorkGraphConnection.Failed; FailedMessage = CoreStrings.WorkGraphModel_RunAsync_1;
                 return;
             }
             // An answer we cannot read still reconnects; the next readable snapshot clears it.

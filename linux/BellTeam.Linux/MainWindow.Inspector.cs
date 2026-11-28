@@ -33,7 +33,7 @@ public sealed partial class MainWindow
         inspector.Child = new Grid { Children = { inspectorScroll, ScreenPanel } };
         Grid.SetColumn(inspector, 3); main.Children.Add(inspector);
         inspectorToggle = new Button { Classes = { "plain" }, Width = 38, Height = 38, Padding = default, CornerRadius = new CornerRadius(19), Background = BellTheme.Violet, HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center, Content = Icons.Draw(InspectorIcons.Panel, 20, Brushes.White) };
-        AutomationProperties.SetName(inspectorToggle, "詳細パネル"); AutomationProperties.SetAutomationId(inspectorToggle, "inspector-toggle"); ToolTip.SetTip(inspectorToggle, "詳細パネル（Ctrl+Shift+I）");
+        AutomationProperties.SetName(inspectorToggle, LinuxStrings.MainWindow_Inspector_AddInspector_1); AutomationProperties.SetAutomationId(inspectorToggle, "inspector-toggle"); ToolTip.SetTip(inspectorToggle, LinuxStrings.MainWindow_Inspector_AddInspector_2);
         inspectorToggle.Click += (_, _) => ToggleInspector();
         cornerButtons.Children.Add(inspectorToggle); cornerButtons.Children.Add(exportButton);
         Grid.SetColumn(cornerButtons, 2); Grid.SetColumnSpan(cornerButtons, 2); main.Children.Add(cornerButtons);
@@ -60,8 +60,8 @@ public sealed partial class MainWindow
 
     // ---- sheet header: the Mac sheet's two pills, 閉じる / キャンセル on the left and 保存 on the right ----
     internal static Button SheetPill(string text) => SheetButtons.Pill(text);
-    private readonly Button sheetClose = Aligned(SheetPill("閉じる"), HorizontalAlignment.Left, new Thickness(12, 0, 0, 0));
-    private readonly Button sheetSaveButton = Aligned(SheetPill("保存"), HorizontalAlignment.Right, new Thickness(0, 0, 12, 0), visible: false);
+    private readonly Button sheetClose = Aligned(SheetPill(LinuxStrings.ApprovalsViews_NotUsable_1), HorizontalAlignment.Left, new Thickness(12, 0, 0, 0));
+    private readonly Button sheetSaveButton = Aligned(SheetPill(LinuxStrings.EditorForm_SaveLabel_1), HorizontalAlignment.Right, new Thickness(0, 0, 12, 0), visible: false);
     private static Button Aligned(Button button, HorizontalAlignment alignment, Thickness margin, bool visible = true) { button.HorizontalAlignment = alignment; button.Margin = margin; button.IsVisible = visible; return button; }
     private ISheetSave? sheetSave;
     private void SheetSaveChanged()
@@ -89,7 +89,7 @@ public sealed partial class MainWindow
     private void ReleaseSheetSave()
     {
         if (sheetSave is not null) sheetSave.CanSaveChanged -= SheetSaveChanged;
-        sheetSave = null; sheetSaveButton.IsVisible = false; sheetClose.Content = "閉じる"; sheetSaveButton.Content = "保存";
+        sheetSave = null; sheetSaveButton.IsVisible = false; sheetClose.Content = LinuxStrings.ApprovalsViews_NotUsable_1; sheetSaveButton.Content = LinuxStrings.EditorForm_SaveLabel_1;
     }
     private bool SheetBusy => sheetHost.Content is AvatarActionsView { Busy: true } || sheetSave is { CanClose: false };
     private void CloseFromSheetHeader() { if (!SheetBusy) CloseSheet(); }
@@ -102,12 +102,12 @@ public sealed partial class MainWindow
     public void ShowMemberSheet()
     {
         if (!model.Connected) return;
-        var view = new MemberEditorView(model, null, ShowTerminalSettings); OpenEditorSheet("メンバーを追加", view); EditorReady = ReadyAfter(view.InitializeAsync(), view);
+        var view = new MemberEditorView(model, null, ShowTerminalSettings); OpenEditorSheet(LinuxStrings.MainWindow_Inspector_ShowMemberSheet_1, view); EditorReady = ReadyAfter(view.InitializeAsync(), view);
     }
     public void ShowRoomSheet(string? id)
     {
         if (!model.Connected) return;
-        var view = new RoomEditorView(model, id); OpenEditorSheet(id is null ? "ルームを作る" : "ルームを編集", view); EditorReady = ReadyAfter(view.InitializeAsync(), view);
+        var view = new RoomEditorView(model, id); OpenEditorSheet(id is null ? LinuxStrings.MainWindow_Inspector_ShowRoomSheet_1 : LinuxStrings.MainWindow_Inspector_ShowRoomSheet_2, view); EditorReady = ReadyAfter(view.InitializeAsync(), view);
     }
     private static async Task ReadyAfter(Task initialize, EditorFormView view) { await initialize; await view.ReadyTask; }
     private void OpenEditorSheet(string title, EditorFormView view) { CloseSheet(); view.Closer = CloseSheet; OpenSheet(title, view); }
@@ -140,14 +140,14 @@ public sealed partial class MainWindow
     // Mac AvatarCropEditor sheet: 680x520, over whatever sheet is open.
     private Grid BuildCropSheet()
     {
-        var cancel = SheetPill("キャンセル"); cancel.HorizontalAlignment = HorizontalAlignment.Left; cancel.Margin = new Thickness(12, 0, 0, 0); cancel.Click += (_, _) => CloseCropSheet(null);
-        var use = SheetPill("使用する"); use.HorizontalAlignment = HorizontalAlignment.Right; use.Margin = new Thickness(0, 0, 12, 0); use.Click += (_, _) => { if (cropView?.TryUse() is { } outcome) CloseCropSheet(outcome); };
-        var title = new TextBlock { Text = "画像を調整", HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, FontSize = 15, FontWeight = FontWeight.SemiBold, Foreground = BellTheme.Ink };
+        var cancel = SheetPill(LinuxStrings.EditorForm_CloseLabel_2); cancel.HorizontalAlignment = HorizontalAlignment.Left; cancel.Margin = new Thickness(12, 0, 0, 0); cancel.Click += (_, _) => CloseCropSheet(null);
+        var use = SheetPill(LinuxStrings.MainWindow_Inspector_BuildCropSheet_2); use.HorizontalAlignment = HorizontalAlignment.Right; use.Margin = new Thickness(0, 0, 12, 0); use.Click += (_, _) => { if (cropView?.TryUse() is { } outcome) CloseCropSheet(outcome); };
+        var title = new TextBlock { Text = LinuxStrings.MainWindow_Inspector_BuildCropSheet_3, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, FontSize = 15, FontWeight = FontWeight.SemiBold, Foreground = BellTheme.Ink };
         var header = new Grid { Height = 52, Background = new SolidColorBrush(Color.Parse("#F2F2F7")), Children = { cancel, use, title } };
         var line = new Border { Height = 1, Background = new SolidColorBrush(Color.Parse("#E6E6EB")) };
         DockPanel.SetDock(header, Dock.Top); DockPanel.SetDock(line, Dock.Top);
         var frame = new Border { Width = 680, Height = 520, CornerRadius = new CornerRadius(14), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, BoxShadow = BoxShadows.Parse("0 8 30 0 #40000000"), Child = new Border { Background = new SolidColorBrush(Color.Parse("#F2F2F7")), CornerRadius = new CornerRadius(14), ClipToBounds = true, Child = new DockPanel { Children = { header, line, cropHost } } } };
-        AutomationProperties.SetName(frame, "画像を調整");
+        AutomationProperties.SetName(frame, LinuxStrings.MainWindow_Inspector_BuildCropSheet_3);
         return new Grid { Background = new SolidColorBrush(Color.Parse("#66000000")), IsVisible = false, Focusable = true, Children = { frame } };
     }
     public Task<AvatarCropOutcome?> CropAsync(Bitmap image, AvatarVariant variant, AvatarCropRect? initialCrop, bool wantsSelection)

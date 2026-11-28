@@ -71,7 +71,7 @@ internal sealed class LatticeTreeView : Canvas
         var count = Text($"{node.Done}/{node.Total}", 12, Muted, FontWeight.SemiBold); DockPanel.SetDock(count, Dock.Right); dock.Children.Add(count);
         var title = Text(node.Label, 13.5, Ink, FontWeight.Bold); title.HorizontalAlignment = HorizontalAlignment.Center; dock.Children.Add(title);
         var box = new Border { Child = dock, CornerRadius = new CornerRadius(10), Padding = new Thickness(12, 0, 10, 0), Background = Brush(Violet, 0x1F), BorderBrush = Brush(Violet, 0x26), BorderThickness = new Thickness(1) };
-        AutomationProperties.SetName(box, $"{node.Label}、完了 {node.Done}/{node.Total}");
+        AutomationProperties.SetName(box, LinuxStrings.LatticeTreeView_RootBox_1(node.Label, node.Done, node.Total));
         return box;
     }
     private static Border PhaseBox(LatticeTreeNode node)
@@ -81,7 +81,7 @@ internal sealed class LatticeTreeView : Canvas
         var glyph = StateGlyph(node.Tone, 13, Violet); glyph.Margin = new Thickness(0, 0, 8, 0); DockPanel.SetDock(glyph, Dock.Left); dock.Children.Add(glyph);
         dock.Children.Add(Text(node.Label, 13, Ink, FontWeight.SemiBold));
         var box = new Border { Child = dock, CornerRadius = new CornerRadius(10), Padding = new Thickness(11, 0, 10, 0), Background = Brush(Colors.White, 0xE6), BorderBrush = Brush(LatticeLook.Line), BorderThickness = new Thickness(1) };
-        AutomationProperties.SetName(box, $"{node.Label}、{LatticeChart.StateInfo(node.Tone).Badge}、完了 {node.Done}/{node.Total}");
+        AutomationProperties.SetName(box, LinuxStrings.LatticeTreeView_PhaseBox_1(node.Label, LatticeChart.StateInfo(node.Tone).Badge, node.Done, node.Total));
         return box;
     }
     private Control CardBox(LatticeTreeNode node, LatticePerson? owner)
