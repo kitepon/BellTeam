@@ -5,7 +5,7 @@ export const latticeTools = [
     name: 'lattice',
     description: '工程表（Lattice）を読み書きする。工程表はプロジェクトごとに一つあり、誰でも開けて、誰でも新しく作れる。統括の工程表に従い、自分用の工程表も作ってよい。' +
       'project は工程表のID（プロジェクトID）で、英小文字・数字・ハイフンのみ、先頭は英小文字か数字、63字まで（例: bellteam）。まだ無いIDを指定すると最初の書き込みで工程表ができる。' +
-      'name は画面に出る工程表の名前（1〜40字、例: Lattice組込）。工程表を作る時に付ける。args を [] にすると名前だけ付け直す。画面にIDは出ないので、名前が無いと「作った人の工程表」と表示される。' +
+      'name は画面に出る工程表の名前（1〜40字、例: Lattice組込）。工程表を作る時（plan create）だけ付ける。すでにある工程表への呼び出しに付けても無視される。名前を付け直す時だけ args を [] にして name を渡す。普通の呼び出しには name を付けない。画面にIDは出ないので、名前が無いと「作った人の工程表」と表示される。' +
       'args は lattice コマンドの引数で、最初の語は plan, todo, status, session-context, help, --help, --version のいずれか。' +
       '例: ["session-context"]、["status"]、["plan","create","--template","--json"]（plan create の input のひな形。--json が要る）、["todo","start","--plan","p1","--task","t01"]、' +
       '["todo","note","--plan","p1","--task","t01","--message","..."]。' +

@@ -282,9 +282,11 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     if (memo && !read) memo.dirty = true
     if (args.length === 0) { await cli.setName(projectId, name, from); return { exitCode: 0, result: { name }, stdout: null, stderr: '' } }
     if (!read) await codeCharts.maintain(projectId)
+    // Owner 2026-11-28 (six charts renamed 'x'): a name given with a command only names a chart this command makes; an existing chart is renamed by `args: []` + name alone.
+    const existed = !naming || await cli.exists(projectId)
     const result = await cli.run({ id: projectId, args, env: { LATTICE_SEAT_ID: from }, input })
-    // A name given with a command is set once the chart exists, so a refused command never leaves a named empty chart (K4).
-    if (naming && result.exitCode === 0 && await cli.exists(projectId)) await cli.setName(projectId, name, from)
+    // The name is set once the chart exists, so a refused command never leaves a named empty chart (K4).
+    if (naming && !existed && result.exitCode === 0 && await cli.exists(projectId)) await cli.setName(projectId, name, from)
     // Lattice prints refusals (lattice.cli_error.v2: code, detail.pointer, detail.next_action) on stderr; they reach the seat as result.
     // undefined = not JSON; a valid JSON null on stdout stays the result.
     const out = parse(result.stdout)
