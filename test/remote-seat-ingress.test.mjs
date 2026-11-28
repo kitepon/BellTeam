@@ -218,22 +218,19 @@ test('credential refresh: unbound removes an unavailable handle and disarms its 
   assert.equal(calls, 0)
 })
 
-test('terminal key load: a mediated terminal goes through the reader and never touches usage; KEY_NOT_MEDIATED falls back', async () => {
+test('terminal key load: an owned terminal is served by the module ssh agent: nothing is loaded and usage is never touched; an unavailable agent is CREDENTIAL_UNAVAILABLE', async () => {
   const { loadTerminalKey } = await import('../src/application-services.mjs')
   const ref = '725ca83c-f52f-4036-9390-8d9e4c482f14', handle = '11111111-2222-4333-8444-555555555555'
-  const dto = { schema: 'aiterm.credential-load.v1', accepted: true }
   let resolved = 0
   const credentials = { withResolved: async (h, context, consume) => { resolved++; return consume('usage-key') } }
   const runs = []
-  const run = async (command, args, options) => { runs.push(options.input.toString('utf8')); return { code: 0, signal: null, stdout: JSON.stringify(dto) } }
+  const run = async (command, args, options) => { runs.push(options.input.toString('utf8')); return { code: 0, signal: null, stdout: '{"schema":"aiterm.credential-load.v1","accepted":true}' } }
   const base = { credentials, terminalId: 'macbook', memberId: 'bot-aa', ref, handle, revision: 3, run }
-  const loaded = []
-  const reader = { owns: () => true, load: async request => { loaded.push(request); return dto } }
-  assert.deepEqual(await loadTerminalKey({ ...base, reader }), dto)
-  assert.deepEqual(loaded, [{ terminalId: 'macbook', memberId: 'bot-aa', ref, handle, revision: 3 }])
+  const owned = available => ({ owns: id => id === 'macbook', available: async () => ({ available, revision: 1 }) })
+  assert.deepEqual(await loadTerminalKey({ ...base, reader: owned(true) }), { schema: 'aiterm.credential-load.v1', accepted: true, ref, handle, revision: 3, source: 'module-agent' })
+  await assert.rejects(loadTerminalKey({ ...base, reader: owned(false) }), { code: 'CREDENTIAL_UNAVAILABLE' })
   assert.deepEqual([resolved, runs.length], [0, 0])
-  await assert.rejects(loadTerminalKey({ ...base, reader: { owns: () => true, load: async () => { throw Object.assign(new Error('x'), { code: 'CREDENTIAL_UNAVAILABLE' }) } } }), { code: 'CREDENTIAL_UNAVAILABLE' })
-  assert.equal(resolved, 0)
-  assert.deepEqual(await loadTerminalKey({ ...base, reader: { owns: () => true, load: async () => { throw Object.assign(new Error('x'), { code: 'KEY_NOT_MEDIATED' }) } } }), dto)
+  // a terminal the reader does not own still goes through usage
+  await loadTerminalKey({ ...base, terminalId: 'other', reader: owned(true) })
   assert.deepEqual([resolved, runs], [1, ['usage-key']])
 })
