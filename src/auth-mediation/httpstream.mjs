@@ -7,11 +7,13 @@ export const HTTP_STREAM_MAX_SECONDS = 3600
 
 export function makeScrubber(secrets) {
   const needles = secrets.filter(s => typeof s === 'string' && s.length >= 6).flatMap(s => [s, Buffer.from(s).toString('base64')]).map(s => Buffer.from(s, 'latin1'))
-  const keep = Math.max(0, ...needles.map(n => n.length)) - 1
+  const most = Math.max(0, ...needles.map(n => n.length)) - 1
+  // Only the tail of the data that could still grow into a secret is held back (the longest suffix that is a proper prefix of a needle), so a plain event is never delayed.
+  const held = all => { for (let k = Math.min(most, all.length); k > 0; k--) { const tail = all.subarray(all.length - k); if (needles.some(n => n.length > k && n.compare(tail, 0, k, 0, k) === 0)) return k } return 0 }
   let carry = Buffer.alloc(0)
   const clean = buf => needles.reduce((out, n) => { let at; while ((at = out.indexOf(n)) >= 0) out = Buffer.concat([out.subarray(0, at), Buffer.from('[redacted]'), out.subarray(at + n.length)]); return out }, buf)
   return {
-    push(chunk) { const all = clean(Buffer.concat([carry, chunk])); const cut = Math.max(0, all.length - keep); carry = all.subarray(cut); return all.subarray(0, cut) },
+    push(chunk) { const all = clean(Buffer.concat([carry, chunk])); const cut = all.length - held(all); carry = all.subarray(cut); return all.subarray(0, cut) },
     end() { const out = clean(carry); carry = Buffer.alloc(0); return out },
   }
 }
@@ -29,5 +31,5 @@ export async function pipeHttpStream(result, { stream, controller, connect = net
       if (out.length && !socket.write(frame(1, out))) await new Promise(resolve => socket.once('drain', resolve))
     }
     const tail = scrubber.end(); if (tail.length) socket.write(frame(1, tail))
-  } catch { code = '2' } finally { clearInterval(beat); try { socket.write(frame(3, Buffer.from(code))); socket.end() } catch {} }
+  } catch { code = '2'; try { const tail = scrubber.end(); if (tail.length) socket.write(frame(1, tail)) } catch {} } finally { clearInterval(beat); try { socket.write(frame(3, Buffer.from(code))); socket.end() } catch {} }
 }
