@@ -32,6 +32,10 @@ function target(fields, request) {
   const url = exact ? new URL(base) : new URL(request.path, base)
   const prefix = base.pathname.replace(/\/$/u, '')
   if (url.origin !== base.origin || (url.pathname + '/').slice(0, prefix.length + 1) !== prefix + '/') throw refuse('The path leaves the key\'s API.')
+  // Per-method path limits: "GET:/messages/,POST:/" = a method listed here may only be used under its paths (relative to the base path). A method not listed is limited only by http_methods.
+  const limits = (fields.http_method_paths ?? '').split(',').map(x => x.trim()).filter(Boolean).map(x => { const i = x.indexOf(':'); return [x.slice(0, i).toUpperCase(), x.slice(i + 1)] }).filter(([m, p]) => METHODS.includes(m) && p.startsWith('/'))
+  const mine = limits.filter(([m]) => m === request.method)
+  if (mine.length) { const rel = '/' + url.pathname.slice(prefix.length).replace(/^\//u, ''); if (!mine.some(([, p]) => p.endsWith('/') ? rel.startsWith(p) : rel === p || rel.startsWith(p + '/'))) throw refuse('This method is not allowed on this path for this key.') }
   return url
 }
 
