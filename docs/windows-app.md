@@ -87,10 +87,10 @@ installerは、横にソースが無い時（公開版から取った時）に�
 
 ## 公開
 
-公開版は、GitHubの公開版`windows-app`（タグも同名で、公開した版のcommitへ動かす。Latestにはしない：Latestはサーバーの更新カタログ）。担当はアニス。GitHub Actionsでは作らない：ビルドにはGoogleのデスクトップ用クライアントの秘密が入り、その秘密は認証仲介（`auth exec`）からしか受け取らないため（トロニー裁定）。
+公開版は、GitHubの公開版`windows-app`（タグも同名で、公開した版のcommitへ動かす。Latestにはしない：Latestはサーバーの更新カタログ）。担当はアニス。GitHub Actionsでは作らない：ビルドにはGoogleのデスクトップ用クライアントのJSONが入り、それはコミットしないビルド設定（foxのクローンの`config\google-desktop-oauth.json`）でCIには置かないため（トロニー裁定。扱いはサクラの裁定 2026-11-28：インストール型のクライアントの秘密はGoogleも秘密として扱わない公開のビルド設定）。
 
 1. fox（Windows）のクローンを公開するmainのcommitへ合わせる（`git switch --detach <sha>`）。
-2. main-serverで`auth exec /home/kite/BellTeam/scripts/windows-install-with-oauth.sh --package <foxのフォルダ>`を1回実行する（インストールと同じ入口。`scripts/package-windows-app.ps1`がfoxでx64とarm64の自己完結ビルドを作り、2つのzip・`SHA256SUMS`・`install-windows.ps1`を出力先へ置く。秘密は標準入力から入り、ログにもgitにも出ない）。
+2. foxで`pwsh -NoProfile -File scripts/package-windows-app.ps1 -Out <フォルダ>`を実行する（`config\google-desktop-oauth.json`を読み、x64とarm64の自己完結ビルドを作り、2つのzip・`SHA256SUMS`・`install-windows.ps1`を出力先へ置く。JSONはログにもgitにも出ない）。
 3. foxで`pwsh -NoProfile -File scripts/publish-windows-app.ps1 -Dist <フォルダ> -Commit <sha>`を実行する（commitがorigin/mainの祖先であることを確かめ、タグを動かし、4つのファイルをghで置き換える。題名は「BellTeam Windows app <版>」）。
 4. 公開版のinstallerを取って実行し、導入されたexeの版が公開した版であることを確かめる。
 

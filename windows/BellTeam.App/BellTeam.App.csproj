@@ -17,7 +17,7 @@
     <EmbeddedResource Include="../../docs/server-installation.md" LogicalName="server-installation.md" />
     <EmbeddedResource Include="../../services/subscriptions/product.json" LogicalName="product.json" />
     <InternalsVisibleTo Include="BellTeam.Tests" />
-    <!-- a540: the Desktop Google client's secret comes from the build's environment (scripts/install-windows.ps1 -GoogleDesktopOAuthStdin reads it from stdin, which auth-mediation fills); it is never in a commit. -->
+    <!-- a540: the Desktop Google client's secret comes from the build's environment (scripts/install-windows.ps1 and scripts/package-windows-app.ps1 read it from the untracked config\google-desktop-oauth.json); it is never in a commit. -->
     <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute" Condition="'$(BELLTEAM_GOOGLE_DESKTOP_SECRET)' != ''">
       <_Parameter1>GoogleDesktopSecret</_Parameter1>
       <_Parameter2>$(BELLTEAM_GOOGLE_DESKTOP_SECRET)</_Parameter2>

@@ -29,3 +29,6 @@ ios/BellBot/**/xcuserdata/
 bridge.env
 __pycache__/
 android/BellTeam.Android/google-services.json
+
+# The Desktop Google OAuth client JSON (public build configuration, never committed: GitHub push protection refuses it).
+config/google-desktop-oauth.json
