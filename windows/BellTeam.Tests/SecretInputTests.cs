@@ -203,6 +203,18 @@ public sealed class SecretInputTests
         });
     }
 
+    // A WPF template belongs to the thread that parsed it and the first use seals it there: thread A only initialises the type, thread B builds the window.
+    [Fact]
+    public void TwoUiThreadsCanBuildTheInputWindowAtTheSameTime()
+    {
+        Exception? failure = null; using var builtOnA = new ManualResetEventSlim(); using var doneOnB = new ManualResetEventSlim();
+        void Build() => new SecretInputWindow(Request($$""","inputOptions":{{Available}}"""), _ => Task.FromResult(Request()), () => Task.FromResult<OnePasswordKey[]?>(null), _ => { });
+        var a = new Thread(() => { try { System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(SecretInputWindow).TypeHandle); } catch (Exception error) { failure = error; } finally { builtOnA.Set(); } doneOnB.Wait(); });
+        a.SetApartmentState(ApartmentState.STA); a.Start(); builtOnA.Wait();
+        try { RunSta(Build); } finally { doneOnB.Set(); a.Join(); }
+        Assert.Null(failure);
+    }
+
     private static void RunSta(Action action)
     {
         Exception? failure = null; var thread = new Thread(() => { try { action(); } catch (Exception error) { failure = error; } });
