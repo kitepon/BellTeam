@@ -71,6 +71,10 @@ export function normalizeSchedule(value, now) {
     }
   }
   const expression = value.expression
+  if (!enabled) {
+    try { new Cron(expression, { timezone, paused: true }) }
+    catch (error) { throw new Error(`SCHEDULE_EXPRESSION_INVALID: ${error.message}`) }
+  }
   const nextRunAt = enabled ? cronNext(expression, timezone, now) : null
   return { ...base, expression, timezone, nextRunAt }
 }

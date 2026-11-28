@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
+import { appendFile, copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
@@ -316,7 +316,7 @@ export class BellTeamMemory {
   }
 
   async openMemory(botId, scope, path) {
-    const db = new DatabaseSync(path ?? join(await this.ensureMemory(botId, scope), 'memory.db'))
+    const db = new DatabaseSync(path ?? join(await this.ensureMemory(botId, scope), 'memory.db'), { timeout: 5000 })
     try { db.exec(`
       PRAGMA journal_mode = WAL;
       CREATE TABLE IF NOT EXISTS raw_events (
@@ -404,7 +404,7 @@ export class BellTeamMemory {
 }
 
 function openKnowledgeDb(path) {
-  const db = new DatabaseSync(path)
+  const db = new DatabaseSync(path, { timeout: 5000 })
   try { db.exec(`
     PRAGMA journal_mode = WAL;
     CREATE TABLE IF NOT EXISTS documents (
@@ -470,7 +470,8 @@ function upsertKnowledge(db, value) {
 }
 
 function knowledgeMarkdown({ id, title, source, createdAt, confidence, tags, content }) {
-  return `---\nid: ${JSON.stringify(id)}\ntitle: ${JSON.stringify(title)}\nsource: ${JSON.stringify(source ?? '')}\ncreated_at: ${JSON.stringify(createdAt)}\nconfidence: ${JSON.stringify(confidence)}\ntags: ${JSON.stringify(tags ?? [])}\n---\n\n# ${title}\n\n${content}\n`
+  const heading = String(title ?? '').replace(/[\r\n]+/gu, ' ')
+  return `---\nid: ${JSON.stringify(id)}\ntitle: ${JSON.stringify(title)}\nsource: ${JSON.stringify(source ?? '')}\ncreated_at: ${JSON.stringify(createdAt)}\nconfidence: ${JSON.stringify(confidence)}\ntags: ${JSON.stringify(tags ?? [])}\n---\n\n# ${heading}\n\n${content}\n`
 }
 
 function parseKnowledgeMarkdown(markdown) {
@@ -494,8 +495,8 @@ function parseKnowledgeMarkdown(markdown) {
 
 async function appendIndex(root, { title, relativePath, createdAt, confidence }) {
   const path = join(root, 'INDEX.md')
-  const current = await readFile(path, 'utf8')
-  await writeFile(path, `${current}- [${relativePath}](${relativePath}) — ${title} (${createdAt.slice(0, 10)}・${confidence})\n`, 'utf8')
+  const safeTitle = String(title ?? '').replace(/[\r\n]+/gu, ' ')
+  await appendFile(path, `- [${relativePath}](${relativePath}) — ${safeTitle} (${createdAt.slice(0, 10)}・${confidence})\n`, 'utf8')
 }
 
 function requireBot(registry, id) {

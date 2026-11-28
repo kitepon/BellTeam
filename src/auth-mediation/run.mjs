@@ -82,7 +82,12 @@ export async function startRun(plan, { item, stream, onEnd, spawn = nodeSpawn, c
     const child = spawn(plan.argv[0], plan.argv.slice(1), { env, cwd: dir, detached: true, stdio: [plan.stdin || plan.prefix ? 'pipe' : 'ignore', 'pipe', 'pipe'] }) // own process group: a kill reaches what the command started
     await new Promise((resolve, reject) => { child.once('spawn', resolve); child.once('error', () => reject(refuse('The command cannot start.'))) })
     const started = Date.now(); let bytesIn = 0, bytesOut = 0, ended = false, killed = null
-    const kill = reason => { if (ended) return; killed ??= reason ?? 'stopped'; try { process.kill(-child.pid, 'SIGKILL') } catch { try { child.kill('SIGKILL') } catch {} } }
+    const kill = reason => {
+      if (ended) return
+      killed ??= reason ?? 'stopped'
+      try { child.stdout?.resume(); child.stderr?.resume() } catch {}
+      try { process.kill(-child.pid, 'SIGKILL') } catch { try { child.kill('SIGKILL') } catch {} }
+    }
     live.set(id, { item, kill, done }); await record(child.pid)
     // A heartbeat frame (tag 4, empty) every 15 s: when the caller is gone, the relay's write fails and it closes the stream, so a silent long-lived command (cloudflared) still ends with its caller.
     const beat = setInterval(() => { try { socket.write(frame(4, Buffer.alloc(0))) } catch {} }, HEARTBEAT_MS)
@@ -95,7 +100,14 @@ export async function startRun(plan, { item, stream, onEnd, spawn = nodeSpawn, c
         socket.on('end', () => child.stdin.end())
       } else child.stdin.end()
     }
-    child.stdout.on('data', chunk => { bytesOut += chunk.length; if (!socket.write(frame(1, chunk))) { child.stdout.pause(); socket.once('drain', () => child.stdout.resume()) } })
+    child.stdout.on('data', chunk => {
+      bytesOut += chunk.length
+      if (!socket.destroyed && !socket.write(frame(1, chunk))) {
+        child.stdout.pause()
+        const resume = () => { socket.off('drain', resume); socket.off('close', resume); socket.off('error', resume); child.stdout.resume() }
+        socket.once('drain', resume); socket.once('close', resume); socket.once('error', resume)
+      }
+    })
     let errSize = 0
     child.stderr.on('data', chunk => { if (errSize >= STDERR_MAX) return; let text = chunk.subarray(0, STDERR_MAX - errSize); errSize += text.length; text = Buffer.from(plan.secrets.reduce((out, s) => out.split(s).join('[redacted]'), text.toString('latin1')), 'latin1'); socket.write(frame(2, text)) })
     socket.on('close', () => kill('hangup')); socket.on('error', () => kill('hangup'))

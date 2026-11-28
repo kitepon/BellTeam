@@ -44,7 +44,7 @@ export function planLink({ d, row, rows = [], chart }) {
     const successors = prev ? chart.edges.filter(edge => edge.from === prevId).map(edge => chart.cards.find(c => c.id === edge.to)).filter(c => c && !ended(c)) : []
     const memo = `決裁箱の決裁「${safe(d.title)}」に指揮官が答えるまでの工程。決裁の内容は決裁箱にあり、ここへは写していない。`
     actions.push(owner(chart.projectId, ['todo', 'add', '--plan', DECISION_PLAN, '--task', taskId, '--title', safe(d.title), '--phase', 'decisions', '--lane', DECISION_LANE,
-      ...(successors.length ? ['--after', prev.taskId] : []), '--design-memo', memo, '--reason', '決裁箱に申請が出たため']))
+      ...(successors.length ? ['--after', prev.plan === DECISION_PLAN ? prev.taskId : prevId] : []), '--design-memo', memo, '--reason', '決裁箱に申請が出たため']))
     for (const next of successors) {
       actions.push(owner(chart.projectId, ['todo', 'predecessor', 'add', '--plan', next.plan, '--task', next.taskId, '--after', `${DECISION_PLAN}/${taskId}`, '--reason', '決裁が先に要るため']))
       actions.push(owner(chart.projectId, ['todo', 'predecessor', 'remove', '--plan', next.plan, '--task', next.taskId, '--after', prevId, '--reason', '新しい決裁を間に差し込むため']))
