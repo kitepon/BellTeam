@@ -207,6 +207,9 @@ def main():
     os.umask(0o077)
     os.makedirs(DIR, mode=0o711, exist_ok=True)
     os.chmod(DIR, 0o711)
+    # run-sockets: where a run item that asks for it (run_socket_dir) puts its service socket so the host can reach it; the child makes its own sub-folder here (sticky, like /tmp)
+    os.makedirs(os.path.join(DIR, "run-sockets"), mode=0o1777, exist_ok=True)
+    os.chmod(os.path.join(DIR, "run-sockets"), 0o1777)
     paths = [os.path.join(DIR, name) for _, name, _ in SOCKETS]
     callers = [os.path.join(DIR, "callers", name, name + ".sock") for name in CALLERS]
     for name, path in zip(CALLERS, callers):  # folders 0755 (a container mounts the caller's folder, so the socket survives a relay restart)

@@ -106,3 +106,15 @@ test('run: a child killed hard leaves its command and secret file behind; the ne
   assert.equal(await sweepStaleRuns(root), 1)
   assert.ok(await until(() => !alive(command))); assert.deepEqual(await readdir(root), []); side.server.close()
 })
+
+test('run: run_state_dir / run_socket_dir give the process persistent and host-reachable folders named after the item, never after the caller', async () => {
+  const side = await relaySide(() => {}), root = join(side.dir, 'runs'), stateRoot = join(side.dir, 'state'), socketRoot = join(side.dir, 'socks')
+  const plan = planRun({ run_argv: JSON.stringify(['/bin/sh', '-c', 'echo $STATE_DIR $SOCKET_DIR > "$STATE_DIR/seen.txt"; sleep 1']), run_state_dir: '1', run_socket_dir: '1', run_max_seconds: '20' })
+  await startRun(plan, { item: 'run mabimoba-bot', stream: side.path, root, stateRoot, socketRoot })
+  await until(async () => (await import('node:fs')).existsSync(join(stateRoot, 'mabimoba-bot', 'seen.txt')))
+  assert.equal((await readFile(join(stateRoot, 'mabimoba-bot', 'seen.txt'), 'utf8')).trim(), join(stateRoot, 'mabimoba-bot') + ' ' + join(socketRoot, 'mabimoba-bot'))
+  const { stat } = await import('node:fs/promises'); assert.equal((await stat(join(stateRoot, 'mabimoba-bot'))).mode & 0o777, 0o700); assert.equal((await stat(join(socketRoot, 'mabimoba-bot'))).mode & 0o777, 0o755)
+  stopRuns('run mabimoba-bot'); side.server.close()
+  assert.throws(() => planRun({ run_argv: JSON.stringify(['/bin/true']), run_state_dir: 'yes' }), /folders/u)
+  await assert.rejects(startRun(planRun({ run_argv: JSON.stringify(['/bin/true']), run_state_dir: '1' }), { item: 'run ../x', stream: '/nope', root, stateRoot, socketRoot }), /folders/u)
+})
