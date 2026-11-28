@@ -57,6 +57,7 @@ export function planLink({ d, row, rows = [], chart }) {
     if (row.state === 'answered') return { actions: [], row }
     const label = d.answer?.text ?? d.options.find(option => option.id === d.answer?.optionId)?.label ?? ''
     if (!card || ended(card)) return to('answered')
+    if (card.state === 'pending' || card.state === 'blocked') return to('answered', [owner(row.projectId, ['todo', 'note', '--plan', row.plan, '--task', row.taskId, '--message', safe(`指揮官の答え：${label}（${jst(d.answer.answeredAt)}）。着手できる前に答えられました`)])]) // Lattice refuses start while a predecessor is open
     return to('answered', [...(card.state === 'in-progress' ? [] : [owner(row.projectId, ['todo', 'start', '--plan', row.plan, '--task', row.taskId])]),
       owner(row.projectId, ['todo', 'done', '--plan', row.plan, '--task', row.taskId, '--message', safe(`指揮官の答え：${label}（${jst(d.answer.answeredAt)}）`)])])
   }
