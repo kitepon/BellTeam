@@ -12,7 +12,8 @@
     "http (the module makes the request with the credential added; only the response leaves)",
     "sign (a signature or MAC made inside the module; the key never leaves)",
     "ssh agent (the module signs for ssh; the client forwards agent requests; the key never leaves)",
-    "mail send (the module logs in to the SMTP server and sends; only the result leaves)"
+    "mail send (the module logs in to the SMTP server and sends; only the result leaves)",
+    "gmail (the module holds the OAuth refresh token and makes fixed Gmail API calls; only Google's answer leaves)"
   ],
   "uses": [
     {
@@ -54,6 +55,7 @@
     "src/auth-mediation/service.mjs",
     "src/auth-mediation/keyuse.mjs",
     "src/auth-mediation/sshkey.mjs",
+    "src/auth-mediation/gmail.mjs",
     "src/auth-mediation/mail.mjs",
     "src/auth-mediation/http.mjs",
     "src/auth-mediation/mcp.mjs",

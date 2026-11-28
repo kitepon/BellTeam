@@ -6,6 +6,7 @@ import { envReturn, runEnv } from './env.mjs'
 import { botForCwd, callerKey } from './identity.mjs'
 import { useKey, signData, signDigest } from './keyuse.mjs'
 import { callHttp } from './http.mjs'
+import { callGmail } from './gmail.mjs'
 import { sshIdentity, sshSign } from './sshkey.mjs'
 import { sendMail } from './mail.mjs'
 import { LIMITS, listFolders, openImap, readFolder, sortMessage } from './imap.mjs'
@@ -166,5 +167,21 @@ export function createAuthCore({ store, items, audit, roots, now = () => new Dat
       return { outcome: 'granted', ...result }
     } catch (error) { const code = error?.code?.startsWith?.('MAIL_') ? error.code : 'MAIL_NOT_SUBMITTED'; record(rec, 'error', { cache: found.hit ? 'hit' : 'miss', class: code, why: error?.why }); return { outcome: 'error', error: code } }
   }
-  return { resolve, admin, keyuse, http, mail }
+  // Gmail (F21): fixed Gmail API calls with the item's OAuth secrets. Grants "gmail <name> read" (list, get) and "gmail <name> sort" (modify). The audit has the action and the status only.
+  const gmailTokens = new Map()
+  async function gmail(request) {
+    const at = now(), policy = await store.read(), caller = await identify(request), item = `gmail ${request.name}`, name = `${item} ${request.action === 'modify' ? 'sort' : 'read'}`
+    const rec = { time: at.toISOString(), request_id: randomUUID(), caller: caller ? callerKey(caller) : null, item: name, action: request.action, via: request.via, cwd: request.cwd ?? request.unit }
+    if (!caller) { record(rec, 'unknown-caller'); return { outcome: 'unknown-caller', error: 'The caller is not registered.' } }
+    const verdict = authorize(policy, caller, name, request.cwd ?? request.unit, at.getTime())
+    if (verdict !== 'granted') { if (verdict === 'stopped') { items.flush(item); gmailTokens.delete(request.name) } record(rec, verdict); return { outcome: verdict, error: REFUSALS[verdict] } }
+    const found = await items.get(item, policy.vault, policy.cache_seconds)
+    if (!found) { record(rec, 'not-registered'); return { outcome: 'not-registered', error: NOT_REGISTERED } }
+    try {
+      const result = await callGmail(found.fields, request, { tokens: gmailTokens, name: request.name, fetchImpl, now: () => now().getTime() })
+      record(rec, 'granted', { cache: found.hit ? 'hit' : 'miss', status: result.status })
+      return { outcome: 'granted', ...result }
+    } catch (error) { const code = error?.code?.startsWith?.('GMAIL_') ? error.code : 'GMAIL_FAILED'; record(rec, 'error', { cache: found.hit ? 'hit' : 'miss', class: code, why: error?.why }); return { outcome: 'error', error: code } }
+  }
+  return { resolve, admin, keyuse, http, mail, gmail }
 }

@@ -28,6 +28,9 @@ const sortParams = request => ({ action: 'sort', name: request.name, uid: reques
 const checkParams = request => ({ action: 'check', name: request.name, protocol: request.protocol })
 const mailParams = request => request.op === 'mail-read' ? readParams(request) : request.op === 'mail-sort' ? sortParams(request) : request.op === 'mail-check' ? checkParams(request) : ({ action: 'send', name: request.name, to: request.to, subject: request.subject, text: request.text, ...(request.html === undefined ? {} : { html: request.html }),
   ...(request.from_name === undefined ? {} : { from_name: request.from_name }), ...(request.reply_to === undefined ? {} : { reply_to: request.reply_to }) })
+// The client's gmail line -> the child's gmail params (the transport fills who is calling).
+const GMAIL_OPS = ['gmail-list', 'gmail-get', 'gmail-modify']
+const gmailParams = request => ({ action: request.op.slice(6), name: request.name, ...Object.fromEntries(['q', 'max_results', 'page_token', 'id', 'format', 'add_labels', 'remove_labels'].filter(k => request[k] !== undefined).map(k => [k, request[k]])) })
 const program = value => value === undefined || value === null || (typeof value === 'object' && absolute(value.path) && /^[a-f0-9]{64}$/u.test(value.sha256) && typeof value.sealed === 'boolean')
 
 // One relay frame -> one answer. Pure over the facade, so the mapping is testable without sockets.
@@ -37,7 +40,8 @@ export async function relayAnswer(frame, facade) {
   if (!request || typeof request !== 'object' || Array.isArray(request)) return bad()
   if (frame.via === 'caller-socket') {
     // A container product's own socket: its path is its identity (named by the relay, never by the client's line). Key use only; no exec, no admin.
-    if (!absolute(frame.unit) || (peer !== null && peer !== undefined) || ![...KEY_OPS, 'http', ...MAIL_OPS].includes(request.op)) return bad()
+    if (!absolute(frame.unit) || (peer !== null && peer !== undefined) || ![...KEY_OPS, 'http', ...MAIL_OPS, ...GMAIL_OPS].includes(request.op)) return bad()
+    if (GMAIL_OPS.includes(request.op)) return facade.gmail({ ...gmailParams(request), via: 'caller-socket', unit: frame.unit })
     if (MAIL_OPS.includes(request.op)) return facade.mail({ ...mailParams(request), via: 'caller-socket', unit: frame.unit })
     if (request.op === 'http') return facade.http({ ...httpParams(request), via: 'caller-socket', unit: frame.unit })
     return facade.keyuse({ ...keyParams(request), via: 'caller-socket', unit: frame.unit })
@@ -58,6 +62,11 @@ export async function relayAnswer(frame, facade) {
     if (container) return facade.keyuse({ ...keyParams(request), via: 'container-socket', cwd: peer.cwd })
     if (!absolute(request.cwd)) return bad()
     return facade.keyuse({ ...keyParams(request), via: 'host-socket', cwd: request.cwd, unit: request.cwd })
+  }
+  if (GMAIL_OPS.includes(request.op)) {
+    if (container) return facade.gmail({ ...gmailParams(request), via: 'container-socket', cwd: peer.cwd })
+    if (!absolute(request.cwd)) return bad()
+    return facade.gmail({ ...gmailParams(request), via: 'host-socket', cwd: request.cwd, unit: request.cwd })
   }
   if (MAIL_OPS.includes(request.op)) {
     if (container) return facade.mail({ ...mailParams(request), via: 'container-socket', cwd: peer.cwd })
