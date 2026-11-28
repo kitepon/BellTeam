@@ -150,13 +150,13 @@ async function bearerFor(fields, fetchImpl, fresh) {
   if (seconds > 0) tokens.set(key, entry)
   return { token: entry.token, secrets: entry.secrets, drop: () => tokens.delete(key) }
 }
-export const forgetTokens = () => tokens.clear()
+export const forgetTokens = () => { tokens.clear(); accessTokens.clear() } // every flush, stop, revoke or token change: both kinds of kept access tokens go
 
 // OAuth2 refresh-token style (Google: Search Console, Gmail-like APIs): the item holds client id/secret and the refresh token; the module gets the access token from the token URL,
 // keeps it in memory, adds it as a bearer, and keeps a NEWER refresh token (one the provider returned, or one captured from a code exchange) in the state file; the item's own value wins when
 // it is changed. Fields: http_oauth_token_url (https, default Google), http_oauth_client_id, http_oauth_client_secret, http_secret = the refresh token, http_oauth_scope optional.
 const accessTokens = new Map()
-const refreshKey = (item, fields) => createHash('sha256').update(JSON.stringify([item, fields.http_oauth_token_url, fields.http_oauth_client_id])).digest('hex')
+const refreshKey = (item, fields) => createHash('sha256').update(JSON.stringify([item, fields.http_oauth_token_url, fields.http_oauth_client_id, fields.http_oauth_client_secret, createHash('sha256').update(fields.http_secret ?? '').digest('hex')])).digest('hex') // a changed secret or refresh token is another key
 async function oauthRefreshBearer(fields, item, state, fetchImpl, fresh) {
   const tokenUrl = fields.http_oauth_token_url ?? 'https://oauth2.googleapis.com/token'
   let url; try { url = new URL(tokenUrl) } catch { throw refuse('The key item has no usable token URL.') }
@@ -182,7 +182,13 @@ async function oauthRefreshBearer(fields, item, state, fetchImpl, fresh) {
 // A code exchange whose answer carries a refresh token: the module keeps it for the named refresh item and the caller only sees "[stored]" (re-consent, no secret reaches the caller).
 async function captureRefresh(fields, bodyBuffer, state) {
   if (!fields.http_capture_for || !state || !/^[A-Za-z0-9][A-Za-z0-9._ -]{0,127}$/u.test(fields.http_capture_for)) return bodyBuffer
-  let parsed; try { parsed = JSON.parse(bodyBuffer.toString('utf8')) } catch { return bodyBuffer }
+  let parsed; try { parsed = JSON.parse(bodyBuffer.toString('utf8')) } catch {
+    const text = bodyBuffer.toString('utf8'), m = /(?:^|[&\s"'])refresh_token(?:=|"?\s*:\s*"?)([A-Za-z0-9._~%\-\/+]{8,})/u.exec(text) // a provider answering in form encoding
+    if (!m) return bodyBuffer
+    let token = m[1]; try { token = decodeURIComponent(m[1]) } catch {}
+    await state.update(async all => { all[fields.http_capture_for] = { base: '*', token } })
+    return Buffer.from(text.split(m[1]).join('[stored]'))
+  }
   if (typeof parsed?.refresh_token !== 'string' || !parsed.refresh_token) return bodyBuffer
   await state.update(async all => { all[fields.http_capture_for] = { base: '*', token: parsed.refresh_token } })
   parsed.refresh_token = '[stored]'
