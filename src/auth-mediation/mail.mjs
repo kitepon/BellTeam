@@ -35,7 +35,7 @@ export async function sendMail(fields, request, { connect = defaultConnect, now 
   let socket, buffer = '', waiter = null, ended = false, sent = false
   const deadline = Date.now() + TOTAL_MS
   const wake = () => { const w = waiter; waiter = null; w?.() }
-  const attach = s => { if (s === socket) return; socket = s; s.setEncoding('utf8'); s.on('data', d => { buffer += d; wake() }); s.on('end', () => { ended = true; wake() }); s.on('error', () => { ended = true; wake() }); s.on('close', () => { ended = true; wake() }) }
+  const attach = s => { socket = s; s.setEncoding('utf8'); s.on('data', d => { buffer += d; wake() }); s.on('end', () => { ended = true; wake() }); s.on('error', () => { ended = true; wake() }); s.on('close', () => { ended = true; wake() }) }
   const lost = () => fail(sent ? MAIL_UNKNOWN : MAIL_NOT_SUBMITTED, 'connection')
   async function reply() {
     for (;;) {
@@ -59,6 +59,7 @@ export async function sendMail(fields, request, { connect = defaultConnect, now 
     let hello = await expect(250, 'EHLO auth-mediation')
     if (mode === 'starttls') {
       await expect(220, 'STARTTLS')
+      socket.removeAllListeners('data') // the TLS layer reads the plain socket now: our plain-text listener must not collect its bytes
       attach(await connect({ host, port, mode, upgrade: socket })); buffer = ''
       hello = await expect(250, 'EHLO auth-mediation')
     }
@@ -78,9 +79,12 @@ export async function sendMail(fields, request, { connect = defaultConnect, now 
   } finally { try { socket?.destroy() } catch { /* already closed */ } }
 }
 
-function defaultConnect({ host, port, mode, upgrade }) {
+// The production connection: implicit TLS, or a plain connection for STARTTLS that is upgraded in place. tls = extra TLS options (a test trusts its own certificate; production passes none, so the default store and hostname checks apply).
+// dial = where to open the TCP connection when it differs from the certificate's name (tests only; production never sets it).
+export function defaultConnect({ host, port, mode, upgrade, tls = {}, dial = {} }) {
+  const at = { host: dial.host ?? host, port: dial.port ?? port }
   return new Promise((resolve, reject) => {
-    const s = upgrade ? tlsConnect({ socket: upgrade, servername: host }) : mode === 'implicit' ? tlsConnect({ host, port, servername: host }) : netConnect({ host, port })
+    const s = upgrade ? tlsConnect({ ...tls, socket: upgrade, servername: host }) : mode === 'implicit' ? tlsConnect({ ...tls, ...at, servername: host }) : netConnect(at)
     const ok = upgrade || mode === 'implicit' ? 'secureConnect' : 'connect'
     s.once(ok, () => resolve(s)); s.once('error', reject); s.setTimeout(STEP_MS * 2, () => s.destroy(new Error('timeout')))
   })
