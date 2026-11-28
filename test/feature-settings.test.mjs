@@ -45,7 +45,7 @@ test('既存envを初回だけ取り込み、橋の認証ファイルは読ま�
   const settings = new FeatureSettings({ root, environment })
   await settings.initialize()
   assert.deepEqual(settings.list().map(item => item.status), ['enabled', 'enabled', 'enabled', 'enabled', 'unconfigured', 'disabled'])
-  // bd11: the token comes only from the Bridge export import (callBridgeSettingsInput), never from the Bridge-written file.
+  // the token is no field any more (the auth module adds the bearer) and the Bridge-written file is never read.
   assert.deepEqual(settings.configuration('callBridge'), { enabled: true, url: environment.BELLTEAM_CALL_BRIDGE_MCP_URL })
   assert.equal(settings.configuration('cloudflare').publicUrl, '')
   const visible = JSON.stringify(settings.list())

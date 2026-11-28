@@ -71,7 +71,6 @@ flowchart LR
     T2["THROUGHLINE_HOME, storage locate, storage export"]
   end
   subgraph CB["call bridge / Rita"]
-    R1["connection export"]
     R2["MCP /mcp"]
   end
   subgraph TG["testgate and RTK / Shiratsuru, Drilly"]
@@ -99,8 +98,6 @@ flowchart LR
   MEM -->|"X11 context for memory use"| T1
   RT -->|"X11 install, observer-check check"| T1
   RT -->|"X12 set THROUGHLINE_HOME; locate; export to a directory"| T2
-  RT -->|"X13 run export_connection.py --json"| R1
-  USE -->|"X13 validate call-bridge.connection.v1, keep own callBridge setting"| R1
   INT -->|"X14 seat traffic to /mcp"| R2
   RT -->|"X14 register the call-bridge MCP server"| R2
   CB -->|"X15 /v0/directory and /v0/deliver, call-bridge.delivery.v1"| CONV
@@ -122,13 +119,12 @@ flowchart LR
 | X10 | Aiterm Steer delivery (`aiterm-steer-delivery`, Steer's own product document) | Approval Box delivers an answer to the seat | existing contract |
 | X11 | Throughline CLIs (`observer-read`, `observer-check`, `room-context`, `handoff-context`, `remote-handoff-context`, `remote-ingest`, `install`), schemas `throughline.*.v1/v2` | conversation, execution, memory, runtime (install, observer-check probe) | existing contract |
 | X12 | `THROUGHLINE_HOME`, `throughline storage locate --json`, `throughline storage export --to <dir> --json` (Throughline 0.20.0, [ADR 0073](https://github.com/kitepon/Throughline/blob/main/docs/adr/0073-storage-location-and-export-contract.md)) | runtime: placement of the store, backup by export, distribution check; no hard-coded layout, no bind mount of a guessed directory | bd08 (placement/mount), bd18 (backup) |
-| X13 | `scripts/export_connection.py --json`, `call-bridge.connection.v1` `{url, token}` ([connection-handoff.md](https://github.com/kitepon/grokbot-bridge/blob/main/docs/architecture/connection-handoff.md)) | runtime: runs it on the host and hands the output to the import entry; usage: validates, saves BellTeam's own `callBridge` setting | bd10 (runtime), bd11 (usage) |
 | X14 | call bridge MCP `/mcp` (`call_directory`, `call_open`, `call_send`, ...) | integration: seat proxy; runtime: registers the MCP server in each CLI | existing contract |
 | X15 | BellTeam serves `/v0/directory` and `/v0/deliver` (`call-bridge.delivery.v1`) on a Unix socket; the bridge is the caller | conversation: receives delivery | existing contract |
 | X16 | testgate registration entry v1 ([registration-contract.md](https://github.com/kitepon/testgate/blob/main/docs/registration-contract.md), 0.3.32): one PreToolUse item `node <R>/current/bin/testgate.mjs hook <H>`, carried in RTK's `harness-entries.json` | runtime: writes the item as part of the single CLI-file writer; no probing of the testgate path from the body | bd13 |
 | X17 | Lattice CLI K1-K8 ([dfd-charts-read.md](https://github.com/kitepon/Lattice/blob/main/docs/architecture/dfd-charts-read.md), a101) | lattice: one read of all charts (name, creator, counts, trees, change token), chart naming, code-chart sync, seat commands. Detail: [lattice module](modules/lattice/README.md#bellteam---lattice-connection-target-task-a102) and P11 below | a102 |
 
-Switch tasks that implement these arrows against the diagram: bd03 (execution, X6), bd05 (execution/conversation, X1-X3 `child-result`, `model-handoff-*` removal), bd06 (runtime, X3), bd08 (runtime, X12), bd10 (runtime, X13), bd11 (usage, X13), bd13 (runtime, X16), bd14 (runtime, X4/X7). Until a task lands, its arrow is the target and the code keeps today's access.
+Switch tasks that implement these arrows against the diagram: bd03 (execution, X6), bd05 (execution/conversation, X1-X3 `child-result`, `model-handoff-*` removal), bd06 (runtime, X3), bd08 (runtime, X12), bd13 (runtime, X16), bd14 (runtime, X4/X7). Until a task lands, its arrow is the target and the code keeps today's access.
 
 ## Processes, public contracts and failure ownership
 
