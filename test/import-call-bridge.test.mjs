@@ -33,7 +33,7 @@ test('the export goes to the running server as one loopback PATCH; bad input nev
   try {
     const ok = await run(exported, port)
     assert.equal(ok.code, 0)
-    assert.deepEqual(seen, [['PATCH', '/api/settings/callBridge', '127.0.0.1', { enabled: true, values: { url: 'http://192.168.1.2:18910/mcp', token } }]])
+    assert.deepEqual(seen, [['PATCH', '/api/settings/callBridge', '127.0.0.1', { enabled: true, values: { url: 'http://192.168.1.2:18910/mcp' } }]])
     for (const [input, code] of [['{"schema":"x"}', 'CALL_BRIDGE_IMPORT_INVALID'], ['x'.repeat(64 * 1024 + 1), 'CALL_BRIDGE_IMPORT_TOO_LARGE']]) {
       const bad = await run(input, port)
       assert.equal(bad.code, 1)

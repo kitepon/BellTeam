@@ -1,4 +1,5 @@
 import { join } from 'node:path'
+import { authHttpStream } from './auth-http-stream.mjs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { createHttpGatewayProcess } from './http-gateway-process.mjs'
@@ -74,7 +75,9 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     seatApprovals: services.seatApprovals,
   }
   const internalPort = Number(environment.BELLTEAM_INTERNAL_PORT ?? 4181)
-  const callBridgeHeaders = bootstrap.callBridgeHeaders ?? join(root, 'state/call-bridge/headers')
+  const callBridgeHeaders = bootstrap.callBridgeHeaders ?? join(root, 'state/call-bridge/headers') // only to remove a leftover file: the bearer is the auth module's
+  // The bridge's bearer is added inside the auth module (item http call-bridge-mcp-bellteam); this body only holds the URL.
+  const callBridgeOpen = bootstrap.callBridgeOpen ?? authHttpStream({ name: 'call-bridge-mcp-bellteam' })
   const features = createApplicationFeatures({ services: services.conversationAssembly ? { ...services, messenger: { ...messenger, receiveCallBridge: (...args) => services.conversationAssembly.run({ kind: 'bridge' }, () => messenger.receiveCallBridge(...args)) } } : services, aiterm, home, callBridgeHeaders, environment, notify: data => server.notify(data),
     ...(services.usageAssembly ? { usageContext: method => services.usageAssembly.systemContext(method) } : {}),
     ...(bootstrap.seatRuntime ? { configureHarnessConfig: (bots, _home, { callBridge }) =>
@@ -107,7 +110,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     tools: { registry: bots, botView: bot => administration.view(bot), messenger, store, rooms, roomMessenger, memory, ownerProfile, userRules, bugHubSecurity: createBugHubSecurity({ root }), terminals: () => services.terminals, terminalKeys: () => services.terminalKeys, runningExclusions: () => services.runningExclusions, authMediation: () => services.authMediation, internalUrl: `http://127.0.0.1:${internalPort}`, lattice: services.lattice, ...internalApi(internalPort) },
     callBridge: () => {
       const config = settings.configuration('callBridge')
-      return config.enabled ? { url: config.url, headersFile: callBridgeHeaders } : null
+      return config.enabled ? { url: config.url, open: callBridgeOpen } : null
     },
   })
   services.bindSeatMcpSeen?.(seatMcp.seen)

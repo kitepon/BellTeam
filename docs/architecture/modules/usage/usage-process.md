@@ -39,7 +39,7 @@ settings先行initializeから始め、subscriptions/members→notifications/tra
 
 ## 固定関数と初期化順序
 
-`createUsageServices({root,bots,rooms,effect,onProjection,bridgeHeadersPath,environment,seatRuntime,subscription})`が一組を生成する。root/bridgeHeadersPathはruntimeの固定bootstrap値で、業務paramsにはない。environmentは初回settings importの既5変数（TypeSafe/callBridge URL/Cloudflare team+audience/BugHub）だけを親が選択する。native envや資格全部は渡さない。
+`createUsageServices({root,bots,rooms,effect,onProjection,bridgeHeadersPath,environment,seatRuntime,subscription})`が一組を生成する。root/bridgeHeadersPath（旧い`headers`を消すためだけに残る。合言葉のfileは書かない、2026-11-28）はruntimeの固定bootstrap値で、業務paramsにはない。environmentは初回settings importの既5変数（TypeSafe/callBridge URL/Cloudflare team+audience/BugHub）だけを親が選択する。native envや資格全部は渡さない。
 
 1. `initializeSettings({restore})`→private settings record。Mollyの既bootstrapへ接続。
 2. `initializeSubscriptions({restore})`→private subscription record。members起動より前の現順序へ。

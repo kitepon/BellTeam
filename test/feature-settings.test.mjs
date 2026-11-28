@@ -44,9 +44,9 @@ test('既存envを初回だけ取り込み、橋の認証ファイルは読ま�
   }
   const settings = new FeatureSettings({ root, environment })
   await settings.initialize()
-  assert.deepEqual(settings.list().map(item => item.status), ['enabled', 'unconfigured', 'enabled', 'enabled', 'unconfigured', 'disabled'])
+  assert.deepEqual(settings.list().map(item => item.status), ['enabled', 'enabled', 'enabled', 'enabled', 'unconfigured', 'disabled'])
   // bd11: the token comes only from the Bridge export import (callBridgeSettingsInput), never from the Bridge-written file.
-  assert.deepEqual(settings.configuration('callBridge'), { enabled: false, url: environment.BELLTEAM_CALL_BRIDGE_MCP_URL, token: '' })
+  assert.deepEqual(settings.configuration('callBridge'), { enabled: true, url: environment.BELLTEAM_CALL_BRIDGE_MCP_URL })
   assert.equal(settings.configuration('cloudflare').publicUrl, '')
   const visible = JSON.stringify(settings.list())
   for (const value of ['routing-secret', 'bridge-secret', 'diagnostic-secret']) assert.ok(!visible.includes(value))
@@ -56,7 +56,7 @@ test('既存envを初回だけ取り込み、橋の認証ファイルは読ま�
   await restored.initialize()
   assert.equal(restored.configuration('routing').apiKey, 'routing-secret')
   assert.equal(restored.configuration('routing').enabled, false)
-  assert.equal(restored.configuration('callBridge').token, '')
+  assert.equal(Object.hasOwn(restored.configuration('callBridge'), 'token'), false)
 })
 
 test('設定不足の機能は移行後も無効になり、既存の値は保持する', async t => {
@@ -64,7 +64,7 @@ test('設定不足の機能は移行後も無効になり、既存の値は保�
     BELLTEAM_CALL_BRIDGE_MCP_URL: 'http://localhost:18910/mcp', BELLTEAM_CF_TEAM_DOMAIN: 'example.cloudflareaccess.com',
   } })
   assert.equal(settings.configuration('callBridge').url, 'http://localhost:18910/mcp')
-  assert.equal(settings.configuration('callBridge').enabled, false)
+  assert.equal(settings.configuration('callBridge').enabled, true) // 2026-11-28: the URL is all it needs; the bearer is the auth module's
   assert.equal(settings.configuration('cloudflare').enabled, false)
 })
 
@@ -304,4 +304,21 @@ test('a487n: a stored webPush entry of an older version is dropped and the file 
   assert.equal(Object.hasOwn(JSON.parse(await readFile(path, 'utf8')), 'webPush'), false)
   await assert.rejects(settings.update('webPush', { enabled: false }), errorCode('FEATURE_NOT_FOUND'))
   // an older module that still lists webPush can read the rewritten file: it gains the disabled default (a late feature of its own era)
+})
+
+test('2026-11-28: a bridge token an older version stored is dropped when the file loads; the token is no field any more', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-settings-bridge-token-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const path = join(root, 'shared/tools/bellteam-settings/settings.json')
+  const old = { routing: { enabled: false, apiKey: '' }, callBridge: { enabled: true, url: 'http://localhost:18910/mcp', token: 'OLD-BRIDGE-TOKEN' },
+    cloudflare: { enabled: false, teamDomain: '', audience: '', publicUrl: '' }, diagnostics: { enabled: false, key: '' },
+    notifications: { enabled: false, relayUrl: '' }, thinkingDisplay: { enabled: false } }
+  await mkdir(join(root, 'shared/tools/bellteam-settings'), { recursive: true })
+  await writeFile(path, JSON.stringify(old), { mode: 0o600 })
+  const settings = new FeatureSettings({ root, environment: {} })
+  await settings.initialize()
+  assert.deepEqual(settings.configuration('callBridge'), { enabled: true, url: 'http://localhost:18910/mcp' })
+  assert.ok(!(await readFile(path, 'utf8')).includes('OLD-BRIDGE-TOKEN'))
+  assert.deepEqual(settings.list().find(item => item.id === 'callBridge').fields.map(field => field.key), ['url'])
+  await assert.rejects(settings.update('callBridge', { values: { token: 'x' } }, { allowSecretValues: true }), errorCode('FEATURE_INPUT_INVALID'))
 })

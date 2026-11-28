@@ -4,9 +4,8 @@ import { isSupportedServerURL } from './server-address.mjs'
 
 const features = [
   { id: 'routing', title: 'AIによるルーム応答の振り分け', fields: [{ key: 'apiKey', label: 'TypeSafe APIキー', secret: true }] },
-  { id: 'callBridge', title: '通話ブリッジ', fields: [
-    { key: 'url', label: 'MCP接続先URL', url: true }, { key: 'token', label: '接続トークン', secret: true },
-  ] },
+  // 2026-11-28: the bridge's bearer lives in the auth module (item http call-bridge-mcp-bellteam); BellTeam keeps the URL only.
+  { id: 'callBridge', title: '通話ブリッジ', fields: [{ key: 'url', label: 'MCP接続先URL', url: true }] },
   { id: 'cloudflare', title: 'Cloudflare Access', fields: [
     { key: 'teamDomain', label: 'チームドメイン', domain: true }, { key: 'audience', label: 'Audience' },
     { key: 'publicUrl', label: '公開URL', url: true, optional: true },
@@ -93,6 +92,9 @@ export class FeatureSettings {
         const droppedOnePassword = Object.hasOwn(settings, 'onePassword')
         let switchedOffNotifications = false
         delete settings.onePassword
+        // 2026-11-28: a bridge token an older version stored is dropped (the file is rewritten without it).
+        const droppedBridgeToken = object(settings.callBridge) && Object.hasOwn(settings.callBridge, 'token')
+        if (droppedBridgeToken) delete settings.callBridge.token
         const missing = features.filter(feature => !Object.hasOwn(settings, feature.id))
         if (missing.some(feature => !lateFeatures.includes(feature.id))) throw new Error('設定項目が一致しません。')
         const expected = features.filter(feature => Object.hasOwn(settings, feature.id))
@@ -112,7 +114,7 @@ export class FeatureSettings {
         }
         this.settings = { ...settings, ...Object.fromEntries(missing.map(feature => [feature.id, {
           enabled: false, ...Object.fromEntries(feature.fields.map(field => [field.key, ''])) }])) }
-        if ((missing.length || droppedWebPush || droppedOnePassword || switchedOffNotifications) && !readOnly) await this.save(this.settings)
+        if ((missing.length || droppedWebPush || droppedOnePassword || droppedBridgeToken || switchedOffNotifications) && !readOnly) await this.save(this.settings)
       } catch (cause) {
         throw new FeatureSettingsError('FEATURE_SETTINGS_INVALID', 500, '保存済みの設定を読み取れません。', cause)
       }

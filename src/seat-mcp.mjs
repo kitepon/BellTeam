@@ -1,9 +1,7 @@
 // 席のCLIがHTTPでつなぐMCPの入口。supervisorの内部入口（loopback）だけで開く。
 // 席ごとにnodeを起こさないよう、bellteamの道具と通話ブリッジへの中継をここで受ける。
 import { createHash, randomUUID } from 'node:crypto'
-import { readFile } from 'node:fs/promises'
-import { createServer, request as httpRequest } from 'node:http'
-import { request as httpsRequest } from 'node:https'
+import { createServer } from 'node:http'
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
@@ -306,41 +304,31 @@ const RELAYED_RESPONSE_HEADERS = ['content-type', 'cache-control', 'mcp-session-
 async function relayCallBridge(request, response, { from, callBridge, relays, assertWorkAllowed }) {
   const target = callBridge()
   if (!target) return reply(response, 404, { error: 'CALL_BRIDGE_DISABLED' })
-  const headers = Object.fromEntries(RELAYED_REQUEST_HEADERS.flatMap(name => request.headers[name] === undefined ? [] : [[name, request.headers[name]]]))
-  let credentials
-  try { credentials = await readFile(target.headersFile, 'utf8') }
-  catch (error) {
-    if (error.code !== 'ENOENT') throw error
-    return reply(response, 502, { error: 'CALL_BRIDGE_AUTH_UNAVAILABLE' })
-  }
-  for (const line of credentials.split('\n')) {
-    const at = line.indexOf(':')
-    if (at > 0) headers[line.slice(0, at).trim()] = line.slice(at + 1).trim()
-  }
+  // The bearer is the auth module's (2026-11-28): the seat's own Authorization and caller id are never forwarded; the module adds the credential.
+  const headers = Object.fromEntries(RELAYED_REQUEST_HEADERS.filter(name => name !== 'content-length').flatMap(name => request.headers[name] === undefined ? [] : [[name, request.headers[name]]]))
   headers[CALLER_ID_HEADER] = from
-  // Reading credentials may overlap ON. Do not begin a new upstream call afterwards.
+  // Do not begin a new upstream call when AI work is off.
   try { assertWorkAllowed() }
   catch (error) { return reply(response, error.status ?? 502, { error: error.code ?? 'CALL_BRIDGE_UNAVAILABLE' }) }
+  let body
+  try { body = await readBytes(request, 9 * 1024 * 1024) }
+  catch (error) { return reply(response, error.status ?? 400, { error: error.code ?? 'INVALID_REQUEST' }) }
   const url = new URL(target.url)
-  const upstream = (url.protocol === 'https:' ? httpsRequest : httpRequest)(url, { method: request.method, headers }, answer => {
-    // 合言葉は席では直せない。401をそのまま返すと、CLIがこの入口へ認証を始めようとする。
-    if (answer.statusCode === 401) {
-      answer.resume()
-      return reply(response, 502, { error: 'CALL_BRIDGE_AUTH_FAILED' })
-    }
-    response.writeHead(answer.statusCode, Object.fromEntries(RELAYED_RESPONSE_HEADERS.flatMap(name => answer.headers[name] === undefined ? [] : [[name, answer.headers[name]]])))
-    // 上流が途中で切れた時（通話ブリッジの再起動など）は、席側の流れも切って再接続させる。
-    answer.once('close', () => { if (!answer.complete) response.destroy() })
-    answer.pipe(response)
-  })
-  const end = () => { upstream.destroy(); response.end() }
+  let upstream
+  try { upstream = await target.open({ method: request.method, path: url.pathname + url.search, headers, body }) }
+  catch (error) { return reply(response, 502, { error: error.code === 'CALL_BRIDGE_AUTH_FAILED' ? 'CALL_BRIDGE_AUTH_FAILED' : 'CALL_BRIDGE_UNREACHABLE' }) }
+  // The bridge's own 401 is not the seat's to fix: answering 401 would make the CLI start an authentication with this entrance.
+  if (upstream.status === 401) {
+    upstream.abort()
+    return reply(response, 502, { error: 'CALL_BRIDGE_AUTH_FAILED' })
+  }
+  response.writeHead(upstream.status, Object.fromEntries(RELAYED_RESPONSE_HEADERS.flatMap(name => upstream.headers[name] === undefined ? [] : [[name, upstream.headers[name]]])))
+  const end = () => { upstream.abort(); response.end() }
   relays.add(end)
-  response.once('close', () => { relays.delete(end); upstream.destroy() })
-  upstream.once('error', error => {
-    if (response.headersSent) return response.destroy()
-    reply(response, 502, { error: 'CALL_BRIDGE_UNREACHABLE', message: error.code ?? error.message })
-  })
-  request.pipe(upstream)
+  response.once('close', () => { relays.delete(end); upstream.abort() })
+  // The upstream stream was cut midway (the module's limit, the bridge restarting): cut the seat's side too so the CLI reconnects.
+  upstream.body.once('error', () => response.destroy())
+  upstream.body.pipe(response)
 }
 
 async function readBytes(request, maxBytes = 4 * 1024 * 1024) {

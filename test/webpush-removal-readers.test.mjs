@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { assertUsageStateCompatibility, USAGE_STATE_COMPATIBILITY } from '../src/usage/state-compatibility.mjs'
-import { usageFeatureIdsValid } from '../src/usage/projection.mjs'
+import { usageConfigurationValid, usageFeatureIdsValid, usageSettingValid } from '../src/usage/projection.mjs'
 import { usageHandoffValid } from '../src/usage/services.mjs'
 import { notificationsReadyValid } from '../src/notifications-ipc.mjs'
 
@@ -49,4 +49,19 @@ test('the notifications ready answer is read with and without webPush in status 
   assert.equal(notificationsReadyValid({ status: { apns }, applyError: { apns: 'PUSH_CONFIGURATION_FAILED' } }), true)
   assert.equal(notificationsReadyValid({ status: { webPush: web }, applyError: { apns: null } }), false)
   assert.equal(notificationsReadyValid({ status: { apns }, applyError: { apns: null, other: null } }), false)
+})
+
+// 2026-11-28 (readers first): callBridge lost its token field; the body reads the older child's rows (url + token) and the new ones (url only), nothing else.
+test('the body reads callBridge with and without the token field and refuses any other shape', () => {
+  const field = (key, secret, configured = true) => ({ key, label: key, secret, value: secret ? '' : 'http://h/mcp', configured, required: true })
+  const row = fields => ({ id: 'callBridge', title: '通話ブリッジ', enabled: true, status: 'enabled', fields })
+  assert.equal(usageSettingValid(row([field('url', false)])), true)
+  assert.equal(usageSettingValid(row([field('url', false), field('token', true)])), true)
+  assert.equal(usageSettingValid(row([field('token', true), field('url', false)])), false)
+  assert.equal(usageSettingValid(row([field('url', false), field('other', false)])), false)
+  assert.equal(usageConfigurationValid('callBridge', { enabled: true, url: 'http://h/mcp' }), true)
+  assert.equal(usageConfigurationValid('callBridge', { enabled: true, url: 'http://h/mcp', token: 'x' }), true)
+  assert.equal(usageConfigurationValid('callBridge', { enabled: true, url: 'http://h/mcp', token: 1 }), false)
+  assert.equal(usageConfigurationValid('callBridge', { enabled: true, url: 'http://h/mcp', extra: 'x' }), false)
+  assert.equal(usageConfigurationValid('callBridge', { enabled: true }), false)
 })
