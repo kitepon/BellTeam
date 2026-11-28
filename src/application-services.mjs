@@ -291,7 +291,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   // The module's ssh agent holds the three terminal keys (terminal-keys-module-agent): started once, it needs the operator Bot's folder as its caller identity.
   const operatorProject = bots.get(TERMINAL_KEY_OPERATOR)?.project ?? null
   terminalKeyLoader = operatorProject ? createTerminalKeyHolder({ run: createSeatProcessRunner(operatorProject, { environment: 'base' }),
-    report: report => void Promise.resolve(diagnostics.record(report)).catch(() => process.stderr.write(`BellTeam terminal key holder: ${report.code}: ${report.reason}\n`)) }) : null
+    report: ({ code, reason }) => void Promise.resolve(diagnostics.record({ code, module: 'terminals', diagnostic_log: JSON.stringify({ reason }) })).catch(() => process.stderr.write(`BellTeam terminal key holder: ${code}: ${reason}\n`)) }) : null
   const seatCredentials = createSeatCredentials({ path: join(root, 'state/seat-credentials.json') })
   // remote-user-tools.md U1: names/kinds of the user-global MCP servers for a Bot's harness, read as the seat user.
   const listUserToolsFor = async botId => {

@@ -252,6 +252,7 @@ export class NotificationRelayProvider {
     const result = await this.call('/v1/notifications/send', { method: 'POST',
       headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ device: destination, payload, id }) })
     if (result?.accepted !== true) throw pushError('PUSH_RELAY_RESPONSE_INVALID')
+    return result
   }
 
   async call(path, options) {

@@ -1,8 +1,22 @@
 import { validatePushDevice } from '../../src/push-notifications.mjs'
 import { validateFcmDevice, validateRelayFcmMessage } from '../../src/usage/fcm-schema.mjs'
 
+const MAX_BODY_BYTES = 64 * 1024
+
 function failure(code, status, message) {
   return Response.json({ error: { code, message } }, { status, headers: { 'Cache-Control': 'no-store' } })
+}
+
+async function readJsonBody(request) {
+  const length = Number(request.headers?.get?.('content-length'))
+  if (Number.isFinite(length) && length > MAX_BODY_BYTES) return { error: failure('PAYLOAD_TOO_LARGE', 413, '通知情報が大きすぎます。') }
+  const text = await request.text()
+  if (Buffer.byteLength(text, 'utf8') > MAX_BODY_BYTES) return { error: failure('PAYLOAD_TOO_LARGE', 413, '通知情報が大きすぎます。') }
+  try { return { value: JSON.parse(text) } }
+  catch (error) {
+    if (!(error instanceof SyntaxError)) throw error
+    return { error: failure('PUSH_RELAY_REQUEST_INVALID', 400, '通知情報をJSONで送信してください。') }
+  }
 }
 
 // a540-form (client-only billing, Owner 2026-11-23): the relay holds the operator's APNs/FCM keys and nothing else. It makes NO money check, keeps no
@@ -11,12 +25,10 @@ export function createNotificationRelay({ provider, fcmProvider = null }) {
   async function sendFcm(request) {
     if (request.method !== 'POST') return failure('METHOD_NOT_ALLOWED', 405, 'POSTを使ってください。')
     if (!fcmProvider) return failure('PUSH_NOT_CONFIGURED', 503, 'Android通知は設定されていません。')
-    let input, device
-    try { input = await request.json() }
-    catch (error) {
-      if (!(error instanceof SyntaxError)) throw error
-      return failure('PUSH_RELAY_REQUEST_INVALID', 400, '通知情報をJSONで送信してください。')
-    }
+    const parsed = await readJsonBody(request)
+    if (parsed.error) return parsed.error
+    const input = parsed.value
+    let device
     try {
       device = validateFcmDevice({ token: input?.device?.token, server: input?.device?.server })
       if (typeof input.id !== 'string' || !input.id || Buffer.byteLength(input.id) > 64) throw new Error('PUSH_RELAY_REQUEST_INVALID')
@@ -39,12 +51,9 @@ export function createNotificationRelay({ provider, fcmProvider = null }) {
       if (path === '/v1/notifications/fcm/send') return sendFcm(request)
       if (path !== '/v1/notifications/send') return failure('NOT_FOUND', 404, '見つかりません。')
       if (request.method !== 'POST') return failure('METHOD_NOT_ALLOWED', 405, 'POSTを使ってください。')
-      let input
-      try { input = await request.json() }
-      catch (error) {
-        if (!(error instanceof SyntaxError)) throw error
-        return failure('PUSH_RELAY_REQUEST_INVALID', 400, '通知情報をJSONで送信してください。')
-      }
+      const parsed = await readJsonBody(request)
+      if (parsed.error) return parsed.error
+      const input = parsed.value
       if (typeof input?.id !== 'string' || !input.id || Buffer.byteLength(input.id) > 64
         || typeof input.payload?.aps?.alert?.title !== 'string' || typeof input.payload?.aps?.alert?.body !== 'string') {
         return failure('PUSH_RELAY_REQUEST_INVALID', 400, '通知情報が必要です。')
@@ -54,12 +63,13 @@ export function createNotificationRelay({ provider, fcmProvider = null }) {
       catch { return failure('PUSH_DEVICE_INVALID', 400, '通知先の形式が正しくありません。') }
       if (input.payload.bellteam?.server !== device.server) return failure('PUSH_RELAY_REQUEST_INVALID', 400, '通知の接続先が一致しません。')
       if (!provider.environments.includes(device.environment)) return failure('PUSH_ENVIRONMENT_UNAVAILABLE', 400, '通知の実行環境に対応していません。')
-      try { await provider.send(device, input.payload, input.id) }
+      let receipt
+      try { receipt = await provider.send(device, input.payload, input.id) }
       catch (error) {
         const code = /^[A-Z_0-9]+$/u.test(error.code ?? '') ? error.code : 'PUSH_SEND_FAILED'
         return failure(code, code === 'APNS_UNREGISTERED' ? 410 : 502, 'APNsへの通知送信に失敗しました。')
       }
-      return Response.json({ accepted: true }, { headers: { 'Cache-Control': 'no-store' } })
+      return Response.json({ accepted: true, ...(receipt && typeof receipt === 'object' ? receipt : {}) }, { headers: { 'Cache-Control': 'no-store' } })
     },
   }
 }

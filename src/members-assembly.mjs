@@ -33,7 +33,7 @@ export function createMembersAssembly({ root, seatRuntime, aiterm, settings, mod
       switch (method) {
         case 'schedules.currentTurn': value = dependencies().scheduleTurns.currentTurn(params.botId); break
         // a164: the child removed a connected schedule; only the parent calls Lattice (lattice README L21). Idempotent in Lattice.
-        case 'schedules.connectionRemoved': await dependencies().scheduler.releaseConnection(params.botId, params.schedule); break
+        case 'schedules.connectionRemoved': await dependencies().scheduler.releaseConnection(params.botId, params.schedule, context.operationContext); break
         case 'models.read': value = await models.forHarness(params.harness); break
         // S5 (remote-seat.md): no terminals core, or a core without folder, answers null = not checked.
         // os only when not macos: an older members child still reads macOS terminals; Windows/Linux need the members OS rule LIVE first.
@@ -66,7 +66,7 @@ export function createMembersAssembly({ root, seatRuntime, aiterm, settings, mod
     try {
       const conversation = dependencies().conversationAssembly
       const [method, params, context] = args
-      return conversation && (method.startsWith('assets.') || method.startsWith('room.'))
+      return conversation && (method.startsWith('assets.') || method.startsWith('room.') || method === 'schedules.connectionRemoved')
         ? await conversation.memberEffect(context, operationContext => onEffect(method, params, { ...context, operationContext })) : await onEffect(...args)
     } catch (error) { throw normalizeMembersError(error) }
   },

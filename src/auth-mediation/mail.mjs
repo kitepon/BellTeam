@@ -42,7 +42,7 @@ export async function sendMail(fields, request, { connect = defaultConnect, now 
   async function reply() {
     for (;;) {
       const lines = buffer.split('\r\n'), last = lines.findIndex(l => /^\d{3} /u.test(l))
-      if (last >= 0 && lines.slice(0, last).every(l => /^\d{3}-/u.test(l))) { buffer = lines.slice(last + 1).join('\r\n'); return { code: Number(lines[last].slice(0, 3)), lines: lines.slice(0, last + 1) } }
+      if (last >= 0 && last < lines.length - 1 && lines.slice(0, last).every(l => /^\d{3}-/u.test(l))) { buffer = lines.slice(last + 1).join('\r\n'); return { code: Number(lines[last].slice(0, 3)), lines: lines.slice(0, last + 1) } }
       const left = deadline - Date.now(), before = buffer.length
       if (ended || left <= 0) throw lost()
       await new Promise(resolve => { const t = setTimeout(resolve, Math.min(STEP_MS, left)); waiter = () => { clearTimeout(t); resolve() } })

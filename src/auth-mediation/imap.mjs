@@ -5,7 +5,7 @@ import { connect as tlsConnect } from 'node:tls'
 // Read-only by construction: mailboxes are opened with EXAMINE (nothing can be changed, \Seen included) and bodies are fetched with BODY.PEEK.
 export const MAIL_NOT_SUBMITTED = 'MAIL_NOT_SUBMITTED', MAIL_REJECTED = 'MAIL_REJECTED'
 const fail = (code, why) => Object.assign(new Error(code), { code, why })
-const STEP_MS = 20000, TOTAL_MS = 60000
+const STEP_MS = 20000, TOTAL_MS = 60000, MAX_LITERAL = 16 * 1024 * 1024
 export const LIMITS = { messages: 50, headers: 65536, text: 262144, raw: 262144, one: 1048576, total: 2097152 }
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 // Every value that goes into a command line passes here: a control character (CR, LF, NUL ...) would end the line and start another command, so it is refused for user, password, folder and search alike.
@@ -47,6 +47,7 @@ export async function openImap(fields, { connect = defaultConnect } = {}) {
       const line = buffer.slice(at, eol), m = /\{(\d+)\}$/u.exec(line)
       if (!m) { text += line; buffer = buffer.slice(eol + 2); return { text, literals } }
       const n = Number(m[1]), start = eol + 2
+      if (!Number.isSafeInteger(n) || n > MAX_LITERAL) throw fail(MAIL_NOT_SUBMITTED, 'literal too large')
       while (buffer.length < start + n) await more()
       text += line.slice(0, m.index) + `\0L${literals.length}\0`; literals.push(buffer.slice(start, start + n)); buffer = buffer.slice(start + n); at = 0
     }
@@ -86,8 +87,10 @@ export async function readFolder(client, folder, { search, order = 'newest', lim
   let uids
   if (uid !== undefined) uids = [uid]
   else {
-    const found = (await client.command(`UID SEARCH ${searchCriteria(search)}`)).untagged.find(r => r.text.startsWith('* SEARCH'))
-    uids = (found?.text.slice(8).trim().split(' ').filter(Boolean).map(Number) ?? []).sort((a, b) => a - b)
+    const found = (await client.command(`UID SEARCH ${searchCriteria(search)}`)).untagged
+      .filter(r => r.text.startsWith('* SEARCH'))
+      .flatMap(r => r.text.slice(8).trim().split(/\s+/u).filter(Boolean).map(Number))
+    uids = [...new Set(found)].sort((a, b) => a - b)
     uids = order === 'oldest' ? uids.slice(0, limit) : uids.slice(-limit).reverse()
   }
   if (!uids.length) return []

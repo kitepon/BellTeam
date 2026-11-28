@@ -78,11 +78,12 @@ export class BellTeamMessenger extends ConversationWriter {
     if (bot) admissionCheck?.()
 
     const deliveryId = presetId ?? this.deliveryId()
-    const imageAsset = images.length && target === 'user' && this.assets
+    const imageAsset = images.length === 1 && target === 'user' && this.assets
       ? await this.assets.save({ owner: from, id: deliveryId, image: images[0] })
       : null
-    const imageAssets = images.length && bot && this.assets
-      ? await this.assets.saveAll({ owner: from, id: deliveryId, images }) : []
+    const imageAssets = images.length && this.assets && (bot || images.length > 1)
+      ? await this.assets.saveAll({ owner: from, id: deliveryId, images })
+      : []
     const record = this.record({
       deliveryId, from, target, message, images, imageAsset, imageAssets,
       delivery: bot ? 'running' : 'delivered', label,

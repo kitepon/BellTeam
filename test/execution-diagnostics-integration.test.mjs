@@ -36,7 +36,8 @@ test('同じサービス組立てのモデル拒否と追跡失敗が共通診�
   const watch = services.transport.activity.watches.get(bot.id)
   t.after(async () => { watch.end(); await watch.completion })
   await tick(); await tick(); await services.diagnostics.pending
-  const rows = services.diagnostics.list()
+  // The fixture has no OLRW management; since M-07 registered that code it is recorded too (not what this test is about).
+  const rows = services.diagnostics.list().filter(row => row.category !== 'OLRW_MANAGEMENT_UNAVAILABLE')
   assert.deepEqual(rows.map(row => row.category).sort(),
     ['SERVER_MODEL_CONFIGURATION_FAILED', 'SERVER_TURN_TRACKING_FAILED'])
   for (const row of rows) {
