@@ -6,10 +6,10 @@ export const DECISION_PLAN = 'approval-box'
 export const DECISION_LANE = 'approval-box' // the extension is the worker of a wait on the Owner; lane `owner` is no longer used (a188)
 export const taskIdOf = decisionId => `dec-${decisionId.toLowerCase()}`
 const ended = card => card?.state === 'done' || card?.state === 'retired'
-const jst = iso => { const t = new Date(Date.parse(iso) + 9 * 3_600_000); return `${t.getUTCMonth() + 1}月${t.getUTCDate()}日 ${String(t.getUTCHours()).padStart(2, '0')}:${String(t.getUTCMinutes()).padStart(2, '0')}` }
+export const jst = iso => { const t = new Date(Date.parse(iso) + 9 * 3_600_000); return `${t.getUTCMonth() + 1}月${t.getUTCDate()}日 ${String(t.getUTCHours()).padStart(2, '0')}:${String(t.getUTCMinutes()).padStart(2, '0')}` }
 // The owner-task allowlist reads a value that starts with `--` as a missing value and refuses (documented shortcut there), so free text never starts with dashes.
-const safe = text => String(text ?? '').replace(/^[\s-]+/u, '') || '決裁'
-const owner = (projectId, args) => ({ op: 'ownerTask', projectId, args })
+export const safe = text => String(text ?? '').replace(/^[\s-]+/u, '') || '決裁'
+export const owner = (projectId, args) => ({ op: 'ownerTask', projectId, args })
 export const attachTarget = sessionLabel => { const m = CHART_LABEL.exec(sessionLabel ?? ''); return m ? { projectId: m[1], plan: m[2], taskId: m[3] } : null }
 
 // Rule T: which chart a BellTeam decision's task goes on. charts: [{projectId, createdBy, coordinator}].

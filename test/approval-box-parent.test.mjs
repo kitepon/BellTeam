@@ -113,3 +113,17 @@ test('effects: seat.message goes through the messenger as the scheduler; a gone 
   await assert.rejects(() => effects('seat.message', { target: 'bot-down', message: 'hi' }), { message: 'transport down' })
   await assert.rejects(() => createApprovalBoxExtensionEffects({ lattice: {}, bots: {} })('seat.message', { target: 'bot-a', message: 'hi' }), { code: 'APPROVAL_BOX_EXTENSION_SESSION_UNAVAILABLE' })
 })
+
+test('effects: decisions.file / read / cancel go through P1 with origin lattice; REFUSED is told apart, GONE reads as status gone, anything else is unavailable', async () => {
+  const seen = []
+  const port = { file: async params => (seen.push(params), { decisionId: 'K-AAAA', existing: false }), read: async id => (id === 'K-GONE' ? Promise.reject(Object.assign(new Error('g'), { kind: 'GONE' })) : { status: 'pending' }),
+    cancel: async () => { throw Object.assign(new Error('r'), { kind: 'REFUSED' }) } }
+  const effects = createApprovalBoxExtensionEffects({ lattice: {}, bots: {}, decisions: () => port })
+  const request = { title: 't', context: 'c', options: [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }], requester: '工程表', sessionLabel: 'Lattice bellteam p/t' }
+  assert.deepEqual(await effects('decisions.file', request), { decisionId: 'K-AAAA', existing: false })
+  assert.equal(seen[0].origin, 'lattice'); assert.equal(seen[0].session_label, 'Lattice bellteam p/t')
+  assert.deepEqual(await effects('decisions.read', { decisionId: 'K-GONE' }), { status: 'gone' })
+  await assert.rejects(effects('decisions.cancel', { decisionId: 'K-AAAA', reason: 'r' }), { code: 'APPROVALS_EFFECT_REFUSED' })
+  const none = createApprovalBoxExtensionEffects({ lattice: {}, bots: {} })
+  await assert.rejects(none('decisions.read', { decisionId: 'K-AAAA' }), { code: 'APPROVAL_BOX_EXTENSION_DECISIONS_UNAVAILABLE' })
+})

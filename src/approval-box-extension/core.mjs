@@ -7,12 +7,13 @@ import { toViewDecision, summarize } from './origin-view.mjs'
 import { entitlementFrom, cacheMillis } from './entitlement.mjs'
 import { nextConnect } from './connect-state.mjs'
 import { planLink, targetChart, DECISION_PLAN, DECISION_LANE } from './link-plan.mjs'
+import { cardsToFile, requestOf, filedRow, planFiled, isOwnerCard, FILE_PER_SCAN, READ_PER_SCAN } from './owner-lane.mjs'
 import { planRelay, relayAccepted, RELAY_ROW_KEEP_MS, RELAY_FEATURE_START } from './answer-relay.mjs'
 import { approvalsError } from '../approval-box-extension-protocol.mjs'
 
 export const STATE_DIR = '/srv/bellteam/state/approval-box-extension'
 const fail = (code, status) => approvalsError(code, status)
-const ROW_KEEP_MS = 30 * 86_400_000, RING = 200, PER_TICK = 5, CATCH_UP_MS = 5 * 60_000, ROSTER_MS = 60_000
+const ROW_KEEP_MS = 30 * 86_400_000, RING = 200, PER_TICK = 5, CATCH_UP_MS = 5 * 60_000, ROSTER_MS = 60_000, OWNER_SCAN_MS = 60_000
 const fileOps = {
   read: async path => readFile(path, 'utf8').catch(error => (error.code === 'ENOENT' ? null : Promise.reject(error))),
   write: async (path, text) => { await mkdir(join(path, '..'), { recursive: true, mode: 0o700 }); await writeFile(`${path}.tmp`, text, { mode: 0o600 }); await rename(`${path}.tmp`, path) },
@@ -25,6 +26,7 @@ const existsAlready = result => /EXIST|ALREADY|UNCHANGED/iu.test(result?.code ??
 
 export function createApprovalBoxExtensionCore({ client = createApprovalBoxClient(), now = Date.now, stateDir = STATE_DIR, files = fileOps, streamBackoffMs = 1000 } = {}) {
   let session, unsaved = false, rows = null, pairing = null, connectState = 'not_connected', entitlement = null, entitlementAt = 0, roster = null, rosterAt = 0
+  let lastOwnerScan = -Infinity
   let seq = 0, ring = [], dirty = new Set(), caughtUp = false, lastCatchUp = 0, stream = null, sessionInvalid = false, lastEventId = null
   const rowsPath = join(stateDir, 'links.json'), bookPath = join(stateDir, 'answers.json')
   let book = null
@@ -217,6 +219,7 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
     }
   }
   const process_ = async (effect, id, memo) => {
+    if ((await loadRows()).some(row => row.decisionId === id && row.filed)) return // the Owner-lane filer (F9) drives its own rows
     const decision = await readEngine(effect, id)
     if (!decision) return
     const d = toViewDecision(decision, { roster: await members(effect) })
@@ -262,8 +265,51 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
     // Best effort: this list only adds ids, so a refusal here (rate limit, outage) must not stop the pending/held catch-up below. A 401 still ends the tick (abx drops the session).
     const answered = await abx(effect, 'GET', '/v1/decisions?status=answered&limit=100').catch(error => { if (error?.code === 'APPROVALS_NOT_CONNECTED') throw error; return { status: 0 } })
     if (answered.status === 200) answered.json.items.filter(item => Date.parse(item.answer?.answered_at) >= Date.parse(since) && !book.rows.some(row => row.decisionId === item.id)).forEach(item => dirty.add(item.id))
-    list.filter(row => row.state === 'linked' || row.state === 'diverged').forEach(row => dirty.add(row.decisionId))
+    list.filter(row => !row.filed && (row.state === 'linked' || row.state === 'diverged')).forEach(row => dirty.add(row.decisionId))
     caughtUp = true; lastCatchUp = now()
+  }
+
+  // F9 (README section 5b, O1-O5): each scan, every open Owner-lane card of every chart has one request. P1 or Lattice unavailable ends the scan quietly (O5): nothing is written.
+  const ownerScan = async effect => {
+    if (now() - lastOwnerScan < OWNER_SCAN_MS) return
+    lastOwnerScan = now()
+    const list = await loadRows()
+    const names = new Map((await members(effect)).map(member => [member.id, member.name]))
+    const charts = await effect('lattice.charts', {})
+    const memo = new Map()
+    const cardsOf = async projectId => { if (!memo.has(projectId)) memo.set(projectId, (await effect('lattice.chart', { projectId })).cards); return memo.get(projectId) }
+    const touched = new Set(), at = () => new Date(now()).toISOString()
+    let reads = 0, filed = 0
+    const save = async next => { rows = next; await saveRows() }
+    // deferred rows whose 24 h are over leave, so O1 asks again while the card is open
+    const due = list.filter(row => row.state === 'deferred' && Date.parse(row.deferredUntil) <= now())
+    if (due.length) await save(list.filter(row => !due.includes(row)))
+    for (const row of (await loadRows()).filter(item => item.filed && item.state === 'linked')) { // O2 / O3
+      if (reads >= READ_PER_SCAN) break
+      const card = (await cardsOf(row.projectId).catch(() => [])).find(item => item.plan === row.plan && item.taskId === row.taskId)
+      reads++
+      const read = await effect('decisions.read', { decisionId: row.decisionId })
+      const plan = planFiled({ row, card, read, now: now() })
+      if (plan.cancel) { const result = await effect('decisions.cancel', { decisionId: row.decisionId, reason: plan.cancel }).catch(error => { if (error?.code === 'APPROVALS_EFFECT_REFUSED') return null; throw error }); if (!result) continue } // answered meanwhile: the next scan reads it
+      await execute(effect, plan)
+      touched.add(`${row.projectId}/${row.plan}/${row.taskId}`)
+      await save(plan.row ? (await loadRows()).map(item => item === row ? plan.row : item) : (await loadRows()).filter(item => item !== row))
+    }
+    for (const chart of charts) { // O1
+      if (filed >= FILE_PER_SCAN) break
+      const cards = (await cardsOf(chart.projectId).catch(() => [])).filter(isOwnerCard)
+      for (const card of cardsToFile({ projectId: chart.projectId, cards, rows: await loadRows() })) {
+        if (filed >= FILE_PER_SCAN) break
+        if (touched.has(`${chart.projectId}/${card.plan}/${card.taskId}`)) continue
+        const request = requestOf({ projectId: chart.projectId, chartName: chart.name, card, requester: names.get(chart.createdBy) })
+        let result
+        try { result = await effect('decisions.file', request) } catch (error) { if (error?.code === 'APPROVALS_EFFECT_REFUSED') continue; return } // refused: skip this card; unavailable: O5, nothing else this scan
+        filed++
+        await effect('lattice.link', { projectId: chart.projectId, plan: card.plan, taskId: card.taskId })
+        const kept = (await loadRows()).filter(item => !(item.projectId === chart.projectId && item.plan === card.plan && item.taskId === card.taskId))
+        await save([...kept, filedRow({ projectId: chart.projectId, card, decisionId: result.decisionId, at: at() })])
+      }
+    }
   }
 
   const connection = async effect => {
@@ -367,6 +413,8 @@ export function createApprovalBoxExtensionCore({ client = createApprovalBoxClien
       for (const id of [...dirty].slice(0, PER_TICK)) {
         try { await process_(effect, id, memo); dirty.delete(id) } catch (error) { if (error?.code === 'APPROVALS_NOT_CONNECTED') return idle; dirty.delete(id); dirty.add(id) } // a failing id goes to the back so five stuck ones cannot starve the rest
       }
+      // F9 runs once every decision Approval Box lists has been linked (an AI's own request with the card's label is attached by L8 first: no second request); an id that keeps failing holds it for 2 minutes after a catch-up at most.
+      if (!dirty.size || now() - lastCatchUp > 2 * 60_000) await ownerScan(effect).catch(error => { if (error?.code === 'APPROVALS_NOT_CONNECTED') throw error; process.stderr.write(`approval-box-extension owner-lane ${error?.code ?? 'FAILED'}\n`) })
       return { seq, events: fresh.map(({ type, id, version }) => ({ type, id, version })), summary: fresh.length || since === 0 ? await summaryOf(effect).catch(() => null) : null }
     },
   }
