@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-28T10:56:51Z",
-  "expiresAt": "2026-12-05T10:56:51Z",
+  "publishedAt": "2026-11-28T11:18:03Z",
+  "expiresAt": "2026-12-05T11:18:03Z",
   "releases": [
     {
       "componentId": "usage",
@@ -889,8 +889,8 @@
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "b9f1a987747fba7f490e8917eff3036eb82640da",
-      "versionId": "0e6740674af37243703b5bfa85cf3676566a7e63e742d17e6c1ea42e94601683",
+      "sourceCommit": "b30fe51188c7b48a392304c7ca8ad9c78a215e32",
+      "versionId": "e7dd46d934ee545053e34685db5cef1d53919e76f7e03a5b0732629bad97c67e",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -898,16 +898,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T100948Z/auth-mediation-b9f1a987747fba7f490e8917eff3036eb82640da-linux-amd64.tar.gz",
-          "bytes": 3739616,
-          "sha256": "0e6740674af37243703b5bfa85cf3676566a7e63e742d17e6c1ea42e94601683"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T111747Z/auth-mediation-b30fe51188c7b48a392304c7ca8ad9c78a215e32-linux-amd64.tar.gz",
+          "bytes": 3739758,
+          "sha256": "e7dd46d934ee545053e34685db5cef1d53919e76f7e03a5b0732629bad97c67e"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T100948Z/auth-mediation-b9f1a987747fba7f490e8917eff3036eb82640da-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11222,
-          "sha256": "e231f989de5358a1c3524e505e2fe145139e5e5f66734753ad2f914d0aadf02c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T111747Z/auth-mediation-b30fe51188c7b48a392304c7ca8ad9c78a215e32-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11226,
+          "sha256": "2e6af5fd29b7de1cef6e1d40d37a205ce443762ab2914b6693aea2326e89c328"
         },
-        "signerCommit": "b9f1a987747fba7f490e8917eff3036eb82640da"
+        "signerCommit": "b30fe51188c7b48a392304c7ca8ad9c78a215e32"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -919,13 +919,13 @@
         }
       },
       "changes": [
-        "Webhook の受領を読み戻すための相対パス（http_paths_relative）と、監査記録の期間・語での絞り込みを、モジュールの中で行えるようになります。"
+        "メール送信の項目に、送ってよい宛先の一覧（mail_allowed_to）を付けられるようになります。一覧にない宛先があると、その送信は断られます。"
       ]
     },
     {
       "componentId": "auth-mediation",
-      "sourceCommit": "b9f1a987747fba7f490e8917eff3036eb82640da",
-      "versionId": "beb88a1ea8bc20246464cb1394be55340fc77d12fe70913791c1b0185ed128a0",
+      "sourceCommit": "b30fe51188c7b48a392304c7ca8ad9c78a215e32",
+      "versionId": "baf7ea5cfa6b1beab791bd4d00a8f411eb8ff3f188f40f1aad06e3d885099e60",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -933,16 +933,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T100948Z/auth-mediation-b9f1a987747fba7f490e8917eff3036eb82640da-linux-arm64.tar.gz",
-          "bytes": 3739616,
-          "sha256": "beb88a1ea8bc20246464cb1394be55340fc77d12fe70913791c1b0185ed128a0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T111747Z/auth-mediation-b30fe51188c7b48a392304c7ca8ad9c78a215e32-linux-arm64.tar.gz",
+          "bytes": 3739758,
+          "sha256": "baf7ea5cfa6b1beab791bd4d00a8f411eb8ff3f188f40f1aad06e3d885099e60"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T100948Z/auth-mediation-b9f1a987747fba7f490e8917eff3036eb82640da-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11077,
-          "sha256": "f2f5a3f4b1f6f4aea25d84f0c1f791afef028ef73501ddf10ca86e28b827c7b6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T111747Z/auth-mediation-b30fe51188c7b48a392304c7ca8ad9c78a215e32-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11124,
+          "sha256": "c2dd87437cddde899be5647bd609e9d579ccd416cdc4c250e90f410684049dd1"
         },
-        "signerCommit": "b9f1a987747fba7f490e8917eff3036eb82640da"
+        "signerCommit": "b30fe51188c7b48a392304c7ca8ad9c78a215e32"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -954,7 +954,7 @@
         }
       },
       "changes": [
-        "Webhook の受領を読み戻すための相対パス（http_paths_relative）と、監査記録の期間・語での絞り込みを、モジュールの中で行えるようになります。"
+        "メール送信の項目に、送ってよい宛先の一覧（mail_allowed_to）を付けられるようになります。一覧にない宛先があると、その送信は断られます。"
       ]
     }
   ],
