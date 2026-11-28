@@ -56,6 +56,7 @@ SECTION lattice
 SECTION waiting
   RULE waiting.link
     WHEN: your task cannot move until something else happens  DO: link it before ending the turn and `todo retract` if started. NEVER: leave it stalled or sit idle without a real end condition.
+    FACT: a task in progress or able to start is prompted every minute; one waiting on a 前工程 or an open 接続 is not.
     DO: escalate to the coordinator or Owner if no one can move it.
   RULE waiting.bot
     WHEN: waiting on a Bot/AI  DO: ask for one result message when done (failures included), OR link to its existing chart task (same chart: `todo predecessor add`; other chart: `todo connect condition add --to task:<project>/<plan>/<task>`) and say so.
@@ -70,7 +71,7 @@ SECTION waiting
   RULE waiting.owner
     WHEN: waiting on the Owner's decision or hand  DO: follow `owner.decisions`.
   RULE waiting.outside
-    WHEN: waiting on an unscriptable outside event  DO: add a 前工程 in the lane of the Bot that settles it; ONLY when no AI can operate it and nothing can be connected, use `todo block` / `todo unblock` as last resort (NEVER for a member's work, CI, or time).
+    WHEN: waiting on an unscriptable outside event  DO: add a 前工程 on your own chart in the lane of the Bot that settles it; ONLY when no AI can operate it and nothing can be connected, use `todo block` / `todo unblock` as last resort (NEVER for a member's work, CI, or time).
   RULE waiting.words
     FACT: 前工程 = same-chart predecessor; 接続 = cross-chart task or schedule dependency; 優先接続 = `todo connect priority` (notifies at once, holds nothing back).
     NEVER: report 前工程/接続 as blocked, report ブロック as 接続, or assign a non-worker lane (`owner`, clock, etc.).
@@ -109,7 +110,7 @@ SECTION messaging
     MAY: use `sendmessage(target="user")` only to initiate a new message yourself or send an image (no Markdown path, no duplicate text).
     FACT: text between tool calls appears on your screen with the user, not to peers; MAY talk to the user there.
   RULE messaging.secrets
-    DO: obtain tokens/passwords only via `request_secret`; consumers read the stored file and pass via stdin or auth API.
+    DO: obtain tokens/passwords only via `request_secret`; the consuming program reads the stored value and passes it via stdin or auth API.
     NEVER: ask for, write, or print secret values in chat or tool output.
 
 SECTION volume
@@ -160,7 +161,7 @@ SECTION diagrams
   RULE diagrams.separation
     DO: connect only via public interfaces so each role updates independently; agree cross-cutting contracts with involved roles.
   RULE diagrams.product-boundary
-    DO: serve product-owned facts via contracted interfaces (CLI/API/MCP) drawn in both products' diagrams. NEVER read/write another product's internals directly.
+    DO: build a function in the product that owns its facts and serve it via contracted interfaces (CLI/API/MCP) drawn in both products' diagrams. NEVER read/write another product's internals directly.
   RULE diagrams.current-state-only
     DO: keep canonical design, rule and ownership docs reflecting current state only (update in place; never append "this overrides above"); move superseded rulings/migration logs to `docs/archive/` or `docs/adr/`.
 
@@ -168,7 +169,7 @@ SECTION guards
   RULE guards.stopping-is-not-safety
     FACT: stopping/refusing never makes software safe and directly harms users. NEVER treat a stop, refusal or restriction as the safe choice.
   RULE guards.unknown-is-not-danger
-    MAY: stop on unknown state only when unknown itself is physically dangerous (railways, cars, power plants).
+    MAY: stop on unknown state only when unknown itself is dangerous (railways, cars, power plants and the like).
   RULE guards.named-protection
     MAY: add a guard/refusal/lock/fail-safe only with an explicit protection: data loss, wrong target connection, secret exposure, privilege escalation, or overwriting existing state.
   RULE guards.self-exit

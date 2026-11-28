@@ -10,7 +10,7 @@
 
 ## 所有データと公開契約
 
-- [メンバー・予定・指示](registry.md)：Botのprofile/schedule、専用project構造・個別指示・画像、Owner profile/rulesと指示生成。全製品共通テンプレート`config/common-agents.md`は統合担当が持つ。
+- [メンバー・予定・指示](registry.md)：Botのprofile/schedule、専用project構造・個別指示・画像、Owner profile/rulesと指示生成。全製品共通テンプレート`config/common-agents.md`はmembersが持つ。
 - [削除](deletion.md)：通常DELETE/MCPの受付、activeからの退役、既pendingの再開、専用データ削除、CLI同期との独立した成否。
 - [予定](schedules.md)：Bot/部屋予定のMCP説明/schema/handler、HTTP受付、共通定義と発行。部屋の公開資格helperを使用する。
 - [プロフィール・画像](profiles.md)：9つのMCP説明/schema/handlerと一覧/profile/画像のHTTP受付。実行設定はexecutionへ委譲する。
