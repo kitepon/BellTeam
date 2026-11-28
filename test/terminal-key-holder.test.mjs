@@ -84,3 +84,21 @@ test('a holder that exits is started again, with a backoff that grows while it k
   assert.equal(reports.length, 1, 'one report for a failing streak')
   holder.stop()
 })
+
+test('a rejecting report callback does not trigger an unhandled rejection or stop retries', async () => {
+  let runs = 0
+  const run = async (command, args, options) => {
+    if (command !== AUTH_CLIENT) return { stdout: '' }
+    runs++
+    if (runs < 3) throw new Error('socket missing')
+    return new Promise((_, reject) => options.signal.addEventListener('abort', () => reject(new Error('abort'))))
+  }
+  const holder = createTerminalKeyHolder({
+    run, now: () => 0, sleep: async () => {},
+    report: () => Promise.reject(new Error('DIAGNOSTIC_INVALID')),
+  })
+  void holder.start()
+  for (let i = 0; i < 20 && runs < 3; i++) await new Promise(resolve => setImmediate(resolve))
+  assert.equal(runs, 3)
+  holder.stop()
+})

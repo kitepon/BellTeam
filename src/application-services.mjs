@@ -290,8 +290,8 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   // authMediation is built later in this function, so the loader reads it lazily.
   // The module's ssh agent holds the three terminal keys (terminal-keys-module-agent): started once, it needs the operator Bot's folder as its caller identity.
   const operatorProject = bots.get(TERMINAL_KEY_OPERATOR)?.project ?? null
-  const terminalKeyLoader = operatorProject ? createTerminalKeyHolder({ run: createSeatProcessRunner(operatorProject, { environment: 'base' }), report: report => diagnostics.record(report) }) : null
-  void terminalKeyLoader?.start() // the symlink must exist before the first remote launch; nothing waits for it
+  const terminalKeyLoader = operatorProject ? createTerminalKeyHolder({ run: createSeatProcessRunner(operatorProject, { environment: 'base' }),
+    report: report => void Promise.resolve(diagnostics.record(report)).catch(() => process.stderr.write(`BellTeam terminal key holder: ${report.code}: ${report.reason}\n`)) }) : null
   const seatCredentials = createSeatCredentials({ path: join(root, 'state/seat-credentials.json') })
   // remote-user-tools.md U1: names/kinds of the user-global MCP servers for a Bot's harness, read as the seat user.
   const listUserToolsFor = async botId => {
@@ -401,7 +401,9 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
           ...(factory.supportsSeatMcpSeen === true ? { seatMcp: { seen: name => seatMcpSeen(name) } } : {}),
           ...(factory.supportsRemoteUserTools === true ? { userTools: { list: listUserToolsFor, callerReplace: aitermCallerReplaceSupported() } } : {}) } } : {}
       return Object.freeze({ ...factory, createExecutionDispatcher: input => {
-        input = { ...input, ports: { ...input.ports, ...remote, ...harnessPort, ...streamPort } }
+        const seat = factory.supportsSeatActivity === true || !input.ports.seat ? input.ports.seat
+          : (({ seatActivity: _ignored, ...rest }) => rest)(input.ports.seat)
+        input = { ...input, ports: { ...input.ports, ...(seat ? { seat } : {}), ...remote, ...harnessPort, ...streamPort } }
         if (factory.supportsRemoteSeats !== true) input.ports.native = refuseRemoteSeatLaunch({ native: input.ports.native, bots,
           botsRoot: join(root, 'bots'), versionId: factory.versionId, record: report => diagnostics.record(report) })
         if (supported) return factory.createExecutionDispatcher(input)
@@ -573,6 +575,8 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
       void authMediationRelay.start().catch(() => {})
     }
   }
+  // Start after authMediationRelay is wired so the first `auth ssh` does not race container.sock creation on boot.
+  void terminalKeyLoader?.start()
   // a41 (execution current-work.md "Own work"): the only writer of the running exclusion list, on its own connector (Flora 2026-11-13).
   const runningExclusions = createRunningExclusions({ path: join(root, 'state', 'execution-running-exclusions.json'), decisions: approvalBoxPort })
   // seat-approval-to-abx (execution/seat-approvals.md): a seat stopped on a tool approval reaches the Owner as a card through P1 and as an entry.
@@ -623,7 +627,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     notifications, secretRequests, ownerQuestions, machineStream, bots, rooms,
     roomMessenger, messenger, store, transport, memory,
     ownerProfile, userRules, characterSheets, assets,
-    scheduler, diagnostics, diagnosticsModule, workGraph, workGraphModule, lattice, latticeModule, approvals, approvalsModule, authMediation, authMediationModule, accounts, terminals, terminalKeys, runningExclusions, seatApprovals, seatEntries, seatCredentials, userToolRelay, remoteSeatListener, bindSeatMcpSeen, credentialRefresh, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller,
+    scheduler, diagnostics, diagnosticsModule, workGraph, workGraphModule, lattice, latticeModule, approvals, approvalsModule, authMediation, authMediationModule, accounts, terminals, terminalKeys, terminalKeyLoader, runningExclusions, seatApprovals, seatEntries, seatCredentials, userToolRelay, remoteSeatListener, bindSeatMcpSeen, credentialRefresh, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller,
     // Saved direct input drains after listen (Z-c). Starting before the hold release is safe and needs no bound:
     // executionReady is false while held, and the release's hold.watch → requestDrain drains it.
     lifecycle: { ...execution?.lifecycle,
@@ -631,7 +635,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   }
   } catch (error) {
     const failures = []
-    for (const close of [() => credentialRefresh?.stop(), () => terminals?.close?.(), () => directMessages?.close(), () => backgroundSummary?.close(), () => moduleChildExitReporter.close(), () => updateCenter?.close(), () => seatRuntime?.memoryModule?.close(),
+    for (const close of [() => terminalKeyLoader?.stop(), () => credentialRefresh?.stop(), () => terminals?.close?.(), () => directMessages?.close(), () => backgroundSummary?.close(), () => moduleChildExitReporter.close(), () => updateCenter?.close(), () => seatRuntime?.memoryModule?.close(),
       () => conversationAssembly?.close(), () => execution?.controller.close(), () => execution && executionClient?.close(),
       () => members?.controller.close(), () => usageAssembly?.close(), () => diagnosticsModule?.close(), () => workGraphModule?.close(), () => approvals?.close(), () => approvalsModule?.close(), () => authMediationRelay?.close(), () => authMediationModule?.close(), () => latticeModule?.close()]) {
       try { await close() } catch (cleanupError) { failures.push(cleanupError) }

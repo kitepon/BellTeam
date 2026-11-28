@@ -75,7 +75,8 @@ export function createExecutionFactoryLoader({ prepareRelease = prepareExecution
       supportsRemoteUserTools: namespace.EXECUTION_REMOTE_USER_TOOLS === true,
       supportsHarnessCli: namespace.EXECUTION_HARNESS_CLI === true,
       supportsSeatStream: namespace.EXECUTION_SEAT_STREAM === true,
-      supportsSeatStreamDisplay: namespace.EXECUTION_SEAT_STREAM_DISPLAY === true })
+      supportsSeatStreamDisplay: namespace.EXECUTION_SEAT_STREAM_DISPLAY === true,
+      supportsSeatActivity: namespace.EXECUTION_SEAT_ACTIVITY === true })
   }
 }
 

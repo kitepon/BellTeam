@@ -75,7 +75,7 @@ export function createApplicationFeatures({ services, aiterm, home, callBridgeHe
           // CLIは起動時にMCP登録を読む。現在のターンを終えたら閉じ、次の配送で新しい登録を読む。
           // ターン終了は待たない。保存を流したBot自身のターンは保存の結果が返るまで終わらない。
           // 席の有無はpty_listを1回で読む。Botごとに読むと人数分のtmux起動（140人で約50秒）が保存の返事に乗り、60秒の期限へ近づく。
-          const running = await transport.runningBots([...bots.values()])
+          const running = await transport.runningBots([...bots.values()], { liveOnly: true })
           for (const bot of bots.values()) {
             if (!running.has(bot.id)) continue
             // 席を閉じられなかったのはその席の状態（ターンの結末が不明など）で、設定の失敗ではない。設定は保存・反映済みで、

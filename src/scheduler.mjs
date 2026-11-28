@@ -361,7 +361,7 @@ export class BotScheduler {
   }
 
   async restartLongSession(bot) {
-    if (!this.transport.isIdle(bot.id) || !await this.transport.isRunning(bot)) return
+    if (!this.transport.isIdle(bot.id) || !await this.transport.isRunning(bot, { liveOnly: true })) return
     if (await this.completedTurns(bot.project) < NIGHTLY_RESTART_TURNS) return
     await this.transport.restartIfIdle(bot)
   }
