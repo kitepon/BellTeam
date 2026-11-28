@@ -71,19 +71,102 @@ public sealed class AppLoginTests
             => Task.FromResult(new HttpResponseMessage(request.RequestUri!.AbsolutePath == "/api/session" ? status : HttpStatusCode.NotFound) { Content = new StringContent(session, Encoding.UTF8, "application/json") });
     }
 
-    [Fact]
-    public async Task AnEnforcingServerRoutesToItsOwnLoginAnOldOneKeepsAccessAndAnUnjudgeableOneKeepsTheToken()
+    private sealed class Home(string homeSession, string session, HttpStatusCode homeStatus = HttpStatusCode.OK, HttpStatusCode sessionStatus = HttpStatusCode.OK) : HttpMessageHandler
     {
-        using var enforced = new Workspace(origin => new BellApi(origin, new Probe("""{"authenticated":false,"authMode":"local","login":{"capability":true,"bound":true,"enforced":true}}""")));
+        public string? Authorization;
+        private static HttpResponseMessage Json(string body, HttpStatusCode status) => new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
+        {
+            var path = request.RequestUri!.AbsolutePath; Authorization = request.Headers.Authorization?.ToString();
+            return Task.FromResult(path switch
+            {
+                "/api/home/session" => homeStatus == HttpStatusCode.NotFound ? new HttpResponseMessage(HttpStatusCode.NotFound) : homeStatus is HttpStatusCode.Redirect or HttpStatusCode.Forbidden ? new HttpResponseMessage(homeStatus) : Json(homeSession, homeStatus),
+                "/api/session" => Json(session, sessionStatus),
+                _ => new HttpResponseMessage(HttpStatusCode.NotFound),
+            });
+        }
+    }
+    private const string HomeBound = """{"capability":"login-billing-home/1","bound":true,"enforced":true}""", HomeUnbound = """{"capability":"login-billing-home/1","bound":false,"enforced":false}""";
+
+    [Fact]
+    public async Task AHomeServerRoutesToTheCodeLoginAnOldOneKeepsAccessAnUnboundOneAsksForTheFirstCodeAndAnUnjudgeableOneKeepsTheToken()
+    {
+        using var enforced = new Workspace(origin => new BellApi(origin, new Home(HomeBound, """{"authenticated":false,"authMode":"local"}""")));
         await enforced.ConnectAsync("http://localhost:1/", listen: false);
         Assert.True(enforced.NeedsLogin); Assert.True(enforced.SessionLoginRequired);
-        using var old = new Workspace(origin => new BellApi(origin, new Probe("""{"authenticated":false,"authMode":"cloudflare"}""")));
+        using var old = new Workspace(origin => new BellApi(origin, new Home("", """{"authenticated":false,"authMode":"cloudflare"}""", HttpStatusCode.NotFound)));
         await old.ConnectAsync("http://localhost:1/", listen: false);
         Assert.True(old.NeedsLogin); Assert.False(old.SessionLoginRequired);
-        using var busy = new Workspace(origin => new BellApi(origin, new Probe("""{"error":"SESSION_STORE_UNAVAILABLE"}""", HttpStatusCode.ServiceUnavailable)));
+        // Legacy behind Access: the optional home probe is refused (302/401/non-JSON 403) while the ordinary session answers: connected, no login screen. A refused ordinary session still asks for login.
+        foreach (var refusal in new[] { HttpStatusCode.NotFound, HttpStatusCode.Redirect, HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden })
+        {
+            using var legacy = new Workspace(origin => new BellApi(origin, new Home("", """{"authenticated":true,"authMode":"cloudflare"}""", refusal)));
+            await legacy.ConnectAsync("http://localhost:1/", listen: false);
+            Assert.False(legacy.NeedsLogin); Assert.False(legacy.SessionLoginRequired);
+        }
+        using var refused = new Workspace(origin => new BellApi(origin, new Home("", "", HttpStatusCode.NotFound, HttpStatusCode.Unauthorized)));
+        await refused.ConnectAsync("http://localhost:1/", listen: false);
+        Assert.True(refused.NeedsLogin);
+        using var unbound = new Workspace(origin => new BellApi(origin, new Home(HomeUnbound, """{"authenticated":true,"authMode":"local"}""")));
+        await unbound.ConnectAsync("http://localhost:1/", listen: false);
+        Assert.True(unbound.NeedsLogin); Assert.False(unbound.ConnectionRetryable);   // no owner yet and no token: the first console code binds one
+        using var held = new Workspace(origin => new BellApi(origin, new Home(HomeUnbound, """{"authenticated":true,"authMode":"local"}""")) { SessionToken = "tok" });
+        await held.ConnectAsync("http://localhost:1/", listen: false);
+        Assert.False(held.NeedsLogin);
+        using var busy = new Workspace(origin => new BellApi(origin, new Home("""{"error":"SESSION_STORE_UNAVAILABLE"}""", "{}", HttpStatusCode.ServiceUnavailable)) { SessionToken = "tok" });
         await busy.ConnectAsync("http://localhost:1/", listen: false);
-        Assert.False(busy.NeedsLogin); Assert.True(busy.ConnectionRetryable); Assert.Equal("サーバーの準備中です。", busy.ConnectionError);
+        Assert.False(busy.NeedsLogin); Assert.True(busy.ConnectionRetryable); Assert.Equal("サーバーの準備中です。", busy.ConnectionError); Assert.Equal("tok", busy.Management.Api.SessionToken);
     }
+
+    private sealed class Console : HttpMessageHandler
+    {
+        public string? Body;
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
+        {
+            Body = await request.Content!.ReadAsStringAsync(token);
+            var (body, status) = Body.Contains("GOOD") ? ("""{"token":"tok-console","sessionId":"S1"}""", HttpStatusCode.OK) : Body.Contains("NONE") ? ("{}", HttpStatusCode.OK) : ("""{"error":"LOGIN_CODE_INVALID"}""", HttpStatusCode.Forbidden);
+            return new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
+        }
+    }
+
+    [Fact]
+    public async Task TheConsoleCodeGivesTheTokenOnceAndEveryRefusalHasItsSentence()
+    {
+        var server = new Console(); var api = new HomeLoginApi(new BellApi(new("http://localhost/"), server));
+        var answer = await api.ConsoleAsync("  GOOD-0000-00000 ");
+        Assert.Equal(("tok-console", "S1", """{"code":"GOOD-0000-00000"}"""), (answer.Token, answer.SessionId, server.Body));   // trimmed, one POST
+        Assert.Equal(HomeLoginText.CodeInvalid, HomeLoginText.Of(await Assert.ThrowsAsync<BellApiException>(() => api.ConsoleAsync("BAD"))));
+        Assert.Equal(HomeLoginText.NoResult, (await Assert.ThrowsAsync<BellApiException>(() => api.ConsoleAsync("NONE"))).Message);   // an answer without a token is a failure, not a login
+        Assert.Equal(SignInText.AddressNotRegistered, HomeLoginText.Of(new BellApiException("x", HttpStatusCode.Forbidden, "AUDIENCE_UNKNOWN")));
+        Assert.Equal("BellTeamがログインを受け付けませんでした（500）。", HomeLoginText.Of(new BellApiException("x", HttpStatusCode.InternalServerError, "OTHER")));
+    }
+
+    [Fact]
+    public void TheTokenIsKeptPerServerAndForgottenOnRequest()
+    {
+        var directory = Directory.CreateTempSubdirectory("bellteam-tokens-").FullName; var store = new DpapiSessionTokenStore(directory);
+        Uri a = new("https://a.example/"), b = new("https://b.example/");
+        Assert.Null(store.Load(a));
+        store.Save(a, "ta"); store.Save(b, "tb");
+        Assert.Equal(("ta", "tb"), (new DpapiSessionTokenStore(directory).Load(a), store.Load(b)));
+        Assert.DoesNotContain("ta", File.ReadAllText(Directory.GetFiles(directory)[0], System.Text.Encoding.Latin1));   // protected, not plain
+        store.Clear(a); Assert.Null(store.Load(a)); Assert.Equal("tb", store.Load(b));
+        File.WriteAllBytes(Directory.GetFiles(directory)[0], [1, 2, 3]); Assert.Null(store.Load(b));   // a file this user cannot unprotect asks for a new code
+        store.DeleteAll(); store.DeleteAll(); Assert.False(Directory.Exists(directory));
+    }
+
+    [Fact]
+    public void TheCodeScreenSubmitsOnceShowsTheRefusalAndIgnoresABlankCode() => RunSta(() =>
+    {
+        var seen = new List<string>(); var answer = (string?)"コードが違うか、すでに使われています。";
+        var view = new ServerCodeView(code => { seen.Add(code); return Task.FromResult(answer); }, () => { });
+        view.SubmitAsync().GetAwaiter().GetResult(); Assert.Empty(seen);   // blank: nothing is sent
+        view.Code = "GOOD-0000-00000"; view.SubmitAsync().GetAwaiter().GetResult();
+        Assert.Equal(["GOOD-0000-00000"], seen); Assert.Equal(answer, view.ErrorText);
+        answer = null; view.SubmitAsync().GetAwaiter().GetResult();
+        Assert.Equal(2, seen.Count); Assert.Null(view.ErrorText);
+        Assert.Contains(AppStrings.StartupViews_ServerCodeView_2, Texts(view));
+    });
 
     [Fact]
     public async Task TheSessionTokenIsABearerHeaderAndSignOutDeletesTheSession()

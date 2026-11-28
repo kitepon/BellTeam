@@ -55,16 +55,21 @@ public sealed class AppLoginTests
         Assert.Equal("tok-2", retried.Token); Assert.True(flaky.Calls.Count(call => call == "GET /api/login/L1") >= 6);
     }
 
-    private sealed class Probe(string session, HttpStatusCode status = HttpStatusCode.OK) : HttpMessageHandler
+    // home: what GET /api/home/session answers (null = a server without the home part: 404).
+    private sealed class Probe(string session, HttpStatusCode status = HttpStatusCode.OK, string? home = null) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
-            => Task.FromResult(new HttpResponseMessage(request.RequestUri!.AbsolutePath == "/api/session" ? status : HttpStatusCode.NotFound) { Content = new StringContent(session, Encoding.UTF8, "application/json") });
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path == "/api/home/session" && home is not null) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(home, Encoding.UTF8, "application/json") });
+            return Task.FromResult(new HttpResponseMessage(path == "/api/session" ? status : HttpStatusCode.NotFound) { Content = new StringContent(session, Encoding.UTF8, "application/json") });
+        }
     }
 
     [Fact]
     public async Task AnEnforcingServerThatDoesNotKnowTheAppRoutesToItsOwnLoginAndAnUnjudgeableOneKeepsTheToken()
     {
-        using var enforced = new LinuxWorkspace(origin => new BellApi(origin, new Probe("""{"authenticated":false,"authMode":"local","login":{"capability":true,"bound":true,"enforced":true}}""")));
+        using var enforced = new LinuxWorkspace(origin => new BellApi(origin, new Probe("""{"authenticated":false,"authMode":"local"}""", home: """{"capability":"login-billing-home/1","bound":true,"enforced":true}""")));
         await enforced.ConnectAsync("http://localhost:1/", listen: false);
         Assert.True(enforced.NeedsLogin); Assert.True(enforced.SessionLoginRequired);
         // An old server has no login key: today's paths (Access) are untouched.
