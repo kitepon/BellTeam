@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-28T12:31:06Z",
-  "expiresAt": "2026-12-05T12:31:06Z",
+  "publishedAt": "2026-11-28T13:13:03Z",
+  "expiresAt": "2026-12-05T13:13:03Z",
   "releases": [
     {
       "componentId": "usage",
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "781a2e7ff8ba86b6cddf9d1b959d25ea0bc956be",
-      "versionId": "sha256:b6af1f720fc0a7d163606c2ac86a921a60ed0c6b7945ec6008830658052429e3",
+      "sourceCommit": "961af99f0ea41c3cafb266cbed61c50c7a32481b",
+      "versionId": "sha256:8a5084c26060406ceca1eb33fa5421dd654c24d771cfd9887fbe45b07db520ff",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b6af1f720fc0a7d163606c2ac86a921a60ed0c6b7945ec6008830658052429e3"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:8a5084c26060406ceca1eb33fa5421dd654c24d771cfd9887fbe45b07db520ff"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -722,20 +722,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "長く休んでいた Claude の席（プロンプトのキャッシュが切れた後）を、起こす時に新しく始め直せるようになります。席に見せる共通のルールが、中身は変えずに短くなります。"
+        "認証仲介の中継で、SSH エージェントへの接続が詰まっても、短く待ち直すようになります。工程表（Lattice）が 0.116.0 になり、大きな工程表の読み出しが速くなります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "781a2e7ff8ba86b6cddf9d1b959d25ea0bc956be",
-      "versionId": "sha256:b6af1f720fc0a7d163606c2ac86a921a60ed0c6b7945ec6008830658052429e3",
+      "sourceCommit": "961af99f0ea41c3cafb266cbed61c50c7a32481b",
+      "versionId": "sha256:8a5084c26060406ceca1eb33fa5421dd654c24d771cfd9887fbe45b07db520ff",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b6af1f720fc0a7d163606c2ac86a921a60ed0c6b7945ec6008830658052429e3"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:8a5084c26060406ceca1eb33fa5421dd654c24d771cfd9887fbe45b07db520ff"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -744,13 +744,13 @@
         "containerUpdate": 1
       },
       "changes": [
-        "長く休んでいた Claude の席（プロンプトのキャッシュが切れた後）を、起こす時に新しく始め直せるようになります。席に見せる共通のルールが、中身は変えずに短くなります。"
+        "認証仲介の中継で、SSH エージェントへの接続が詰まっても、短く待ち直すようになります。工程表（Lattice）が 0.116.0 になり、大きな工程表の読み出しが速くなります。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "295ace145c570edf1540fe7fb320020f50586cf6",
-      "versionId": "38fe57eb6c3319ae65fb8b827aa1b647cb4e37190715a2b6c752f1e50f62e05f",
+      "sourceCommit": "961af99f0ea41c3cafb266cbed61c50c7a32481b",
+      "versionId": "2ee5d729fb7258532baefbb89f87f4cb7d1a329938fcc6c3462297b0fa837c71",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -758,16 +758,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T114824Z/lattice-295ace145c570edf1540fe7fb320020f50586cf6-linux-amd64.tar.gz",
-          "bytes": 15369709,
-          "sha256": "38fe57eb6c3319ae65fb8b827aa1b647cb4e37190715a2b6c752f1e50f62e05f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T130401Z/lattice-961af99f0ea41c3cafb266cbed61c50c7a32481b-linux-amd64.tar.gz",
+          "bytes": 15375345,
+          "sha256": "2ee5d729fb7258532baefbb89f87f4cb7d1a329938fcc6c3462297b0fa837c71"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T114824Z/lattice-295ace145c570edf1540fe7fb320020f50586cf6-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11125,
-          "sha256": "5b48926fb19096b4841deffabe5b9964e4b9286c1019326f10e56e80125a844c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T130401Z/lattice-961af99f0ea41c3cafb266cbed61c50c7a32481b-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11090,
+          "sha256": "84a6d92b0dc4b5260181a2d03c654d1c036b461a7b5564d6408a1f77e2cb5fd6"
         },
-        "signerCommit": "295ace145c570edf1540fe7fb320020f50586cf6"
+        "signerCommit": "961af99f0ea41c3cafb266cbed61c50c7a32481b"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -779,13 +779,13 @@
         }
       },
       "changes": [
-        "工程表の毎分の見回りが、Claude の席の起動数に上限（既定 5）を設け、変化のないカードを 1・5・15 分と間隔を空けて見るようになります。見回りの文面も短くなります。"
+        "工程表（Lattice）が 0.116.0 になり、大きな工程表の読み出しが速くなります（保留になっていた書き込みの根本の直しです）。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "295ace145c570edf1540fe7fb320020f50586cf6",
-      "versionId": "aa38f94ac78caf1cf738e8777131957dacd0a76135e5900252c75d01d6f16696",
+      "sourceCommit": "961af99f0ea41c3cafb266cbed61c50c7a32481b",
+      "versionId": "33da6cc870bf237724bebcb21761843030fd21c945878cb5c86b7554c6a3cf75",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -793,16 +793,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T114824Z/lattice-295ace145c570edf1540fe7fb320020f50586cf6-linux-arm64.tar.gz",
-          "bytes": 15369709,
-          "sha256": "aa38f94ac78caf1cf738e8777131957dacd0a76135e5900252c75d01d6f16696"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T130401Z/lattice-961af99f0ea41c3cafb266cbed61c50c7a32481b-linux-arm64.tar.gz",
+          "bytes": 15375346,
+          "sha256": "33da6cc870bf237724bebcb21761843030fd21c945878cb5c86b7554c6a3cf75"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T114824Z/lattice-295ace145c570edf1540fe7fb320020f50586cf6-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10839,
-          "sha256": "fdc02ae0323c36418a4645f85d23ea7c45cea03b5908891988af58ef8481a5d7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T130401Z/lattice-961af99f0ea41c3cafb266cbed61c50c7a32481b-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11235,
+          "sha256": "e6528e99e692d77cbc37363bc515a2e5be54345fe9776f4005cd12b7ff1a61a2"
         },
-        "signerCommit": "295ace145c570edf1540fe7fb320020f50586cf6"
+        "signerCommit": "961af99f0ea41c3cafb266cbed61c50c7a32481b"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -814,7 +814,7 @@
         }
       },
       "changes": [
-        "工程表の毎分の見回りが、Claude の席の起動数に上限（既定 5）を設け、変化のないカードを 1・5・15 分と間隔を空けて見るようになります。見回りの文面も短くなります。"
+        "工程表（Lattice）が 0.116.0 になり、大きな工程表の読み出しが速くなります（保留になっていた書き込みの根本の直しです）。"
       ]
     },
     {
