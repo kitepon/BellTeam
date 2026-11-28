@@ -98,6 +98,10 @@
     {
       "module": "bridge",
       "port": "MCP /mcp"
+    },
+    {
+      "module": "auth-mediation",
+      "port": "http (the module makes the request with the credential added; only the response leaves)"
     }
   ],
   "source": [
@@ -108,6 +112,7 @@
     "src/http-server.mjs",
     "src/mcp-tools.mjs",
     "src/seat-mcp.mjs",
+    "src/auth-http-stream.mjs",
     "src/remote-seat-port.mjs",
     "src/http-errors.mjs",
     "src/http-gateway.mjs",

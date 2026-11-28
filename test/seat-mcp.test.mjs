@@ -1,8 +1,6 @@
 import assert from 'node:assert/strict'
 import { once } from 'node:events'
-import { mkdtemp, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
-import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
@@ -10,6 +8,8 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 
 import { createBellTeamServer } from '../src/http-server.mjs'
+import { authHttpStream } from '../src/auth-http-stream.mjs'
+import { fakeAuthModule } from './helpers/fake-auth-module.mjs'
 import { SEAT_HEADER, SEAT_SESSION_IDLE_MS, SEAT_TOOLS_DIGEST, createSeatMcp, internalApi } from '../src/seat-mcp.mjs'
 
 const registry = () => Object.assign(new Map([['bot-a', { id: 'bot-a', name: 'A' }], ['bot-b', { id: 'bot-b', name: 'B' }]]), { async refresh() {} })
@@ -47,9 +47,7 @@ test('名札が無い・展開されていない・台帳に無い要求は、�
   const bots = registry()
   let relayed = 0
   const upstream = await listen(t, createServer((request, response) => { relayed += 1; response.end('{}') }))
-  const headersFile = join(await mkdtemp(join(tmpdir(), 'bellteam-seat-mcp-')), 'headers')
-  await writeFile(headersFile, 'Authorization: Bearer secret-token\n')
-  const base = await internalServer(t, createSeatMcp({ bots, tools: { registry: bots }, callBridge: () => ({ url: `${upstream}/mcp`, headersFile }) }))
+  const base = await internalServer(t, createSeatMcp({ bots, tools: { registry: bots }, callBridge: () => ({ url: `${upstream}/mcp`, open: async () => { relayed += 1; throw new Error('not reached') } }) }))
   for (const path of ['/mcp', '/mcp/call-bridge']) for (const seat of [undefined, '${AITERM_SESSION_ID}', '${env:AITERM_SESSION_ID}', 't1']) {
     const response = await fetch(`${base}${path}`, {
       method: 'POST',
@@ -71,7 +69,7 @@ test('公開側の入口ではMCPを開かない', async t => {
   assert.equal(response.status, 405)
 })
 
-test('通話ブリッジへの中継は合言葉と席の名札を付け直し、応答をそのまま返す', async t => {
+test('通話ブリッジへの中継は認証仲介が合言葉を足し、本体は席の名札を付け直して、応答をそのまま返す', async t => {
   const seen = []
   const upstream = await listen(t, createServer(async (request, response) => {
     let body = ''
@@ -81,10 +79,10 @@ test('通話ブリッジへの中継は合言葉と席の名札を付け直し�
     response.writeHead(request.method === 'GET' ? 200 : 201, { 'content-type': request.method === 'GET' ? 'text/event-stream' : 'application/json', 'mcp-session-id': 's1' })
     response.end(request.method === 'GET' ? 'data: hello\n\n' : '{"ok":true}')
   }))
-  const headersFile = join(await mkdtemp(join(tmpdir(), 'bellteam-seat-mcp-')), 'headers')
-  await writeFile(headersFile, 'Authorization: Bearer secret-token\n')
+  const module = await fakeAuthModule(t, { upstream })
+  const open = authHttpStream({ socket: module.socket, name: 'call-bridge-mcp-bellteam' })
   const bots = registry()
-  let target = { url: `${upstream}/mcp`, headersFile }
+  let target = { url: `${upstream}/mcp`, open }
   const base = await internalServer(t, createSeatMcp({ bots, tools: { registry: bots }, callBridge: () => target }))
 
   const posted = await fetch(`${base}/mcp/call-bridge`, {
@@ -100,7 +98,11 @@ test('通話ブリッジへの中継は合言葉と席の名札を付け直し�
   assert.equal(posted.headers.get('mcp-session-id'), 's1')
   assert.deepEqual(await posted.json(), { ok: true })
   assert.equal(seen[0].body, '{"jsonrpc":"2.0","id":1,"method":"tools/list"}')
-  assert.equal(seen[0].headers.authorization, 'Bearer secret-token')
+  assert.equal(seen[0].headers.authorization, 'Bearer secret-token') // added inside the module
+  // the seat's own Authorization and caller id never reach the module: this side sends no Authorization and its own caller id
+  assert.equal(module.state.requests[0].headers.authorization, undefined)
+  assert.equal(module.state.requests[0].headers['X-Call-Bridge-Caller-Id'], 'bot-a')
+  assert.equal(module.state.requests[0].path, '/mcp')
   assert.equal(seen[0].headers['x-call-bridge-caller-id'], 'bot-a')
   assert.equal(seen[0].headers['mcp-protocol-version'], '2025-11-25')
   assert.equal(seen[0].headers['x-other'], undefined)
@@ -117,16 +119,16 @@ test('通話ブリッジへの中継は合言葉と席の名札を付け直し�
   assert.equal(gone.status, 404)
   assert.deepEqual(await gone.json(), { error: 'session not found' })
 
-  target = { url: 'http://127.0.0.1:1/mcp', headersFile }
+  target = { url: 'http://127.0.0.1:1/mcp', open: authHttpStream({ socket: join(module.directory, 'missing.sock'), name: 'call-bridge-mcp-bellteam' }) }
   const unreachable = await fetch(`${base}/mcp/call-bridge`, { method: 'POST', headers: { 'content-type': 'application/json', [SEAT_HEADER]: 'bot-a' }, body: '{}' })
   assert.equal(unreachable.status, 502)
-  assert.deepEqual(await unreachable.json(), { error: 'CALL_BRIDGE_UNREACHABLE', message: 'ECONNREFUSED' })
+  assert.deepEqual(await unreachable.json(), { error: 'CALL_BRIDGE_UNREACHABLE' })
 
   target = null
   assert.equal((await fetch(`${base}/mcp/call-bridge`, { method: 'POST', headers: { [SEAT_HEADER]: 'bot-a' }, body: '{}' })).status, 404)
 })
 
-test('上流が応答の途中で切れたら席側の流れも切り、上流の401と合言葉の欠落は502で返す', async t => {
+test('上流が応答の途中で切れたら席側の流れも切り、上流の401と認証仲介の断りは502で返す', async t => {
   let mode = 'cut'
   const upstream = await listen(t, createServer((request, response) => {
     if (mode === '401') { response.writeHead(401, { 'www-authenticate': 'Bearer' }); return response.end('{}') }
@@ -134,11 +136,9 @@ test('上流が応答の途中で切れたら席側の流れも切り、上流�
     response.write('data: first\n\n')
     setTimeout(() => response.socket.destroy(), 20)
   }))
-  const directory = await mkdtemp(join(tmpdir(), 'bellteam-seat-mcp-'))
-  let headersFile = join(directory, 'headers')
-  await writeFile(headersFile, 'Authorization: Bearer secret-token\n')
+  const module = await fakeAuthModule(t, { upstream })
   const bots = registry()
-  const base = await internalServer(t, createSeatMcp({ bots, tools: { registry: bots }, callBridge: () => ({ url: `${upstream}/mcp`, headersFile }) }))
+  const base = await internalServer(t, createSeatMcp({ bots, tools: { registry: bots }, callBridge: () => ({ url: `${upstream}/mcp`, open: authHttpStream({ socket: module.socket, name: 'call-bridge-mcp-bellteam' }) }) }))
   const call = () => fetch(`${base}/mcp/call-bridge`, { method: 'POST', headers: { 'content-type': 'application/json', [SEAT_HEADER]: 'bot-a' }, body: '{}' })
 
   const cut = await call()
@@ -152,10 +152,16 @@ test('上流が応答の途中で切れたら席側の流れも切り、上流�
   assert.equal(denied.headers.get('www-authenticate'), null)
   assert.deepEqual(await denied.json(), { error: 'CALL_BRIDGE_AUTH_FAILED' })
 
-  headersFile = join(directory, 'missing')
-  const missing = await call()
-  assert.equal(missing.status, 502)
-  assert.deepEqual(await missing.json(), { error: 'CALL_BRIDGE_AUTH_UNAVAILABLE' })
+  // the module refuses this caller (no grant): 502, never 401, and its words stay out
+  for (const outcome of ['denied', 'unknown-caller', 'not-registered']) {
+    module.state.refuse = outcome
+    const refused = await call()
+    assert.equal(refused.status, 502)
+    assert.deepEqual(await refused.json(), { error: 'CALL_BRIDGE_AUTH_FAILED' })
+  }
+  // the module is busy or failed: unreachable
+  module.state.refuse = 'error'
+  assert.deepEqual(await (await call()).json(), { error: 'CALL_BRIDGE_UNREACHABLE' })
 })
 
 test('中継の流れは届いた分からすぐ流し、本体を止める時に終える', async t => {
@@ -164,11 +170,10 @@ test('中継の流れは届いた分からすぐ流し、本体を止める時�
     response.write('data: first\n\n')
     // 上流は流れを開いたままにする。
   }))
-  const headersFile = join(await mkdtemp(join(tmpdir(), 'bellteam-seat-mcp-')), 'headers')
-  await writeFile(headersFile, 'Authorization: Bearer secret-token\n')
+  const module = await fakeAuthModule(t, { upstream })
   const bots = registry()
   const server = createBellTeamServer({ bots, authorize: async () => true, messenger: {}, transport: {}, store: {}, internal: true,
-    seatMcp: createSeatMcp({ bots, tools: { registry: bots }, callBridge: () => ({ url: `${upstream}/mcp`, headersFile }) }) })
+    seatMcp: createSeatMcp({ bots, tools: { registry: bots }, callBridge: () => ({ url: `${upstream}/mcp`, open: authHttpStream({ socket: module.socket, name: 'call-bridge-mcp-bellteam' }) }) }) })
   server.listen(0, '127.0.0.1')
   await once(server, 'listening')
   const response = await fetch(`http://127.0.0.1:${server.address().port}/mcp/call-bridge`, { method: 'POST', body: '{}',

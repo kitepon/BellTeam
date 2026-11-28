@@ -8,16 +8,18 @@ const keys = (value, required, optional = []) => object(value) && required.every
 // a399 (module-ipc.md): rows with nothing secret-adjacent are read by the fields this side uses; a field a newer writer adds is not refused.
 // secret, question, settings and credential rows stay closed: they are served as stored, and the key list is what keeps a stray value out.
 const has = (value, required) => object(value) && required.every(key => Object.hasOwn(value, key))
-const fields = { routing: ['apiKey'], callBridge: ['url', 'token'], cloudflare: ['teamDomain', 'audience', 'publicUrl'], diagnostics: ['key'], notifications: ['relayUrl'], webPush: ['subject'], onePassword: ['token'], thinkingDisplay: [] }
+const fields = { routing: ['apiKey'], callBridge: ['url'], cloudflare: ['teamDomain', 'audience', 'publicUrl'], diagnostics: ['key'], notifications: ['relayUrl'], webPush: ['subject'], onePassword: ['token'], thinkingDisplay: [] }
 // a479 (module-ipc.md "Records between halves that ship apart"): the body ships before the usage module, so a list from a child
 // that predates thinkingDisplay stays valid. shortcut: drop this when every shipped usage module sends it.
 const required = Object.keys(fields).filter(id => !['thinkingDisplay', 'webPush', 'onePassword'].includes(id)) // a487n stage 1: webPush is leaving; 2026-11-27: so is onePassword (readers first, the usage module stops writing it)
 export const usageFeatureIdsValid = ids => ids.length >= required.length && new Set(ids).size === ids.length && required.every(id => ids.includes(id)) && ids.every(id => Object.hasOwn(fields, id))
 const validGeneration = value => Number.isSafeInteger(value) && value >= 0 || typeof value === 'string' && value.length > 0 && value.length <= 200
 const secretKeys = new Set(['apiKey', 'token', 'key'])
+// 2026-11-28 (readers first): an older usage child still lists callBridge.token; it is read, never required.
+const olderFields = { callBridge: ['token'] }
 export function usageSettingValid(item) {
   if (!keys(item, ['id', 'title', 'enabled', 'status', 'fields'], ['error', 'guide', 'connection']) || !Object.hasOwn(fields, item.id)) return false
-  const names = fields[item.id]
+  const names = [...fields[item.id], ...(olderFields[item.id] && Array.isArray(item.fields) && item.fields.length === fields[item.id].length + olderFields[item.id].length ? olderFields[item.id] : [])]
   return typeof item.title === 'string' && typeof item.enabled === 'boolean' && ['enabled', 'disabled', 'unconfigured'].includes(item.status)
     && (!item.error || keys(item.error, ['code', 'message']) && typeof item.error.code === 'string' && typeof item.error.message === 'string')
     && (!item.connection || keys(item.connection, ['vaults', 'sshKeys']) && Array.isArray(item.connection.vaults)
@@ -29,7 +31,7 @@ export function usageSettingValid(item) {
       && typeof field.value === 'string' && (!field.secret || field.value === ''))
 }
 export function usageConfigurationValid(id, configuration) {
-  return Object.hasOwn(fields, id) && keys(configuration, ['enabled', ...fields[id]]) && typeof configuration.enabled === 'boolean' && fields[id].every(key => typeof configuration[key] === 'string')
+  return Object.hasOwn(fields, id) && keys(configuration, ['enabled', ...fields[id]], olderFields[id] ?? []) && typeof configuration.enabled === 'boolean' && [...fields[id], ...(olderFields[id] ?? []).filter(key => Object.hasOwn(configuration, key))].every(key => typeof configuration[key] === 'string')
 }
 export function usageProjectionRecordValid(row) {
   if (!object(row) || !Number.isSafeInteger(row.revision) || row.revision < 0) return false

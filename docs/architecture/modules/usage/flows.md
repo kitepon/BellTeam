@@ -129,7 +129,7 @@ flowchart TD
   Apply --> Route["routing<br/>epochと会話子の新発行gateを更新"]
   Apply --> CF["cloudflare<br/>公開認証器を差し替える"]
   Apply --> Diag["diagnostics<br/>管理HTTPを閉じて開く"]
-  Apply --> Call["callBridge<br/>header・socket・CLI登録を更新"]
+  Apply --> Call["callBridge<br/>socket・CLI登録を更新（合言葉は持たない: 2026-11-28）"]
   Apply --> Push["notifications<br/>進行中送信を待ちprovider変更"]
   Call --> Pending["稼働席はターン後に閉じる予約"]
   Apply --> View["設定公開値・適用エラー・SSE"]
@@ -157,8 +157,8 @@ Ships apart (module-ipc.md "Records between halves that ship apart"): the body s
 | 設定正本 | `FeatureSettings.save` → `shared/tools/bellteam-settings/settings.json` | save後のonChange失敗でも設定は残る。`errors`はメモリ、公開値に適用失敗を付ける |
 | 必須項目（2026-11-11 Trony依頼・Admi合意） | `FeatureSettings.list` → `fields[].required` | 有効化に要る項目は`required:true`。`configured`の判定と同じ規則で、cloudflare.publicUrlだけfalse（旧APNs設定がある間のnotifications.relayUrlは2026-11-27に外した）。足りない項目は`required && !configured`。保存値・status・PATCHは変えない。旧本体の応答にkeyが無ければ画面は「不明」とし、何も主張しない |
 | 必須項目の親検証 | 親`usage/projection.mjs:usageSettingValid` | 親の閉検証は`required`を任意booleanとして受ける（旧子のkey無しも通す）。`settings`の行は閉じた一覧のままなので（`runtime/module-ipc.md`「Records between halves that ship apart」の残す拒否）、旧親は新子の行を拒否する。親の変更を含む本体releaseを新usage moduleより先に入れる |
-| 橋の接続の取込み（bd11、2026-11-14 Molly合意） | 本体の取込み口（bd10、Molly：`scripts/import-call-bridge.mjs`。stdinを64 KiBまで読み、値を表示せず、loopbackの`PATCH /api/settings/callBridge`で動いている本体へ渡す。Hostが127.0.0.1でコンテナ内の相手なので`authMode`はlocal、Owner扱い）→ `usage/call-bridge-import.mjs:callBridgeSettingsInput(stdinの書き出し)` → 動いている`FeatureSettings.update('callBridge', {enabled:true, values:{url,token}}, {allowSecretValues:true})` | 橋の`call-bridge.connection.v1`の`{schema,url,token}`だけを受ける。形が違えば`CALL_BRIDGE_IMPORT_INVALID`で何も保存しない。header/socket/CLI登録は既onChange（`state/call-bridge/headers`はBellTeamが設定から書く自分のfileで、seat MCPはこれだけを読む）。別processのFeatureSettingsで設定ファイルを書かない（動いている本体の値に上書きされる） |
-| 初期取込み | `initialize` | 保存済みJSON優先。無い時だけ環境から作る（旧APNs設定は読まない、2026-11-27）。橋が書いた認証ファイル（旧`shared/tools/call-bridge/headers`）は読まない（bd11）。callBridge.tokenは橋の公開export取込みだけが入れる |
+| 橋の接続の取込み（bd11、2026-11-14 Molly合意） | 本体の取込み口（bd10、Molly：`scripts/import-call-bridge.mjs`。stdinを64 KiBまで読み、値を表示せず、loopbackの`PATCH /api/settings/callBridge`で動いている本体へ渡す。Hostが127.0.0.1でコンテナ内の相手なので`authMode`はlocal、Owner扱い）→ `usage/call-bridge-import.mjs:callBridgeSettingsInput(stdinの書き出し)` → 動いている`FeatureSettings.update('callBridge', {enabled:true, values:{url}})` | 橋の`call-bridge.connection.v1`の`{schema,url,token}`の形を検証するが、`token`は読み捨てて何も保存しない（2026-11-28：BellTeamに合言葉を置かない。合言葉は認証仲介の項目`http call-bridge-mcp-bellteam`の中だけ）。形が違えば`CALL_BRIDGE_IMPORT_INVALID`で何も保存しない。socket/CLI登録は既onChange。席のMCP入口（本体の`relayCallBridge`、`src/seat-mcp.mjs`）は、要求を認証仲介の本体専用の呼び出し元ソケット（`callers/bellteam-body`、`http-stream`、項目`http call-bridge-mcp-bellteam`）へ渡し、合言葉は認証仲介が足す。`state/call-bridge/headers`は無い（残っていれば起動時に消す）。別processのFeatureSettingsで設定ファイルを書かない（動いている本体の値に上書きされる） |
+| 初期取込み | `initialize` | 保存済みJSON優先。無い時だけ環境から作る（旧APNs設定は読まない、2026-11-27）。橋が書いた認証ファイル（旧`shared/tools/call-bridge/headers`）は読まない（bd11）。callBridgeは`url`だけを持つ（旧い保存値の`token`は読み込みで捨てる、2026-11-28） |
 | 起動時適用 | `createApplicationFeatures.initialize` | diagnostics/callBridge/notificationsの各失敗を記録し、他の適用を続ける |
 | Cloudflare | `configureCloudflare/authMode/authorize` | localと公開JWT認証の選択。JWT検証は`cloudflareAccessAuthorizer` |
 | Owner判定（SEC-049 2026-11-15、a131で席の部分を外す） | `authMode`が受付の`x-bellteam-peer`（[integration契約](../integration/README.md#公開web受付の二プロセス化初回差分)）を読む | Hostは利用者が選ぶので単独では決めない。①Cloudflare無効→local。②Hostが内側の名前でない→cloudflare。③相手名があり、そのaddressが同じネット（loopback/private/link-local）でない→cloudflare（Cloudflare有効の本体へ公開addressから:18891へ直接つなぎ、Hostに内側の名前を名乗ってもOwnerにならない。外から閉じる唯一の部分）。④それ以外→local。⑤相手名なし＝非公開socketの直接呼び出しか旧受付→従来のHost判定。`x-bellteam-peer-uid`は読まない：コンテナ内の席は全員sudoでき、席がOwnerになれる残りはOwnerが受け入れた（2026-11-15 09:50）。席だけを止める判定は守るものが無いので外した（a131、Trony裁定・共通規則guards.remove-unnamed）。コンテナ内の接続（席・docker exec）は#1473前と同じく、Hostが内側の名前ならlocal |
@@ -246,3 +246,24 @@ DFD: parent authoritative member creation → later system-authorized onboarding
 ## Secret source resolution (C5)
 
 [Secret credentials](secret-credentials.md) (2026-11-27: stored values only; the 1Password references it describes were withdrawn) extends every secret submission to stored values or private sources. It is canonical for the new function/data flow, target-bound handles, source recovery, and private consumer resolution. Existing stored file compatibility remains; managed consumers resolve through secret input instead of reading private source state.
+
+## 通話ブリッジの合言葉を設定に置かない（2026-11-28 サクラ・トロニー依頼、Owner「鍵は認証仲介の外に置かない」）
+
+席のCLIが使う通話ブリッジのMCPの入口は本体の `relayCallBridge`（`src/seat-mcp.mjs`、持ち主は統合 module。口は `src/auth-http-stream.mjs`）で、合言葉は持たず、`Authorization: Bearer` は認証仲介が足す。
+
+```mermaid
+flowchart LR
+  Seat["席のCLI: 本体のMCP入口（合言葉なし）"] --> Relay["relayCallBridge: 席名の名札 X-Call-Bridge-Caller-Id を付ける"]
+  Relay -->|"{op:http-stream, name:call-bridge-mcp-bellteam, method, path=/mcp, headers, body} 本体専用の呼び出し元ソケット callers/bellteam-body"| Mod["認証仲介: 許可の確認 → Authorization: Bearer を足して https://call.kitepon.dev へ"]
+  Mod -->|"答え1行 granted → 枠 tag5 {status,headers} / tag1 本文 / tag4 心拍 / tag3 終わり"| Relay
+  Relay -->|"状態・許可済みの応答header・本文を流す"| Seat
+```
+
+| 項目 | 契約 |
+| --- | --- |
+| 設定 | `callBridge` は `url`（https、末尾 `/mcp`）だけ。`token` は無い。旧い保存値の `token` は読み込みで捨てて保存し直す。URLが空なら無効 |
+| 要求 | 席が付けてきた `Authorization` と名札は流さない。流すのは `accept`・`content-type`・`last-event-id`・`mcp-protocol-version`・`mcp-session-id`・`mcp-method`・`mcp-name` と、本体が付ける名札だけ（認証仲介の項目 `http_allow_headers` と同じ一覧）。本文は9 MiBまで（超えたら413） |
+| 応答 | 状態と、許可した応答header（`content-type`・`cache-control`・`mcp-session-id`）と本文を、ためずにそのまま流す。待ち時間に上限は置かない（認証仲介側の `http_stream_max_seconds` = 86400で切れる） |
+| 失敗 | 認証仲介が断る（denied / unknown-caller / not-registered）→ 502 `CALL_BRIDGE_AUTH_FAILED`（席のCLIが自分で認証を始めないよう、401は返さない）。ソケットが無い・認証仲介が止まっている・混んでいる → 502 `CALL_BRIDGE_UNREACHABLE`。流れの途中で切れたら席側も切って再接続させる。自力の出口は、認証仲介が戻れば次の要求がそのまま通ること |
+| 同時 | 認証仲介の流れの枠は全体で8本（`run` と共有）。9本目は `CALL_BRIDGE_UNREACHABLE` で、席は後で再接続する |
+| 識別 | 本体専用の呼び出し元ソケットは0660・グループ1001（本体）。席（uid 1000）は開けない。開けると席が本体の合言葉で橋を呼び、名札を偽れるため |

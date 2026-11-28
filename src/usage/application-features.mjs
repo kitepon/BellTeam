@@ -1,5 +1,4 @@
-import { dirname } from 'node:path'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { rm } from 'node:fs/promises'
 import { createCallBridgeServer, listenCallBridge } from '../call-bridge-server.mjs'
 import { createDiagnosticsAdminServer } from '../diagnostics.mjs'
 import { cloudflareAccessAuthorizer } from '../cloudflare-access.mjs'
@@ -48,9 +47,9 @@ export function createApplicationFeatures({ services, aiterm, home, callBridgeHe
   const configureCalls = async config => {
     await closeCallBridge?.()
     closeCallBridge = null
+    // 2026-11-28: no bearer on disk; a file an older version wrote is removed.
+    if (callBridgeHeaders) await rm(callBridgeHeaders, { force: true })
     if (config.enabled) {
-      await mkdir(dirname(callBridgeHeaders), { recursive: true, mode: 0o711 })
-      await writeFile(callBridgeHeaders, `Authorization: Bearer ${config.token}\n`, { mode: 0o600 })
       if (callBridgeSocket) closeCallBridge = await listenCallBridge(createCallBridgeServer({ bots, messenger }), callBridgeSocket)
     }
     await configureHarnessConfig(bots, home, { aiterm: async () => aiterm, callBridge: config })

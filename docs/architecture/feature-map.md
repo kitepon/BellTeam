@@ -78,6 +78,7 @@ flowchart LR
   m_integration -->|"secrets"| m_usage
   m_integration -->|"lattice-seat"| m_lattice
   m_integration -->|"lattice-chart"| m_lattice
+  m_integration -->|"http (the module makes the request with the credential added; only the response leaves)"| m_auth_mediation
   m_lattice -->|"registry"| m_members
   m_lattice -->|"messages"| m_conversation
   m_lattice -->|"approval-box-port (P1 approvals.decisions: file / read / cancel; decision-port.md)"| m_approval_box_extension

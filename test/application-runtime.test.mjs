@@ -28,7 +28,7 @@ test('監視開始に失敗した本体は取得済み監視と機能のsocket�
   const ownerProfile = new OwnerProfile({ root }), userRules = new UserRules({ root })
   for (const value of [bots, settings, ownerProfile, userRules]) await value.initialize()
   await settings.update('callBridge', { enabled: true,
-    values: { url: 'http://127.0.0.1:9/mcp', token: 'synthetic-startup-token' } }, { allowSecretValues: true })
+    values: { url: 'http://127.0.0.1:9/mcp' } })
   let clientClosed = 0
   const runtime = await createApplicationRuntime({ root, appRoot, home,
     environment: { BELLTEAM_WEB_PORT: '0', BELLTEAM_INTERNAL_PORT: '0', BELLTEAM_CALL_BRIDGE_SOCKET: socketPath },
@@ -66,7 +66,7 @@ test('実HTTP終了のwatch例外を呼出元へ返し、後続の資源も解�
   const ownerProfile = new OwnerProfile({ root }), userRules = new UserRules({ root })
   for (const value of [bots, settings, ownerProfile, userRules]) await value.initialize()
   await settings.update('callBridge', { enabled: true,
-    values: { url: 'http://127.0.0.1:9/mcp', token: 'synthetic-close-token' } }, { allowSecretValues: true })
+    values: { url: 'http://127.0.0.1:9/mcp' } })
   let clientClosed = 0, notificationsClosed = 0, failure
   const runtime = await createApplicationRuntime({ root, appRoot, home,
     environment: { BELLTEAM_WEB_PORT: '0', BELLTEAM_INTERNAL_PORT: '0', BELLTEAM_CALL_BRIDGE_SOCKET: socketPath },
@@ -134,7 +134,7 @@ test('隔離した本体を組み立て、公開/内部API・設定通知・終�
   const userRules = new UserRules({ root })
   for (const value of [bots, settings, ownerProfile, userRules]) await value.initialize()
   const socketPath = join(root, 'calls.sock')
-  await settings.update('callBridge', { enabled: true, values: { url: 'http://127.0.0.1:9/mcp', token: 'synthetic-runtime-token' } }, { allowSecretValues: true })
+  await settings.update('callBridge', { enabled: true, values: { url: 'http://127.0.0.1:9/mcp' } })
   const calls = [], closed = []
   const runtime = await createApplicationRuntime({ root, appRoot, home,
     environment: { BELLTEAM_WEB_PORT: '0', BELLTEAM_INTERNAL_PORT: '0', BELLTEAM_CALL_BRIDGE_SOCKET: socketPath },
@@ -204,17 +204,18 @@ test('追加機能は設定反映と通信資源を所有し、無効化後も�
   const configPath = join(home, '.claude.json')
   const baseline = JSON.parse(await readFile(configPath, 'utf8'))
   await writeFile(configPath, JSON.stringify({ ...baseline, unrelated: 'preserved', mcpServers: { ...baseline.mcpServers, custom: { command: 'synthetic-custom' } } }))
-  await settings.update('callBridge', { enabled: true, values: { url: 'http://127.0.0.1:9/mcp', token: 'synthetic-only-token' } }, { allowSecretValues: true })
+  await settings.update('callBridge', { enabled: true, values: { url: 'http://127.0.0.1:9/mcp' } })
   assert.ok((await stat(socketPath)).isSocket())
   const members = await new Promise((resolve, reject) => {
     const req = request({ socketPath, path: '/v0/directory' }, response => { let body = ''; response.setEncoding('utf8'); response.on('data', text => { body += text }); response.on('end', () => resolve(JSON.parse(body))) })
     req.on('error', reject); req.end()
   })
   assert.deepEqual(members, { schema: 'bellteam.call-directory.v1', members: [] })
-  assert.equal(await readFile(join(root, 'auth/headers'), 'utf8'), 'Authorization: Bearer synthetic-only-token\n')
+  // 2026-11-28: no bearer on disk (it is the auth module's); a file an older version wrote is removed when the bridge is configured
+  await assert.rejects(stat(join(root, 'auth/headers')), { code: 'ENOENT' })
   await settings.update('callBridge', { enabled: false })
   await assert.rejects(stat(socketPath), { code: 'ENOENT' })
-  assert.equal(settings.configuration('callBridge').token, 'synthetic-only-token')
+  assert.deepEqual(settings.configuration('callBridge'), { enabled: false, url: 'http://127.0.0.1:9/mcp' })
   const final = JSON.parse(await readFile(configPath, 'utf8'))
   assert.equal(final.unrelated, 'preserved')
   assert.deepEqual(final.mcpServers.custom, { command: 'synthetic-custom' })
@@ -249,7 +250,7 @@ test('任意機能の起動失敗を残して他を起動し、設定保存は�
   assert.equal(records[0].code, 'SERVER_FEATURE_CONFIGURATION_FAILED')
   assert.equal(records[0].diagnostic_log, 'notifications')
   await settings.update('notifications', { enabled: false })
-  const saved = await settings.update('callBridge', { enabled: true, values: { url: 'http://127.0.0.1:9/mcp', token: 'synthetic-token' } }, { allowSecretValues: true })
+  const saved = await settings.update('callBridge', { enabled: true, values: { url: 'http://127.0.0.1:9/mcp' } })
   assert.equal(saved.enabled, true)
   assert.deepEqual(listed, [[bot.id, idle.id]])
   assert.deepEqual(stopped, [bot.id])
