@@ -59,6 +59,7 @@
     "src/auth-mediation/run.mjs",
     "src/auth-mediation/httpstream.mjs",
     "src/auth-mediation/mail.mjs",
+    "src/auth-mediation/imap.mjs",
     "src/auth-mediation/http.mjs",
     "src/auth-mediation/mcp.mjs",
     "src/auth-mediation-protocol.mjs",
