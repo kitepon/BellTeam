@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-28T14:35:53Z",
-  "expiresAt": "2026-12-05T14:35:53Z",
+  "publishedAt": "2026-11-28T15:27:10Z",
+  "expiresAt": "2026-12-05T15:27:10Z",
   "releases": [
     {
       "componentId": "usage",
@@ -489,8 +489,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "12c9cffe75ef1f451590c89e64b701b118498dfd",
-      "versionId": "04235fd83fd94d1ebc86389ad2149e5b669e78eda42ddacdb1ea9eb32c622673",
+      "sourceCommit": "1f00be65a7f3e820978f45ea2946974b43c60a80",
+      "versionId": "f2da66f53816346a4969fcb08fe646a021fe78bff75ef7c49cc39c7426839729",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -498,16 +498,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T142755Z/execution-12c9cffe75ef1f451590c89e64b701b118498dfd-linux-amd64.tar.gz",
-          "bytes": 3882937,
-          "sha256": "04235fd83fd94d1ebc86389ad2149e5b669e78eda42ddacdb1ea9eb32c622673"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T152410Z/execution-1f00be65a7f3e820978f45ea2946974b43c60a80-linux-amd64.tar.gz",
+          "bytes": 3883072,
+          "sha256": "f2da66f53816346a4969fcb08fe646a021fe78bff75ef7c49cc39c7426839729"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T142755Z/execution-12c9cffe75ef1f451590c89e64b701b118498dfd-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10973,
-          "sha256": "f1e9c0d0139374d570fc215ded27cd1c0d5124abccb2c774ccc6f58bf4a6af17"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T152410Z/execution-1f00be65a7f3e820978f45ea2946974b43c60a80-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10989,
+          "sha256": "e31d7fa4b7430e8668b44449f1e880475ba19a770eb021d950c2869b087eecfd"
         },
-        "signerCommit": "12c9cffe75ef1f451590c89e64b701b118498dfd"
+        "signerCommit": "1f00be65a7f3e820978f45ea2946974b43c60a80"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -517,13 +517,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "Claude の利用上限に達した席を一時的に Codex に切り替え、Claude が利用できる状態に戻ったら元の設定で再開します。席の切り替えと終了処理も修正します。"
+        "実行部の切り戻しで一時的に引き継ぎに失敗した場合も、受理済みの処理と継続情報を保ったまま復旧します。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "12c9cffe75ef1f451590c89e64b701b118498dfd",
-      "versionId": "ccd9efd3ddd99bca6757e68afa2d5d0d0556eb725589152b2c6d7b879eebbb78",
+      "sourceCommit": "1f00be65a7f3e820978f45ea2946974b43c60a80",
+      "versionId": "ad82f4b025ac149a39df5215f35b5902290c79c519fd355822d83e16b739d8e5",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -531,16 +531,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T142755Z/execution-12c9cffe75ef1f451590c89e64b701b118498dfd-linux-arm64.tar.gz",
-          "bytes": 3882937,
-          "sha256": "ccd9efd3ddd99bca6757e68afa2d5d0d0556eb725589152b2c6d7b879eebbb78"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T152410Z/execution-1f00be65a7f3e820978f45ea2946974b43c60a80-linux-arm64.tar.gz",
+          "bytes": 3883072,
+          "sha256": "ad82f4b025ac149a39df5215f35b5902290c79c519fd355822d83e16b739d8e5"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T142755Z/execution-12c9cffe75ef1f451590c89e64b701b118498dfd-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11036,
-          "sha256": "d7ab42df3a46ce3e2348f662bb12ada288f6abf819b7af915cacc637095e09f2"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261128T152410Z/execution-1f00be65a7f3e820978f45ea2946974b43c60a80-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10832,
+          "sha256": "9cb6c8adb54b7ee41abd30625d651aaeb10e6679fa8ac7f68143c3800e4ac265"
         },
-        "signerCommit": "12c9cffe75ef1f451590c89e64b701b118498dfd"
+        "signerCommit": "1f00be65a7f3e820978f45ea2946974b43c60a80"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -550,7 +550,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "Claude の利用上限に達した席を一時的に Codex に切り替え、Claude が利用できる状態に戻ったら元の設定で再開します。席の切り替えと終了処理も修正します。"
+        "実行部の切り戻しで一時的に引き継ぎに失敗した場合も、受理済みの処理と継続情報を保ったまま復旧します。"
       ]
     },
     {
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "12c9cffe75ef1f451590c89e64b701b118498dfd",
-      "versionId": "sha256:0227a8dabb71ad42a929378cc79805f8cc1b1b9d72a5264b7e7d4ea98bfa8e08",
+      "sourceCommit": "1f00be65a7f3e820978f45ea2946974b43c60a80",
+      "versionId": "sha256:258a0aece7fe01eb0560442af07d580ec744c81576bf6e14e0c71a60eaeb7f68",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:0227a8dabb71ad42a929378cc79805f8cc1b1b9d72a5264b7e7d4ea98bfa8e08"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:258a0aece7fe01eb0560442af07d580ec744c81576bf6e14e0c71a60eaeb7f68"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -722,20 +722,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席の切り替え、イベント接続の終了、認証仲介の応答待ちなど、サーバー監査で見つかった問題を修正します。"
+        "子プロセスの復旧と、更新に失敗したときに元の版へ戻す処理を修正します。更新を受理した後、一時的にジョブ情報を読めなくても更新を続けます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "12c9cffe75ef1f451590c89e64b701b118498dfd",
-      "versionId": "sha256:0227a8dabb71ad42a929378cc79805f8cc1b1b9d72a5264b7e7d4ea98bfa8e08",
+      "sourceCommit": "1f00be65a7f3e820978f45ea2946974b43c60a80",
+      "versionId": "sha256:258a0aece7fe01eb0560442af07d580ec744c81576bf6e14e0c71a60eaeb7f68",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:0227a8dabb71ad42a929378cc79805f8cc1b1b9d72a5264b7e7d4ea98bfa8e08"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:258a0aece7fe01eb0560442af07d580ec744c81576bf6e14e0c71a60eaeb7f68"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -744,7 +744,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席の切り替え、イベント接続の終了、認証仲介の応答待ちなど、サーバー監査で見つかった問題を修正します。"
+        "子プロセスの復旧と、更新に失敗したときに元の版へ戻す処理を修正します。更新を受理した後、一時的にジョブ情報を読めなくても更新を続けます。"
       ]
     },
     {
