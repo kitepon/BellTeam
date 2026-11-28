@@ -5,6 +5,14 @@
 import { authenticationPreflightCodes, authenticationPreflightFailure, launchRefusal } from './agent-launch-error.mjs'
 import { mcpRequestContext } from './mcp-request-context.mjs'
 import { RemoteRoutes } from './remote-route.mjs'
+import * as botEnvironment from './bot-environment.mjs'
+
+// SEC-111: a terminal seat commits as the same noreply identity as a container seat (env beats `git -c user.email`).
+// shortcut: a body without BOT_GIT_IDENTITY (older than #2607) gives {} and the seat keeps its old behaviour; drop the guard once every body has it.
+const gitIdentityEnv = () => {
+  const id = botEnvironment.BOT_GIT_IDENTITY
+  return id ? { GIT_AUTHOR_NAME: id.name, GIT_AUTHOR_EMAIL: id.email, GIT_COMMITTER_NAME: id.name, GIT_COMMITTER_EMAIL: id.email } : {}
+}
 
 // Terminal and credential unavailability keeps the saved message queued (Owner 2026-11-09 13:38). Each code has an exit:
 // terminals' observer (connectivity) or its registry-change edge (target/trust revision). A missing folder or a too old
@@ -100,7 +108,7 @@ export class RemoteSeats {
     const sessionName = args.session_name
     let issued = false
     try {
-      const { terminal, remote, forward, cwd, accountOwner, doorHook } = await this.target(bot, harness)
+      const { terminal, remote, forward, cwd, accountOwner } = await this.target(bot, harness)
       const { text } = await this.launchContext(bot.id, { sessionName, shortTermMemory }, context)
       const { url, credentialRef } = await this.ingress.seatCredential.issue({ botId: bot.id, sessionName, terminalId: bot.terminalId, ...(kind === 'fork' ? { kind } : {}) })
       issued = true
@@ -127,7 +135,7 @@ export class RemoteSeats {
       // One login per slot (harness-accounts.md 2026-11-11): every slot, the 1st too, so no host login is needed.
       const claudeLogin = accountOwner === 'owner' && slot ? slot : null
       return {
-        args: { ...args, ...(route ? { remote: route.remote } : { terminal }), cwd, append_system_prompt: text, ...(kind === 'fork' ? {} : doorHook),
+        args: { ...args, ...(route ? { remote: route.remote } : { terminal }), cwd, append_system_prompt: text,
           mcp_config: { mcpServers: { ...userServers, bellteam: { type: 'http', url: seatUrl, headers, ...managed }, 'call-bridge': { type: 'http', url: `${seatUrl}/call-bridge`, headers, ...managed } } } },
         claudeLogin,
         route,
@@ -142,8 +150,8 @@ export class RemoteSeats {
           return fresh.terminal
         },
         // The seat launcher forwards exactly these names (Molly #793); the login value still comes only from claudeLogin.
-        privateEnv: { names: ['BELLTEAM_MCP_TOKEN', ...(route ? ['AITERM_SEAT_FORWARD_PORT'] : []), ...(claudeLogin ? ['CLAUDE_CODE_OAUTH_TOKEN'] : [])],
-          resolve: async () => ({ BELLTEAM_MCP_TOKEN: await this.ingress.seatCredential.reveal(credentialRef), ...(route ? { AITERM_SEAT_FORWARD_PORT: String(route.port) } : {}) }) },
+        privateEnv: { names: ['BELLTEAM_MCP_TOKEN', ...(claudeLogin ? ['CLAUDE_CODE_OAUTH_TOKEN'] : []), ...Object.keys(gitIdentityEnv())],
+          resolve: async () => ({ BELLTEAM_MCP_TOKEN: await this.ingress.seatCredential.reveal(credentialRef), ...gitIdentityEnv() }) },
         revoke: () => this.revoke(sessionName),
       }
     } catch (error) {
@@ -181,7 +189,7 @@ export class RemoteSeats {
       const port = result?.structuredContent?.port ?? result?.port
       if (result?.isError || !Number.isInteger(port)) return null
       seat.port = String(port)
-      return { remote, forward, port, revision: forward.revision ?? null, url: `${seat.origin}${seat.pathname.replace(/\/$/u, '')}` }
+      return { remote, forward, port, readyAt: result?.structuredContent?.ready_at ?? null, revision: forward.revision ?? null, url: `${seat.origin}${seat.pathname.replace(/\/$/u, '')}` }
     } catch (error) {
       process.stderr.write(`BellTeam remote route: ensure_forward failed, launching on terminal: ${bot.id}: ${error?.code ?? 'FAILED'}\n`)
       return null

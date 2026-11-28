@@ -7,7 +7,7 @@ using Kitepon.ApprovalBox.Client;
 namespace BellTeam.App;
 
 /// <summary>
-/// Wires the 決裁箱 page of this PC to the one <see cref="ApprovalBoxClient"/> of Kitepon.ApprovalBox.Client 0.5.0 (client-component section 9, child-join.md): this PC joins the Owner's Approval Box as a CHILD device,
+/// Wires the 決裁箱 page of this PC to the one <see cref="ApprovalBoxClient"/> of Kitepon.ApprovalBox.Client 0.5.4 (client-component section 9, child-join.md): this PC joins the Owner's Approval Box as a CHILD device,
 /// signed with its own key (the component's Desktop form: Windows CNG key and kept sign-in under <c>approval-box-child</c>, apart from BellTeam's own login-billing stores and from the device history); the package reads /v1 now and the peer channel when
 /// GET /v1/auth/config says peer_channel. The join (<see cref="IChildJoin"/>) and the screens stay here; no pass, no lbq1 handoff, no PassProvider.
 /// </summary>
@@ -22,7 +22,7 @@ public sealed class ApprovalBoxDevice : IAsyncDisposable
     private ApprovalOffer? shownOffer; private string? shownNote;
     private bool wasJoined;
 
-    public ApprovalBoxDevice(string directory) : this(directory, null) { }
+    public ApprovalBoxDevice(string directory) : this(directory, null, null, TestBrowser.Open) { }   // the child join's Google sign-in honours BELLTEAM_TEST_CHROME_PROFILE too (null = the system browser)
     /// <param name="origin">Development runs point it at approval-box's local dev server (BELLTEAM_APPROVAL_BOX_URL).</param>
     internal ApprovalBoxDevice(string directory, string? origin, HttpMessageHandler? transport = null, Func<Uri, Task>? openBrowser = null, string? stateDirectory = null)
     {

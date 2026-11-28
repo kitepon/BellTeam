@@ -4,7 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <!-- Same assembly name as the Windows app: BellTeam.Core's InternalsVisibleTo("BellTeam") reaches the same render hooks. -->
     <AssemblyName>BellTeam</AssemblyName>
-    <Version>0.2.33</Version>
+    <Version>0.2.38</Version>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
   <ItemGroup>
@@ -15,8 +15,8 @@
     <EmbeddedResource Include="../../services/subscriptions/product.json" LogicalName="product.json" />
     <InternalsVisibleTo Include="BellTeam.Linux.Tests" />
     <ProjectReference Include="../../windows/BellTeam.Core/BellTeam.Core.csproj" />
-    <!-- a520: the pc/1 device part for the 決裁箱 view; its native engine is linux/native/README.md (x64 only). -->
-    <ProjectReference Include="../../windows/BellTeam.PeerChannel/BellTeam.PeerChannel.csproj" />
+    <!-- The 決裁箱 reads through the Approval Box client component (client-v0.5; .NET form, Indivilia): /v1 and the peer channel behind one object. Its native engine (libdatachannel) is the host's: linux/native/README.md (x64 only). -->
+    <PackageReference Include="Kitepon.ApprovalBox.Client" Version="0.8.0" />
     <None Include="../native/prebuilt/linux-x64/libdatachannel.so" Condition="'$(RuntimeIdentifier)' == '' or '$(RuntimeIdentifier)' == 'linux-x64'" Link="libdatachannel.so" CopyToOutputDirectory="PreserveNewest" />
     <PackageReference Include="Avalonia" Version="12.1.6" />
     <PackageReference Include="Avalonia.Desktop" Version="12.1.6" />
@@ -24,14 +24,14 @@
     <PackageReference Include="Avalonia.Headless" Version="12.1.6" />
     <PackageReference Include="Markdig" Version="1.4.0" />
     <!-- a540 (contract 1.36, the local form): Google sign-in on this PC, the request QR and the check of the phone's reply, through the library's desktop part. 0.21.1 (contract 1.48, with Apple's web sign-in) is accepted by Mint. -->
-    <PackageReference Include="Kitepon.LoginBilling.Desktop" Version="0.22.4" />
+    <PackageReference Include="Kitepon.LoginBilling.Desktop" Version="0.26.0" />
     <!-- The library gives the QR text only (LocalRequest.Qr); this pure managed encoder (MIT) draws it. Android uses the same one. -->
     <PackageReference Include="QRCoder" Version="1.6.0" />
     <!-- Avalonia brings the same version; it is referenced explicitly because the notification sink uses it directly. -->
     <PackageReference Include="Tmds.DBus.Protocol" Version="0.94.1" />
   </ItemGroup>
   <!-- a540 (Tronie): Google's Desktop client wants its secret at the token exchange (contract 1.37). It is never in git (GitHub push protection refuses it): a release build reads the vault's JSON from the environment
-       (scripts/package-linux-app.sh runs under dotagents-op-run with scripts/linux-google-desktop.env) and only the secret goes into the assembly. Without it the build runs and Google's sign-in answers signin_failed. -->
+       (scripts/package-linux-app.sh fetches it from the authentication module on main-server over ssh) and only the secret goes into the assembly. Without it the build runs and Google's sign-in answers signin_failed. -->
   <PropertyGroup Condition="'$(BELLTEAM_GOOGLE_DESKTOP_JSON)' != ''">
     <GoogleDesktopClientSecret>$([System.Text.RegularExpressions.Regex]::Match($(BELLTEAM_GOOGLE_DESKTOP_JSON), '"client_secret"\s*:\s*"([^"]+)"').Groups[1].Value)</GoogleDesktopClientSecret>
   </PropertyGroup>

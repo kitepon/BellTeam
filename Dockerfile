@@ -74,15 +74,6 @@ RUN mkdir /tmp/lattice-deps && cp distribution/lattice/package.json distribution
   && npm ci --omit=dev --cache /root/.npm --prefix /tmp/lattice-deps \
   && mv /tmp/lattice-deps/node_modules src/lattice/node_modules && rm -rf /tmp/lattice-deps \
   && node -e 'console.log(require("module").createRequire("/app/src/lattice/cli.mjs").resolve("@quolu/lattice/bin/lattice.mjs"))'
-# The hosted Approval Box connector the body supervises (docs/architecture/modules/runtime/approval-box-daemon.md): the exact version from the lock, then its own
-# install-runtime (the runtime copy is what runs; the npm copy is dropped), because the peer-channel part imports the native node-datachannel from a node_modules next to the running cli.mjs (the runtime copy has it, the package dir does not).
-RUN mkdir /tmp/abx && cp distribution/approval-box/package.json distribution/approval-box/package-lock.json /tmp/abx/ \
-  && npm ci --omit=dev --cache /root/.npm --prefix /tmp/abx \
-  && mv /tmp/abx/node_modules distribution/approval-box/node_modules && rm -rf /tmp/abx \
-  && APPROVAL_BOX_HOME=/app/distribution/approval-box/runtime-home node distribution/approval-box/node_modules/approval-box/dist/cli.mjs install-runtime \
-  && test "$(APPROVAL_BOX_HOME=/tmp/abx-check node /app/distribution/approval-box/runtime-home/runtime/0.2.0-pc.4/cli.mjs version --json | node -e 'process.stdin.on("data",d=>console.log(JSON.parse(d).version))')" = 0.2.0-pc.4 \
-  && node --input-type=module -e 'import("node:fs").then(async fs=>{const d="/app/distribution/approval-box/runtime-home/runtime/0.2.0-pc.4/chunks/";await import(d+fs.readdirSync(d).find(f=>f.startsWith("pc-daemon")))})' \
-  && rm -rf /tmp/abx-check distribution/approval-box/node_modules
 # Seats reach the code graph through these two (E1 lattice, config/lattice-harness-entries.json): lattice-mcp is registered for every CLI, lattice-sensor-init indexes the member's own clone.
 RUN ln -s /app/src/lattice/node_modules/@quolu/lattice/bin/lattice-mcp.mjs /usr/local/bin/lattice-mcp \
   && install -o root -g root -m 0755 scripts/lattice-sensor-init /usr/local/bin/lattice-sensor-init
@@ -101,8 +92,9 @@ RUN /usr/sbin/groupadd -g 1001 bellteam-server \
   && cc -O2 -Wall -Wextra -Werror scripts/work-graph-start.c -o /usr/local/libexec/bellteam-work-graph-start \
   && cc -O2 -Wall -Wextra -Werror scripts/lattice-start.c -o /usr/local/libexec/bellteam-lattice-start \
   && cc -O2 -Wall -Wextra -Werror scripts/approval-box-extension-start.c -o /usr/local/libexec/bellteam-approval-box-extension-start \
-  && chown root:root /usr/local/libexec/bellteam-notifications-start /usr/local/libexec/bellteam-members-start /usr/local/libexec/bellteam-usage-start /usr/local/libexec/bellteam-diagnostics-start /usr/local/libexec/bellteam-conversation-start /usr/local/libexec/bellteam-work-graph-start /usr/local/libexec/bellteam-lattice-start /usr/local/libexec/bellteam-approval-box-extension-start \
-  && chmod 0755 /usr/local/libexec/bellteam-notifications-start /usr/local/libexec/bellteam-members-start /usr/local/libexec/bellteam-usage-start /usr/local/libexec/bellteam-diagnostics-start /usr/local/libexec/bellteam-conversation-start /usr/local/libexec/bellteam-work-graph-start /usr/local/libexec/bellteam-lattice-start /usr/local/libexec/bellteam-approval-box-extension-start \
+  && cc -O2 -Wall -Wextra -Werror scripts/auth-mediation-start.c -o /usr/local/libexec/bellteam-auth-mediation-start \
+  && chown root:root /usr/local/libexec/bellteam-notifications-start /usr/local/libexec/bellteam-members-start /usr/local/libexec/bellteam-usage-start /usr/local/libexec/bellteam-diagnostics-start /usr/local/libexec/bellteam-conversation-start /usr/local/libexec/bellteam-work-graph-start /usr/local/libexec/bellteam-lattice-start /usr/local/libexec/bellteam-approval-box-extension-start /usr/local/libexec/bellteam-auth-mediation-start \
+  && chmod 0755 /usr/local/libexec/bellteam-notifications-start /usr/local/libexec/bellteam-members-start /usr/local/libexec/bellteam-usage-start /usr/local/libexec/bellteam-diagnostics-start /usr/local/libexec/bellteam-conversation-start /usr/local/libexec/bellteam-work-graph-start /usr/local/libexec/bellteam-lattice-start /usr/local/libexec/bellteam-approval-box-extension-start /usr/local/libexec/bellteam-auth-mediation-start \
   && chown root:root /usr/local/libexec/bellteam-seat-exec /usr/local/libexec/bellteam-server-start \
   && chmod 0755 /usr/local/libexec/bellteam-seat-exec /usr/local/libexec/bellteam-server-start \
   && printf 'bellteam-server ALL=(root) NOPASSWD: /usr/local/libexec/bellteam-seat-exec -- *\n' > /etc/sudoers.d/bellteam-server \

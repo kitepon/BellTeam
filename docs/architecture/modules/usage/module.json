@@ -54,12 +54,12 @@
       "port": "MCP tools (stdio)"
     },
     {
-      "module": "approval-box",
-      "port": "connection export (approval-box connection export --json)"
-    },
-    {
       "module": "bridge",
       "port": "connection export (call-bridge.connection.v1)"
+    },
+    {
+      "module": "auth-mediation",
+      "port": "auth-exec (MCP auth_exec; container socket; main-server host socket)"
     }
   ],
   "source": [
@@ -87,6 +87,8 @@
     "src/usage/fcm-schema.mjs",
     "src/usage/harness-cli-notice.mjs",
     "src/notifications-entry.mjs",
+    "services/notifications/index.mjs",
+    "services/notifications/relay.mjs",
     "src/usage/olrw-auth-consumer.mjs",
     "src/usage/services.mjs",
     "src/usage/process-schema.mjs",
@@ -102,7 +104,6 @@
     "src/usage-entry.mjs",
     "src/usage-parent-effects.mjs",
     "src/usage/secret-credentials.mjs",
-    "src/usage/onepassword-source.mjs",
     "src/usage/native-secret-credentials.mjs"
   ]
 }

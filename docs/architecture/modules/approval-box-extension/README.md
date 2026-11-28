@@ -2,6 +2,8 @@
 
 > **2026-11-24: the client path is [client-v0.5.md](client-v0.5.md)** (BellTeam's 決裁箱 is the Approval Box client: `/v1` now, `/pc/v1` with the Approval Box app). Section 3 and the app contract's content routes describe the body path that new client builds no longer use; link rules L1-L10, the link record and the screens stay.
 
+> **2026-11-28: BellTeam's one port to Approval Box is the decision interface P1 and the seat entry file P5, drawn in [decision-port.md](decision-port.md). The body keeps no hosted connector, no pairing, no QR and no door (Owner through Tronie: Approval Box stays standalone).** The daemon feed of the link engine (peer-channel-feed.md) is removed with it: the engine reads `/v1`.
+
 Owner of this module: Delta (bot-ae42e3e9). Chart row: `bellteam-dev-added/a154-approval-ext-design`. Status: design accepted by the Owner 2026-11-15; first implementation PR = this folder + `src/approval-box-extension/` pure core (origin, ViewDecision, entitlement, link rules, connect state). Child process, mount, usage secret effects and screens are later PRs of their owners. Screens: [screen-spec.md](screen-spec.md). Contract: [contract/approvals-contract.md](contract/approvals-contract.md). Plan: `/srv/bellteam/bots/bot-7b140b27/docs/approval-box-extension-plan-20261115.md`.
 
 This folder is canonical (same shape as `modules/lattice/`). Diagrams and code ship in one diff. The pictures are rendered from `mockups/approval-box-screens.html` (frames `entry`, `main`, `answer`, `chain`, `origin`, `phone`, `edge`; open it with the frame name as the hash). Connections to other modules are drawn in both modules' docs (Approval Box and Lattice rows, `module.json`).
@@ -30,7 +32,7 @@ Rules inherited from the Owner: the diagrams are the contract; no raw ids, codes
 flowchart LR
   subgraph AB["Approval Box product (Nayuta) — unchanged"]
     ABAPI["public API<br/>list / get / answer / hold / unhold / events (SSE)"]
-    ABDEL["answer delivery to the AI<br/>(Steer / MCP, Approval Box's own)"]
+    ABDEL["answer delivery to the AI<br/>(Steer / MCP, Approval Box's own;<br/>stays until F8 has carried every answer, section 13)"]
   end
   subgraph EXT["決裁箱拡張 (Delta) — this module, own child process"]
     F1["F1 Decision reader<br/>list + one + events"]
@@ -40,10 +42,15 @@ flowchart LR
     F5["F5 App contract /api/approvals/*<br/>summary, list, one, answer, hold, events, by-task"]
     F6["F6 Entitlement gate (contract R4, Bready)<br/>in-process: Approval Box /me through F7 → {entitled,state,validUntil,…}<br/>gate reads only entitled; plan active without expires_at (billing-exempt account) = paid; unknown = keep last known, never lock; cache 5 min"]
     F7["F7 Connection holder<br/>device-authorization connect (no redirect to the user's server): request code → hosted consent page → child polls → scoped session, 90 days<br/>(kept as usage secret, R7: usage `secrets.put/erase` not shipped yet, task a199; until then it lives in this process only, and a refused put is retried on every later root; never in logs)"]
+    F8["F8 Answer relay (2026-11-27)<br/>answered decision of a BellTeam seat → one message to that seat, once<br/>(ledger answers.json: ids + delivery word, no answer text)"]
   end
   subgraph LAT["Lattice module (Flora) — unchanged contract + R3"]
     LPORT["public port<br/>owner-task: add / start / done / retire / note / find"]
     LCHART["charts (Snow White's store)"]
+  end
+  subgraph MSG["BellTeam message delivery (Kiro, execution) — unchanged"]
+    SEND["messenger.sendmessage — the public send path, as the sendmessage tool and Lattice notices use it"]
+    SEAT["the asking seat: inserted into a running turn, wakes a stopped seat, every harness, local or Mac route"]
   end
   subgraph APPS["Apps (Rapi / Anis / Neon / Web)"]
     SB["left menu entry + badge"]
@@ -66,6 +73,9 @@ flowchart LR
   F6 -.->|"gate"| F1 & F2 & F3 & F5
   F5 -->|"JSON + SSE"| SB & SCR
   F5 -->|"by-task lookup"| LATSCR
+  F1 --> F8
+  F8 -->|"effect seat.message (parent, from scheduler)"| SEND --> SEAT
+  F8 -.->|"delivery word → view: 'delivered'"| F5
 ```
 
 Connections that must also appear in the other products' diagrams (same diff as the code): Approval Box `docs/architecture` (a new reader: the extension, via the public API row of R1, including `/me` for the entitlement); Lattice module `docs/architecture/modules/lattice/` (a new caller of the owner-task facade, R3, and the apps' `by-task` lookup); usage/billing docs (state that the extension entitlement is Approval Box's own subscription and is not in the BellTeam subscription verdict, R4); the Apple/Windows/Linux/Web module docs (new screen and entry).
@@ -193,9 +203,56 @@ Parent side (process, effects, mount, update): [runtime/approval-box-extension-c
 | `src/approval-box-extension-protocol.mjs` | protocol v1: roots `summary / list / get / answer / hold / unhold / attachment / byTask / connection / connect / cancelConnect / disconnect / refresh`; effects `lattice.ownerTask / lattice.link / lattice.chart / lattice.charts / members.list / session.get / session.put / session.erase`; validators; wire errors |
 | `src/approval-box-extension-ipc.mjs`, `-dispatcher.mjs`, `-entry.mjs` | channel, generation control and entry, the lattice child's shape; reads run beside the one write at a time; `refresh` is a write (it is the engine) |
 | `src/approval-box-extension/core.mjs` | F1-F7: gate (connected + entitled, in-process), Approval Box calls, events held by the child (`/v1/events`, ring of 200, backoff 1-30 s forever), the connect poll, the engine tick, `links.json` (temp + rename) |
+| `src/approval-box-extension/answer-relay.mjs` | F8 (section 13): the pure plan (who, whether, which message) and the ledger shape; the effect `seat.message` is in the protocol |
 | `src/approval-box-extension/client.mjs` | the child's own HTTPS to approval-box.kitepon.dev (pairing, long poll, `/v1/*`, SSE parse); the session is never logged |
 | `src/approval-box-extension/http-api.mjs` | the body-resident handler for `/api/approvals/*` (Owner only, JSON writes only, Idempotency-Key on answers, SSE framing); errors become the contract's bodies |
 | `origin-view.mjs`, `entitlement.mjs`, `connect-state.mjs`, `link-plan.mjs` | the pure parts (step 1) |
 
 Rules that the tests pin: `connection {}` never makes a network call (it is the exchange ready probe); an answer goes to Approval Box first and the task follows on the next tick; an external decision never causes a Lattice write; the first decision task rides in `plan create` (a plan may not be empty) and its `todo add` is skipped; free text that starts with `--` is stripped before it reaches the owner-task allowlist; every failed effect keeps the decision id for the next tick (nothing is given up).
 Shortcuts named in the code: a Lattice duplicate is recognised by the code's name (`EXIST|ALREADY|UNCHANGED`); attachments travel base64 over the channel (Approval Box caps a file at 20 MiB); the plan-create input shape is Lattice's `plan_create_input.v5` and must be confirmed once against a real chart at the integration test.
+
+## 13. Answer relay F8 (task abx-answers-as-member-messages, Owner 2026-11-27)
+
+Owner words: 「他のメンバーからのメッセージが挿入されるのと同じように見えればいいと思います。」「ずっとSteerしていると思っていた。」「実装しろよ。それで解決するかもしれない。」 Cause that started it: Rapi's K-32S78Q (Owner answer 19:46 JST, seat on the Mac route) was saved but Approval Box could not confirm delivery to the seat, and the app asked him to paste a resume text. Approval Box's own delivery runs through hooks inside the seat's machine; BellTeam sees none of it. F8 carries the answer through the one path BellTeam does see.
+
+Boundary: Approval Box stays standalone and calls no Aiterm. F1 already reads every decision change through the public API. F8 hands the answer to BellTeam's normal message delivery through the public send path `messenger.sendmessage` (the path of the `sendmessage` tool and of Lattice's notices, `from: 'scheduler'`). Nothing is added to execution (Kiro): the port exists and is used the same way by `lattice/nudge.mjs` and `lattice/owner-decisions.mjs`.
+
+Data (D15-D17, drawn in the data-flow diagram below):
+
+```mermaid
+flowchart TD
+  ABS2[("Approval Box store")] -- "D2 decision.updated (answered), or catch-up list status=answered" --> RD2["F1 reader"]
+  RD2 -- "D15 decision (answered, requester = a roster Bot)" --> RL["F8 relay: plan once per decision"]
+  RL <-- "D16 ledger rows {decisionId, delivery, deliveryId, at}; since = first start" --> LG[("answers.json (same state dir)")]
+  RL -- "D17 effect seat.message {target botId, message}" --> PAR["parent effects → messenger.sendmessage(from scheduler)"]
+  PAR -- "normal delivery: steer into a running turn / wake" --> SEAT2["asking seat"]
+  PAR -- "{delivery, deliveryId} or {refused, code}" --> RL
+  RL -- "delivery accepted → ViewDecision.delivery = 'delivered'" --> AC2["F5 app contract"]
+```
+
+Rules (R-prefixed so the tests can name them):
+
+| # | Rule |
+| --- | --- |
+| A1 | A decision relays when it is `answered`, its requester resolves to a roster Bot (`origin.kind = bellteam`, by `requester_bot_id`, else the exact name), and the ledger has no row for its id. Every origin that the link engine reads counts (/v1; the hosted daemon feed was removed 2026-11-28); whoever answered (phone, Web, BellTeam app) does not matter. |
+| A2 | Only answers made at or after the ledger's `since` (the first tick of the child after install, taken BEFORE the entitlement gate; a version 1 ledger, which was written lazily on the first entitled tick, moves once to the release date 2026-11-27 20:13 JST: found with K-9DBLUD, whose answer fell between install and the first entitled tick) and not older than 24 hours relay. An old answer is never replayed by a restart or a first install. |
+| A3 | The message names the Owner, the request title and id, the chosen option label and the free text, how many attachments the answer carries (`get_attachment`), and says that a copy by Approval Box's own delivery may already have arrived and is then ignored. Free text is the Owner's words, quoted and capped; it is the data, not an instruction from BellTeam. |
+| A4 | A row is written only after the parent reports an accepted delivery word (`running`, `steered`, `queued`, `delivered`, `answered`) or a permanent refusal (`SENDER_NOT_FOUND`, `BOT_NOT_FOUND`, `MESSAGE_REQUIRED`: the Bot is gone). Any other failure keeps the id for the next tick, as every failed effect does; a lost reply can send a second copy, which A3 tells the seat to ignore. |
+| A5 | The ledger holds ids and delivery words only, no answer text. Rows are dropped after 30 days. |
+| A6 | While a row says accepted, the view shows `delivery: 'delivered'` unless Approval Box already says `fetched` or `delivered`; the app then never asks him to paste a resume text for this answer. |
+| A8 | The relay stands behind the same gate as every data root (entitlement, R4): an Approval Box account whose `/me` says `expired` or `revoked` relays nothing and runs no link rules. Found 2026-11-27: the Owner's own account read `expired` (validUntil null), so no answer was relayed (K-9DBLUD). The fix is the account's plan in Approval Box (Nayuta's data, or the Owner's purchase), not this module. The relay runs before the Lattice step inside one decision, and its failures are logged (`approval-box-extension relay <id> <code>` on the child's stderr), so a failing chart step cannot hold an answer back. |
+| A7 | The engine tick is 3 s when no app is open (it was 30 s), so an answer made on the phone reaches the seat in seconds: SSE event → next tick → message. |
+
+Approval Box's hook delivery (Stop/SessionStart-armed, "Stop hook feedback") is Nayuta's and stays until F8 has carried every answer for a week without a miss; it is the only path that wakes a seat whose BellTeam delivery is unavailable. Removing it is Nayuta's change, asked after that week.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Seen: decision answered, requester is a roster Bot
+  Seen --> Sent: seat.message accepted (row written)
+  Seen --> Gone: Bot no longer exists (permanent refusal, row written)
+  Seen --> Seen: parent or delivery unavailable (retry next tick, 3 s)
+  Seen --> Skipped: answered before since, or older than 24 h
+  Sent --> [*]: row dropped after 30 days
+  Gone --> [*]
+  Skipped --> [*]
+```

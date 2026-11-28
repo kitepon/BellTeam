@@ -21,7 +21,7 @@ function errorCode(code) {
 
 test('未設定で起動でき、全機能は未設定・無効で秘密の値を返さない', async t => {
   const { settings, root } = await fixture(t)
-  assert.deepEqual(settings.list().map(item => item.id), ['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'onePassword', 'thinkingDisplay'])
+  assert.deepEqual(settings.list().map(item => item.id), ['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'thinkingDisplay'])
   for (const item of settings.list()) {
     assert.equal(item.enabled, false)
     // a479: the field-less switch is always configured, so it reads disabled (hidden), never unconfigured
@@ -44,7 +44,7 @@ test('既存envを初回だけ取り込み、橋の認証ファイルは読ま�
   }
   const settings = new FeatureSettings({ root, environment })
   await settings.initialize()
-  assert.deepEqual(settings.list().map(item => item.status), ['enabled', 'unconfigured', 'enabled', 'enabled', 'unconfigured', 'unconfigured', 'disabled'])
+  assert.deepEqual(settings.list().map(item => item.status), ['enabled', 'unconfigured', 'enabled', 'enabled', 'unconfigured', 'disabled'])
   // bd11: the token comes only from the Bridge export import (callBridgeSettingsInput), never from the Bridge-written file.
   assert.deepEqual(settings.configuration('callBridge'), { enabled: false, url: environment.BELLTEAM_CALL_BRIDGE_MCP_URL, token: '' })
   assert.equal(settings.configuration('cloudflare').publicUrl, '')
@@ -200,23 +200,32 @@ test('各項目は有効化に必須かを返し、親の検証は新旧どち�
   assert.equal(usageSettingValid({ ...item, fields: item.fields.map(field => ({ ...field, required: 'yes' })) }), false)
 })
 
-test('旧APNs設定は初回だけ通知ONへ移行し、OFF保存を再起動でも保持する', async t => {
+test('旧APNs設定（直送）はもう見ない: 通知ONで中継URLが空の旧い保存は起動時にOFFへ直り、新規も未設定から始まる', async t => {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-settings-apns-'))
   t.after(() => rm(root, { recursive: true, force: true }))
+  const path = join(root, 'shared/tools/bellteam-settings/settings.json')
   await mkdir(join(root, 'shared/tools/apns'), { recursive: true })
-  // 設定の読み取りと鍵の診断はPushNotificationsが行う。
+  await mkdir(join(root, 'shared/tools/bellteam-settings'), { recursive: true })
   await writeFile(join(root, 'shared/tools/apns/config.json'), '{legacy-config}')
+  // A server that sent directly: notifications on, no relay URL.
+  const old = { routing: { enabled: false, apiKey: '' }, callBridge: { enabled: false, url: '', token: '' },
+    cloudflare: { enabled: false, teamDomain: '', audience: '', publicUrl: '' }, diagnostics: { enabled: false, key: '' },
+    notifications: { enabled: true, relayUrl: '' }, thinkingDisplay: { enabled: false } }
+  await writeFile(path, JSON.stringify(old), { mode: 0o600 })
   const settings = new FeatureSettings({ root, environment: {} })
   await settings.initialize()
-  assert.deepEqual(settings.configuration('notifications'), { enabled: true, relayUrl: '' })
-  assert.equal(settings.list().find(item => item.id === 'notifications').fields[0].required, false)
-  assert.equal(settings.list().find(item => item.id === 'notifications').status, 'enabled')
-  await settings.update('notifications', { enabled: false })
-  const restored = new FeatureSettings({ root, environment: {} })
-  await restored.initialize()
-  assert.deepEqual(restored.configuration('notifications'), { enabled: false, relayUrl: '' })
-  assert.equal(restored.list().find(item => item.id === 'notifications').status, 'disabled')
-  assert.equal((await restored.update('notifications', { enabled: true })).status, 'enabled')
+  assert.deepEqual(settings.configuration('notifications'), { enabled: false, relayUrl: '' })
+  assert.equal(JSON.parse(await readFile(path, 'utf8')).notifications.enabled, false)
+  const item = () => settings.list().find(row => row.id === 'notifications')
+  assert.equal(item().status, 'unconfigured'); assert.equal(item().fields[0].required, true)
+  await assert.rejects(settings.update('notifications', { enabled: true }), errorCode('FEATURE_UNCONFIGURED'))
+  assert.equal((await settings.update('notifications', { enabled: true, values: { relayUrl: 'https://relay.example' } })).status, 'enabled')
+  const fresh = new FeatureSettings({ root: await mkdtemp(join(tmpdir(), 'bellteam-settings-apns-fresh-')), environment: {} })
+  t.after(() => rm(fresh.root, { recursive: true, force: true }))
+  await mkdir(join(fresh.root, 'shared/tools/apns'), { recursive: true })
+  await writeFile(join(fresh.root, 'shared/tools/apns/config.json'), '{legacy-config}')
+  await fresh.initialize()
+  assert.equal(fresh.list().find(row => row.id === 'notifications').status, 'unconfigured')
 })
 
 test('通知relayURLは登録する接続先と同じHTTPS・LAN HTTP契約を使う', async t => {
@@ -231,27 +240,22 @@ test('通知relayURLは登録する接続先と同じHTTPS・LAN HTTP契約を�
   await assert.rejects(settings.update('notifications', { values: { relayUrl: '' } }), errorCode('FEATURE_UNCONFIGURED'))
 })
 
-test('1Password連携: 6項目の保存ファイルへ無効で足し、ops_トークンだけを受け、案内を返して値は返さない', async t => {
-  const root = await mkdtemp(join(tmpdir(), 'bellteam-settings-onepassword-'))
+test('1Password連携は無い: 旧い保存のonePasswordは読み込みで捨て、ファイルからも消し、トークンは残さない', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-settings-onepassword-gone-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const path = join(root, 'shared/tools/bellteam-settings/settings.json')
   const old = { routing: { enabled: false, apiKey: '' }, callBridge: { enabled: false, url: '', token: '' },
     cloudflare: { enabled: false, teamDomain: '', audience: '', publicUrl: '' }, diagnostics: { enabled: false, key: '' },
-    notifications: { enabled: false, relayUrl: '' }, webPush: { enabled: false, subject: '' } }
+    notifications: { enabled: false, relayUrl: '' }, onePassword: { enabled: true, token: 'ops_synthetic' } }
   await mkdir(join(root, 'shared/tools/bellteam-settings'), { recursive: true })
   await writeFile(path, JSON.stringify(old), { mode: 0o600 })
   const settings = new FeatureSettings({ root, environment: {} })
   await settings.initialize()
-  assert.deepEqual(JSON.parse(await readFile(path, 'utf8')).onePassword, { enabled: false, token: '' })
-  const item = () => settings.list().find(row => row.id === 'onePassword')
-  assert.equal(item().status, 'unconfigured')
-  assert.ok(item().guide.steps.length >= 3 && item().guide.link.url.startsWith('https://'))
-  await assert.rejects(settings.update('onePassword', { enabled: true, values: { token: 'not-a-token' } }, { allowSecretValues: true }), errorCode('FEATURE_VALUE_INVALID'))
-  await settings.update('onePassword', { enabled: true, values: { token: 'ops_synthetic' } }, { allowSecretValues: true })
-  assert.equal(item().status, 'enabled'); assert.equal(item().fields[0].value, ''); assert.equal(item().fields[0].configured, true)
-  assert.equal(settings.configuration('onePassword').token, 'ops_synthetic')
-  settings.setError('onePassword', { code: 'ONEPASSWORD_TOKEN_REJECTED' })
-  assert.match(item().error.message, /トークンを貼り直してください/)
+  assert.ok(!settings.list().some(row => row.id === 'onePassword'))
+  const stored = await readFile(path, 'utf8')
+  assert.equal(Object.hasOwn(JSON.parse(stored), 'onePassword'), false)
+  assert.ok(!stored.includes('ops_synthetic'))
+  await assert.rejects(settings.update('onePassword', { enabled: true, values: { token: 'ops_synthetic' } }, { allowSecretValues: true }), errorCode('FEATURE_NOT_FOUND'))
 })
 
 test('a479: thinkingDisplay is a field-less switch, off by default, added to an older stored file, {enabled} only', async t => {

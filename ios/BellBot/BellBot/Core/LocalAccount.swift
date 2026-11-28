@@ -5,12 +5,30 @@ import StoreKit
 import SwiftUI
 import UIKit
 
+/// An opened join link goes to the request that waits for it (login-billing 1.60): each taker either takes it, says it is not its (qr_invalid, request_gone), or refuses it.
+enum JoinLinks {
+    enum Routed { case taken, refused(Error), gone, other }
+
+    @MainActor static func route(_ text: String, takers: [(String) async throws -> Void]) async -> Routed {
+        var gone = false
+        for take in takers {
+            do { try await take(text); return .taken }
+            catch let error as LoginBillingError where error.code == "qr_invalid" { continue }
+            catch let error as LoginBillingError where error.code == "request_gone" { gone = true }
+            catch { return .refused(error) }
+        }
+        return gone ? .gone : .other
+    }
+}
+
 /// 課金の確認（a540、契約1.36 10章「ローカルの形」）。ライブラリのLocalFormをそのまま使う。サーバーも運営も入らない。
 /// 払っているこの端末は自分のStoreで確かめて開き、払っていない端末はQRを出して、払っているスマホの返事を同じLANの中で直接受ける。
 @MainActor
 final class LocalAccount: ObservableObject {
     struct Paid: Equatable { let productId: String; let until: Date?; let store: String }
-    struct Request: Equatable { let qr: String; let expiresAt: Date }
+    struct Request: Equatable { let qr: String; let expiresAt: Date; var code: String? = nil }
+    /// The answer that did not reach the wanting device over the LAN (login-billing 1.60): the link back to it, and why when the library says.
+    struct Return: Identifiable, Equatable { let link: String; let words: String?; var id: String { link } }
     struct ApprovalPrompt: Identifiable, Equatable { let id = UUID() }
 
     @Published private(set) var paid: Paid?
@@ -20,8 +38,14 @@ final class LocalAccount: ObservableObject {
     @Published private(set) var message: String?
     @Published private(set) var errorText: String?
     @Published private(set) var request: Request?
+    @Published var returnLink: Return?
     /// 返事を送る前の確認。答えるまでライブラリは待つ。
     @Published private(set) var approval: ApprovalPrompt?
+    /// 承認の結果の文（返事を送った・失敗の理由）。カメラのリンクで開いた時も見えるよう、根が出す。
+    struct Outcome: Identifiable, Equatable { let id = UUID(); let text: String; let isError: Bool; var code: String? = nil; var title: String? = nil }
+    @Published var outcome: Outcome?
+    /// The library's code of the last failure, shown beside the plain sentence so the next report names it.
+    private var errorCode: String?
     private var decision: CheckedContinuation<Bool, Never>?
     private var open: LocalRequest?
     private let form: LocalForm
@@ -88,7 +112,7 @@ final class LocalAccount: ObservableObject {
     /// 試験用: この端末の購読確認の結果を直接置く（StoreKitに触れない）。
     func setPaid(_ value: Paid?) { paid = value; checked = true }
     /// 画面確認用: QRの待ち画面を、ライブラリへ触れずに出す。
-    func setPreviewRequest(_ qr: String) { request = Request(qr: qr, expiresAt: Date().addingTimeInterval(600)) }
+    func setPreviewRequest(_ qr: String, code: String? = nil) { request = Request(qr: qr, expiresAt: Date().addingTimeInterval(600), code: code) }
     #endif
 
     /// 起動時と前面に戻る時: この端末のStoreの購入と、受け取った返事の期限を読み直す。
@@ -143,7 +167,7 @@ final class LocalAccount: ObservableObject {
         do {
             let made = try await form.makeRequest(provider: provider)
             open = made
-            request = Request(qr: made.qr, expiresAt: made.expiresAt)
+            request = Request(qr: made.qr, expiresAt: made.expiresAt, code: made.code)
             busy = false
             let reply = try await made.awaitPaid()
             if reply != nil { UserDefaults.standard.removeObject(forKey: Self.signedOutKey) }
@@ -158,30 +182,59 @@ final class LocalAccount: ObservableObject {
     func cancelRequest() { open?.close() }
 
     /// 払っている端末: 相手のQRを読んで、確認のあと、このStoreの購入の証明を返す。
-    /// 端末のカメラがQRのリンク（https://login-billing.kitepon.dev/join/dev.kitepon.bellbot#…）でこのアプリを開いた時。開かれた文字列はまずライブラリのisLibraryQRに渡し、trueの時だけそのままanswerへ渡す。アプリ側でQRやリンクの形を見分けない（契約1.53 11.12）。
-    func open(link url: URL) async {
-        guard isLibraryQR(url.absoluteString) else { return }
-        await approve(url.absoluteString)
+    /// 端末のカメラやほかのアプリがリンク（https://login-billing.kitepon.dev/join/dev.kitepon.bellbot#…）でこのアプリを開いた時。開かれた文字列はまずライブラリのisLibraryQRに渡し、trueの時だけ振り分ける：待っている要求の戻りのリンクは take、ほかは answer。アプリ側でQRやリンクの形を見分けない（契約1.53 11.12・1.60）。
+    func open(link url: URL, child: @escaping (String) async throws -> Void) async {
+        let text = url.absoluteString
+        guard isLibraryQR(text) else { return }
+        switch await JoinLinks.route(text, takers: [{ _ = try await self.form.take($0) }, child]) {
+        case .taken: await start()
+        case .refused(let error): outcome = Outcome(text: Self.words(error), isError: true, code: (error as? LoginBillingError)?.code, title: "つなげませんでした")
+        case .gone: outcome = Outcome(text: Self.words(LoginBillingError(code: "request_gone")), isError: true, code: "request_gone", title: "つなげませんでした")
+        case .other: await approve(text)
+        }
     }
 
     /// 0.22.0のanswerもサインインのシートを開かない。サインインしていない端末はsignin_requiredで返るので、Appleでサインインしてから同じQRでもう一度だけ答える。
+    /// 1回のQR読み取りで承認の問いは1回だけ（答えはサインイン後の2回目のanswerへ持ち越す）。終わりは必ず結果の文（返事を送った・理由つきの失敗）で、画面を問わず根で見せる。
     func approve(_ qr: String) async {
+        outcome = nil
+        returnLink = nil
         await run {
-            do { try await self.reply(qr) }
-            catch let error as LoginBillingError where error.code == "signin_required" {
-                try await self.form.signInLocal("apple")
-                try await self.reply(qr)
+            switch try await Self.answerWithSignIn(ask: { [weak self] in await self?.ask() ?? false },
+                                                   answer: { confirm in try await self.form.answer(qr: qr, confirm: confirm) },
+                                                   signIn: { try await self.form.signInLocal("apple") }) {
+            case .sent: self.message = "確認の返事を送りました。"
+            case .noPurchase: self.errorText = "この端末には購読がありません。先に購読してください。"
+            case .declined: break
+            case .returnLink(let link, let cause): self.returnLink = Return(link: link, words: cause.flatMap(LocalWords.ja))
             }
+        }
+        if let text = errorText ?? message { outcome = Outcome(text: text, isError: errorText != nil, code: errorText == nil ? nil : errorCode) }
+    }
+
+    /// A pasted text is a code only when the library says so; then it goes the way a scanned text goes.
+    func approvePasted(_ text: String) async {
+        guard isLibraryQR(text) else { errorText = ApproveCodeWords.notACode; return }
+        await approve(text)
+    }
+
+    /// The answer to one question, kept for the second answer after the sign-in (the library asks again on every answer).
+    static func answerWithSignIn(ask: @escaping @Sendable () async -> Bool,
+                                 answer: (@escaping @Sendable () async -> Bool) async throws -> LocalAnswer,
+                                 signIn: () async throws -> Void) async throws -> LocalAnswer {
+        let kept = Kept()
+        let confirm: @Sendable () async -> Bool = {
+            if let value = kept.value { return value }
+            let value = await ask(); kept.value = value; return value
+        }
+        do { return try await answer(confirm) }
+        catch let error as LoginBillingError where error.code == "signin_required" {
+            try await signIn()
+            return try await answer(confirm)
         }
     }
 
-    private func reply(_ qr: String) async throws {
-        switch try await form.answer(qr: qr, confirm: { [weak self] in await self?.ask() ?? false }) {
-        case .sent: message = "確認の返事を送りました。"
-        case .noPurchase: message = "この端末には購読がありません。先に購読してください。"
-        case .declined: break
-        }
-    }
+    private final class Kept: @unchecked Sendable { var value: Bool? }
 
     func answer(_ allow: Bool) {
         approval = nil
@@ -192,6 +245,7 @@ final class LocalAccount: ObservableObject {
     /// 「サインアウト」: この端末のサインイン（受け取った返事）を終えて、最初の画面へ戻る。Storeの購入は消さない。QRの待ちがあれば閉じる。
     func signOut() async {
         cancelRequest()
+        returnLink = nil
         await run {
             try await self.form.signOutLocal()
             UserDefaults.standard.set(true, forKey: Self.signedOutKey)
@@ -217,18 +271,19 @@ final class LocalAccount: ObservableObject {
         busy = true
         message = nil
         errorText = nil
+        errorCode = nil
         do { try await work() }
         catch let error as LoginBillingError where error.code == "signin_cancelled" {}
-        catch { errorText = Self.words(error) }
+        catch { errorText = Self.words(error); errorCode = (error as? LoginBillingError)?.code }
         busy = false
         await start()
     }
 
     static func words(_ error: Error) -> String {
         let code = (error as? LoginBillingError)?.code ?? "unknown"
+        // 1.61: the local-network causes carry the library's own sentence.
+        if let text = LocalWords.ja(code) { return text }
         switch code {
-        case "unreachable_same_wifi": return "スマホからこの端末に届きませんでした。2台を同じネットワーク（同じLAN）につないでから、もう一度お試しください。"
-        case "local_network_denied": return "設定でこのアプリのローカルネットワークを許可してから、新しいQRでお試しください。"
         case "qr_invalid": return "QRが正しくありません。相手の画面で新しいQRを出してください。"
         // 0.21.1: two devices on different versions end here, so the text sends the person to update both devices (Mint; the sentence is Neon's shared Core text, Tronie 2026-11-24).
         case "request_invalid", "other_request": return "QRが正しくないか、相手の端末のBellTeamが古い可能性があります。2台とも最新版に更新してから、相手の画面で新しいQRを出してください。"

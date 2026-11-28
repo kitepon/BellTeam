@@ -23,7 +23,7 @@ flowchart LR
   OLD --> SHADOW
   FS -.-> SHADOW
   SHADOW --> CMP
-  CMP -->|"clean for a working period"| SWITCH["switch: CW reads sessions[]; Aiterm may drop OLD"]
+  CMP -->|"clean (Tronie 2026-11-26: Z205 log 0 differences)"| SWITCH["genericSeatData: CW reads sessions[] (turn, own_work, unread); route_since and Codex rows stay OLD; Aiterm may drop OLD after step 2 and stage 4"]
 ```
 
 The shadow never changes what BellTeam does: it only reads and compares. A shadow failure (a generic read refused, a transcript unreadable) is counted as `shadow_unavailable` and never reaches the Owner or any delivery.
@@ -38,7 +38,7 @@ Elegg keeps `interim_from` and `own_work` in Aiterm as generic facts (only Aiter
 | `own_work` | `sessions[].own_work`; the exclusion list stays the input `_meta["aiterm/own_work_exclusions"]` | 1: same |
 | `unread` | `sessions[].turn === null` for that seat (a terminal older than 0.70.108 returns no `turn` field: not returned = unread) | 1: same |
 | `listed` | the session is in `sessions[]` (a row, or turn null) | 1 (follows from the three above) |
-| `route_since` (terminal seat) | `forward_status({id})` `ready_at` (Aiterm 0.70.101; null while not `ready`) | 2: own shadow step (the binding id of the seat's forward is read from the launch record) |
+| `route_since` (terminal seat) | `forward_status({id})` `ready_at` (Aiterm 0.70.101; null while not `ready`) | 2: done 2026-11-26 without a second read: `ready_at` of the `ensure_forward` answers (remote-route.md open item 1) |
 | `limit_end` per Claude seat | `sessions[].limit_end`, already generic and read today | none |
 
 The old `seat_turns` meta, `route_since` and `unread` are removed by Elegg's final release only, after the switch has run one working period. Until the switch, the Aiterm-shaped rows feed CurrentWork as today.
@@ -60,5 +60,9 @@ The shadow holds nothing and refuses nothing: no guard, so no state to leave. It
 
 1. This design and Elegg's answers (done 2026-11-23: decisions above; Aiterm 0.70.108 carries `include`).
 2. Step 1 code, shadow only (PR "a532b2 stage 3 step 1"): the shadow adds `include` to the existing `pty_list` read when the connected Aiterm's tool schema lists it (older Aiterm: the call is unchanged), compares `turn`, `own_work` and unread against the `_meta` rows, counts per field, reports one `SEAT_VIEW_SHADOW_DIFF` line per seat and field per minute. Adoptable on its own: additive, no behaviour change.
-3. One working day of counters on Aiterm 0.70.108 (container and terminals); then the switch (CurrentWork reads `sessions[]`), together with stage 2 if clean by then (Tronie), otherwise in the first later train.
-4. Step 2 (`route_since` from `forward_status`) the same way.
+3. One working day of counters on Aiterm 0.70.108 (container and terminals): clean, ruled by Tronie 2026-11-26 from the Z205 log (0 `SEAT_VIEW_SHADOW_DIFF`; latest summary turn=0/81536 own_work=0/81536 unread=0/51). Switch (#2612, live Z206): `genericSeatData` in `seat-view-shadow.mjs` is applied to the `_meta` data in `AitermTransport.#seatTurns` before `CurrentWork.endRead`; the shadow keeps comparing the unswitched data. Seat list (this change, a532b2s3c): the seats are now the `sessions[]` rows themselves (`harness`, `launch_id`, `turn`, `own_work`; `viewRows` shapes them like the terminal rows); a row with `turn` null joins `unread`; a seat that is in the meta but not in `sessions[]` keeps its meta row (see "Z207 finding"). Aiterm's seat_turns meta supplies only what a generic row cannot yet: `route_since` of an old `terminal`-bound seat (remote seats get it from the keeper, step 2) and a running Codex turn until the generic turn carries `wait_process` (Aiterm >= 0.70.118, Elegg 2026-11-26; then the generic Codex turn is used as it is). No meta at all is enough. An Aiterm without the generic fields (< 0.70.108, no `turn` key on the rows) leaves the data as it is. No flag; to go back, revert. Elegg's final release drops the meta only after this and #2671 are live.
+4. Step 2 (`route_since`): the keeper's `ready_at` from the `ensure_forward` answers goes on the rows of `remote` seats (`RemoteRoutes.readyAt`, `views`); terminal-bound rows of the old `terminal` input keep Aiterm's `route_since` until Elegg's final release.
+
+**The list is compared too (Epinel's condition on #2672, 2026-11-26).** The seat view is now `sessions[]`, so a seat the meta lists (row or unread) that `sessions[]` omits would read as absent (no turn can run, idle) while turn / own_work / unread still showed 0 differences. `seatViewDifferences` counts such a seat as the difference `listed` (counter `listed=differed/compared` in `SEAT_VIEW_SHADOW_SUMMARY`, one `SEAT_VIEW_SHADOW_DIFF field=listed` line per seat per minute), so "0 differences" covers the list.
+
+**Z207 finding and the meaning of `listed` (Tronie's read of the Z207 log, 2026-11-26 22:05 JST).** Three seats were counted `listed` (bot-6daf6ef5 claude-code, the 2nd seats of bot-0d7da1c1 and bot-ed14f4f7, claude-machine: Bots that work on a terminal host): the meta lists them, the local `pty_list` `sessions[]` does not (a seat on another machine is relayed only through the meta, or through the per-terminal view of a `remote`-launched seat). With #2672 alone they would have been read as absent, i.e. idle, in the Owner's lamp and current work; the shadow counter caught it within five minutes. Fix: `genericSeatData` keeps the meta row of a seat that `sessions[]` does not list. `listed` is therefore the drop-readiness number: it must be 0 before Aiterm drops the meta, because a non-zero seat still depends on it. Such a seat leaves the count when it is launched on the `remote` input again (its next wake, restart or account move; then the per-terminal view reads it).

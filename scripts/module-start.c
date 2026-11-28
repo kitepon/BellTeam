@@ -67,6 +67,13 @@ int main(int argc, char **argv) {
         || info.st_gid != SERVER_UID || info.st_nlink != 1 || (info.st_mode & 07777) != 0600
         || flock(writer, LOCK_EX | LOCK_NB) || fstatat(state, MODULE_NAME ".lock", &linked, AT_SYMLINK_NOFOLLOW)
         || !same(&info, &linked)) return fail();
+#ifdef MODULE_STATE_ENV
+    /* The child's own folder under the state root, created 0700 here BEFORE the lock file replaces the state directory descriptor (fd 5) (the child reads its path from MODULE_STATE_ENV and writes only there). */
+    if (mkdirat(state, MODULE_NAME, 0700) && errno != EEXIST) return fail();
+    int folder = openat(state, MODULE_NAME, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    if (folder < 0 || fstat(folder, &info) || info.st_uid != SERVER_UID || info.st_gid != SERVER_UID || (info.st_mode & 07777) != 0700) return fail();
+    close(folder);
+#endif
     if (dup2(writer, 5) != 5) return fail();
     close(writer);
     char root[512], entry[560];
@@ -77,6 +84,13 @@ int main(int argc, char **argv) {
     if (clearenv() || setenv("PATH", "/usr/local/bin:/usr/bin:/bin", 1)
         || setenv("HOME", "/run/bellteam-server", 1) || setenv("NODE_CHANNEL_FD", "3", 1)
         || setenv("NODE_CHANNEL_SERIALIZATION_MODE", "advanced", 1)) return fail();
+#ifdef MODULE_STATE_ENV
+    if (setenv(MODULE_STATE_ENV, STATE_ROOT "/" MODULE_NAME, 1)) return fail();
+#endif
+#ifdef MODULE_FIXED_ENV_NAME
+    /* A value fixed at build time: seats cannot edit the image, so no request can set it (first administrators of auth-mediation). */
+    if (setenv(MODULE_FIXED_ENV_NAME, MODULE_FIXED_ENV_VALUE, 1)) return fail();
+#endif
 #ifdef MODULE_PRESERVE_NOTES
     if (notes && setenv("BELLTEAM_DIAGNOSTIC_INVESTIGATIONS", notes, 1)) return fail();
     free(notes);

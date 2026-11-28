@@ -137,7 +137,6 @@ BUSINESS_FILES = {
         'src/usage/projection.mjs',
         'src/usage/registry-ports.mjs',
         'src/usage/secret-credentials.mjs',
-        'src/usage/onepassword-source.mjs',
         'src/usage/services.mjs',
         'src/usage/state-compatibility.mjs',
         'src/usage/fcm-schema.mjs',
@@ -207,12 +206,32 @@ BUSINESS_FILES = {
         'src/approval-box-extension-ipc.mjs',
         'src/approval-box-extension-locks.mjs',
         'src/approval-box-extension-protocol.mjs',
+        'src/approval-box-extension/answer-relay.mjs',
         'src/approval-box-extension/client.mjs',
         'src/approval-box-extension/connect-state.mjs',
         'src/approval-box-extension/core.mjs',
         'src/approval-box-extension/entitlement.mjs',
         'src/approval-box-extension/link-plan.mjs',
         'src/approval-box-extension/origin-view.mjs',
+        'src/module-ipc.mjs',
+        'src/module-locks.mjs',
+        'src/module-streams.mjs',
+    )},
+    # The child imports only node: builtins and its own files. src/auth-mediation/mcp.mjs (the seat tool) and scripts/auth-mediation/relay.py (the socket relay run as the seat uid) are body-side and stay out.
+    'auth-mediation': {'payload/' + name for name in (
+        'package-lock.json',
+        'package.json',
+        'src/auth-mediation-dispatcher.mjs',
+        'src/auth-mediation-entry.mjs',
+        'src/auth-mediation-ipc.mjs',
+        'src/auth-mediation-protocol.mjs',
+        'src/auth-mediation/core.mjs',
+        'src/auth-mediation/env.mjs',
+        'src/auth-mediation/identity.mjs',
+        'src/auth-mediation/items.mjs',
+        'src/auth-mediation/policy.mjs',
+        'src/auth-mediation/redact.mjs',
+        'src/auth-mediation/service.mjs',
         'src/module-ipc.mjs',
         'src/module-locks.mjs',
         'src/module-streams.mjs',
@@ -289,11 +308,12 @@ EXECUTION_FILES = {'payload/' + name for name in (
 )}
 
 BUSINESS_STATE = {
-    'usage': dict(settingsFeatures=['routing','callBridge','cloudflare','diagnostics','notifications','onePassword','thinkingDisplay'], onboardingSchema='bellteam.onboarding.v1', subscriptionSchema='bellteam.subscription.v1', requestEncoding='json-files', secretEncoding='stored-or-private-reference-v2', handoffSchema='bellteam.usage-volatile.v1'),
+    'usage': dict(settingsFeatures=['routing','callBridge','cloudflare','diagnostics','notifications','thinkingDisplay'], onboardingSchema='bellteam.onboarding.v1', subscriptionSchema='bellteam.subscription.v1', requestEncoding='json-files', secretEncoding='stored-or-private-reference-v2', handoffSchema='bellteam.usage-volatile.v1'),
     'diagnostics': dict(diagnostics='unversioned-rows-array', investigations='optional-fingerprint-map'),
     'work-graph': dict(state='none'),
     'lattice': dict(state='none'),
     'approval-box-extension': dict(state='none'),
+    'auth-mediation': dict(state='policy-v2'),
 }
 
 def state_form(value):
@@ -319,7 +339,7 @@ def validate_memory_state(value):
 
 
 def contract(component):
-    require(component in ('web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics', 'execution', 'conversation', 'work-graph', 'lattice', 'approval-box-extension'), 'MODULE_COMPONENT_INVALID')
+    require(component in ('web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics', 'execution', 'conversation', 'work-graph', 'lattice', 'approval-box-extension', 'auth-mediation'), 'MODULE_COMPONENT_INVALID')
     entry = 'payload/src/execution-dispatcher.mjs' if component == 'execution' else 'payload/src/run-memory-runtime.mjs' if component == 'memory' else ENTRY if component == 'web-gateway' else f'payload/src/{component}-entry.mjs'
     runtime = dict(os='linux', nodeMajor=26, parentProtocol=1)
     # Install accepts the module's own signed file list; only the public entry contract is fixed here.

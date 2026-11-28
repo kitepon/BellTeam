@@ -18,6 +18,8 @@ async function pool(ids, fn) {
   await Promise.all(Array.from({ length: Math.min(CHART_PARALLEL, ids.length) }, async () => { while (next < ids.length) { const i = next++; out[i] = await fn(ids[i]) } }))
   return out
 }
+// A live round or list does not re-read a chart fully read less than max(READ_GAP_MS, READ_GAP_FACTOR x that read's duration) ago: writes in between share one read (incident 2026-11-26: a busy chart's 17 MB read ran ~14 times per 20 s).
+const READ_GAP_MS = 10_000, READ_GAP_FACTOR = 4
 const iso = ms => new Date(ms).toISOString()
 const parse = text => { try { return JSON.parse(text) } catch { return undefined } }
 
@@ -48,14 +50,21 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
   const sourcesOf = ids => cli.sources(ids).catch(() => new Map())
   const othersOf = memo => [...new Set((memo.projection?.externals ?? []).map(item => item.projectId))].sort()
   // Own source (from K1 when the caller has it) + each external predecessor chart's source (README L4): no time ceiling.
-  async function token(id, memo, known) {
-    const own = known !== undefined ? known : (await sourcesOf([id])).get(id) ?? null
+  // byId = tokens the caller already holds (one K1 list or K2 call for the round); only an external chart missing from it costs a process.
+  // A complete byId (a K1 list) knows every chart: an id missing from it is gone. Own and missing tokens come in one K2 process.
+  async function token(id, memo, known, byId) {
     const others = othersOf(memo)
+    const wanted = [...known === undefined ? [id] : [], ...others.filter(other => !byId?.has(other) && !byId?.complete)]
+    const fetched = wanted.length ? await sourcesOf(wanted) : new Map()
+    const own = known !== undefined ? known : fetched.get(id) ?? null
     if (own === null || !others.length) return own
-    const sources = await sourcesOf(others)
-    return others.some(other => (sources.get(other) ?? null) === null) ? null : JSON.stringify([own, ...others.map(other => [other, sources.get(other)])])
+    // A gone chart (null from a probe that answered) is a stable part of the token; only an unanswered probe (undefined) is unknown.
+    // Live Z201 2026-11-26: since login-billing was removed (11-24) every chart linked to it read null, so each list, round and sweep re-read it whole.
+    const sourceOf = other => byId?.has(other) ? byId.get(other) : byId?.complete ? null : fetched.get(other)
+    return others.some(other => sourceOf(other) === undefined) ? null : JSON.stringify([own, ...others.map(other => [other, sourceOf(other)])])
   }
-  // Lattice's own answer to which tasks can start (K9 `next_ready`, a448). Only a verified store has one: for any other state no card is ready; a verified chart whose status read failed is a failed read.
+  const tokensOf = rows => Object.assign(new Map([...rows].map(([id, row]) => [id, row.source ?? null])), { complete: true })
+  // Lattice's own answer to which tasks can start (K9 `next_ready`, a448; of the open read, or of `todo status` for an older Lattice). Only a verified store has one: for any other state no card is ready; a verified chart whose status read failed is a failed read.
   const readyOf = (read, status) => {
     if (read?.state !== 'verified') return null
     if (!Array.isArray(status?.next_ready)) throw status instanceof Error ? status : Object.assign(new Error('read'), { code: 'LATTICE_CLI_BAD_JSON' })
@@ -75,28 +84,31 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     if (key !== memo.key) { memo.key = key; memo.version++ }
   }
 
-  async function sync(id, members, row) {
+  async function sync(id, members, row, byId, live = false) {
     let memo = memos.get(id)
-    if (!memo) memos.set(id, memo = { token: null, version: 0, key: null, content: null, projection: null, read: null, ready: null, meta: null, view: null, dirty: true, logged: null })
-    const current = await token(id, memo, row ? row.source : undefined)
+    if (!memo) memos.set(id, memo = { token: null, version: 0, key: null, content: null, projection: null, read: null, ready: null, meta: null, view: null, dirty: true, logged: null, readAt: null, readMs: 0 })
+    const current = await token(id, memo, row ? row.source : undefined, byId)
     const rosterBad = await members(), viewKey = JSON.stringify([rosterBad, roster, othersOf(memo).map(other => memos.get(other)?.version ?? null)])
     const same = memo.content && !memo.dirty && current !== null && current === memo.token
     if (same && viewKey === memo.view) return memo
     // A roster change or another chart's new memo version only re-projects the kept read; no CLI.
     if (same) return project(id, memo, memo.read, memo.meta, rosterBad, viewKey)
+    if (live && memo.content && now() - memo.readAt < Math.max(READ_GAP_MS, READ_GAP_FACTOR * memo.readMs)) return memo
     let read, meta, ready
+    const began = now()
     try {
-      let status
-      ;[read, meta, status] = await Promise.all([lattice(id, ['todo', 'display', 'read', '--json', '--open']), metaOf(id, row), lattice(id, ['todo', 'status', '--json']).catch(error => error)])
-      ready = readyOf(read, status)
+      ;[read, meta] = await Promise.all([lattice(id, ['todo', 'display', 'read', '--json', '--open']), metaOf(id, row)])
+      // Open read v2 (Lattice 0.114.0) carries next_ready; a verified read without it is an older Lattice: ask `todo status` as before.
+      ready = readyOf(read, read?.state === 'verified' && !Array.isArray(read.next_ready) ? await lattice(id, ['todo', 'status', '--json']).catch(error => error) : read)
     } catch (error) {
       memo.dirty = true
+      Object.assign(memo, { readAt: now(), readMs: now() - began })
       if (memo.logged !== error.code) { memo.logged = error.code; log(`lattice-read ${id} ${error.code ?? 'LATTICE_CLI_FAILED'}`) }
       const base = memo.content ?? { name: null, createdBy: null, coordinator: false, state: 'unavailable', verifiedAt: null, members: [], cards: [], edges: [], waits: [], phases: [] }
       commit(id, memo, { ...base, degraded: [...new Set([...base.degraded ?? [], 'lattice-read'])].sort() })
       return memo
     }
-    Object.assign(memo, { token: current, dirty: false, logged: null, read, meta, ready })
+    Object.assign(memo, { token: current, dirty: false, logged: null, read, meta, ready, readAt: now(), readMs: now() - began })
     return project(id, memo, read, meta, rosterBad, viewKey)
   }
   function project(id, memo, read, meta, rosterBad, viewKey) {
@@ -122,9 +134,9 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     let pending
     return () => pending ??= effect('members.list', {}).then(value => { roster = value.members; return false }, () => true)
   }
-  async function syncAll(ids, effect, rows = new Map()) {
+  async function syncAll(ids, effect, rows = new Map(), byId, live = false) {
     const members = rosterReader(effect)
-    return pool(ids, id => sync(id, members, rows.get(id)))
+    return pool(ids, id => sync(id, members, rows.get(id), byId, live))
   }
   const listed = async () => { const rows = await cli.list(); return { ids: rows.map(row => row.id), rows: new Map(rows.map(row => [row.id, row])) } }
   const mustExist = async id => { if (!await cli.exists(id)) throw latticeError('LATTICE_CHART_NOT_FOUND', 404) }
@@ -134,7 +146,7 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     async charts(params, effect) {
       const { ids, rows } = await listed()
       for (const id of memos.keys()) if (!ids.includes(id)) memos.delete(id)
-      const charts = (await syncAll(ids, effect, rows)).map((memo, i) => ({ projectId: ids[i], name: memo.content.name, coordinator: memo.content.coordinator,
+      const charts = (await syncAll(ids, effect, rows, tokensOf(rows), true)).map((memo, i) => ({ projectId: ids[i], name: memo.content.name, coordinator: memo.content.coordinator,
         createdBy: memo.content.createdBy,
         counts: memo.projection?.counts ?? { total: 0, done: 0, working: 0, waiting: 0, blocked: 0, connections: 0 },
         activeMembers: [...new Set(memo.content.cards.filter(card => card.state === 'in-progress' && card.producer).map(card => card.producer))].sort(),
@@ -165,10 +177,12 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     // Returns each chart whose version moved since it was last returned here, so a read by another caller is never lost to subscribers.
     async refresh({ projectIds }, effect) {
       // One K2 call for the round; a failed probe keeps every chart in it, where its read reports degraded:['lattice-read'].
-      const sources = await cli.sources(projectIds).catch(() => null)
+      // The same process also answers for each asked chart's external predecessors (their tokens join the chart's token).
+      const wanted = [...new Set([...projectIds, ...projectIds.flatMap(id => othersOf(memos.get(id) ?? {}))])]
+      const sources = await cli.sources(wanted).catch(() => null)
       const ids = projectIds.filter(id => !sources || sources.get(id) !== null)
       const snapshots = []
-      ;(await syncAll(ids, effect, new Map(sources ? ids.map(id => [id, { id, source: sources.get(id) }]) : []))).forEach((memo, i) => {
+      ;(await syncAll(ids, effect, new Map(sources ? ids.map(id => [id, { id, source: sources.get(id) }]) : []), sources ?? undefined, true)).forEach((memo, i) => {
         if (memo.version !== memo.pushed) { memo.pushed = memo.version; snapshots.push(snapshotOf(ids[i], memo)) }
       })
       return { snapshots, nextRefreshMs: refreshMs }
@@ -185,11 +199,14 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
       await rosterReader(effect)()
       return notices.deliverAll(ids, { roster, effect, lock: locked })
     },
-    // Every minute (facade timer, README L13-L15): every chart's cards from the memo -> ONE prompt per lane Bot not running.
-    async nudge(params, effect) {
-      if (now() - startedAt < firstNudgeMs) return { charts: 0, prompted: 0, skipped: 0, failed: 0, filed: 0, routed: 0 }
-      const { ids, rows } = await listed()
-      const memos = await syncAll(ids, effect, rows)
+    // Every minute (README L13-L15): the facade passes enabled project IDs.
+    async nudge({ projectIds }, effect) {
+      const empty = { charts: 0, prompted: 0, skipped: 0, failed: 0, filed: 0, routed: 0 }
+      if (!projectIds.length || now() - startedAt < firstNudgeMs) return empty
+      const { rows } = await listed()
+      const ids = projectIds.filter(projectId => rows.has(projectId))
+      if (!ids.length) return empty
+      const memos = await syncAll(ids, effect, rows, tokensOf(rows))
       const charts = ids.map((projectId, i) => ({ projectId, name: memos[i].content.name, createdBy: memos[i].content.createdBy, cards: memos[i].content.cards }))
       const laneOf = laneResolver(roster), live = roster.filter(member => !member.deleting)
       const out = await nudgeSweep(charts, { laneOf, log, effect, warned })

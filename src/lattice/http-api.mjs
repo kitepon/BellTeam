@@ -1,5 +1,5 @@
 import { json, readJson } from '../http-response.mjs'
-import { LATTICE_PROJECT_ID, LATTICE_STOP_ID } from '../lattice-protocol.mjs'
+import { LATTICE_PROJECT_ID, LATTICE_STOP_ID, latticeObject } from '../lattice-protocol.mjs'
 
 // The body keeps only this thin handler; the facade owns the child, the subscribers and the refresh timer.
 export function createLatticeApi({ facade, internal, heartbeatMs = 15000 }) {
@@ -30,6 +30,21 @@ export function createLatticeApi({ facade, internal, heartbeatMs = 15000 }) {
       try { value = await facade.unblock({ projectId: unblock[1], stopId: body.stopId }) } catch (error) { return stopsFailed(response, error) }
       if (value.outcome !== 'refused') return json(response, 200, value)
       return json(response, 409, { error: 'LATTICE_UNBLOCK_REFUSED', outcome: 'refused', code: value.code, reason: value.reason })
+    }
+    const reminders = /^\/api\/lattice\/charts\/([^/]+)\/reminders$/u.exec(url.pathname)
+    if (reminders) {
+      if (internal) return json(response, 403, { error: 'LATTICE_OWNER_REQUIRED' })
+      if (request.method !== 'GET' && request.method !== 'PUT') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
+      const projectId = reminders[1]
+      if (!LATTICE_PROJECT_ID.test(projectId)) return json(response, 404, { error: 'LATTICE_CHART_NOT_FOUND' })
+      let enabled
+      if (request.method === 'PUT') {
+        if (!/^application\/json\s*(;|$)/iu.test(request.headers['content-type'] ?? '')) return json(response, 415, { error: 'LATTICE_JSON_REQUIRED' })
+        const body = await readJson(request, 1024).catch(() => null)
+        if (!latticeObject(body, ['enabled']) || typeof body.enabled !== 'boolean') return json(response, 400, { error: 'LATTICE_INVALID' })
+        enabled = body.enabled
+      }
+      try { return json(response, 200, await facade.reminderSettings(projectId, enabled)) } catch (error) { return failed(response, error) }
     }
     // a457 (README L24): one page of the closed trees' finished cards, read only when an app opens 過去ログ.
     const history = /^\/api\/lattice\/charts\/([^/]+)\/history$/u.exec(url.pathname)

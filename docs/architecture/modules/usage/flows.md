@@ -103,7 +103,7 @@ flowchart TD
 | CLIを選ぶ | `select` → `bots.create/update` → `callAuth(start)` | 旧authSession取消→harness保存→案内Bot準備→認証開始→session保存。途中失敗を一括rollbackしない |
 | 案内を始める | `start` → `callAuth(status/cancel)` → `startConversation` | 認証済みを確認。会話受付後にstartedを保存。`prepareStartup`は未完案内Botの指示だけを追記 |
 | 案内終了 | `complete` → `Subscriptions.completeSetup` → `save` | 内部MCP `complete_setup`はcallerのbotIdを渡し案内Bot一致を検証。publicは既存guideを使用 |
-| 認証一覧と状態 | `HarnessAuth.list/status/observe` ← harness-auth GET | membersは台帳から数える。`sessions/receipts`はメモリ。認証情報本体は公式CLIが持つ。同じ`harness+slot`の`status`は、処理中の一件を共有する（`flights`）。何台が押しても、待ちの`status`は1件。`start/input/cancel`が入ったら共有は切り、その後の`status`は新しく読む（2026-11-24、Tronie報告の溜まり） |
+| 認証一覧と状態 | `HarnessAuth.list/status/observe` ← harness-auth GET | membersは台帳から数える。`sessions/receipts`はメモリ。認証情報本体は公式CLIが持つ |
 | 認証開始・取消 | `start/end/cancel` → `call` | relogin対応、session有無、旧資格情報を失う警告を保持。end成功後にMapから削除 |
 | 入力 | 両サービス`input` → `authResponse` → `call/callAuth(respond)` | 最新公開UIとbinding/session/prompt digestが一致する入力だけを送る。typed失敗のnot_issued/unknownを区別 |
 | native応答 | `call/callAuth` → `authReceipt` → typed失敗/schema/status判定 | Aiterm結果を検証してからauth/receiptsへ保存。schema/statusの同順判定はauth-uiが所有し、各serviceは状態を保存する |
@@ -136,7 +136,7 @@ flowchart TD
   Pending -.-> View
 ```
 
-`FeatureSettings.update`は入力検証、秘密入力による保存値・1Password参照の解決、設定の保存、適用を接続する。公開`list`は秘密値を空文字にし、`configuration`は本体内の適用先にだけ実値を渡す。内部HTTPはsecret直値を許さず、MCPが確定したbotIdと提出済みrequestIdで読む。外部HTTPではOwnerのvaluesを受ける。`onePassword`（1Password連携）は秘密欄`token`だけを持ち、保存後に1Passwordへの接続を確かめて、結果を設定の状態とエラーで返す。詳細の正本は[secret credentials](secret-credentials.md#settings-1password連携-token-field-2026-11-09-owner-ask-trony-un-hold)。
+`FeatureSettings.update`は入力検証、秘密入力による保存値の解決、設定の保存、適用を接続する。公開`list`は秘密値を空文字にし、`configuration`は本体内の適用先にだけ実値を渡す。内部HTTPはsecret直値を許さず、MCPが確定したbotIdと提出済みrequestIdで読む。外部HTTPではOwnerのvaluesを受ける。`onePassword`（1Password連携）は2026-11-27に外した（BellTeamは1Passwordを読まない）。保存済みの `onePassword` は読み込みで捨て、読み手は古い子の一覧も受ける。経緯は[secret credentials](secret-credentials.md)の2026-11-27の節。
 
 ### Settings feature `thinkingDisplay` — AIの考えの表示 (a479, 2026-11-21, Owner 18:0x via N102)
 
@@ -155,10 +155,10 @@ Ships apart (module-ipc.md "Records between halves that ship apart"): the body s
 | 対象 | 状態の持ち主 / 呼ばれる関数 | 失敗後に残るもの |
 | --- | --- | --- |
 | 設定正本 | `FeatureSettings.save` → `shared/tools/bellteam-settings/settings.json` | save後のonChange失敗でも設定は残る。`errors`はメモリ、公開値に適用失敗を付ける |
-| 必須項目（2026-11-11 Trony依頼・Admi合意） | `FeatureSettings.list` → `fields[].required` | 有効化に要る項目は`required:true`。`configured`の判定と同じ規則で、cloudflare.publicUrlと、旧APNs設定がある間のnotifications.relayUrlだけfalse。足りない項目は`required && !configured`。保存値・status・PATCHは変えない。旧本体の応答にkeyが無ければ画面は「不明」とし、何も主張しない |
+| 必須項目（2026-11-11 Trony依頼・Admi合意） | `FeatureSettings.list` → `fields[].required` | 有効化に要る項目は`required:true`。`configured`の判定と同じ規則で、cloudflare.publicUrlだけfalse（旧APNs設定がある間のnotifications.relayUrlは2026-11-27に外した）。足りない項目は`required && !configured`。保存値・status・PATCHは変えない。旧本体の応答にkeyが無ければ画面は「不明」とし、何も主張しない |
 | 必須項目の親検証 | 親`usage/projection.mjs:usageSettingValid` | 親の閉検証は`required`を任意booleanとして受ける（旧子のkey無しも通す）。`settings`の行は閉じた一覧のままなので（`runtime/module-ipc.md`「Records between halves that ship apart」の残す拒否）、旧親は新子の行を拒否する。親の変更を含む本体releaseを新usage moduleより先に入れる |
 | 橋の接続の取込み（bd11、2026-11-14 Molly合意） | 本体の取込み口（bd10、Molly：`scripts/import-call-bridge.mjs`。stdinを64 KiBまで読み、値を表示せず、loopbackの`PATCH /api/settings/callBridge`で動いている本体へ渡す。Hostが127.0.0.1でコンテナ内の相手なので`authMode`はlocal、Owner扱い）→ `usage/call-bridge-import.mjs:callBridgeSettingsInput(stdinの書き出し)` → 動いている`FeatureSettings.update('callBridge', {enabled:true, values:{url,token}}, {allowSecretValues:true})` | 橋の`call-bridge.connection.v1`の`{schema,url,token}`だけを受ける。形が違えば`CALL_BRIDGE_IMPORT_INVALID`で何も保存しない。header/socket/CLI登録は既onChange（`state/call-bridge/headers`はBellTeamが設定から書く自分のfileで、seat MCPはこれだけを読む）。別processのFeatureSettingsで設定ファイルを書かない（動いている本体の値に上書きされる） |
-| 初期取込み | `initialize` | 保存済みJSON優先。無い時だけ環境・旧APNs設定から作る。橋が書いた認証ファイル（旧`shared/tools/call-bridge/headers`）は読まない（bd11）。callBridge.tokenは橋の公開export取込みだけが入れる |
+| 初期取込み | `initialize` | 保存済みJSON優先。無い時だけ環境から作る（旧APNs設定は読まない、2026-11-27）。橋が書いた認証ファイル（旧`shared/tools/call-bridge/headers`）は読まない（bd11）。callBridge.tokenは橋の公開export取込みだけが入れる |
 | 起動時適用 | `createApplicationFeatures.initialize` | diagnostics/callBridge/notificationsの各失敗を記録し、他の適用を続ける |
 | Cloudflare | `configureCloudflare/authMode/authorize` | localと公開JWT認証の選択。JWT検証は`cloudflareAccessAuthorizer` |
 | Owner判定（SEC-049 2026-11-15、a131で席の部分を外す） | `authMode`が受付の`x-bellteam-peer`（[integration契約](../integration/README.md#公開web受付の二プロセス化初回差分)）を読む | Hostは利用者が選ぶので単独では決めない。①Cloudflare無効→local。②Hostが内側の名前でない→cloudflare。③相手名があり、そのaddressが同じネット（loopback/private/link-local）でない→cloudflare（Cloudflare有効の本体へ公開addressから:18891へ直接つなぎ、Hostに内側の名前を名乗ってもOwnerにならない。外から閉じる唯一の部分）。④それ以外→local。⑤相手名なし＝非公開socketの直接呼び出しか旧受付→従来のHost判定。`x-bellteam-peer-uid`は読まない：コンテナ内の席は全員sudoでき、席がOwnerになれる残りはOwnerが受け入れた（2026-11-15 09:50）。席だけを止める判定は守るものが無いので外した（a131、Trony裁定・共通規則guards.remove-unnamed）。コンテナ内の接続（席・docker exec）は#1473前と同じく、Hostが内側の名前ならlocal |
@@ -178,7 +178,7 @@ flowchart LR
   Event --> Publish["登録端末ごとにpublish"]
   Devices["端末登録<br/>token・環境・server"] --> Publish
   Publish --> Relay["通知中継<br/>公開payload（証明なし）"]
-  Publish --> APNs["APNs直接<br/>署名・接続再利用"]
+  Publish --> APNs["外部relay<br/>（2026-11-27 直送は無い）"]
   Relay --> Result["受付 / エラー / 登録失効"]
   APNs --> Result
   Result --> Diag["通知だけの診断・端末登録更新"]
@@ -245,4 +245,4 @@ DFD: parent authoritative member creation → later system-authorized onboarding
 
 ## Secret source resolution (C5)
 
-[Secret credentials](secret-credentials.md) extends every secret submission to stored values or private 1Password references. It is canonical for the new function/data flow, target-bound handles, source recovery, and private consumer resolution. Existing stored file compatibility remains; managed consumers resolve through secret input instead of reading private source state.
+[Secret credentials](secret-credentials.md) (2026-11-27: stored values only; the 1Password references it describes were withdrawn) extends every secret submission to stored values or private sources. It is canonical for the new function/data flow, target-bound handles, source recovery, and private consumer resolution. Existing stored file compatibility remains; managed consumers resolve through secret input instead of reading private source state.

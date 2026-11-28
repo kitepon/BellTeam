@@ -53,8 +53,8 @@ test('terminal launch: malformed or missing private env fails before Aiterm; loc
 
 test('a532b2s2g: a launch on the remote route is a terminal launch: the other machine\'s folder and only the named private env cross', () => {
   const remote = { host: '192.168.1.12', user: 'kite', port: 22, ssh: { known_hosts_file: '/k', identity_agent: '/a', strict_host_key: true } }
-  const request = { launch: { cwd: '/Users/kite/work', remote }, privateEnvNames: ['BELLTEAM_MCP_TOKEN', 'AITERM_SEAT_FORWARD_PORT'], privateEnv: { BELLTEAM_MCP_TOKEN: 'v', AITERM_SEAT_FORWARD_PORT: '41001' } }
-  assert.deepEqual(launch(request), { cwd: '/Users/kite/work', remote, env_vars: ['BELLTEAM_MCP_TOKEN', 'AITERM_SEAT_FORWARD_PORT'], set: ['set', 'set'] })
+  const request = { launch: { cwd: '/Users/kite/work', remote }, privateEnvNames: ['BELLTEAM_MCP_TOKEN', 'ANOTHER_PRIVATE_NAME'], privateEnv: { BELLTEAM_MCP_TOKEN: 'v', ANOTHER_PRIVATE_NAME: '41001' } }
+  assert.deepEqual(launch(request), { cwd: '/Users/kite/work', remote, env_vars: ['BELLTEAM_MCP_TOKEN', 'ANOTHER_PRIVATE_NAME'], set: ['set', 'set'] })
   // The same refusals as a terminal launch: no private env, an env_vars of its own, a relative folder.
   for (const bad of [{ ...request, privateEnvNames: undefined }, { ...request, launch: { cwd: '/x', remote, env_vars: [] } }, { ...request, launch: { cwd: 'relative', remote } }])
     assert.equal(launch(bad).refused?.code, 'SEAT_LAUNCH_ARGUMENTS', JSON.stringify(bad))

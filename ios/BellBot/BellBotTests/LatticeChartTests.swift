@@ -261,7 +261,7 @@ final class LatticeChartTests: XCTestCase {
     func testChartListDecodesAndNamesTheCoordinator() throws {
         let json = """
         {"schema":"bellteam.lattice-charts.v1","at":"x","charts":[
-          {"projectId":"lattice","name":"Lattice組込","coordinator":true,"createdBy":"bot-trony","counts":{"total":11,"done":3,"working":2,"waiting":4,"blocked":1,"connections":2},"activeMembers":["bot-molly"],"updatedAt":"2026-11-11T11:59:00Z","state":"verified"},
+          {"projectId":"lattice","name":"Lattice組込","coordinator":true,"createdBy":"bot-trony","counts":{"total":11,"done":3,"working":2,"waiting":4,"blocked":1,"connections":2},"activeMembers":["bot-molly"],"updatedAt":"2026-11-11T11:59:00Z","state":"verified","reminders":true},
           {"projectId":"guide","coordinator":false,"createdBy":"bot-flora","counts":{},"activeMembers":[],"state":"unavailable"}]}
         """
         let list = try JSONDecoder().decode(LatticeChartsList.self, from: Data(json.utf8))
@@ -272,6 +272,8 @@ final class LatticeChartTests: XCTestCase {
         XCTAssertNil(list.charts[1].name)
         XCTAssertEqual(list.charts[0].connections, 2)
         XCTAssertEqual(list.charts[1].connections, 0, "an older server has no counts.connections")
+        XCTAssertTrue(list.charts[0].nudgeOn, "reminders:true shows the 催促 badge")
+        XCTAssertFalse(list.charts[1].nudgeOn, "a missing reminders field shows no badge")
     }
 
     func testEdgeChipNamesTheFinishingCardsOwner() {

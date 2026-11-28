@@ -39,6 +39,8 @@ SECTION roles
     WHEN: it refuses  DO: do it yourself; if impossible, take the Owner's decision.
   RULE roles.docs
     DO: keep procedures, conditions, prohibitions, design, progress and rulings as Markdown in /srv/bellteam/bots/<bot-id>/docs/ (dotagents planning style); schedules reference it, never copy it.
+  RULE roles.coordinator
+    WHEN: your 役職 contains 統括 (you are a coordinator)  DO: before you assign or re-assign work or decide whose work it is, read /srv/bellteam/shared/tools/coordinator/README.md and follow the procedure it lists.
 
 SECTION lattice
   # Work is tracked on Lattice charts (bellteam MCP `lattice`); the coordinator's chart is BellTeam開発 (project bellteam).

@@ -414,6 +414,68 @@ test('core: a chart waiting on another chart re-reads when that chart changes, n
   assert.equal(alphaReads(), 4)
 })
 
+test('core: one source process per round also answers for the external predecessors; a list needs none (incident 2026-11-26)', async () => {
+  const x = rig()
+  x.cli.reads.alpha = readOf([planMember({ tasks: [{ task_id: 't1' }], states: [['t1', 'pending']], events: [ev('plan', 't1', 'bot-7b140b27', 1)],
+    scoped: [{ kind: 'cross_plan_dependency', event_digest: 'e1', payload: { from: { project_id: 'other', plan_key: 'q', task_id: 'x' }, to: { project_id: 'alpha', plan_key: 'p1', task_id: 't1' } } }] })],
+    { connections: [{ plan_key: 'p1', task_id: 't1', connections: [{ kind: 'task', ref: 'other/q/x', state: 'open', reason: 'r', since: at(1) }] }],
+      external_tasks: [{ project_id: 'other', plan_key: 'q', task_id: 'x', status: 'in_progress', finished: false, reason: null, trigger: null }] })
+  x.cli.charts.push('other'); x.cli.tokens.other = 1; x.cli.reads.other = chartRead()
+  await x.chart(); await x.chart()
+  x.cli.calls.length = 0
+  await x.core.refresh({ projectIds: ['alpha'] }, x.effect)
+  assert.deepEqual(x.cli.calls.filter(call => call.startsWith(SOURCE)), [SOURCE + ' alpha,other'], 'one process for the chart and its external')
+  x.cli.calls.length = 0
+  await x.core.charts({}, x.effect)
+  assert.deepEqual(x.cli.calls.filter(call => call.startsWith(SOURCE)), [], 'the list already holds every token (K1)')
+})
+
+test('core: an external predecessor on a chart that is gone is a stable part of the token, not a probe failure (live Z201 2026-11-26)', async () => {
+  const x = rig()
+  x.cli.reads.alpha = readOf([planMember({ tasks: [{ task_id: 't1' }], states: [['t1', 'pending']], events: [ev('plan', 't1', 'bot-7b140b27', 1)],
+    scoped: [{ kind: 'cross_plan_dependency', event_digest: 'e1', payload: { from: { project_id: 'gone', plan_key: 'q', task_id: 'x' }, to: { project_id: 'alpha', plan_key: 'p1', task_id: 't1' } } }] })],
+    { connections: [{ plan_key: 'p1', task_id: 't1', connections: [{ kind: 'task', ref: 'gone/q/x', state: 'open', reason: 'r', since: at(1) }] }],
+      external_tasks: [] })
+  const reads = () => x.count(READ), probes = () => x.cli.calls.filter(call => call.startsWith(SOURCE) && call.includes('gone'))
+  await x.chart(); await x.chart()
+  assert.equal(reads(), 2, 'the first token had no externals yet')
+  x.cli.calls.length = 0
+  x.clock.now += 60_000; await x.core.charts({}, x.effect)
+  x.clock.now += 60_000; await x.core.refresh({ projectIds: ['alpha'] }, x.effect)
+  x.clock.now += 60_000; await x.chart()
+  assert.deepEqual([reads(), probes()], [0, [SOURCE + ' alpha,gone', SOURCE + ' alpha,gone']], 'nothing moved: no read; the list knows every chart (K1); the round and chart each ask once for both')
+  x.cli.fail.add('source'); x.clock.now += 60_000; await x.chart()
+  assert.equal(reads(), 1, 'a failed probe is unknown: read')
+  x.cli.fail.clear(); x.cli.charts.push('gone'); x.cli.tokens.gone = 1; x.clock.now += 60_000; await x.chart()
+  assert.equal(reads(), 2, 'the chart came back: its source moved the token')
+  x.clock.now += 60_000; await x.chart()
+  assert.equal(reads(), 2)
+})
+
+test('core: a live round and a list keep a chart read inside its gap, max(10 s, 4 x the read); chart and nudge reads are never held (incident 2026-11-26)', async () => {
+  const x = rig({ firstNudgeMs: 0 })
+  const run = x.cli.run
+  x.cli.run = async call => { if (call.args.join(' ') === READ) x.clock.now += 5000; return run(call) } // each display read takes 5 s -> gap 20 s
+  const refresh = () => x.core.refresh({ projectIds: ['alpha'] }, x.effect)
+  const reads = () => x.count(READ)
+  await refresh()
+  x.cli.reads.alpha = chartRead({ status: 'done' }); x.cli.tokens.alpha = 2
+  assert.deepEqual([(await refresh()).snapshots, reads()], [[], 1], 'inside the gap the kept memo is served')
+  await x.core.charts({}, x.effect)
+  assert.equal(reads(), 1, 'a list is held too')
+  x.clock.now += 19_999
+  await refresh()
+  assert.equal(reads(), 1)
+  x.clock.now += 1
+  assert.deepEqual([(await refresh()).snapshots.map(s => s.cards[0].state), reads()], [['done'], 2], 'the first tick after the gap reads once')
+  x.cli.tokens.alpha = 3
+  await x.chart()
+  assert.equal(reads(), 3, 'an app opening the chart always reads')
+  x.cli.tokens.alpha = 4; x.clock.now += 1000 // still inside the gap
+  await x.core.nudge({ projectIds: ['alpha'] }, x.effect)
+  assert.equal(reads(), 4, 'the nudge sweep is not held')
+})
+
 test('core: list syncs up to 16 charts at once as a pool, not batches (production 2026-11-14)', async () => {
   const x = rig()
   x.cli.charts = Array.from({ length: 40 }, (_, i) => `c${i}`)
@@ -447,6 +509,7 @@ test('core: version moves only when the projected content changes; refresh retur
   x.cli.tokens.alpha = 2
   assert.deepEqual((await refresh()).snapshots, [])
   x.cli.reads.alpha = chartRead({ status: 'done' }); x.cli.tokens.alpha = 3
+  x.clock.now += 10_000
   const changed = await refresh()
   assert.deepEqual(changed.snapshots.map(s => [s.version, s.cards[0].state]), [[2, 'done']])
   await x.chart()
@@ -470,6 +533,24 @@ test('core: a failed read keeps the snapshot, shows lattice-read, logs one code 
   x.cli.fail.add('json'); x.cli.tokens.alpha = 5
   await x.chart()
   assert.deepEqual(x.logs.at(-1), 'lattice-read alpha LATTICE_CLI_BAD_JSON')
+})
+
+test('s6: an open read v2 carries next_ready, so no todo status process is spawned; a verified read without it falls back; an unverified store asks nothing', async () => {
+  const x = rig()
+  const states = chart => chart.cards.map(card => card.state)
+  x.cli.reads.alpha = { ...chartRead({ status: 'done' }), schema: 'lattice.todo_display_open_result.v2', next_ready: [{ plan_key: 'p1', task_id: 't2' }] }
+  assert.deepEqual(states(await x.chart()), ['done', 'ready'], "the read's own next_ready makes it ready")
+  assert.equal(x.cli.calls.includes('todo status --json'), false, 'no second process per chart read')
+  // A failed status read cannot matter when the read answered: it is not called.
+  x.cli.fail.add('status'); x.cli.tokens.alpha = 2
+  x.cli.reads.alpha = { ...x.cli.reads.alpha, next_ready: [] }
+  const empty = await x.chart()
+  assert.deepEqual([empty.degraded, states(empty)], [[], ['done', 'pending']], 'an empty next_ready is an answer: nothing is ready')
+  // An older Lattice (no next_ready on a verified read) is asked with todo status, as before s6.
+  x.cli.fail.clear(); x.cli.ready.alpha = ['t2']; x.cli.tokens.alpha = 3
+  x.cli.reads.alpha = chartRead({ status: 'done' })
+  assert.deepEqual(states(await x.chart()), ['done', 'ready'])
+  assert.equal(x.cli.calls.includes('todo status --json'), true, 'the fallback asks todo status')
 })
 
 test("core: a card is ready only when Lattice's status lists it (K9, a448); a failed status read of a verified chart is a failed read", async () => {

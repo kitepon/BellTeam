@@ -65,11 +65,40 @@ process.stdout.write(JSON.stringify(missing));
             '--input-type=module', '-e', script, str(ROOT)], input=json.dumps(files), text=True))
         self.assertEqual(missing, [])
 
+    def test_every_business_module_holds_the_files_the_body_inventory_requires(self):
+        # The body (web-gateway-release validateManifest) requires module-ipc, module-streams and module-locks of every business module except execution and conversation (Z218 lab: auth-mediation lacked module-locks).
+        for component, files in BUSINESS_FILES.items():
+            if component in ('execution', 'conversation'):
+                continue
+            for name in ('module-ipc', 'module-streams', 'module-locks'):
+                self.assertIn(f'payload/src/{name}.mjs', files, component)
+
+    def test_auth_mediation_payload_holds_every_relative_import(self):
+        # Same trap as approval-box-extension: a new import in the child must also be in the payload list or the signed child dies on import.
+        files = sorted(name.removeprefix('payload/') for name in BUSINESS_FILES['auth-mediation'])
+        script = """
+import { SourceTextModule } from 'node:vm';
+import { readFileSync } from 'node:fs';
+import { dirname, posix, resolve } from 'node:path';
+const files = JSON.parse(readFileSync(0, 'utf8')), selected = new Set(files), missing = [];
+for (const file of files.filter(name => name.endsWith('.mjs'))) {
+  const module = new SourceTextModule(readFileSync(resolve(process.argv[1], file), 'utf8'));
+  for (const specifier of module.dependencySpecifiers.filter(name => name.startsWith('.'))) {
+    const target = posix.normalize(posix.join(dirname(file), specifier));
+    if (!selected.has(target)) missing.push({ from: file, target });
+  }
+}
+process.stdout.write(JSON.stringify(missing));
+"""
+        missing = json.loads(subprocess.check_output(['node', '--experimental-vm-modules',
+            '--input-type=module', '-e', script, str(ROOT)], input=json.dumps(files), text=True))
+        self.assertEqual(missing, [])
+
     def test_usage_secret_reference_closure_and_encoding(self):
         _, manifest, _ = self.artifact('usage')
         paths = {row['path'] for row in manifest['files']}
-        self.assertTrue({'payload/src/usage/secret-credentials.mjs',
-                         'payload/src/usage/onepassword-source.mjs'} <= paths)
+        self.assertIn('payload/src/usage/secret-credentials.mjs', paths)
+        self.assertNotIn('payload/src/usage/onepassword-source.mjs', paths)
         self.assertNotIn('payload/src/usage/native-secret-credentials.mjs', paths)
         exported = json.loads(subprocess.check_output(['node', '--input-type=module', '-e',
             "import {USAGE_STATE_COMPATIBILITY as state} from './src/usage/state-compatibility.mjs'; process.stdout.write(JSON.stringify(state))"], cwd=ROOT))

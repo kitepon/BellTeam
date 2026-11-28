@@ -11,7 +11,7 @@ import { deleteBotTool, runDeleteBotTool } from './members/deletion.mjs'
 import { terminalTools, callTerminalTool } from './terminals-mcp.mjs'
 import { latticeTools, latticeToolHandlers } from './lattice/mcp.mjs'
 import { runningExclusionTools, callRunningExclusionTool } from './running-exclusions-mcp.mjs'
-import { approvalBoxDaemonTools, callApprovalBoxDaemonTool } from './approval-box-daemon-mcp.mjs'
+import { authMediationTools, authMediationToolHandlers } from './auth-mediation/mcp.mjs'
 
 export const bellTeamTools = Object.freeze([
   {
@@ -114,7 +114,7 @@ export const bellTeamTools = Object.freeze([
   ...terminalTools,
   ...latticeTools,
   ...runningExclusionTools,
-  ...approvalBoxDaemonTools,
+  ...authMediationTools(objectSchema),
 ])
 
 // Owner 2026-11-10: a fork seat never writes inside any Bot project folder (/srv/bellteam/bots/*/), SQL stores included.
@@ -176,7 +176,13 @@ async function runBellTeamTool(context) {
     return { ...result, bot: { ...result.bot, currentWork: readCurrentWork(context, bot), currentWorkBinding: readCurrentWorkBinding(context.currentWorkBinding, bot) } }
   }
   if (name === 'list_models') return getModels(args.harness)
-  if (approvalBoxDaemonTools.some(tool => tool.name === name)) return callApprovalBoxDaemonTool({ name, args, from, fork: Boolean(context.fork), approvalBoxDaemon: context.approvalBoxDaemon?.() })
+  // 認証仲介: the seat Bot ID is the one the caller resolved (no Bot ID in the arguments); fork seats are refused (secret exposure and project writes from read-only inquiries); a module that is not serving answers outcome error.
+  if (Object.hasOwn(authMediationToolHandlers, name)) {
+    if (context.fork) throw Object.assign(new Error('AUTH_MEDIATION_NOT_ALLOWED'), { code: 'AUTH_MEDIATION_NOT_ALLOWED', status: 403 })
+    const facade = context.authMediation?.()
+    if (!facade) return { outcome: 'error', error: 'the authentication module is not running' }
+    return authMediationToolHandlers[name]({ args, from, authExec: input => facade.exec(input) })
+  }
   if (runningExclusionTools.some(tool => tool.name === name)) return callRunningExclusionTool({ name, args, from, registry, runningExclusions: context.runningExclusions?.() })
   if (terminalTools.some(tool => tool.name === name)) return callTerminalTool({ name, args, terminals: context.terminals, terminalKeys: context.terminalKeys })
   if ([...memberReadTools, ...memberWriteTools].some(tool => tool.name === name))

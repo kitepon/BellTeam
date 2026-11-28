@@ -8,7 +8,8 @@
 
 ```mermaid
 flowchart TD
-  Descriptor["nativeが返したwait_process"] --> Caller["runWaitProcess"]
+  Descriptor["nativeが返したwait_process"] --> Share["席ごとに待ちのprocessは同時に1つ<br/>後から来た配送の待ちと、席ターンのwatchの待ち（seat_turnsの行にsession_idは無く、watchが席を渡す）は、前の待ちが終わってから始める"]
+  Share --> Caller["runWaitProcess"]
   Caller --> Seat{"seatProject指定あり"}
   Seat -->|"あり"| Runner["SeatProcessRunner<br/>このcallerだけacceptNonzero"]
   Seat -->|"なし"| Spawn["従来のprocess実行"]
@@ -36,7 +37,7 @@ flowchart TD
 | --- | --- |
 | `runWaitProcess(waitProcess, signal, {seatProject})` | native公開返却のexecutable/argsを実行し、stdoutのJSONをそのまま返す。終了値だけでJSONのoutcomeを捨てない。席での実行方式・環境・UID・取消はruntimeの機構へ委譲する |
 | `createSeatProcessRunner` | 既定のnonzero拒否を維持する。wait callerだけが既存のacceptNonzeroを使う。起動・入力・取消・合計出力上限の失敗はJSONへ置換しない |
-| `waitUntilDone` | `timeout/running`なら同じreceiptの待機を続ける。`done`でだけ正常完了。`closed/error/rate_limited/not_taken`等は既存の終了異常へ写す |
+| `waitUntilDone` | `timeout/running`なら同じreceiptの待機を続ける。ただし機械席（stream readerあり）の席自身のstreamが「idle・pending無し」を120秒以上言い続けているなら続けず、`AITERM_TURN_UNSETTLED`（`waitOutcome: 'unsettled'`、`turnCompleted`なし）で追跡例外にする（下の「Stopが記録されなかったターン」）。`done`でだけ正常完了。`closed/error/rate_limited/not_taken`等は既存の終了異常へ写す |
 | 受付後の追跡失敗の占有 | `nativeUnconfirmed`のjobは活動に残り`whenIdle`を拒否する。出口は明示restartのclosure、または失敗後に始まった有効な観測が同sessionをidle/absentと読むかdone（[control-details](../../control-details.md#受付後の追跡失敗の自己退役2026-11-11)）。履歴のcompletion unknownは保持 |
 | `watchTurn` / `SeatActivity.whenIdle` | timeout/runningと追跡の実故障ではwatchを活動として保持する。実故障後は既SeatTurnsが現在turnのidle/消失を観測するまでconfigureへ進めない。別running turnには活動の隙間なく引き継ぎ、古いwatchのfinallyで新watchを除かない |
 | `BotAdministration` / `reconfigure` | 保存希望値・pending・accepted・failedを区別する。acceptedは設定受付であり新turnの実modelを測った証明ではない |
@@ -192,3 +193,25 @@ Data flow: fixed approved profile → one connection → bounded paginated disco
 Native ownership confirmation: Elegg `auth-contract-06311.json` (host-controller-generalization-20261106), no native contract change. Only respond atomically enforces expected_binding/digest; status/cancel do not acquire that property from schema advertisement. Authenticated/session:null may legitimately have null binding. Existing Owner/actor/lease/secret/budget checks remain with their current owners. Management plan target.version is retained as legacy profile metadata, not a compatibility gate. No SSH/credential/production authority is added.
 
 Packaging closure: capability helpers and the process-local cache live inside the already packaged src/aiterm-client.mjs. No new runtime import/module inventory is required; the existing execution manifest and fixed source collector already include that file. Test-only schema fixtures are not product payload inputs.
+
+## Stopが記録されなかったターンで待ちを終える（anis-deliveries-stuck、2026-11-28）
+
+事実（アニス、fox Windows、2026-11-28 00:14 JST）：席はAiterm 0.70.118で起動し、そのclaude-settingsのStop hookは0.70.118のlib配下を指していた。23:29 JSTの更新がそのlibを消したため、00:14のターン終わりでhookが`Cannot find module`で失敗し、Aitermの終了記録が付かなかった。席のstreamは`result/success`と`state idle, pending []`を示していたが、Aitermは`TRANSCRIPT_TURN_ACTIVE`を返し続け、`aiterm-wait`は`running`を返し続けた。BellTeamの待ちには出口が無く、7件の配送が6時間`running`のまま残った。Aiterm側（hookの指す先の保持、streamのresultによるターン完了）はエレグの修理。
+
+```mermaid
+flowchart TD
+  Wait["#followTurn: aiterm-wait"] --> Out{"outcome"}
+  Out --> |"done / error / rate_limited"| Existing["既存の経路"]
+  Out --> |"timeout / running"| Idle{"machineStreams.idleFor(session) >= 120 s"}
+  Idle --> |"いいえ（動いている・streamを読めていない・machine席でない）"| Wait
+  Idle --> |"はい"| Unsettled["AITERM_TURN_UNSETTLED（追跡例外）"]
+  Unsettled --> Tracking["onStatus failed + delivery_tracking {accepted, completion unknown}&lt;br/&gt;席の活動と待ちの順番を解放"]
+```
+
+| 項目 | 内容 |
+| --- | --- |
+| `MachineStreamReaders.idleFor(session)` | readerの最後の読みが2回分のlong poll（60秒）以内で、現行launchのstateがidleかつpending無しの間、その継続msを返す。それ以外はnull。stateがidle以外になるか、pendingが出ると0から数え直す |
+| 守るもの | 受理済みの配送を、実際には終わっている席の上でいつまでも`running`にしておかないこと。席のturn表示と次の配送の順番待ち（席ごとに待ち1本）が詰まる |
+| 出口 | 追跡例外で配送のjobが終わり、`#takeSeatWait`のreleaseが働く。席のstreamが動く（idle以外）限り、何も変えない。TUI席・fork・readerの無い席は従来どおり（idleForがnull） |
+| 完了の意味 | 答えは不明。配送は受理済みのまま`completion unknown`で、再送はしない（既存の追跡例外の扱い） |
+| 値の所有 | idleSince/seenAtはreaderのメモリのみ。保存しない |

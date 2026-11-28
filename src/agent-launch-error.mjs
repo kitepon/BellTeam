@@ -35,6 +35,11 @@ export function launchRefusal(value) {
     session_created: false, action: value.action.trim() }
 }
 
+// Aiterm >= 0.70.116: the masked last screen lines of a seat that stopped at startup (AGENT_STARTUP_BLOCKED). Log text only, never stored or acted on.
+export function startupScreenExcerpt(value) {
+  return typeof value === 'string' ? value.replace(/[\u0000-\u0009\u000b-\u001f\u007f]/gu, '').slice(0, 3000).trim() || null : null
+}
+
 export function resumeUnavailable(value, sessionId) {
   return typeof sessionId === 'string' && /^[A-Za-z0-9_-]{1,64}$/u.test(sessionId) && value
     && Object.keys(value).sort().join(',') === 'code,effect,input,outcome,schema,session_id'

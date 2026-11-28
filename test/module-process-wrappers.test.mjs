@@ -70,9 +70,9 @@ test('usage wrapper stages bootstrap, activates real resume and restores a fixed
       try { return await controller.request('settings.list', {}, { usageLease: lease, capturedAuthorization: token }) }
       finally { authority.release(token) }
     })
-    assert.equal((await read()).length, 7)
+    assert.equal((await read()).length, 6)
     await controller.replace('a'.repeat(64))
-    assert.equal((await read()).length, 7)
+    assert.equal((await read()).length, 6)
     assert.equal(controller.snapshot().currentVersionId, 'a'.repeat(64))
   } finally { await controller.close() }
   assert.equal(f.children.length, 2)
@@ -106,11 +106,11 @@ test('automatic recovery restores usage services without a handoff', { timeout: 
       try { return await controller.request('settings.list', {}, { usageLease: lease, capturedAuthorization: token }) }
       finally { authority.release(token) }
     })
-    assert.equal((await read()).length, 7)
+    assert.equal((await read()).length, 6)
     f.children[0].kill('SIGKILL')
     await new Promise(resolve => setTimeout(resolve, 1400))
     assert.equal(controller.snapshot().available, true)
-    assert.equal((await read()).length, 7)
+    assert.equal((await read()).length, 6)
     assert.equal(controller.snapshot().currentVersionId, null)
   } finally { await controller.close() }
   assert.equal(f.children.length, 2)

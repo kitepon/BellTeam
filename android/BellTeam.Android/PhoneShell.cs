@@ -185,6 +185,13 @@ public sealed class PhoneShell : UserControl, IMessageHost
     {
 #if DEBUG
         // Render seam (a debug build only): adb shell am start ... --es bellteam.gate first|qr shows the first screen or the waiting screen with no Play and no request.
+        // adb ... --es bellteam.gate join: the 決裁箱's waiting screen of a child join with a sample code (the real control, no server).
+        if (MainActivity.Current.Intent?.GetStringExtra("bellteam.gate") == "join")
+        {
+            var column = new StackPanel { Margin = new Thickness(16, 40, 16, 24), Spacing = 10 };
+            ApprovalsWindow.AddWaiting(column, new ChildJoinState(JoinPhase.Waiting, "https://login-billing.kitepon.dev/join/dev.kitepon.approvalbox#lbq4:render-only-sample-not-a-real-request", DateTimeOffset.Now.AddMinutes(5), JoinCode: "https://login-billing.kitepon.dev/join/dev.kitepon.approvalbox#lbj1:render-only-sample-not-a-real-code"), "https://login-billing.kitepon.dev/join/dev.kitepon.approvalbox#lbq4:render-only-sample-not-a-real-request", () => { });
+            startupHost.Child = new ScrollViewer { Content = column, Background = SettingsUi.Canvas }; startupHost.IsVisible = true; return;
+        }
         if (MainActivity.Current.Intent?.GetStringExtra("bellteam.gate") is { } scene) { startupHost.Child = new AccountGate(() => Begin(), CancellationToken.None, scene == "qr" ? "https://login-billing.kitepon.dev/join/dev.kitepon.bellbot#lbq4:render-only-sample-not-a-real-request" : ""); startupHost.IsVisible = true; return; }
 #endif
         if (AccountStore.Local is not { } local) { Begin(); return; }
@@ -205,7 +212,6 @@ public sealed class PhoneShell : UserControl, IMessageHost
         var failed = new DeletionFailures();
         if (await PushRegistration.UnregisterAsync(model) is { } pushFailure) { failed.Add("通知の登録", pushFailure); ShowDeletionResult(AccountDeletionText.FailedTitle, failed.Text); return; }
         if (approvalBox is { } device) try { await device.DeleteLocalAsync(); } catch (Exception error) { failed.Add("決裁箱のサインイン", error, (error as Kitepon.LoginBilling.LoginBillingException)?.Status ?? 0); }
-        else if (ApprovalBoxAccount.Billing is { } box) try { await box.SignOutAsync(); } catch (Exception error) { failed.Add("決裁箱のサインイン", error, (error as Kitepon.LoginBilling.LoginBillingException)?.Status ?? 0); }
         try { AccountStore.Local?.SignOutLocal(); } catch (Exception error) { failed.Add("BellTeamの購読の確認", error); }
         if (failed.Any) { ShowDeletionResult(AccountDeletionText.FailedTitle, failed.Text); return; }
         CloseAllPages();
@@ -388,6 +394,7 @@ public sealed class PhoneShell : UserControl, IMessageHost
     private void RouteJoin()
     {
         if (!model.Connected || !JoinLink.HasPending) return;
+        if (settingsPage.IsVisible) return;   // the open settings page's approve panel takes the link; rebuilding the page let the dying panel take it, with nobody to ask
         CloseAllPages(); CloseSheet(); ShowSettings();
     }
     private void ShowSettings()

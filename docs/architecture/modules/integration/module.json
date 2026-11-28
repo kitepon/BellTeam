@@ -153,6 +153,7 @@
     "src/work-graph-facade.mjs",
     "src/lattice-facade.mjs",
     "src/approval-box-parent-facade.mjs",
+    "src/auth-mediation-facade.mjs",
     "src/http-accounts-api.mjs",
     "src/seat-credentials.mjs",
     "src/http-terminals-api.mjs",

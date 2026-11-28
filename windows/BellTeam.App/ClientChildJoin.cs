@@ -19,6 +19,8 @@ internal sealed class ClientChildJoin : IChildJoin
     public bool SigningIn => State.Status == JoinStatus.SigningIn;
     public string? QrLink => State.QrLink;
     public DateTimeOffset? ExpiresAt => State.ExpiresAt;
+    public string? Code => State.Code;
+    public string? Words => State.Status == JoinStatus.Failed ? State.Words : null;
     public string? FailedCode => State.Status == JoinStatus.Failed ? State.Reason : null;
     public bool Removed => State is { Status: JoinStatus.NotJoined, Reason: "removed" };
     public bool UpdateRequired => State.Status == JoinStatus.Joined && client.State.Status == ClientStatus.UpdateRequired;

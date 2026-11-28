@@ -213,7 +213,6 @@ private struct ApprovalsScreen: View {
     @State private var selected: String?
     @State private var sheet: String?
     @State private var isWide = false
-    @State private var confirmingDisconnect = false
 
     private func matches(_ d: ApprovalDecision) -> Bool {
         switch origin {
@@ -363,14 +362,19 @@ private struct ApprovalsScreen: View {
                     list(wide: false)
                 }
                 if model.stale {
-                    Text(ApprovalBoxWords.reconnecting).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(LatticePalette.ink)
-                        .padding(.horizontal, 12).padding(.vertical, 6).background(.regularMaterial, in: Capsule()).padding(.top, 8)
+                    HStack(spacing: 10) {
+                        Text(ApprovalBoxWords.reconnecting).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(LatticePalette.ink)
+                        Button(ApprovalBoxWords.retryNow) { model.link.retryNow() }.font(.system(size: 12.5, weight: .semibold))
+                    }
+                    .padding(.horizontal, 12).padding(.vertical, 6).background(.regularMaterial, in: Capsule()).padding(.top, 8)
                 }
             }
             .opacity(model.stale ? 0.55 : 1)
             .animation(.easeInOut(duration: 0.2), value: model.stale)
-        default:
-            ApprovalGateView(model: model, close: { dismiss() })
+        case .join:
+            ChildJoinView(source: model.link)
+        case .notEntitled, .updateRequired, .adding:
+            ApprovalGateView(model: model)
         }
     }
 
@@ -380,31 +384,16 @@ private struct ApprovalsScreen: View {
                 if tab != .done { originFilter }
                 if tab == .done { doneList } else { openList }
                 disconnectRow
-                SeatLinkSection()
             }
             .padding(14)
+            .padding(.top, model.stale ? 44 : 0) // room for the 再接続 band, which lies over the list
             .padding(.bottom, wide ? 0 : 70)
         }
         .refreshable { model.reread() }
     }
 
-    /// 「Approval Boxからサインアウト」 (two steps): leaves BellTeam's own sign-in alone.
-    private var disconnectRow: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Approval Boxにつながっています", systemImage: "link").font(.system(size: 12.5)).foregroundStyle(LatticePalette.muted)
-            if confirmingDisconnect {
-                Text("Approval Boxからサインアウトしますか？ BellTeamのサインインはそのままです。").font(.system(size: 13)).foregroundStyle(LatticePalette.ink)
-                HStack {
-                    Button("サインアウト") { confirmingDisconnect = false; Task { await model.link.signOut() } }.buttonStyle(.borderedProminent).tint(LatticePalette.red)
-                    Button(ApprovalBoxWords.cancel) { confirmingDisconnect = false }.buttonStyle(.bordered)
-                }
-            } else {
-                Button(ApprovalBoxWords.signOut) { confirmingDisconnect = true }.font(.system(size: 12.5, weight: .semibold))
-                    .accessibilityIdentifier("approvals-disconnect")
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading).padding(.top, 14)
-    }
+    /// 「つなぎを外す」 (two steps): this device leaves the Owner's Approval Box; BellTeam's own sign-in stays.
+    private var disconnectRow: some View { ChildJoinLiveBlock(source: model.link).padding(.top, 14) }
 
     private var originFilter: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -840,80 +829,20 @@ private struct ApprovalChainPanel: View {
     }
 }
 
-// MARK: Gates (signin.md section 3: one screen per state; the Japanese is the contract)
+// MARK: Gates after the join (child-join.md: notEntitled and updateRequired; the join states are ChildJoinView's)
 
 private struct ApprovalGateView: View {
     @ObservedObject var model: ApprovalsModel
-    let close: () -> Void
-    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         VStack(spacing: 14) {
-            Image(systemName: symbol).font(.system(size: 34)).foregroundStyle(LatticePalette.muted)
-            if let note = note { Text(verbatim: note).font(.system(size: 13)).foregroundStyle(LatticePalette.amber).multilineTextAlignment(.center).frame(maxWidth: 420) }
-            Text(verbatim: message).font(.system(size: 14.5)).foregroundStyle(LatticePalette.ink).multilineTextAlignment(.center).frame(maxWidth: 420)
-            if case .waiting(let code, let qr, let expiresAt) = model.gate { waiting(code: code, qr: qr, expiresAt: expiresAt) }
-            actions
+            Image(systemName: "lock").font(.system(size: 34)).foregroundStyle(LatticePalette.muted)
+            Text(verbatim: model.gate == .updateRequired ? ApprovalBoxWords.updateRequired : model.gate == .adding ? ApprovalBoxWords.adding : ApprovalBoxWords.notEntitled)
+                .font(.system(size: 14.5)).foregroundStyle(LatticePalette.ink).multilineTextAlignment(.center).frame(maxWidth: 420)
+            Button(model.gate == .updateRequired ? ApprovalBoxWords.retryNow : ApprovalBoxWords.checkAgain) { model.link.retryNow() }.buttonStyle(.bordered)
         }
         .padding(28).frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("approvals-gate")
-    }
-
-    private var symbol: String {
-        switch model.gate {
-        case .needsApproval, .waiting: "iphone.and.arrow.forward"
-        case .signingIn: "safari"
-        default: "lock"
-        }
-    }
-
-    private var note: String? {
-        switch model.gate {
-        case .signedOut(let note), .needsApproval(let note): note
-        default: nil
-        }
-    }
-
-    private var message: String {
-        switch model.gate {
-        case .signedOut: ApprovalBoxWords.signedOut
-        case .signingIn: ApprovalBoxWords.signingIn
-        case .notEntitled: ApprovalBoxWords.notEntitled
-        case .needsApproval: ApprovalBoxWords.needsApproval
-        case .waiting: ApprovalBoxWords.waiting
-        default: ""
-        }
-    }
-
-    private func waiting(code: String, qr: String, expiresAt: Date) -> some View {
-        VStack(spacing: 10) {
-            Text(verbatim: code).font(.system(size: 26, weight: .bold, design: .monospaced)).textSelection(.enabled).accessibilityIdentifier("approvals-admission-code")
-            if let picture = ServerLoginView.qrImage(qr) { Image(uiImage: picture).interpolation(.none).resizable().scaledToFit().frame(width: 180, height: 180) }
-            Text(verbatim: ApprovalBoxWords.waitingSamePhone).font(.system(size: 12)).foregroundStyle(LatticePalette.muted).multilineTextAlignment(.center).frame(maxWidth: 380)
-            Text(expiresAt, style: .timer).font(.system(size: 12.5)).foregroundStyle(LatticePalette.muted)
-        }
-    }
-
-    @ViewBuilder private var actions: some View {
-        switch model.gate {
-        case .signedOut:
-            Button(ApprovalBoxWords.signIn) { Task { await model.link.signIn(provider: "apple", anchor: LocalAccount.anchor) } }
-                .buttonStyle(.borderedProminent).accessibilityIdentifier("approvals-signin")
-            Button(ApprovalBoxWords.signInGoogle) { Task { await model.link.signIn(provider: "google", anchor: LocalAccount.anchor) } }
-                .buttonStyle(.bordered).font(.system(size: 13)).accessibilityIdentifier("approvals-signin-google")
-        case .signingIn:
-            Button(ApprovalBoxWords.cancel) { model.link.cancelSignIn() }.buttonStyle(.bordered)
-        case .needsApproval:
-            Button(ApprovalBoxWords.askApproval) { Task { await model.link.askForApproval() } }.buttonStyle(.borderedProminent).accessibilityIdentifier("approvals-ask")
-        case .waiting:
-            Button(ApprovalBoxWords.cancel) { Task { await model.link.cancelApproval() } }.buttonStyle(.bordered)
-        case .notEntitled:
-            HStack {
-                Button(ApprovalBoxWords.checkAgain) { Task { await model.link.retryNow() } }.buttonStyle(.bordered)
-                Button(ApprovalBoxWords.signOut) { Task { await model.link.signOut() } }.buttonStyle(.bordered)
-            }
-        default: EmptyView()
-        }
     }
 }

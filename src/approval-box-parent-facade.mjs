@@ -1,5 +1,5 @@
 // Parent side of the approval-box-extension child (docs/architecture/modules/runtime/approval-box-extension-child.md).
-// Roots pass straight through. The engine loop sends root `refresh {since}` (~2 s while an app SSE client is connected, 30 s otherwise) so the link
+// Roots pass straight through. The engine loop sends root `refresh {since}` (~2 s while an app SSE client is connected, 3 s otherwise: the answer relay must not wait for a screen) so the link
 // engine runs with no screen open, and fans the returned events out to subscribers.
 const unavailable = () => Object.assign(new Error('APPROVALS_UNAVAILABLE'), { code: 'APPROVALS_UNAVAILABLE', status: 503 })
 // Request errors the app can act on keep the child's code; anything else means the child is not serving.
@@ -7,7 +7,7 @@ const PASS = new Map([['APPROVALS_NOT_ENTITLED', 403], ['APPROVALS_NOT_CONNECTED
   ['APPROVALS_RATE_LIMITED', 429], ['APPROVALS_VALIDATION_FAILED', 400], ['APPROVALS_ANSWER_ON_DEVICE', 409]])
 const ROOTS = ['summary', 'list', 'get', 'answer', 'hold', 'unhold', 'attachment', 'byTask', 'byDecision', 'connection', 'connect', 'cancelConnect', 'disconnect']
 
-export function createApprovalsFacade({ controller, seatLink = null, activeMs = 2000, idleMs = 30000, setTimer = setTimeout, clearTimer = clearTimeout }) {
+export function createApprovalsFacade({ controller, pairing = null, decisions = null, activeMs = 2000, idleMs = 3000, setTimer = setTimeout, clearTimer = clearTimeout }) {
   const subscribers = new Set()
   let seq = 0, timer = null, lastSummary = null, running = false, closed = false
   const send = (method, params) => Promise.resolve().then(() => controller.request(method, params)).catch(error => {
@@ -35,8 +35,8 @@ export function createApprovalsFacade({ controller, seatLink = null, activeMs = 
   }
   return {
     ...Object.fromEntries(ROOTS.map(method => [method, (params = {}) => send(method, params)])),
-    // seat-approval-card.md: the body's own QR pairing for seat cards; the daemon holds it, the child never sees it.
-    seatLink,
+    // decision-port.md: P1 (approvals.decisions, file/read/cancel); the backend is execution's, the facade only carries it.
+    decisions,
     // The loop starts with the process and ends at close; a new subscriber only speeds the next tick up.
     start: () => { if (!timer && !running) arm(0) },
     close: () => { closed = true; clearTimer(timer); timer = null },

@@ -1,6 +1,14 @@
 {
-  "originHash" : "d6acc22d48b70c09af58caba9f8c3893a8413709375a1e14a7b969f429625b00",
+  "originHash" : "9a5c2b6db136aa0dc78b7b95310ff614d3437ea91ea26a4e63985622bf19258c",
   "pins" : [
+    {
+      "identity" : "approval-box-apps",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/kitepon/approval-box-apps.git",
+      "state" : {
+        "revision" : "9eb0755217646c0ea2f77b3143b6e3c19c4801a1"
+      }
+    },
     {
       "identity" : "chatlayout",
       "kind" : "remoteSourceControl",
@@ -22,16 +30,16 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/kitepon/login-billing.git",
       "state" : {
-        "revision" : "a45f38fd188cb2082e67e8dec62b9809e2734d65",
-        "version" : "0.22.4"
+        "revision" : "ebb5947aafa67c209ed80cd69942a5607716f21b",
+        "version" : "0.26.0"
       }
     },
     {
       "identity" : "peer-channel",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/kitepon/peer-channel.git",
+      "location" : "https://github.com/kitepon/peer-channel",
       "state" : {
-        "revision" : "0886f976a1e4e3417392dc820b1718c34a51a5c3"
+        "revision" : "698bcc398e78a4c220f1f27ab107ef604c840ed9"
       }
     },
     {

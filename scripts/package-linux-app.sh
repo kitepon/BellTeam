@@ -1,10 +1,13 @@
 #!/bin/sh
 # Builds the published Linux app downloads into <out>: one self-contained archive per CPU, SHA256SUMS and the installer.
 # Only those four files in <out> are replaced; anything else there is left as it is.
-# Usage: dotagents-op-run --env-file scripts/linux-google-desktop.env -- scripts/package-linux-app.sh <out>   (the env file only names the vault item; the Google Desktop client secret goes into the build, never into git)
+# Usage: scripts/package-linux-app.sh <out>   (the Google Desktop client secret goes into the build, never into git: it comes from the authentication module on main-server over ssh, one call, unless BELLTEAM_GOOGLE_DESKTOP_JSON is already set)
 set -eu
 cd "$(dirname "$0")/.."
-[ -n "${BELLTEAM_GOOGLE_DESKTOP_JSON:-}" ] || { echo "Googleのデスクトップ用クライアントの値がありません。次のように実行してください: dotagents-op-run --env-file scripts/linux-google-desktop.env -- scripts/package-linux-app.sh <out>" >&2; exit 1; }
+# rabbit has no module socket (Tronie's host ruling): ask main-server, which runs the granted command and prints the value on stdout.
+[ -n "${BELLTEAM_GOOGLE_DESKTOP_JSON:-}" ] || BELLTEAM_GOOGLE_DESKTOP_JSON="$(ssh main-server 'cd /home/kite/BellTeam && auth exec printenv BELLTEAM_GOOGLE_DESKTOP_JSON')" || { echo "認証仲介からGoogleのデスクトップ用クライアントの値を取れませんでした（ssh main-server の auth exec printenv BELLTEAM_GOOGLE_DESKTOP_JSON）。" >&2; exit 1; }
+[ -n "$BELLTEAM_GOOGLE_DESKTOP_JSON" ] || { echo "Googleのデスクトップ用クライアントの値が空です。" >&2; exit 1; }
+export BELLTEAM_GOOGLE_DESKTOP_JSON
 out="${1:?出力先のフォルダを指定してください。}"
 work="$(mktemp -d)"; trap 'rm -rf "$work"' EXIT
 for rid in linux-x64 linux-arm64; do

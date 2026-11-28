@@ -37,6 +37,10 @@ test('Bot別のPATH・npm導入先・複雑な環境変数を子プロセスへ�
   for (const env of [envA, envB]) {
     assert.equal(env.GH_CONFIG_DIR, '/srv/bellteam/shared/tools/github/gh')
     assert.equal(env.GIT_CONFIG_GLOBAL, '/srv/bellteam/shared/tools/github/gitconfig')
+    for (const role of ['AUTHOR', 'COMMITTER']) {
+      assert.equal(env[`GIT_${role}_NAME`], 'quolu')
+      assert.equal(env[`GIT_${role}_EMAIL`], '226230081+quolu@users.noreply.github.com')
+    }
   }
   assert.ok(envA.PATH.startsWith(`${a}/custom bin:${a}/.local/bin:`))
   assert.ok(!envB.PATH.includes(a))

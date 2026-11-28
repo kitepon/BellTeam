@@ -15,6 +15,7 @@ bootstrap、席側短命処理、CLI登録、状態移行、backup/restore、設
 - [work-graph（相関図）の独立更新子moduleの親側](work-graph-child.md)
 - [lattice（Lattice工程表）の独立更新子moduleの親側](lattice-child.md)
 - [approval-box-extension（決裁箱拡張）の独立更新子moduleの親側（R5、2026-11-15）](approval-box-extension-child.md)
+- [auth-mediation（認証仲介）の独立更新子moduleの親側（O2: 席の処理へ秘密の環境を渡す口、2026-11-26）](auth-mediation-child.md)
 - [固有channelを載せる共通child世代controller](module-process.md)
 - [業務moduleのinstalled readerと固定wrapper](module-release.md)
 - [executionの固定host factory読込](execution-loader.md)
@@ -27,7 +28,6 @@ bootstrap、席側短命処理、CLI登録、状態移行、backup/restore、設
 - [箱同梱のmodule導入プログラム](module-installer.md)（実装中、標準Docker方式）
 - [アプリからcontainerを更新するHost受付とworker](container-update.md)
 - [箱同梱の本体更新serviceとDocker独立worker](container-update-bundled.md)（source実装、正式供給・公開実物は別工程）
-- [本体が常駐させる決裁箱のコネクタ（hosted daemon）](approval-box-daemon.md)（a490h: 固定版の導入、子の監視、ペアリングの手順、外向き通信の確認。図は同じ文書）
 - [本体が起動しないときの緊急の入れ替え](emergency-body.md)（a505: 起動中の本体を窓口にせず、同じinstallerで本体を入れる。公開手順はdistribution/server/README.md）
 - [Aiterm H1のoffline保存・起動前採用の接続候補](resume.md)
 - [Web受付固定資材の配置とdescriptor](web-gateway-release.md)

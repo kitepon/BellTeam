@@ -1,6 +1,6 @@
-# Native part of BellTeam.PeerChannel on Linux
+# Native part of the Approval Box client (Kitepon.ApprovalBox.Client) on Linux
 
-`libdatachannel.so` is libdatachannel v0.24.6 (commit 6b1e2e620f1e37f0eafeee702eaea0043cb305fd, submodules at the commits below), the same engine as the Windows `datachannel.dll` and the TypeScript connector of kitepon/peer-channel. `windows/BellTeam.PeerChannel/Native.cs` calls it through P/Invoke (library name `datachannel`, which Linux resolves to `libdatachannel.so` beside the app).
+`libdatachannel.so` is libdatachannel v0.24.6 (commit 6b1e2e620f1e37f0eafeee702eaea0043cb305fd, submodules at the commits below), the same engine as the Windows `datachannel.dll` and the TypeScript connector of kitepon/peer-channel. `Kitepon.ApprovalBox.Client` (`PeerChannel/Native.cs`, library name `datachannel`) calls it through P/Invoke (library name `datachannel`, which Linux resolves to `libdatachannel.so` beside the app).
 
 The built x64 file and its SHA-256 are in `prebuilt/linux-x64/` (committed, 8.2 MB stripped; Nayuta 2026-11-22: mirroring is fine with the hash, the commits and the recipe next to it). Users never build it.
 

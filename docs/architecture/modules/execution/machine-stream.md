@@ -56,7 +56,7 @@ Version skew: the flag is a key of the `seatStream` port, which an older engine 
 | --- | --- | --- |
 | stream lines, cursor | Aiterm (the launch's stream file) | the launch |
 | stored events and the stored cursor | conversation | the Bot's log |
-| reader state (cursor in memory, last sent `state`) | execution memory only | the reader; a body restart reads `port.cursor` again |
+| reader state (cursor in memory, last sent `state`, `idleSince`/`seenAt` read by `idleFor`) | execution memory only | the reader; a body restart reads `port.cursor` again |
 
 ## Protects, and how it leaves
 

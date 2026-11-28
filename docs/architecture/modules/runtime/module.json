@@ -197,12 +197,18 @@
     "src/lattice-process.mjs",
     "src/approval-box-parent-process.mjs",
     "src/approval-box-parent-effects.mjs",
+    "src/auth-mediation-effects.mjs",
+    "src/auth-mediation-process.mjs",
+    "src/auth-mediation-relay.mjs",
+    "scripts/auth-mediation-start.c",
     "src/usage-cli-effects.mjs",
     "src/lattice-locks.mjs",
     "src/lattice-install-plan.mjs",
     "scripts/install-lattice-release.py",
     "scripts/verify-lattice.py",
     "scripts/install-approval-box-extension-release.py",
-    "scripts/verify-approval-box-extension.py"
+    "scripts/verify-approval-box-extension.py",
+    "scripts/install-auth-mediation-release.py",
+    "scripts/verify-auth-mediation.py"
   ]
 }

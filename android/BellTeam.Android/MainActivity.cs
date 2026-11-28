@@ -15,13 +15,15 @@ public class MainActivity : AvaloniaMainActivity
     protected override void OnCreate(Bundle? savedInstanceState)
     {
         Current = this; base.OnCreate(savedInstanceState);
+        // login-billing 1.60: on a phone a join code can be opened in the parent app that is on this same phone (Approval Box's App Link).
+        BellTeam.Linux.JoinCodeView.OpenOnThisPhone = link => StartActivity(new Intent(Intent.ActionView, global::Android.Net.Uri.Parse(link)));
         PushChannel.Ensure(this); PushRouter.Accept(Intent); JoinLink.Accept(Intent);
-        // login-billing duties: before the activity starts. The local form asks for local network access where Android requires it (contract 1.36); Approval Box's own instance registers the Auth Tab for its web sign-in's return.
-        AccountStore.Local?.RegisterLocalNetwork(this); ApprovalBoxAccount.Billing?.RegisterWebReturn(this);
+        // login-billing duties: before the activity starts. The local form asks for local network access where Android requires it (contract 1.36); Approval Box's own child-join form asks the same.
+        AccountStore.Local?.RegisterLocalNetwork(this); AndroidApprovalBoxDevice.RegisterLocalNetwork(this);
         // Android 13+ asks before showing any notification.
         if (Build.VERSION.SdkInt >= BuildVersionCodes.Tiramisu && CheckSelfPermission(global::Android.Manifest.Permission.PostNotifications) != Permission.Granted) RequestPermissions([global::Android.Manifest.Permission.PostNotifications], 1);
     }
-    protected override void OnNewIntent(Intent? intent) { base.OnNewIntent(intent); ApprovalBoxAccount.Billing?.OnWebReturn(intent); PushRouter.Accept(intent); JoinLink.Accept(intent); }
+    protected override void OnNewIntent(Intent? intent) { base.OnNewIntent(intent); PushRouter.Accept(intent); JoinLink.Accept(intent); }
     protected override void OnResume() { base.OnResume(); PushRouter.Foreground = true; AccountStore.NoteForeground();
     }
     protected override void OnPause() { PushRouter.Foreground = false; base.OnPause(); }

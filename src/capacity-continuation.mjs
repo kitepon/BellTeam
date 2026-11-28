@@ -38,7 +38,8 @@ export class CapacityContinuation {
     let state = this.states.get(context.bot.id)
     if (state?.running) { state.next = context; return }
     if (!state || state.deliveryId !== context.deliveryId) {
-      state = { attempted: new Set([context.bot.harness]), sent: 0, deliveryId: context.deliveryId }
+      // deliveryId follows the latest message of this chain (a failure of it continues the chain); origin stays the request.
+      state = { attempted: new Set([context.bot.harness]), sent: 0, deliveryId: context.deliveryId, origin: context.deliveryId }
       this.states.set(context.bot.id, state)
     }
     state.running = true
@@ -100,7 +101,7 @@ export class CapacityContinuation {
       context.reconfigured?.()
       guard()
       const message = '利用上限またはモデルの混雑で前の処理が終了したため、利用可能な別ハーネスへ切り替えました。' +
-        `元の依頼は保存された会話履歴のdelivery_id=${context.deliveryId}です。` +
+        `元の依頼は保存された会話履歴のdelivery_id=${state.origin ?? context.deliveryId}です。` +
         '自分のdocs/と保存された会話・作業記録から未完了の仕事と元の目的を確認し、続けてください。' +
         '前の処理で実行済みの操作や結果不明の副作用を確認し、元の依頼本文や完了済みの操作を繰り返さないでください。'
       const check = () => {

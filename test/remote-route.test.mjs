@@ -3,6 +3,9 @@ import assert from 'node:assert/strict'
 import { RemoteSeats } from '../src/remote-seats.mjs'
 import { RemoteRoutes, viewRows } from '../src/remote-route.mjs'
 
+import { BOT_GIT_IDENTITY } from '../src/bot-environment.mjs'
+const GIT_NAMES = ['GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL'] // SEC-111
+
 const bot = { id: 'bot-aaaa1111', terminalId: 'mac-1', projectRoot: '/Users/quo/work/app', fastMode: false }
 const terminal = { ref: 'owner-macbook', target: { host: 'mac', user: 'quo', port: 22 }, trustRevision: 't1', credentialRevision: 'c1' }
 const remote = { host: 'mac', user: 'quo', port: 22, ssh: { known_hosts_file: '/tmp/k.known_hosts', host_key_alias: 'mac', identity_agent: '/tmp/a.sock', strict_host_key: true } }
@@ -30,8 +33,8 @@ test('prepare on a switched terminal ensures the forward first, names P in the s
   assert.equal('terminal' in prepared.args, false)
   assert.equal(prepared.args.mcp_config.mcpServers.bellteam.url, 'http://127.0.0.1:41999/api/seat-mcp')
   assert.equal(prepared.args.mcp_config.mcpServers['call-bridge'].url, 'http://127.0.0.1:41999/api/seat-mcp/call-bridge')
-  assert.deepEqual(prepared.privateEnv.names, ['BELLTEAM_MCP_TOKEN', 'AITERM_SEAT_FORWARD_PORT'])
-  assert.deepEqual(await prepared.privateEnv.resolve(), { BELLTEAM_MCP_TOKEN: 'tok', AITERM_SEAT_FORWARD_PORT: '41999' })
+  assert.deepEqual(prepared.privateEnv.names, ['BELLTEAM_MCP_TOKEN', ...GIT_NAMES])
+  assert.deepEqual(await prepared.privateEnv.resolve(), { BELLTEAM_MCP_TOKEN: 'tok', GIT_AUTHOR_NAME: BOT_GIT_IDENTITY.name, GIT_AUTHOR_EMAIL: BOT_GIT_IDENTITY.email, GIT_COMMITTER_NAME: BOT_GIT_IDENTITY.name, GIT_COMMITTER_EMAIL: BOT_GIT_IDENTITY.email })
 })
 
 test('ensure_forward failing, or a terminal not switched, launches on terminal exactly as before', async () => {
@@ -40,7 +43,7 @@ test('ensure_forward failing, or a terminal not switched, launches on terminal e
     assert.deepEqual(prepared.args.terminal, terminal)
     assert.equal('remote' in prepared.args, false)
     assert.equal(prepared.args.mcp_config.mcpServers.bellteam.url, 'http://127.0.0.1:4183/api/seat-mcp')
-    assert.deepEqual(prepared.privateEnv.names, ['BELLTEAM_MCP_TOKEN'])
+    assert.deepEqual(prepared.privateEnv.names, ['BELLTEAM_MCP_TOKEN', ...GIT_NAMES])
   }
 })
 
@@ -108,6 +111,7 @@ test('the seat view reads one pty_list per machine, converts the rows, and drops
   assert.deepEqual(calls[0], ['pty_list', { remote, include: ['turn', 'own_work'] }])
   assert.deepEqual(view.rows[0].turn, { state: 'running', turn_id: 't', started_at: '2026-11-23T00:00:00.000Z', event_cursor: null, interim_from: 'v1:1:b:2', wait_process: null })
   assert.deepEqual(view.unread, ['dark'])
+  assert.equal(view.rows[0].route_since, 'T') // the launch's ensure_forward answer (ready_at) is the row's route_since
   assert.equal(seats.routes.sessions.has('gone'), false)
   assert.deepEqual(viewRows([{ session_id: 'old', turn: undefined }]).unread, ['old'])
 })
@@ -116,15 +120,20 @@ test('the keeper calls ensure_forward at most once a minute per terminal and tak
   let clock = 0
   const asked = [], calls = []
   const routes = new RemoteRoutes({ terminals: { connection: { async remoteFor() { asked.push(1); return { remote, forward, revision: asked.length > 1 ? 'r2' : 'r1' } } } }, now: () => clock, port: () => 4183 })
-  routes.client = { async call(name, a) { calls.push([name, a]); return {} } }
+  let ready = 'R1'
+  routes.client = { async call(name, a) { calls.push([name, a]); return { structuredContent: { ready_at: ready } } } }
   routes.add('s1', 'mac-1', { remote, forward, revision: 'r1' })
   await routes.keep(); assert.equal(calls.length, 0)
   clock = 61_000; await routes.keep(); await routes.keep()
   assert.equal(calls.length, 1)
   assert.deepEqual(calls[0], ['ensure_forward', { id: 'owner-macbook', to: { host: '127.0.0.1', port: 4183 } }])
   assert.equal(routes.routes.get('mac-1').revision, 'r1')
-  clock = 130_000; await routes.keep()
+  assert.equal(routes.readyAt.get('mac-1'), 'R1')
+  clock = 130_000; ready = 'R2'; await routes.keep()
   assert.equal(routes.routes.get('mac-1').revision, 'r2')
+  assert.equal(routes.readyAt.get('mac-1'), 'R2') // a rebuilt route has a new ready_at: a new route_since key
+  clock = 200_000; ready = null; await routes.keep()
+  assert.equal(routes.readyAt.has('mac-1'), false) // not ready: no route_since
 })
 
 test('the transcript of a seat on remote is read over its pinned ssh', async () => {

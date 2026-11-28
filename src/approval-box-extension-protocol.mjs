@@ -5,7 +5,7 @@ export const APPROVAL_BOX_EXTENSION_STATE_COMPATIBILITY = Object.freeze({ state:
 export const APPROVAL_BOX_EXTENSION_METHODS = Object.freeze(['summary', 'list', 'get', 'answer', 'hold', 'unhold', 'attachment', 'byTask',
   'connection', 'connect', 'cancelConnect', 'disconnect', 'refresh', 'byDecision'])
 export const APPROVAL_BOX_EXTENSION_EFFECTS = Object.freeze(['lattice.ownerTask', 'lattice.link', 'lattice.chart', 'lattice.charts', 'members.list',
-  'session.get', 'session.put', 'session.erase', 'daemon.decisions.list', 'daemon.decisions.read'])
+  'session.get', 'session.put', 'session.erase', 'seat.message'])
 export const APPROVALS_DECISION_ID = /^K-[A-Z0-9]{4,16}$/u
 const PROJECT_ID = /^[a-z0-9][a-z0-9-]{0,62}$/u
 const REF = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u
@@ -52,8 +52,8 @@ export function validateApprovalsEffect(method, params) {
     : method === 'lattice.link' ? !approvalsObject(params, ['projectId', 'plan', 'taskId']) || !PROJECT_ID.test(params.projectId) || !REF.test(params.plan) || !REF.test(params.taskId)
     : method === 'lattice.chart' ? !approvalsObject(params, ['projectId']) || !PROJECT_ID.test(params.projectId)
     : method === 'session.put' ? !approvalsObject(params, ['value']) || !sendText(params.value, 8192)
-    : method === 'daemon.decisions.read' ? !approvalsObject(params, ['id']) || !decisionId(params.id)
-    : !approvalsObject(params, []) // lattice.charts, members.list, session.get, session.erase, daemon.decisions.list
+    : method === 'seat.message' ? !approvalsObject(params, ['target', 'message']) || !sendText(params.target, 128) || !sendText(params.message, 30000)
+    : !approvalsObject(params, []) // lattice.charts, members.list, session.get, session.erase
   if (bad) throw approvalsError('APPROVALS_INVALID')
 }
 
@@ -66,13 +66,7 @@ export function validateApprovalsEffectResult(method, value) {
   else if (method === 'members.list') need(Array.isArray(value) && value.every(member => approvalsObject(member, ['id', 'name']) && str(member.id) && str(member.name)))
   else if (method === 'session.get') need(value === null || approvalsObject(value, ['value']) && str(value.value))
   else if (method === 'session.put' || method === 'session.erase') need(approvalsObject(value, ['ok']) && value.ok === true)
-  // a490g: what the link engine reads from the hosted daemon. No context and no attachments cross: the chart needs ids, status, title, options and the answer only.
-  else if (method === 'daemon.decisions.list') need(Array.isArray(value) && value.length <= 500 && value.every(item => approvalsObject(item, ['id']) && decisionId(item.id)))
-  else if (method === 'daemon.decisions.read') need(value === null || approvalsObject(value, ['id', 'title', 'status', 'version', 'urgency', 'options', 'sessionLabel', 'requester', 'answer', 'cancelReason', 'createdAt', 'updatedAt'], ['recommendation', 'deadline', 'context'])
-    && decisionId(value.id) && str(value.title) && STATUSES.includes(value.status) && Number.isInteger(value.version) && str(value.urgency) && str(value.sessionLabel) && strOrNull(value.requester) && strOrNull(value.cancelReason)
-    && (value.context === undefined || str(value.context) && value.context.length <= 20000)
-    && Array.isArray(value.options) && value.options.every(option => approvalsObject(option, ['id', 'label']) && str(option.id) && str(option.label))
-    && (value.answer === null || approvalsObject(value.answer, ['optionId', 'text', 'answeredAt']) && strOrNull(value.answer.optionId) && strOrNull(value.answer.text) && strOrNull(value.answer.answeredAt)))
+  else if (method === 'seat.message') need(approvalsObject(value, ['delivery', 'deliveryId'], ['code']) && str(value.delivery) && strOrNull(value.deliveryId) && (value.code === undefined || str(value.code)))
   else invalid()
 }
 

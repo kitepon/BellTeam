@@ -7,7 +7,8 @@
   "optional": true,
   "provides": [
     "approvals-app-contract (/api/approvals/*)",
-    "decision-task-link"
+    "decision-task-link",
+    "approval-box-port (P1 approvals.decisions: file / read / cancel; P5 seat entry file; decision-port.md)"
   ],
   "uses": [
     {
@@ -25,6 +26,10 @@
     {
       "module": "members",
       "port": "registry"
+    },
+    {
+      "module": "conversation",
+      "port": "messenger.sendmessage (F8 answer relay to a seat from scheduler)"
     }
   ],
   "source": [
@@ -33,6 +38,7 @@
     "src/approval-box-extension-ipc.mjs",
     "src/approval-box-extension-locks.mjs",
     "src/approval-box-extension-protocol.mjs",
+    "src/approval-box-extension/answer-relay.mjs",
     "src/approval-box-extension/client.mjs",
     "src/approval-box-extension/connect-state.mjs",
     "src/approval-box-extension/core.mjs",
@@ -40,5 +46,8 @@
     "src/approval-box-extension/http-api.mjs",
     "src/approval-box-extension/link-plan.mjs",
     "src/approval-box-extension/origin-view.mjs"
+  ],
+  "parentSource": [
+    "src/approval-box-entries.mjs"
   ]
 }

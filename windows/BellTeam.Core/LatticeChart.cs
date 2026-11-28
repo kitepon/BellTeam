@@ -18,6 +18,8 @@ public sealed record LatticeChartSummary
     public string[] ActiveMembers { get; init; } = [];
     public DateTimeOffset? UpdatedAt { get; init; }
     public string? State { get; init; }
+    /// <summary>The chart's saved 催促 switch (GET /api/lattice/charts only; the snapshot and SSE do not carry it). Missing = no badge.</summary>
+    public bool? Reminders { get; init; }
 }
 public sealed record LatticeCounts(int Total, int Done, int Working, int Blocked, int Connections);
 public sealed record LatticeSnapshot
@@ -119,7 +121,7 @@ public sealed record LatticeHistoryGroup(string Heading, IReadOnlyList<LatticeHi
 public sealed record LatticeHistory(int Count, IReadOnlyList<LatticeHistoryGroup> Groups);
 public sealed record LatticeTreeLayout(IReadOnlyList<LatticeTreeNode> Nodes, IReadOnlyList<LatticeTreeLink> Links, IReadOnlyList<LatticeTreeArc> Arcs, IReadOnlyDictionary<string, LatticeTreeNode> Cards, double Width, double Height);
 public sealed record LatticeDiff(bool First, IReadOnlyList<string> AddedCards, IReadOnlyList<string> ChangedCards, IReadOnlyList<string> CompletedCards);
-public sealed record LatticeListItem(string ProjectId, string Name, bool Coordinator, int Done, int Total, int Connections, IReadOnlyList<LatticePerson> Members, double Fraction, string Updated, string Label);
+public sealed record LatticeListItem(string ProjectId, string Name, bool Coordinator, int Done, int Total, int Connections, IReadOnlyList<LatticePerson> Members, double Fraction, string Updated, string Label, bool Reminders = false);
 
 public static class LatticeChart
 {
@@ -443,7 +445,7 @@ public static class LatticeChart
             var name = ChartName(chart.Name, chart.CreatedBy, id => roster(id)?.Name);
             return new LatticeListItem(chart.ProjectId, name, chart.Coordinator, counts.Done, counts.Total, counts.Connections, members,
                 counts.Total > 0 ? Math.Min(1, (double)counts.Done / counts.Total) : 0, chart.UpdatedAt is { } at ? $"更新 {FormatJst(at)}" : "",
-                $"{name}{(chart.Coordinator ? "、統括の工程表" : "")}、完了 {counts.Done}/{counts.Total}、接続 {counts.Connections}{(members.Count > 0 ? "、動いているのは" + string.Join("、", members.Select(member => member.Name)) : "")}");
+                $"{name}{(chart.Coordinator ? "、統括の工程表" : "")}、完了 {counts.Done}/{counts.Total}、接続 {counts.Connections}{(chart.Reminders == true ? "、催促オン" : "")}{(members.Count > 0 ? "、動いているのは" + string.Join("、", members.Select(member => member.Name)) : "")}", chart.Reminders == true);
         }).ToList();
     public static string? CoordinatorBotId(LatticeChartList list) => list.Charts.FirstOrDefault(chart => chart.Coordinator && chart.CreatedBy is { Length: > 0 })?.CreatedBy;
 }

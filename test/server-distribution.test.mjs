@@ -37,10 +37,10 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
     'scripts/assert-state-writers-stopped.sh',
     'scripts/install-sce-headers.py', 'scripts/import-call-bridge.mjs',
     'distribution/server/install-resume-state.sh', 'distribution/server/emergency-body.sh', 'scripts/emergency-body.py',
-    'distribution/lattice/package.json', 'distribution/lattice/package-lock.json', 'distribution/approval-box/package.json', 'distribution/approval-box/package-lock.json',
-    'config/work-graph-verification.json', 'config/lattice-verification.json', 'config/approval-box-extension-verification.json', 'config/execution-verification.json',
-    'scripts/work-graph-start.c', 'scripts/lattice-start.c', 'scripts/approval-box-extension-start.c', 'scripts/verify-work-graph.py', 'scripts/verify-lattice.py', 'scripts/verify-approval-box-extension.py', 'scripts/verify-execution.py',
-    'scripts/install-work-graph-release.py', 'scripts/install-lattice-release.py', 'scripts/install-approval-box-extension-release.py', 'scripts/install-execution-release.py',
+    'distribution/lattice/package.json', 'distribution/lattice/package-lock.json',
+    'config/work-graph-verification.json', 'config/lattice-verification.json', 'config/approval-box-extension-verification.json', 'config/auth-mediation-verification.json', 'config/execution-verification.json',
+    'scripts/work-graph-start.c', 'scripts/lattice-start.c', 'scripts/approval-box-extension-start.c', 'scripts/auth-mediation-start.c', 'scripts/auth-mediation/relay.py', 'scripts/auth-mediation/grant', 'scripts/terminal-key-load', 'scripts/verify-work-graph.py', 'scripts/verify-lattice.py', 'scripts/verify-approval-box-extension.py', 'scripts/verify-auth-mediation.py', 'scripts/verify-execution.py',
+    'scripts/install-work-graph-release.py', 'scripts/install-lattice-release.py', 'scripts/install-approval-box-extension-release.py', 'scripts/install-auth-mediation-release.py', 'scripts/install-execution-release.py',
     'scripts/module-worker-termination.py', 'scripts/body-preflight.mjs', 'scripts/container-update-service.py', 'scripts/container-update-compose.mjs', 'scripts/read-container-update-normal.mjs',
     'runtime/home/auth.json', '.env', 'config/bots.json', 'services/subscriptions/keys/private.p8',
     'distribution/server/bridge/bridge.env',
@@ -71,8 +71,6 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
       await readFile(join(output, 'distribution/server', name), 'utf8'))
   }
   for (const name of ['package.json', 'package-lock.json']) assert.ok(pathsInArchive.includes('distribution/lattice/' + name))
-  // a490h: the pin of the hosted Approval Box connector must reach the image build (the Dockerfile reads it from distribution/approval-box/).
-  for (const name of ['package.json', 'package-lock.json']) assert.ok(pathsInArchive.includes('distribution/approval-box/' + name))
   // a505 / a506m2: the emergency path ships inside the image, not only in the repository (Z172 lab: both were missing).
   assert.ok(pathsInArchive.includes('distribution/server/emergency-body.sh') && pathsInArchive.includes('scripts/emergency-body.py'))
   assert.ok(pathsInArchive.includes('config/setup-guide.json'))

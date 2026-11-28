@@ -43,6 +43,7 @@ export async function ownerDecisions(charts, { laneOf, names, bots, records, eff
   for (const [key, item] of Object.entries(record)) {
     if (item.status !== 'open' && item.status !== 'reask') continue
     const chart = byId.get(item.projectId)
+    if (!chart) continue
     let value
     try { value = await effect('decisions.read', { decisionId: item.decisionId }) } catch (error) {
       log(`lattice-owner-read ${key} ${error?.code ?? 'FAILED'}`)
@@ -67,7 +68,7 @@ export async function ownerDecisions(charts, { laneOf, names, bots, records, eff
       continue
     }
     // A legacy Lattice-filed card the Owner cannot read is withdrawn and handed to the creator below, in this tick (L19).
-    const creator = chart?.createdBy
+    const creator = chart.createdBy
     if ((value.status === 'pending' || value.status === 'held') && (item.status === 'reask' || (OPEN.has(cards.get(key)?.state) && bots.has(creator)))) {
       // The intent is durable before the cancel, so an ambiguous cancel or a failed write resumes next tick.
       if (item.status !== 'reask') { record[key] = { ...item, status: 'reask' }; await records.write(record) }

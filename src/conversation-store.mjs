@@ -1,14 +1,31 @@
 import { deliveryError } from './conversation-writer.mjs'
 import { deliveryTracking } from './delivery-tracking.mjs'
-import { watch } from 'node:fs'
-import { mkdir, open } from 'node:fs/promises'
+import { closeSync, fstatSync, openSync, readSync, watch } from 'node:fs'
+import { mkdir, stat } from 'node:fs/promises'
+import { read as readFile } from 'node:fs'
+import { promisify } from 'node:util'
 import { dirname, basename } from 'node:path'
 import { TimelineIndex } from './timeline-index.mjs'
 import { contentOf } from './origin-reference.mjs'
 
+const readAt = promisify(readFile)
+const DIRECT = 'bellteam.direct-message.v1', INTERIM = 'bellteam.interim-word.v1', STATUS = 'bellteam.delivery-status.v1'
+// The log is the store; memory keeps one small Ref per record and reads a body from the file when a row is drawn (history-store.md).
+const CHUNK = 8 << 20, BODIES = 2048, STRINGS = 10000
+const strings = new Map()
+// The same few ids, schemas and states repeat in every record; one string each, bounded so a stray value cannot grow the table.
+const word = value => {
+  if (typeof value !== 'string') return value
+  const found = strings.get(value)
+  if (found !== undefined) return found
+  if (strings.size < STRINGS) strings.set(value, value)
+  return value
+}
+
 export class ConversationStore {
   // machineRow(botId, rowId) -> {sender, at, text} | null: a machine seat's stream row can be quoted and forwarded (machine-stream.md).
-  constructor({ logPath, onCorruption = logCorruption, machineRow = async () => null }) {
+  constructor({ logPath, onCorruption = logCorruption, machineRow = async () => null, chunkBytes = CHUNK }) {
+    this.chunkBytes = chunkBytes
     this.machineRow = machineRow
     this.logPath = logPath
     this.onCorruption = onCorruption
@@ -18,28 +35,63 @@ export class ConversationStore {
     this.listeners = new Set()
     this.preview = null
   }
-  async records() { return (await this.entries()).filter(record => record.schema === 'bellteam.direct-message.v1') }
+  // The whole-log reads below load every body; the callers that run per message use byId / durableQueued / turnEntries / forkEntries.
+  async records() {
+    const state = await this.snapshot()
+    return state.entries.filter(ref => ref.schema === DIRECT).map(ref => record(state, ref))
+  }
   async durableReceipts() {
+    const state = await this.durableState()
+    return state.entries.filter(ref => ref.schema === DIRECT && ref.durable).map(ref => resolveStatus(load(state, ref), state.statuses))
+  }
+  // Saved rows still waiting to be dispatched: the state is read from the status map, only these bodies are loaded.
+  async durableQueued() {
+    const state = await this.durableState()
+    return state.entries.filter(ref => ref.schema === DIRECT && ref.durable && (state.statuses.get(ref.id) ?? ref).delivery === 'queued')
+      .map(ref => resolveStatus(load(state, ref), state.statuses))
+  }
+  // The saved rows of one delivery ID (durableReceipts for a single ID).
+  async durableOf(deliveryId) {
+    const state = await this.durableState()
+    return (state.byDelivery.get(deliveryId) ?? []).filter(ref => ref.durable).map(ref => resolveStatus(load(state, ref), state.statuses))
+  }
+  async durableState() {
     await this.snapshot()
     if (this.read.anchorInvalid) throw Object.assign(new Error('MESSAGE_LOG_INVALID'), { code: 'MESSAGE_LOG_INVALID' })
     // Preview rows without LF are display-only, never execution authority.
-    return this.read.entries.filter(record => record.schema === 'bellteam.direct-message.v1' && record.durable_receipt === true)
-      .map(record => resolveStatus(record, this.read.statuses))
+    return this.read
+  }
+  // The direct-message rows saved under one delivery ID, with their latest status (empty when there is none).
+  async byId(deliveryId) {
+    const state = await this.snapshot()
+    return (state.byDelivery.get(deliveryId) ?? []).map(ref => record(state, ref))
+  }
+  // What a turn report reads: the rows of one Bot inside [startedAt, endedAt]. Times come from the index; only these bodies are loaded.
+  async turnEntries(botId, startedAt, endedAt) {
+    const state = await this.snapshot()
+    return (state.byBot.get(botId) ?? []).filter(ref => ref.at >= startedAt && ref.at <= endedAt).map(ref => record(state, ref))
+  }
+  // Fork inquiries and their relays: the rows owedForkNotices / unsettledForkInquiries read.
+  async forkEntries() {
+    const state = await this.snapshot()
+    return state.entries.filter(ref => ref.interest).map(ref => record(state, ref))
   }
   async deliveryAnchor({ deliveryId, target, context, contextId }) {
     await this.snapshot()
-    const records = this.read.byDelivery.get(deliveryId), record = records?.length === 1 ? records[0] : null
-    return !this.read.anchorInvalid && record?.target === target && typeof record.from === 'string'
+    const state = this.read
+    const refs = state.byDelivery.get(deliveryId), record = refs?.length === 1 ? load(state, refs[0]) : null
+    return !state.anchorInvalid && record?.target === target && typeof record.from === 'string'
       && typeof record.message === 'string' && typeof record.at === 'string'
       ? { deliveryId, target, context, contextId } : null
   }
   async workInput(input) {
     await this.snapshot()
-    const records = this.read.byDelivery.get(input.deliveryId), record = records?.length === 1 ? records[0] : null
-    if (this.read.anchorInvalid || input.context !== 'direct' || input.contextId !== input.botId
+    const state = this.read
+    const refs = state.byDelivery.get(input.deliveryId), record = refs?.length === 1 ? load(state, refs[0]) : null
+    if (state.anchorInvalid || input.context !== 'direct' || input.contextId !== input.botId
       || record?.target !== input.botId || typeof record.from !== 'string' || typeof record.at !== 'string'
       || typeof record.message !== 'string' || !record.message.trim()) return null
-    const status = (this.read.statuses.get(input.deliveryId) ?? record).delivery
+    const status = (state.statuses.get(input.deliveryId) ?? record).delivery
     return { ...input, text: [...record.message].slice(0, 4000).join(''),
       progress: ['running', 'steered', 'delivered', 'failed', 'stopped'].includes(status) ? status : '' }
   }
@@ -47,27 +99,26 @@ export class ConversationStore {
   async quoteSource(botId, id) {
     if (/^me-\d+-\d+$/u.test(id)) { const row = await this.machineRow(botId, id); return row ? { ...row, image: false } : null }
     const state = await this.snapshot()
-    const rows = state.byDelivery.get(id), row = rows?.length === 1 ? rows[0] : null
+    const rows = state.byDelivery.get(id), row = rows?.length === 1 ? load(state, rows[0]) : null
     if (row && ((row.from === 'user' && row.target === botId) || (row.from === botId && row.target === 'user')))
       return { sender: { id: row.from, ...(row.from_identity?.name ? { name: row.from_identity.name } : {}) }, at: row.at, text: row.message, image: row.image === true }
-    const word = state.byBot.get(botId)?.find(record => record.schema === 'bellteam.interim-word.v1' && record.id === id)
-    return word ? { sender: { id: botId }, at: word.at, text: word.text, image: false } : null
+    const ref = state.interims.get(interimKey(botId, id)), words = ref ? load(state, ref) : null
+    return words ? { sender: { id: botId }, at: words.at, text: words.text, image: false } : null
   }
   // forward.md "What can be forwarded": a row of this Bot's conversation (Owner, Bot, peer) or the Bot's in-turn words.
   async forwardSource(botId, id) {
     if (/^me-\d+-\d+$/u.test(id)) { const row = await this.machineRow(botId, id); return row ? { ...row, imageAssets: [] } : null }
     const state = await this.snapshot()
-    const rows = state.byDelivery.get(id), row = rows?.length === 1 ? rows[0] : null
+    const rows = state.byDelivery.get(id), row = rows?.length === 1 ? load(state, rows[0]) : null
     if (row && (row.from === botId || row.target === botId))
       return { sender: { id: row.from, ...(row.from_identity?.name ? { name: row.from_identity.name } : {}) }, at: row.at,
         text: contentOf(row), imageAssets: row.image_assets ?? (row.image_asset ? [row.image_asset] : []), fileAssets: row.file_assets ?? [], origin: row.origin }
-    const word = state.byBot.get(botId)?.find(record => record.schema === 'bellteam.interim-word.v1' && record.id === id)
-    return word ? { sender: { id: botId }, at: word.at, text: word.text, imageAssets: [] } : null
+    const ref = state.interims.get(interimKey(botId, id)), words = ref ? load(state, ref) : null
+    return words ? { sender: { id: botId }, at: words.at, text: words.text, imageAssets: [] } : null
   }
   async entries() {
     const state = await this.snapshot()
-    return state.resolved ??= state.entries.map(record => record.schema === 'bellteam.direct-message.v1' && state.statuses.has(record.delivery_id)
-      ? resolveStatus(record, state.statuses) : record)
+    return state.entries.map(ref => record(state, ref))
   }
   snapshot() {
     const run = this.queue.then(() => this.readAppended())
@@ -75,47 +126,61 @@ export class ConversationStore {
     return run
   }
   async readAppended() {
-    let file
-    try { file = await open(this.logPath, 'r') }
+    let info
+    try { info = await stat(this.logPath, { bigint: true }) }
     catch (error) {
       if (error.code !== 'ENOENT') throw error
       if (this.observedSize !== null) this.changed({ all: true })
       this.observedSize = null; this.preview = null
+      retire(this.read.reader)
       return this.read = emptyRead()
     }
-    try {
-      const info = await file.stat({ bigint: true })
+    {
       const size = Number(info.size), ino = `${info.dev}:${info.ino}`, mtimeMs = Number(info.mtimeMs)
       const signature = `${info.mtimeNs}:${info.ctimeNs}`
       const reset = ino !== this.read.ino || (this.observedSize !== null && size < this.observedSize)
         || (size === this.observedSize && signature !== this.read.signature)
       this.observedSize = size
       if (reset) {
+        retire(this.read.reader)
         this.read = { ...emptyRead(), ino, mtimeMs, signature }
         this.preview = null
         this.changed({ all: true })
       }
-      if (size === this.read.offset) return this.read
-      const buffer = Buffer.alloc(size - this.read.offset)
-      const { bytesRead } = await file.read(buffer, 0, buffer.length, this.read.offset)
-      const complete = bytesRead ? buffer.lastIndexOf(0x0a, bytesRead - 1) + 1 : 0
-      const previewChanged = this.preview && complete && buffer.toString('utf8', 0, buffer.indexOf(0x0a)) !== this.preview.text
-      const { records, lines } = parseRecords(buffer.subarray(0, complete), this.read, diagnostic => {
+      const fd = this.read.reader.open(this.logPath)
+      const onCorruption = diagnostic => {
         this.read.anchorInvalid = true
         // 診断先の失敗や未終端Promiseで、有効な履歴の読取りを止めない。
         try { Promise.resolve(this.onCorruption(diagnostic)).catch(() => logCorruption(diagnostic)) }
         catch { logCorruption(diagnostic) }
-      })
-      if (complete) {
+      }
+      // The new bytes are read and applied one chunk of whole lines at a time, so a first read of a large log never holds it all.
+      let want = this.chunkBytes, previewChanged = false, first = true, changed = false
+      const bots = new Set(); let all = false
+      while (this.read.offset < size) {
+        const buffer = Buffer.alloc(Math.min(want, size - this.read.offset))
+        const { bytesRead } = await readAt(fd, buffer, 0, buffer.length, this.read.offset)
+        const complete = bytesRead ? buffer.lastIndexOf(0x0a, bytesRead - 1) + 1 : 0
+        if (!complete) {
+          // A line longer than the chunk: read a larger one. No LF to the end of the file is the tail.
+          if (this.read.offset + bytesRead < size && bytesRead === buffer.length) { want *= 2; continue }
+          break
+        }
+        if (first) previewChanged = Boolean(this.preview) && buffer.toString('utf8', 0, buffer.indexOf(0x0a)) !== this.preview.text
+        first = false
+        const { records, lines } = parseRecords(buffer.subarray(0, complete), this.read, onCorruption)
         const change = applyRecords(records, this.read)
         this.read.offset += complete
         this.read.lines += lines
         this.preview = null
-        if (records.length || previewChanged) this.changed({ ...change, all: change.all || Boolean(previewChanged) })
+        if (records.length) { changed = true; change.botIds.forEach(id => bots.add(id)); all ||= change.all }
       }
+      if (changed || previewChanged) this.changed({ botIds: [...bots], all: all || previewChanged })
       this.read.mtimeMs = mtimeMs; this.read.signature = signature
-      if (complete === bytesRead) return this.read
-      const rest = buffer.toString('utf8', complete, bytesRead)
+      if (this.read.offset === size) return this.read
+      const tail = Buffer.alloc(size - this.read.offset)
+      const { bytesRead: tailBytes } = await readAt(fd, tail, 0, tail.length, this.read.offset)
+      const rest = tail.toString('utf8', 0, tailBytes)
       let value
       try { value = JSON.parse(rest) } catch { return this.read }
       validateRecord(value, this.read.lines + 1)
@@ -123,12 +188,12 @@ export class ConversationStore {
       // 内容が同じ間は表示を再利用し、確定した行へ二重に追加しない。
       if (this.preview?.text !== rest || this.preview.base !== this.read) {
         const state = cloneRead(this.read)
-        applyRecords([value], state)
+        applyRecords([{ record: value, off: this.read.offset, len: Buffer.byteLength(rest) }], state)
         this.preview = { text: rest, base: this.read, state }
-        this.changed(changeFor([value], this.read))
+        this.changed(changeFor([{ record: value }], this.read))
       }
       return this.preview.state
-    } finally { await file.close() }
+    }
   }
   async timelineView(botId) {
     const state = await this.snapshot()
@@ -136,7 +201,8 @@ export class ConversationStore {
   }
   async timeline(botId) {
     const state = await this.snapshot(), view = botView(state, botId)
-    return view.snapshot ??= (state.byBot.get(botId) ?? []).filter(listed).map(key => view.index.get(key))
+    // Not kept: each call reads the rows it returns (the old API's whole list) and lets them go.
+    return (state.byBot.get(botId) ?? []).filter(listed).map(key => view.index.get(key))
   }
   async timelineViews(botIds) {
     const state = await this.snapshot()
@@ -225,8 +291,53 @@ function peerItem(record, direction, peer) {
 }
 
 function emptyRead() {
-  return { ino: null, mtimeMs: null, offset: 0, lines: 0, anchorInvalid: false, entries: [], statuses: new Map(), byBot: new Map(), byDelivery: new Map(), views: new Map(), resolved: null }
+  return { ino: null, mtimeMs: null, offset: 0, lines: 0, anchorInvalid: false, entries: [], statuses: new Map(), byBot: new Map(), byDelivery: new Map(), interims: new Map(), views: new Map(), reader: new Reader() }
 }
+// One small index row per saved record; the body stays in the file at [off, off + len).
+class Ref {
+  constructor(record, off, len) {
+    const direct = record.schema === DIRECT, fork = record.seat?.kind === 'fork'
+    this.schema = word(record.schema)
+    this.id = record.schema === INTERIM ? record.id : record.delivery_id
+    this.at = record.at
+    this.from = word(record.from); this.target = word(record.target); this.bot = word(record.bot)
+    this.stream = record.stream === true
+    this.durable = direct && record.durable_receipt === true
+    this.delivery = word(record.delivery)
+    this.interest = fork || (direct && typeof record.in_reply_to === 'string')
+    this.off = off; this.len = len
+  }
+}
+// The file is read through one descriptor per file generation; a replaced file's descriptor closes a minute after its state is dropped.
+class Reader {
+  constructor() { this.fd = null; this.closed = false; this.bodies = new Map() }
+  open(path) { return this.fd ??= openSync(path, 'r') }
+}
+function retire(reader) {
+  if (reader?.fd == null) return
+  const fd = reader.fd
+  setTimeout(() => { reader.closed = true; try { closeSync(fd) } catch { /* already closed */ } }, 60000).unref()
+}
+const invalid = reason => Object.assign(new Error(`MESSAGE_LOG_INVALID: ${reason}`), { code: 'MESSAGE_LOG_INVALID' })
+// The saved record of a Ref, read from the file (the last BODIES bodies are kept). A body that no longer matches its Ref means the file moved under us.
+function load(state, ref) {
+  const reader = state.reader, kept = reader.bodies.get(ref.off)
+  if (kept) { reader.bodies.delete(ref.off); reader.bodies.set(ref.off, kept); return kept }
+  if (reader.fd === null || reader.closed) throw invalid('log closed')
+  const buffer = Buffer.alloc(ref.len)
+  if (readSync(reader.fd, buffer, 0, ref.len, ref.off) !== ref.len) throw invalid('log moved')
+  let value
+  try { value = JSON.parse(buffer.toString('utf8')) } catch { throw invalid('log moved') }
+  if ((value.schema === INTERIM ? value.id : value.delivery_id) !== ref.id || value.at !== ref.at) throw invalid('log moved')
+  reader.bodies.set(ref.off, value)
+  if (reader.bodies.size > BODIES) reader.bodies.delete(reader.bodies.keys().next().value)
+  return value
+}
+const record = (state, ref) => {
+  const value = load(state, ref)
+  return ref.schema === DIRECT && state.statuses.has(ref.id) ? resolveStatus(value, state.statuses) : value
+}
+const interimKey = (bot, id) => `${bot}\0${id}`
 function participants(record) {
   return record.schema === 'bellteam.interim-word.v1' ? [record.bot]
     : [...new Set([record.from, record.target].filter(id => id !== 'user'))]
@@ -242,29 +353,25 @@ function resolveStatus(record, statuses) {
 // A machine seat's final answer is saved for the turn's result, export and push but the stream row is the one drawn (machine-stream.md).
 const listed = record => record.stream !== true
 function display(record, bot, statuses) {
-  if (record.schema === 'bellteam.interim-word.v1') return interimItem(record)
+  if (record.schema === INTERIM) return interimItem(record)
   const value = resolveStatus(record, statuses)
   if (record.from === 'user' && record.target === bot) return messageItem(value, 'outgoing')
   if (record.from === bot && record.target === 'user') return messageItem(value, 'incoming')
   if (record.from === bot && record.target !== 'user') return peerItem(value, 'sent', record.target)
   return peerItem(value, 'received', record.from)
 }
+// A Bot's rows are listed by Ref; the index draws a row (reads its body) only when a page, a cursor or the newest row asks for it.
 function botView(state, bot) {
   if (!state.views.has(bot)) {
-    const records = state.byBot.get(bot) ?? []
-    const shown = records.filter(listed)
-    const view = { index: new TimelineIndex(shown.map(record => display(record, bot, state.statuses)), shown), snapshot: null }
-    state.views.set(bot, view)
+    const shown = (state.byBot.get(bot) ?? []).filter(listed)
+    state.views.set(bot, { index: new TimelineIndex(shown, shown, ref => display(load(state, ref), bot, state.statuses)) })
   }
   return state.views.get(bot)
 }
-function put(view, key, item) {
-  view.index.set(key, item); view.snapshot = null
-}
-function changeFor(records, state) {
+function changeFor(items, state) {
   const bots = new Set(); let all = false
-  for (const record of records) {
-    if (record.schema === 'bellteam.delivery-status.v1') {
+  for (const { record } of items) {
+    if (record.schema === STATUS) {
       const originals = state.byDelivery.get(record.delivery_id)
       if (!originals?.length) all = true
       for (const original of originals ?? []) for (const bot of participants(original)) bots.add(bot)
@@ -272,32 +379,34 @@ function changeFor(records, state) {
   }
   return { botIds: [...bots], all }
 }
-function applyRecords(records, state) {
-  for (const record of records) {
-    if (record.schema === 'bellteam.delivery-status.v1') {
-      state.statuses.set(record.delivery_id, record)
-      for (const original of state.byDelivery.get(record.delivery_id) ?? []) {
+// items: { record, off, len } as read from the file; a status record only updates the latest-status map.
+function applyRecords(items, state) {
+  for (const { record: value, off, len } of items) {
+    if (value.schema === STATUS) {
+      const { delivery, delivery_error, delivery_tracking, steered } = value
+      state.statuses.set(value.delivery_id, { delivery, delivery_error, delivery_tracking, steered })
+      for (const original of state.byDelivery.get(value.delivery_id) ?? []) {
         for (const bot of participants(original)) {
           const view = state.views.get(bot)
-          if (view && listed(original)) put(view, original, display(original, bot, state.statuses))
+          if (view && listed(original)) view.index.set(original, original)
         }
       }
-    } else {
-      state.entries.push(record)
-      if (record.schema === 'bellteam.direct-message.v1') {
-        if (!state.byDelivery.has(record.delivery_id)) state.byDelivery.set(record.delivery_id, [])
-        state.byDelivery.get(record.delivery_id).push(record)
-      }
-      for (const bot of participants(record)) {
-        if (!state.byBot.has(bot)) state.byBot.set(bot, [])
-        state.byBot.get(bot).push(record)
-        const view = state.views.get(bot)
-        if (view && listed(record)) put(view, record, display(record, bot, state.statuses))
-      }
-    }
+    } else addRef(state, new Ref(value, off, len))
   }
-  state.resolved = null
-  return changeFor(records, state)
+  return changeFor(items, state)
+}
+function addRef(state, ref) {
+  state.entries.push(ref)
+  if (ref.schema === DIRECT) {
+    if (!state.byDelivery.has(ref.id)) state.byDelivery.set(ref.id, [])
+    state.byDelivery.get(ref.id).push(ref)
+  } else if (!state.interims.has(interimKey(ref.bot, ref.id))) state.interims.set(interimKey(ref.bot, ref.id), ref)
+  for (const bot of participants(ref)) {
+    if (!state.byBot.has(bot)) state.byBot.set(bot, [])
+    state.byBot.get(bot).push(ref)
+    const view = state.views.get(bot)
+    if (view && listed(ref)) view.index.set(ref, ref)
+  }
 }
 function validateRecord(record, line) {
   if (record?.schema === 'bellteam.direct-message.v1' || record?.schema === 'bellteam.interim-word.v1'
@@ -319,15 +428,15 @@ function parseRecords(buffer, state, onCorruption) {
         }
       }
       if (reason) onCorruption(Object.freeze({ code: 'MESSAGE_LOG_INVALID', line, offset: state.offset + start, length: bytes.length, reason }))
-      else records.push(record)
+      else records.push({ record, off: state.offset + start, len: bytes.length })
     }
     start = end + 1
   }
   return { records, lines }
 }
 function cloneRead(source) {
-  const state = { ...emptyRead(), ino: source.ino, mtimeMs: source.mtimeMs, offset: source.offset }
-  applyRecords(source.entries, state)
+  const state = { ...emptyRead(), ino: source.ino, mtimeMs: source.mtimeMs, offset: source.offset, reader: source.reader }
+  for (const ref of source.entries) addRef(state, ref)
   state.statuses = new Map(source.statuses); state.lines = source.lines
   return state
 }

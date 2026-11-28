@@ -467,11 +467,21 @@ struct LatticeChartCard: View {
                 HStack {
                     LatticeFaces(people: Array(faces), size: 24)
                     Spacer()
-                    Label("接続 \(chart.connections)", systemImage: "link")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(chart.connections > 0 ? LatticePalette.amber : LatticePalette.muted)
-                        .padding(.horizontal, 9).padding(.vertical, 4)
-                        .background((chart.connections > 0 ? LatticePalette.amber : LatticePalette.muted).opacity(0.12), in: Capsule())
+                    HStack(spacing: 6) {
+                        // 催促 badge beside 接続: shown only while this chart's nudge is on (reference look for every app).
+                        if chart.nudgeOn {
+                            Label("催促", systemImage: "bell.fill")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(BellTheme.violet)
+                                .padding(.horizontal, 9).padding(.vertical, 4)
+                                .background(BellTheme.violet.opacity(0.12), in: Capsule())
+                        }
+                        Label("接続 \(chart.connections)", systemImage: "link")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(chart.connections > 0 ? LatticePalette.amber : LatticePalette.muted)
+                            .padding(.horizontal, 9).padding(.vertical, 4)
+                            .background((chart.connections > 0 ? LatticePalette.amber : LatticePalette.muted).opacity(0.12), in: Capsule())
+                    }
                 }
             }
         }
@@ -482,7 +492,7 @@ struct LatticeChartCard: View {
             .strokeBorder(pinned ? BellTheme.violet.opacity(0.45) : LatticePalette.line.opacity(0.7), lineWidth: pinned ? 1.5 : 0.5))
         .shadow(color: (pinned ? BellTheme.violet : .black).opacity(pinned ? 0.12 : 0.05), radius: pinned ? 16 : 8, y: 4)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(title)\(chart.isCoordinator ? "、統括の工程表" : "")、完了 \(chart.done)/\(chart.total)、接続 \(chart.connections)\(faces.isEmpty ? "" : "、動いているのは\(faces.map(\.name).joined(separator: "、"))")")
+        .accessibilityLabel("\(title)\(chart.isCoordinator ? "、統括の工程表" : "")、完了 \(chart.done)/\(chart.total)、接続 \(chart.connections)\(chart.nudgeOn ? "、催促オン" : "")\(faces.isEmpty ? "" : "、動いているのは\(faces.map(\.name).joined(separator: "、"))")")
         .accessibilityAddTraits(.isButton)
     }
 }

@@ -1,11 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createLatticeFacade, createLatticeEffects, NUDGE_MS, QUEUE_WAIT_MS, SEAT_ANSWER_MS } from '../src/lattice-facade.mjs'
+import { createLatticeFacade, createLatticeEffects, MAX_WRITES, NUDGE_MS, QUEUE_WAIT_MS, SEAT_ANSWER_MS } from '../src/lattice-facade.mjs'
 
 const tick = () => new Promise(resolve => setImmediate(resolve))
 const snap = (projectId, version) => ({ schema: 'bellteam.lattice-chart.v1', projectId, epoch: 'e', version })
 
-function fixture({ respond = () => null, now } = {}) {
+function fixture({ respond = () => null, now, nudgeMs, reminders } = {}) {
   const calls = [], timers = [], nudges = []
   let gate = null
   const controller = { request: async (method, params) => {
@@ -15,8 +15,8 @@ function fixture({ respond = () => null, now } = {}) {
     if (value instanceof Error) throw value
     return value ?? (method === 'refresh' ? { snapshots: [], nextRefreshMs: 2000 } : { method, params })
   } }
-  const facade = createLatticeFacade({ controller, ...(now && { now }),
-    // The nudge timer (60 s, always armed) and the seat answer timers are kept apart from the refresh loop's timers.
+  const facade = createLatticeFacade({ controller, nudgeMs, reminders, ...(now && { now }),
+    // The nudge timer (60 s when enabled) and the seat answer timers are kept apart from the refresh loop's timers.
     setTimer: (run, ms) => { const timer = { run, ms }; (ms === NUDGE_MS ? nudges : ms === SEAT_ANSWER_MS ? [] : timers).push(timer); return timer }, clearTimer: timer => { if (timer) timer.cleared = true } })
   const fire = async () => { for (const timer of timers.splice(0)) if (!timer.cleared) timer.run(); await tick(); await tick() }
   return { facade, calls, timers, nudges, fire, hold: () => { let open; gate = new Promise(resolve => { open = resolve }); return () => { gate = null; open() } } }
@@ -54,17 +54,75 @@ test('a seat run that writes nothing goes at once beside a write in flight; a wr
   assert.deepEqual(f.calls.slice(-2).map(([, params]) => params.args[1] ?? params.name), ['note', '工程表'])
 })
 
-test('seat writes go before queued background writes; the write in flight finishes first', async () => {
+test('seat writes go before queued background writes of their lane; the write in flight finishes first', async () => {
   const f = fixture()
   const release = f.hold()
   const nudge = f.facade.nudge()
   await tick()
-  const later = [f.facade.deliver(), f.facade.run({ from: 'bot-a', projectId: 'alpha', args: ['todo', 'start'] }), f.facade.unblock({ projectId: 'alpha', stopId: 'a'.repeat(24) })]
+  const later = [f.facade.deliver(), f.facade.link({ projectId: 'alpha', plan: 'p', taskId: 't' })]
   await tick()
   assert.deepEqual(f.calls.map(([method]) => method), ['nudge'])
   release()
   await Promise.all([nudge, ...later])
-  assert.deepEqual(f.calls.map(([method]) => method), ['nudge', 'run', 'unblock', 'deliver'])
+  assert.deepEqual(f.calls.map(([method]) => method), ['nudge', 'link', 'deliver'])
+})
+
+// f20 (Trony 2026-11-26): one write line for every project made a chart edit wait 15-37 s behind the ~40 s writes of the largest plan.
+const writeOn = (f, projectId, step) => f.facade.run({ from: 'bot-a', projectId, args: ['todo', step] })
+
+test('f20: writes of different projects run beside each other; one project keeps its order and a slow project holds no other', async () => {
+  const f = slowChild()
+  const a1 = writeOn(f, 'alpha', 'a1'), a2 = writeOn(f, 'alpha', 'a2'), b1 = writeOn(f, 'beta', 'b1')
+  await tick()
+  assert.deepEqual(f.sent, ['a1', 'b1'], 'beta is sent beside alpha; the second alpha write waits for the first')
+  f.finish[1]()
+  assert.equal((await b1).method, 'run')
+  const b2 = writeOn(f, 'beta', 'b2')
+  await tick()
+  assert.deepEqual(f.sent, ['a1', 'b1', 'b2'], 'beta goes on while alpha is still held')
+  f.finish[0]()
+  await tick(); await tick()
+  assert.deepEqual(f.sent, ['a1', 'b1', 'b2', 'a2'])
+  f.finish[2](); f.finish[3]()
+  await Promise.all([a1, a2, b2])
+})
+
+test('f20: a nudge in flight holds no seat write of a project; a seat write of its lane goes before the queued deliver', async () => {
+  const f = slowChild()
+  const nudge = f.facade.nudge()
+  await tick()
+  const deliver = f.facade.deliver(), link = f.facade.link({ projectId: 'alpha', plan: 'p', taskId: 't' }), write = writeOn(f, 'alpha', 'a1')
+  await tick()
+  assert.deepEqual(f.sent, ['nudge', 'a1'], 'the project write is sent beside the sweep; link and deliver wait for the shared lane')
+  f.finish[0]()
+  await tick(); await tick()
+  assert.deepEqual(f.sent, ['nudge', 'a1', 'link'])
+  f.finish[2]()
+  await tick(); await tick()
+  assert.deepEqual(f.sent, ['nudge', 'a1', 'link', 'deliver'])
+  f.finish[1](); f.finish[3]()
+  await Promise.all([nudge, deliver, link, write])
+})
+
+test('f20: at most MAX_WRITES writes are in flight; a freed place goes to the oldest seat write before a background write', async () => {
+  const f = slowChild()
+  const writes = ['p1', 'p2', 'p3', 'p4', 'p5'].map(id => writeOn(f, id, id))
+  const nudge = f.facade.nudge()
+  const late = writeOn(f, 'p6', 'p6')
+  await tick()
+  assert.equal(MAX_WRITES, 4)
+  assert.deepEqual(f.sent, ['p1', 'p2', 'p3', 'p4'])
+  f.finish[0]()
+  await tick(); await tick()
+  assert.deepEqual(f.sent, ['p1', 'p2', 'p3', 'p4', 'p5'])
+  f.finish[1]()
+  await tick(); await tick()
+  assert.deepEqual(f.sent.slice(5), ['p6'], 'the seat write is sent before the nudge that was queued earlier')
+  f.finish[2]()
+  await tick(); await tick()
+  assert.deepEqual(f.sent.slice(6), ['nudge'])
+  for (const end of f.finish.slice(3)) end()
+  await Promise.all([...writes, nudge, late])
 })
 
 test('a write queued past the wait bound is never sent; the next write is sent at once', async () => {
@@ -136,6 +194,16 @@ test('a queued seat write unanswered at the answer bound resolves PENDING, stays
   f.finish[2]()
 })
 
+test('f30: the chart list carries the saved 催促 switch per chart; an unreadable setting or no store leaves the rows as the child sent them', async () => {
+  const list = () => ({ schema: 'bellteam.lattice-charts.v1', at: 'a', charts: [{ projectId: 'alpha', name: 'A' }, { projectId: 'beta', name: 'B' }] })
+  const respond = method => method === 'charts' ? list() : null
+  const on = fixture({ respond, reminders: { enabledProjects: async () => ['beta', 'gone'] } })
+  assert.deepEqual((await on.facade.charts()).charts, [{ projectId: 'alpha', name: 'A', reminders: false }, { projectId: 'beta', name: 'B', reminders: true }])
+  const broken = fixture({ respond, reminders: { enabledProjects: async () => { throw new Error('disk') } } })
+  assert.deepEqual((await broken.facade.charts()).charts, list().charts, 'the list never fails for the badge')
+  assert.deepEqual((await fixture({ respond }).facade.charts()).charts, list().charts)
+})
+
 test('subscribers get only their chart; the loop follows nextRefreshMs and stops with the last subscriber', async () => {
   let next = { snapshots: [snap('alpha', 1), snap('beta', 1)], nextRefreshMs: 2000 }
   const f = fixture({ respond: method => method === 'refresh' ? next : null })
@@ -193,18 +261,41 @@ test('members.list returns exactly the agreed fields; other effects are refused'
   await assert.rejects(effect('queue.read', {}), { code: 'LATTICE_EFFECT_INVALID' })
 })
 
+test('nudge: a null interval disables automatic calls and keeps explicit calls available', async () => {
+  const f = fixture({ nudgeMs: null })
+  assert.deepEqual([...f.timers, ...f.nudges], [])
+  assert.deepEqual(f.calls, [])
+  await f.facade.nudge()
+  assert.deepEqual(f.calls, [['nudge', { projectIds: [] }]])
+  assert.deepEqual([...f.timers, ...f.nudges], [])
+})
+
 test('nudge: one 60 s timer from creation, re-armed after each call, failures swallowed', async () => {
   let down = false
   const f = fixture({ respond: method => method === 'nudge' && down ? Object.assign(new Error('x'), { code: 'LATTICE_INVALID' }) : { charts: 1, prompted: 1, skipped: 0, failed: 0 } })
   assert.deepEqual(f.nudges.map(timer => timer.ms), [NUDGE_MS])
   assert.deepEqual(f.calls, [])
   f.nudges.shift().run(); await tick(); await tick()
-  assert.deepEqual(f.calls, [['nudge', {}]])
+  assert.deepEqual(f.calls, [['nudge', { projectIds: [] }]])
   assert.equal(f.nudges.length, 1, 're-armed after the call')
   down = true
   f.nudges.shift().run(); await tick(); await tick()
   assert.equal(f.calls.length, 2)
   assert.equal(f.nudges.length, 1, 'an old child refusing nudge does not stop the timer')
+})
+
+test('a sweep queued behind a write of its lane uses the switches saved before dispatch', async () => {
+  let enabled = ['alpha']
+  const f = fixture({ reminders: { enabledProjects: async () => enabled } })
+  const release = f.hold()
+  const write = f.facade.link({ projectId: 'alpha', plan: 'p', taskId: 't' })
+  f.nudges.shift().run()
+  assert.deepEqual(f.calls.map(([method]) => method), ['link'])
+  enabled = ['beta']
+  release()
+  await write
+  await tick()
+  assert.deepEqual(f.calls.at(-1), ['nudge', { projectIds: ['beta'] }])
 })
 
 test('turns.read: working and idle pass, anything else or a failed read is unknown', async () => {
@@ -242,7 +333,7 @@ test('messages.send runs the messenger in the actor scope named by from, outside
 
 // a156 (Flora R3, Approval Box extension): ownerTask and link are seat-queue writes; ownerTask refreshes its chart's subscribers like run;
 // the child's LATTICE_OWNER_TASK_REFUSED keeps its code (403 path); an old child's LATTICE_INVALID_METHOD-like failure is 503.
-test('a156: ownerTask and link queue as writes one at a time; ownerTask refreshes its subscribers; the refusal code passes', async () => {
+test('a156: ownerTask (its project lane) and link (the shared lane) queue as writes; ownerTask refreshes its subscribers; the refusal code passes', async () => {
   const f = fixture({ respond: (method, params) => method === 'ownerTask' && params.args[0] === 'refused'
     ? Object.assign(new Error('refused'), { code: 'LATTICE_OWNER_TASK_REFUSED', status: 403 }) : method === 'link' && params.taskId === 'old'
       ? Object.assign(new Error('x'), { code: 'SOMETHING_ELSE' }) : null })
@@ -252,7 +343,7 @@ test('a156: ownerTask and link queue as writes one at a time; ownerTask refreshe
   const release = f.hold()
   const writes = [f.facade.ownerTask({ projectId: 'alpha', args: ['todo', 'add'], input: { a: 1 } }), f.facade.link({ projectId: 'alpha', plan: 'p', taskId: 't' })]
   await tick()
-  assert.deepEqual(f.calls.filter(call => ['ownerTask', 'link'].includes(call[0])).map(call => call[0]), ['ownerTask'], 'one write at a time')
+  assert.deepEqual(f.calls.filter(call => ['ownerTask', 'link'].includes(call[0])).map(call => call[0]), ['ownerTask', 'link'], 'two lanes, sent beside each other')
   release(); await Promise.all(writes)
   assert.deepEqual(f.calls.filter(call => ['ownerTask', 'link'].includes(call[0])), [['ownerTask', { projectId: 'alpha', args: ['todo', 'add'], input: { a: 1 } }], ['link', { projectId: 'alpha', plan: 'p', taskId: 't' }]])
   assert.ok(f.calls.some(call => call[0] === 'refresh' && call[1].projectIds?.[0] === 'alpha'), 'ownerTask asks the child for a fresh snapshot')

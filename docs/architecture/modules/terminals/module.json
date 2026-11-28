@@ -11,8 +11,7 @@
     "trust",
     "folder",
     "privilege",
-    "maintenance",
-    "door"
+    "maintenance"
   ],
   "uses": [
     {
@@ -21,7 +20,7 @@
     },
     {
       "module": "aiterm",
-      "port": "bin: aiterm-remote-terminal; agent_launch post-launch hook"
+      "port": "bin: aiterm-remote-terminal"
     }
   ],
   "source": [
@@ -30,8 +29,6 @@
     "src/terminals/connection.mjs",
     "src/terminals/remote-process.mjs",
     "src/terminals/paths.mjs",
-    "src/terminals/approval-door.mjs",
-    "src/terminals/approval-door-host.mjs",
     "src/terminals/trust-copy.mjs",
     "src/terminals/credential-agent.mjs",
     "src/terminals/trust-file.mjs"

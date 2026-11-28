@@ -1,0 +1,58 @@
+{
+  "title": "認証仲介",
+  "owner": "ライ",
+  "botId": "bot-24c81542",
+  "scope": "認証仲介：固定のコマンド1つにだけ秘密を渡す（独立module子）。Bot用MCP道具・席のscript用socket・main-server用host socket、方針・許可・監査・1Passwordの読取トークンの使用を持つ。秘密の保管はusage、mount・配布は共通組立、item書込はサクラ",
+  "external": false,
+  "provides": [
+    "auth-exec (MCP auth_exec; container socket; main-server host socket)",
+    "auth-admin (stop, resume, show, flush, audit, token, entry-set)",
+    "grant entry (grant, revoke only from the registered entry program, with the decision record)"
+  ],
+  "uses": [
+    {
+      "module": "members",
+      "port": "registry"
+    },
+    {
+      "module": "runtime",
+      "port": "seat-process"
+    },
+    {
+      "module": "runtime",
+      "port": "lifecycle"
+    },
+    {
+      "module": "runtime",
+      "port": "cli-registration"
+    },
+    {
+      "module": "usage",
+      "port": "secrets"
+    },
+    {
+      "module": "integration",
+      "port": "HTTP/MCP"
+    },
+    {
+      "module": "integration",
+      "port": "diagnostics"
+    }
+  ],
+  "source": [
+    "src/auth-mediation/core.mjs",
+    "src/auth-mediation/policy.mjs",
+    "src/auth-mediation/items.mjs",
+    "src/auth-mediation/env.mjs",
+    "src/auth-mediation/redact.mjs",
+    "src/auth-mediation/identity.mjs",
+    "src/auth-mediation/service.mjs",
+    "src/auth-mediation/mcp.mjs",
+    "src/auth-mediation-protocol.mjs",
+    "src/auth-mediation-ipc.mjs",
+    "src/auth-mediation-dispatcher.mjs",
+    "src/auth-mediation-entry.mjs",
+    "scripts/auth-mediation/relay.py",
+    "scripts/auth-mediation/grant"
+  ]
+}

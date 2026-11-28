@@ -11,6 +11,7 @@
 ```mermaid
 flowchart LR
   m_approval_box_extension["決裁箱拡張 / デルタ"]
+  m_auth_mediation["認証仲介 / ライ"]
   m_conversation["会話・履歴 / N102"]
   m_diagnostics["診断 / シグナル"]
   m_distribution["商用配布 / モリー"]
@@ -27,6 +28,13 @@ flowchart LR
   m_approval_box_extension -->|"lattice-owner-task (facade.ownerTask / facade.link, L20; caller: approval-box-extension, Delta)"| m_lattice
   m_approval_box_extension -->|"secrets"| m_usage
   m_approval_box_extension -->|"registry"| m_members
+  m_auth_mediation -->|"registry"| m_members
+  m_auth_mediation -->|"seat-process"| m_runtime
+  m_auth_mediation -->|"lifecycle"| m_runtime
+  m_auth_mediation -->|"cli-registration"| m_runtime
+  m_auth_mediation -->|"secrets"| m_usage
+  m_auth_mediation -->|"HTTP/MCP"| m_integration
+  m_auth_mediation -->|"diagnostics"| m_integration
   m_conversation -->|"turn"| m_execution
   m_conversation -->|"registry"| m_members
   m_conversation -->|"notify"| m_usage
@@ -44,6 +52,7 @@ flowchart LR
   m_execution -->|"seat-process"| m_runtime
   m_execution -->|"update"| m_runtime
   m_execution -->|"history"| m_conversation
+  m_execution -->|"seatStream (cursor, ingest)"| m_conversation
   m_execution -->|"settings"| m_usage
   m_execution -->|"connection"| m_terminals
   m_execution -->|"reachability"| m_terminals
@@ -70,7 +79,7 @@ flowchart LR
   m_integration -->|"lattice-chart"| m_lattice
   m_lattice -->|"registry"| m_members
   m_lattice -->|"messages"| m_conversation
-  m_lattice -->|"secrets"| m_usage
+  m_lattice -->|"approval-box-port (P1 approvals.decisions: file / read / cancel; decision-port.md)"| m_approval_box_extension
   m_members -->|"stop"| m_execution
   m_members -->|"project-files"| m_runtime
   m_members -->|"cli-registration"| m_runtime
@@ -99,6 +108,7 @@ flowchart LR
   m_usage -->|"lifecycle"| m_runtime
   m_usage -->|"seat-process"| m_runtime
   m_usage -->|"accounts"| m_execution
+  m_usage -->|"auth-exec (MCP auth_exec; container socket; main-server host socket)"| m_auth_mediation
   m_web -->|"HTTP/SSE"| m_integration
   m_work_graph -->|"observation"| m_execution
   m_work_graph -->|"registry"| m_members
@@ -147,7 +157,6 @@ flowchart LR
   m_execution -->|"context CLI"| m_throughline
   m_integration -->|"connector /v1 (HTTP)"| m_approval_box
   m_integration -->|"MCP /mcp"| m_bridge
-  m_lattice -->|"connector /v1 (HTTP)"| m_approval_box
   m_lattice -->|"contract: lattice CLI only (K1-K8, a102): charts list/source, chart set/repo, todo"| m_lattice_product
   m_linux -->|"HTTP/SSE"| m_integration
   m_memory -->|"context CLI"| m_throughline
@@ -164,7 +173,6 @@ flowchart LR
   m_runtime -->|"harness-entries.json"| m_rtk
   m_terminals -->|"bin: aiterm-remote-terminal"| m_aiterm
   m_usage -->|"MCP tools (stdio)"| m_aiterm
-  m_usage -->|"connection export (approval-box connection export --json)"| m_approval_box
   m_usage -->|"connection export (call-bridge.connection.v1)"| m_bridge
   m_windows -->|"HTTP/SSE"| m_integration
 ```
@@ -177,13 +185,14 @@ flowchart LR
 | [Androidアプリ](modules/android/README.md) | ネオン | public |
 | [Appleアプリ](modules/apple/README.md) | ベル |  |
 | [Approval Box](modules/approval-box/README.md) | ナユタ | connection export (approval-box connection export --json) / version --json (capabilities) / harness-entries (approval-box) / connector /v1 (HTTP) / bellteam client (client session on /v1: decisions, attachments GET, events, /me; connector /v1 pairing) |
-| [決裁箱拡張](modules/approval-box-extension/README.md) | デルタ | approvals-app-contract (/api/approvals/*) / decision-task-link |
+| [決裁箱拡張](modules/approval-box-extension/README.md) | デルタ | approvals-app-contract (/api/approvals/*) / decision-task-link / approval-box-port (P1 approvals.decisions: file / read / cancel; decision-port.md) |
+| [認証仲介](modules/auth-mediation/README.md) | ライ | auth-exec (MCP auth_exec; container socket; main-server host socket) / auth-admin (stop, resume, show, flush, audit, token, entry-set) / grant entry (grant, revoke only from the registered entry program) |
 | [call-bridge/grokbot-bridge](modules/bridge/README.md) | リター | connection export (call-bridge.connection.v1) / MCP /mcp |
 | [BugHub](modules/bughub/README.md) | フラジャイル | public |
 | [Caveat](modules/caveat/README.md) | ノア | public |
-| [会話・履歴](modules/conversation/README.md) | N102 | messages / history / membership-cleanup / room-access / durable-messages / fork-inquiry / reply-reference / call-bridge delivery (/v0/directory, /v0/deliver) |
+| [会話・履歴](modules/conversation/README.md) | N102 | messages / history / membership-cleanup / room-access / durable-messages / fork-inquiry / reply-reference / seatStream (cursor, ingest) / call-bridge delivery (/v0/directory, /v0/deliver) |
 | [診断](modules/diagnostics/README.md) | シグナル | diagnostics |
-| [商用配布](modules/distribution/README.md) | モリー | image / web-gateway-artifact / notifications-artifact / update-catalog / members-artifact / memory-artifact / conversation-artifact / runtime-artifact / work-graph-artifact / lattice-artifact / approval-box-extension-artifact |
+| [商用配布](modules/distribution/README.md) | モリー | image / web-gateway-artifact / notifications-artifact / update-catalog / members-artifact / memory-artifact / conversation-artifact / runtime-artifact / work-graph-artifact / lattice-artifact / approval-box-extension-artifact / auth-mediation-artifact |
 | [AI実行制御](modules/execution/README.md) | キロ | turn / configuration / stop / observation / members-admission / accounts / fork |
 | [共通入口・結合実装](modules/integration/README.md) | モリー | HTTP/MCP / HTTP/SSE / diagnostics / remote-seat-port |
 | [Lattice工程表](modules/lattice/README.md) | フローラ | lattice-chart / lattice-seat / lattice-owner-task (facade.ownerTask / facade.link, L20; caller: approval-box-extension, Delta) / lattice-schedule-connect (facade.run fixed 接続 verbs, L21; caller: body scheduler and registry removal hook, a164) |
@@ -194,10 +203,10 @@ flowchart LR
 | [記憶・知識](modules/memory/README.md) | ビスケット | memory |
 | [RTK](modules/rtk/README.md) | ドリリー | hook / harness-entries.json |
 | [実行環境・更新復旧](modules/runtime/README.md) | モリー | lifecycle / seat-process / project-files / cli-registration / module-runner / update / module-runner |
-| [端末接続](modules/terminals/README.md) | クラスト | registry / reachability / connection / trust / folder / privilege / maintenance |
+| [端末接続](modules/terminals/README.md) | クラスト | registry / reachability / connection / trust / folder / privilege / maintenance / door |
 | [testgate](modules/testgate/README.md) | シラツル | registration v1 (item in RTK harness-entries.json) |
 | [Throughline](modules/throughline/README.md) | リヴァリン | context CLI / storage: THROUGHLINE_HOME, locate, export |
-| [利用設定・通知](modules/usage/README.md) | ミカ | settings / notify / auth / secrets / harnessCli (installed, watch) |
+| [利用設定・通知](modules/usage/README.md) | ミカ | settings / notify / auth / secrets / harnessCli (installed, watch) / homeLogin (/api/home, bellteam-console) |
 | [Web受付（アプリ用の公開入口）](modules/web/README.md) | アドミ | gateway |
 | [Windowsアプリ](modules/windows/README.md) | アニス | public |
 | [相関図](modules/work-graph/README.md) | アークレンジャー・ブラック | work-graph |

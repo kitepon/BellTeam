@@ -8,14 +8,16 @@ export class LaunchGate {
   }
 
   // Every cold launch is recorded: it shows in the memory reading only after it ran, so seats started in the last settleMs count as already there.
-  launched() { this.recent.push(this.now()) }
+  // Returns the entry so a launch that did not start anything can take it back (abandon): a failed launch used no memory.
+  launched() { const entry = { at: this.now() }; this.recent.push(entry); return entry }
+  abandon(entry) { this.recent = this.recent.filter(item => item !== entry) }
 
   // No reading is no pressure (unknown is not danger).
   async tight() {
     const sample = await this.pressure().catch(() => null)
     if (!sample) return false
     const now = this.now()
-    this.recent = this.recent.filter(at => now - at < this.settleMs)
+    this.recent = this.recent.filter(item => now - item.at < this.settleMs)
     const effective = (sample.anon + this.recent.length * this.seatBytes) / sample.max
     this.record?.peak(effective)
     return effective >= this.hold

@@ -35,7 +35,7 @@ function reports({ records, judge }) {
   const reported = []
   const service = new TurnReports({
     bots,
-    store: { entries: async () => records },
+    store: { turnEntries: async () => records },
     transport: { notify: async (bot, message, options) => { notified.push({ bot: bot.id, message, options }); return { delivery: 'running' } } },
     appendInterimWords: async (...args) => appended.push(args),
     judge,
@@ -140,4 +140,20 @@ test('machine seat stream rows count as shown, every words row is a bubble, the 
   assert.equal(notified.length, 0)
   service.streamRows = () => []
   assert.equal((await service.check({ botId: 'bot-d', context: 'owner', ...window })).reason, 'missing')
+})
+
+test('overlapping turn-end windows of one Bot are checked once (4 deliveries ending together)', async () => {
+  const { service, notified, reported } = reports({ records: [], judge: () => assert.fail('missing report skips judge') })
+  const calls = [window, window, { ...window, startedAt: '2026-09-30T23:07:40Z' }, window].map(w => service.afterTurn({ botId: 'bot-d', context: 'owner', ...w }))
+  await Promise.all(calls)
+  assert.equal(notified.length, 1)
+  assert(reported.some(line => line.includes('2026-09-30T23:07:27Z..2026-09-30T23:08:12Z') && line.includes('missing')))
+  assert.equal(reported.filter(line => line.includes('確かめ済み')).length, 3)
+  // A later window that overlaps starts where the covered part ends, and an emptied window is not "missing".
+  await service.afterTurn({ botId: 'bot-d', context: 'owner', startedAt: '2026-09-30T23:08:00Z', endedAt: '2026-09-30T23:09:00Z' })
+  assert.equal(notified.length, 1)
+  // Another Bot, and a window after the covered end, are checked.
+  await service.afterTurn({ botId: 'bot-o', context: 'owner', ...window })
+  await service.afterTurn({ botId: 'bot-d', context: 'owner', startedAt: '2026-09-30T23:10:00Z', endedAt: '2026-09-30T23:11:00Z' })
+  assert.equal(notified.length, 3)
 })

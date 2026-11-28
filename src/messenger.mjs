@@ -190,7 +190,7 @@ export class BellTeamMessenger extends ConversationWriter {
 
   // ifRow: a prepareDirect failure settles the inquiry row only if it is durable (an onMessage error after the write).
   async settleForkRefusal({ deliveryId, status, error, ifRow }) {
-    if (!ifRow || (await this.store.entries()).some(row => row.schema === 'bellteam.direct-message.v1' && row.delivery_id === deliveryId))
+    if (!ifRow || (await this.store.byId(deliveryId)).length)
       // Normalized like a callback error: the child's status fields accept only that shape (a raw effect error never settles).
       await this.appendDeliveryStatus(deliveryId, status, normalizeConversationCallbackError(error))
     this.forkNotices.live.delete(deliveryId)
@@ -204,7 +204,7 @@ export class BellTeamMessenger extends ConversationWriter {
       try { await this.settleForkRefusal(refusal) } catch { notices.refused.set(deliveryId, refusal) }
     }
     if (!notices.scanned) {
-      const entries = await this.store.entries()
+      const entries = await this.store.forkEntries()
       for (const notice of owedForkNotices(entries))
         if (!notices.live.has(notice.deliveryId) && !notices.owed.has(notice.deliveryId)) notices.owed.set(notice.deliveryId, notice)
       // A row left running by a lost process never gets its status from a callback.
@@ -277,7 +277,7 @@ export class BellTeamMessenger extends ConversationWriter {
   async resumeDelivery(deliveryId, target) {
     const check = this.admitWork()
     await this.bots.refresh?.()
-    const record = this.resumableDelivery(deliveryId, await this.store.records())
+    const record = this.resumableDelivery(deliveryId, await this.store.byId(deliveryId))
     const bot = this.bots.get(record.target)
     await this.requireAccess({ from: record.from, target: bot.id })
     const savedImages = record.image_assets ?? (record.image_asset ? [record.image_asset] : [])
@@ -302,7 +302,7 @@ export class BellTeamMessenger extends ConversationWriter {
   async closeDeliveryLaunch(deliveryId, target) {
     const check = this.admitWork()
     await this.bots.refresh?.()
-    const record = this.resumableDelivery(deliveryId, await this.store.records())
+    const record = this.resumableDelivery(deliveryId, await this.store.byId(deliveryId))
     const bot = this.bots.get(record.target)
     await this.requireAccess({ from: record.from, target: bot.id })
     check()

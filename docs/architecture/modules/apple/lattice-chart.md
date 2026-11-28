@@ -19,7 +19,7 @@ flowchart LR
   Home --> ListModel["Core/LatticeChartModel.swift<br/>LatticeChartsModel（一覧・統括のBot）<br/>listed＝counts.total が0より大きい工程表（a107。サーバーの一覧はそのまま、統括のBot・工程表の名前探しは全件）"]
   ListModel -->|"開いている間10秒ごと"| ListAPI["GET /api/lattice/charts<br/>bellteam.lattice-charts.v1"]
   ListAPI -->|"404（旧本体）→ unsupported / 認証 → failed / 503・切断 → reconnecting（一覧は残す）"| ListModel
-  Home --> List["LatticeListView（listedだけ）<br/>ピン留め（統括）・すべての工程表・新しい工程表（説明だけ）<br/>絞り込み すべて/接続あり（`counts.connections`）・札は「接続 N」・検索（表示名）<br/>右上に「ブロック一覧」"]
+  Home --> List["LatticeListView（listedだけ）<br/>ピン留め（統括）・すべての工程表・新しい工程表（説明だけ）<br/>絞り込み すべて/接続あり（`counts.connections`）・札は「接続 N」と、催促が入っている工程表だけ隣に「催促」のバッジ（一覧の`reminders`が`true`の時。無ければバッジなし）・検索（表示名）<br/>右上に「ブロック一覧」"]
   List -->|"ブロック一覧（.stops を積む）"| Stops["LatticeStopsView＋LatticeStopsModel（画面の@StateObject）<br/>行＝LatticeStopRow（新しいブロックが上）・行の中で2段の外す"]
   Stops -->|"開いた時・引っぱって読み直す（Macは読み直すボタン）・外すの答えの後・前面へ戻った時"| StopsAPI["GET /api/lattice/blockers<br/>bellteam.lattice-blockers.v1"]
   StopsAPI -->|"404 → old / 認証 → failed / 503・切断・形が違う → retry（1, 2, 4 … 30秒、開いている間ずっと）"| Stops
@@ -28,6 +28,11 @@ flowchart LR
   Stops -->|"行を押す（.card を積む）"| Screen
   List -->|"札を押す"| Screen["Views/LatticeChartView.swift<br/>LatticeChartScreen(projectId)<br/>ツリー / 担当 / 過去ログ N の切り替え（@SceneStorage）"]
   Screen -->|"切り替え（選択肢はlistedだけ）・すべての工程表"| Over["一覧を工程表の上へ積む<br/>戻る → 同じ工程表（送りの位置も同じ）"]
+  Screen -->|"Settings gear in tree, lanes and history"| ReminderSheet["LatticeReminderSettingsSheet<br/>Chart name, switch, saved value and recoverable errors"]
+  ReminderSheet -->|"Open, reconnect, read again or toggle"| ReminderModel["LatticeRemindersModel<br/>One sheet owns the confirmed value and the current request"]
+  ReminderModel <-->|"BellAPI GET and PUT (enabled only)"| ReminderAPI["/api/lattice/charts/:projectId/reminders<br/>BellTeam owns the persisted value"]
+  ReminderModel -->|"Authentication failure"| LoginRecovery["AppStore.requireLogin"]
+  ReminderSheet -->|"Chart missing: return to the list"| Home
   Screen --> Model["LatticeChartModel（参照型・projectId鍵）<br/>snapshot・layout・connection・completedAt・history（過去ログの頁。a457）"]
   Model -->|"SSE"| Stream["BellAPI.eventStream(path:)<br/>GET /api/lattice/charts/:id/events<br/>event: snapshot → 図を丸ごと置き換え（差分は動きで見せる）"]
   Model -->|"過去ログを開いた時だけ（a457）"| History["GET /api/lattice/charts/:id/history?limit=50&before=（前の頁のnext）<br/>bellteam.lattice-history.v1：閉じたツリーの終わった札（snapshotの cards は開いたツリーだけ）<br/>最初の頁＝開いた時、次の頁＝一覧の終わりまで送った時（before＝前の頁のnext。不透明）<br/>snapshotの history.closed が読んだ時と変わったら最初の頁を読み直す／404（旧本体）→ snapshotの札だけ・頁は読まない／503・切断・400 → 「続きを読めませんでした。」＋読み直す"]
@@ -47,6 +52,12 @@ flowchart LR
   Wide -->|"工程へ移動"| Go["その札へ送り（ScrollViewReader）、詳細を開く"]
   Compact -->|"工程へ移動"| Go
 ```
+
+## Chart reminder settings
+
+The chart toolbar presents the same native settings sheet on iPhone and Mac. It follows the [shared screen spec](../lattice/screen-spec.md#工程表の設定) and [reminders API](../lattice/README.md#get-and-put-apilatticechartsprojectidreminders). The sheet owns its request task and last confirmed value. Closing it, changing chart identity or changing server cancels its work. The chart and its selection stay in place on ordinary dismissal.
+
+Open, chart reconnection and the app returning to the foreground trigger a read. Manual reread replaces a pending read or its backoff. Reads retry using the chart's capped backoff, with the last confirmed value visible and editing disabled. A save sends one PUT and displays its confirmed result. A failed save shows the failure and reads back the value. A read requested during a save runs after the PUT settles. Route-level 404 leaves the chart usable and explains that this server does not support the setting. Chart-level 404 offers the chart's existing return-to-list action. Authentication failure hands off to the standard app sign-in flow. A sheet that remains open after sign-in reads again.
 
 ## 広い面と縦の流れの選び方
 
@@ -145,6 +156,7 @@ screen-specの表をそのまま描く。図がある間は消さない（帯と
 
 - `BellBotTests/LatticeChartTests.swift`：ツリーの配置（a98の後はLatticeStructure。上の「ツリー」の試験の行）・archived（描かない）・過去ログの日ごとの並び・閉じたツリーの数と頁の合流・頁の追記・失敗・旧本体の404（a457）・数（`counted`の札だけ、完了は完了＋取り下げ。a96）・レーンの順・列・接続の行（種類ごとの文・古い順・他の工程表の穴埋め・旧本体）と前工程の札の文・詳細（次の工程の札が渡された幅を超えない＝testFlowLayoutKeepsLongChipsInsideTheProposedWidth。a110）・帯・粒・札の置き場所・時刻・新しい完了・一覧の読み取り・止め一覧の行（並び・時刻・担当の決まり・読み上げ）と外すの答え・詳細の決裁（指揮官の札だけ聞く・状態の語・形違いは出さない。testDecisionAskedOnlyForOwnerCardsAndOnlyKnownShapesShow）。
 - `BellBotUITests/LatticeChartUITests.swift`（iPhone実機、`test/helpers/lattice-ui-server.mjs`＝`BELLTEAM_LATTICE_FIXTURE_URL`）：一覧・工程表・接続・詳細のライト/ダークの写真と、未検証・最後に確認できた状態・名簿にない担当・再接続・読めない工程表。
+- Chart settings UI tests use the same fixture to verify the saved switch, readback after an uncertain write, and the two distinct 404 responses.
 - `BellBotUITests/LatticeTabletUITests.swift`（iPad実機、同じfixture）：縦・横で、工程表（ツリー・担当・過去ログ）を開いたままサイドバーの予定・メンバー・相関図が本物のタッチで効くこと、接続が既定で畳まれ、開いて畳めること。
 - Macの写真は使い捨ての自己描画のコピーで撮る（repoに入れない）。
 

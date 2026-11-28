@@ -4,6 +4,7 @@ import { withWorkingWord } from './working-words.mjs'
 import { webMessage, messageImages, MESSAGE_MAX_BYTES } from './http-messages.mjs'
 import { validReplyQuote, validReplyTo } from './reply-reference.mjs'
 import { originFailure, readOrigin } from './origin-reference.mjs'
+import { readMemberSummary } from './members-facade.mjs'
 
 export function createConversationApi({ bots, rooms, timeline }) {
   return async (request, response, url) => {
@@ -27,7 +28,7 @@ export function createConversationApi({ bots, rooms, timeline }) {
 
 export function createBotConversationApi({ bots, transport, messagePage, messenger }) {
   const exists = async id => {
-    try { return bots.readMember ? Boolean(await bots.readMember(id)) : bots.has(id) }
+    try { return bots.readMember ? Boolean(await readMemberSummary(bots, id)) : bots.has(id) }
     catch (error) { if (error.code === 'BOT_NOT_FOUND' && error.status === 404) return false; throw error }
   }
   return async (request, response, url) => {

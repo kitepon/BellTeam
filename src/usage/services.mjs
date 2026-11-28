@@ -11,7 +11,6 @@ import { Subscriptions } from '../subscriptions.mjs'
 import { authReceipt, authUi } from '../auth-ui.mjs'
 import { usageError, validateUsageRequest } from './process-schema.mjs'
 import { BackgroundAgentSettings } from './background-agent-settings.mjs'
-import { createOnePasswordSource } from './onepassword-source.mjs'
 import { createHomeLogin } from './home-login.mjs'
 
 const clone = value => structuredClone(value)
@@ -41,8 +40,9 @@ function volatileState(value) {
     return result
   }
   // a479 / a487n stage 1: a handoff from a usage module that predates thinkingDisplay, or that has dropped webPush, carries fewer epochs; the six core ones are required.
+  // 2026-11-27: a handoff from an older child may still carry the onePassword epoch (the feature is gone); it is read and dropped. The five core ones are required.
   const epochs = map(value.epochs, (id, epoch) => ['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'webPush', 'onePassword', 'thinkingDisplay'].includes(id) && Number.isSafeInteger(epoch) && epoch >= 0)
-  if (epochs.size !== 6 + Number(epochs.has('webPush')) + Number(epochs.has('thinkingDisplay'))) throw usageError('USAGE_HANDOFF_INVALID')
+  if (epochs.size !== 5 + Number(epochs.has('webPush')) + Number(epochs.has('thinkingDisplay')) + Number(epochs.has('onePassword'))) throw usageError('USAGE_HANDOFF_INVALID')
   const sessions = map(value.sessions, (key, session) => (harnessAuthStateKeyValid(key) || retiredHarness(key)) && typeof session === 'string' && session.length > 0)
   const receipts = map(value.receipts, (key, item) => (harnessAuthStateKeyValid(key) || retiredHarness(key)) && item !== null
     && (item.slot === undefined ? key !== 'claude:2nd' : item.slot === (key === 'claude:2nd' ? '2nd' : '1st')) && Boolean(receipt(item, sessions.get(key))))
@@ -51,7 +51,7 @@ function volatileState(value) {
 }
 
 // Runtime owns the process/lock and supplies only fixed parent effects and registry ports.
-export function createUsageServices({ root, bots, rooms, effect, onProjection = () => {}, onePassword, secretProviders,
+export function createUsageServices({ root, bots, rooms, effect, onProjection = () => {}, secretProviders,
   environment = {}, seatRuntime = false, subscription = {} }) {
   // a485: mounted only when the operator is configured; without it every home call is unavailable and the body stays Legacy.
   const home = environment.BELLTEAM_HOME_OPERATOR ? createHomeLogin({ path: join(root, 'shared/login-home.json'), operator: environment.BELLTEAM_HOME_OPERATOR }) : null
@@ -59,7 +59,7 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
   let accepting = false, initialized = false, settingsReady = false, stopped = false, quiesced = false, wave = 0, revision = 0
   let settingsInitializing = false, initializing = false, subscriptionReady = false, subscriptionInitializing = false
   let projectionFailed = false, projectionFailures = 0, projectionTail = Promise.resolve()
-  const epochs = new Map(['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'onePassword', 'thinkingDisplay'].map(id => [id, 0]))
+  const epochs = new Map(['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'thinkingDisplay'].map(id => [id, 0]))
   const pending = new Set(), effectScope = new AsyncLocalStorage()
   const track = run => {
     const result = Promise.resolve().then(run)
@@ -78,8 +78,6 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
   }
   const settings = new FeatureSettings({ root, environment,
     onChange: async (id, configuration) => {
-      // A new or removed token connects 1Password now; the result is the feature's status, never a failed save.
-      if (id === 'onePassword') { await secretRequests.credentials.refreshAvailability().catch(() => {}); syncOnePassword(); await onePasswordConnection() }
       const epoch = epochs.get(id) + 1; epochs.set(id, epoch)
       publish(settingsProjection())
       return callEffect('settings.changed', { id, configuration, epoch })
@@ -103,35 +101,10 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
     projectFiles: { appendInstructions: (bot, text) => callEffect('onboarding.prepareStartup', { botId: bot.id, text }) },
     startConversation: (bot, message) => callEffect('onboarding.startConversation', { botId: bot.id, message }) })
   const background = (method, params) => { void callEffect(method, params).catch(() => {}) }
-  const secretRequests = new SecretRequests({ root, bots, rooms, onePassword: onePassword ?? createOnePasswordSource({ autoRetry: false }), secretProviders, credentialRetryMs: 0,
+  const secretRequests = new SecretRequests({ root, bots, rooms, secretProviders, credentialRetryMs: 0,
     onSave: item => { if (initialized) publish({ type: 'secret', value: item }) },
     onRequest: item => background('secret.created', { item }),
     notify: item => callEffect('secret.completed', { botId: item.botId, message: secretCompletionMessage(item) }) })
-  const onePasswordSource = secretRequests.credentials.onePassword
-  onePasswordSource.setToken?.(() => {
-    const { enabled, token } = settings.configuration('onePassword')
-    return enabled && token.trim() ? token.trim() : null
-  })
-  const onePasswordItem = () => settings.list().find(item => item.id === 'onePassword')
-  const onePasswordConnected = () => settings.configuration('onePassword').enabled && onePasswordSource.available
-  const syncOnePassword = () => {
-    const code = settings.configuration('onePassword').enabled && !onePasswordSource.available
-      ? onePasswordSource.reason === 'missing' ? 'ONEPASSWORD_CLI_MISSING' : 'ONEPASSWORD_TOKEN_REJECTED' : null
-    const before = JSON.stringify(onePasswordItem())
-    settings.setError('onePassword', code ? { code } : null)
-    if (!onePasswordConnected()) settings.setConnection('onePassword', null)
-    return JSON.stringify(onePasswordItem()) !== before
-  }
-  // Runs only inside a live operation (save, initialize, trusted refresh) so its projection is accepted.
-  const onePasswordConnection = async () => {
-    if (!onePasswordConnected() || !onePasswordSource.inventory) return false
-    let connection = null
-    try { const { vaults, keys } = await onePasswordSource.inventory(); connection = { vaults, sshKeys: keys.length } } catch {}
-    const before = JSON.stringify(onePasswordItem())
-    settings.setConnection('onePassword', onePasswordConnected() ? connection : null)
-    return JSON.stringify(onePasswordItem()) !== before
-  }
-  onePasswordSource.watch(() => { if (syncOnePassword() && initialized) publish(settingsProjection()) })
   const ownerQuestions = new OwnerQuestions({ root, bots,
     onSave: item => publish({ type: 'question', value: item }),
     onRequest: item => background('question.created', { item }),
@@ -176,7 +149,6 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
     'secrets.unbind': ({ handle, scope }) => secretRequests.unbindCredential(handle, scope),
     'secrets.revokeTerminalRequests': ({ scope }) => secretRequests.revokeTerminalRequests(scope),
     'secrets.get': ({ id }, actor) => getOwned(secretRequests, id, actor, 'SECRET_REQUEST_NOT_FOUND'),
-    'secrets.onePasswordItems': ({ id }) => secretRequests.onePasswordItems(id),
     'secrets.resolveRequest': ({ id }) => secretRequests.resolveValue(id),
     'secrets.bind': ({ id, scope }) => secretRequests.bindCredential(id, scope),
     'secrets.credential': ({ handle, context }) => secretRequests.credential(handle, context),
@@ -184,11 +156,7 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
     'secrets.replace': ({ handle, id, context }) => secretRequests.replaceCredential(handle, id, context),
     'secrets.put': ({ scope, value }) => secretRequests.putCredential(scope, value),
     'secrets.erase': ({ scope }) => secretRequests.eraseCredential(scope),
-    'secrets.refresh': async () => {
-      const result = await secretRequests.credentials.refreshAvailability()
-      if ((syncOnePassword() | (!onePasswordItem().connection && await onePasswordConnection())) && initialized) publish(settingsProjection())
-      return result
-    },
+    'secrets.refresh': () => secretRequests.credentials.refreshAvailability(),
     'secrets.submit': ({ id, value }) => secretRequests.submit(id, value), 'secrets.cancel': ({ id }) => secretRequests.cancel(id),
     'secrets.withdraw': ({ id }, actor) => secretRequests.withdraw(id, actor.botId),
     'secrets.notifyOwnerGuide': ({ id }) => secretRequests.notifyOwnerGuide(id),
@@ -276,7 +244,6 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
         for (const [id, code] of state.errors) if (epochs.has(id)) settings.setError(id, { code })
         harnessAuth.sessions = state.sessions; harnessAuth.receipts = state.receipts; onboarding.auth = receipt(state.onboardingAuth, onboarding.state.authSession)
       }
-      syncOnePassword(); await onePasswordConnection()
       await cli.probeAll()
       initialized = true; accepting = true
     },

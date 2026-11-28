@@ -76,6 +76,9 @@ internal static class LatticeLook
     public static Geometry OctagonGeometry { get; } = Geometry.Parse("M4.1,0 H9.9 L14,4.1 V9.9 L9.9,14 H4.1 L0,9.9 V4.1 Z");
     public static Path Shape(Geometry geometry, double size, Color color) => new() { Data = geometry, Fill = Brush(color), Width = size, Height = size, Stretch = Stretch.Uniform, VerticalAlignment = VerticalAlignment.Center };
     public static Control Crown(double size = 15) => Shape(CrownGeometry, size, Color.FromRgb(0xD9, 0x9A, 0x1E));
+    // Material "notifications" (24 x 24): the bell of the 催促 badge on a chart card.
+    public static Geometry BellGeometry { get; } = Geometry.Parse("M12,22 C13.1,22 14,21.1 14,20 H10 C10,21.1 10.9,22 12,22 Z M18,16 V11 C18,7.93 16.37,5.36 13.5,4.68 V4 C13.5,3.17 12.83,2.5 12,2.5 C11.17,2.5 10.5,3.17 10.5,4 V4.68 C7.64,5.36 6,7.92 6,11 V16 L4,18 V19 H20 V18 Z");
+    public static Border ReminderBadge() => Pill(Row(Shape(BellGeometry, 11, Violet), Spaced(Text("催促", 12, Violet, FontWeight.SemiBold), 5)), Violet, 0x1F, new Thickness(9, 4, 9, 4));   // Rapi's Apple reference: violet on violet 12%, 9/4 padding
     public static Border CoordinatorBadge() => Pill(Row(Crown(13), Spaced(Text("統括", 12, Color.FromRgb(0x9A, 0x63, 0x00), FontWeight.SemiBold), 5)), Color.FromRgb(0xF5, 0xB7, 0x2E), 0x2E, new Thickness(8, 3, 9, 3));
     public static T Spaced<T>(T element, double left) where T : Control { element.Margin = new Thickness(left, 0, 0, 0); return element; }
 

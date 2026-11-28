@@ -15,6 +15,7 @@ import { readObserverTurns } from './self-turns.mjs'
 import { createConversationExecutionEffects } from './conversation-execution-effects.mjs'
 import { createConversationFacade } from './conversation-facade.mjs'
 import { MEMBERS_EXCHANGE_HOLD_MS } from './members-admission.mjs'
+import { readMemberSummary } from './members-facade.mjs'
 
 const notAccepted = () => Object.assign(new Error('CONVERSATION_NOT_ACCEPTED'), { code: 'CONVERSATION_NOT_ACCEPTED', status: 503, outcome: 'not_accepted', effect: 'not_started' })
 const denied = () => Object.assign(new Error('CONVERSATION_CONTEXT_REQUIRED'), { code: 'CONVERSATION_CONTEXT_REQUIRED', status: 403, outcome: 'not_accepted', effect: 'not_started' })
@@ -59,7 +60,7 @@ export function createConversationAssembly({ root, membersAdmission, exchangeMut
 
   const observerEffects = createConversationObserverParentEffects({
     snapshot: async context => { await getBots().refresh(context.operationContext); return [...getBots().values()] },
-    current: async (botId, context) => { await getBots().readMember(botId, context.operationContext); return getBots().get(botId) },
+    current: async (botId, context) => { await readMemberSummary(getBots(), botId, context.operationContext); return getBots().get(botId) },
     check: (request, context) => checkObserverProjects(request, { root, seatCommands: Boolean(getServices().seatRuntime), signal: context.signal }),
     read: (request, context) => readObserverTurns(request, { seatCommands: Boolean(getServices().seatRuntime), signal: context.signal }),
   })

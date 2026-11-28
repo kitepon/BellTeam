@@ -1,30 +1,30 @@
 using Avalonia.Controls;
 using Avalonia.VisualTree;
 using BellTeam.Core;
-using BellTeam.PeerChannel;
+using Kitepon.ApprovalBox.Client;
 
 namespace BellTeam.Linux;
 
 // child-join.md, "The one screen": each state of the table with its words and action, and the never-a-parent rule. The component is stood in by JoinFixtureSource.
 public sealed class ApprovalsChildJoinTests
 {
-    private sealed class Device : IDeviceDecisions
+    private sealed class Device : IApprovalSource
     {
-        public DecisionBook Book { get; } = new();
-        public RuntimeState State { get; set; } = new(RuntimeStatus.Live);
+        public IReadOnlyList<ViewDecision> Decisions => [];
+        public ClientState State { get; set; } = new(ClientStatus.Live);
         public event Action? Changed;
-        public Task<SendOutcome> AnswerAsync(string decisionId, string? optionId, string? text) => Task.FromResult(new SendOutcome("ok"));
-        public Task<SendOutcome> HoldAsync(string decisionId, bool held) => Task.FromResult(new SendOutcome("ok"));
+        public Task<AnswerResult> AnswerAsync(string decisionId, string? optionId, string? text, long version) => Task.FromResult<AnswerResult>(new AnswerResult.Accepted(null));
+        public Task<AnswerResult> HoldAsync(string decisionId, bool held) => Task.FromResult<AnswerResult>(new AnswerResult.Accepted(null));
         public void Refresh() => Changed?.Invoke();
         public Task<byte[]?> AttachmentAsync(string decisionId, string attachmentId) => Task.FromResult<byte[]?>(null);
     }
 
-    private static async Task<(ApprovalsWindow Window, JoinFixtureSource Source, Device Device)> OpenAsync(ChildJoinState join, RuntimeState? state = null)
+    private static async Task<(ApprovalsWindow Window, JoinFixtureSource Source, Device Device)> OpenAsync(ChildJoinState join, ClientState? state = null)
     {
         var workspace = new LinuxWorkspace(origin => new BellApi(origin, new ApprovalsFixture("connected")));
         await workspace.ConnectAsync("http://localhost", listen: false);
         var device = new Device(); if (state is { } s) device.State = s;
-        var source = new JoinFixtureSource(new PeerSource(device), join);
+        var source = new JoinFixtureSource(device, join);
         var window = new ApprovalsWindow(new ApprovalsHub(workspace, source), workspace, (_, _) => { }, _ => { });
         window.Show(); for (var wait = 0; wait < 100 && !window.Settled; wait++) await Task.Delay(20);
         return (window, source, device);
@@ -54,6 +54,46 @@ public sealed class ApprovalsChildJoinTests
         }
         finally { window.Close(); }
     });
+
+    // login-billing 1.60/1.61 (Owner 2026-11-27): the code beside the QR for Approval Box's paste field, and the library's own words for a local-network failure, shown as they are.
+    [Fact]
+    public Task WaitingShowsTheJoinCodeAndFailedShowsTheLibrarysWords() => Ui.Run(async () =>
+    {
+        var (window, source, device) = await OpenAsync(new(JoinPhase.Waiting, "https://login-billing.kitepon.dev/join/dev.kitepon.approvalbox#lbq4:test", DateTimeOffset.Now.AddMinutes(5), JoinCode: "https://login-billing.kitepon.dev/join/dev.kitepon.approvalbox#lbj1:code"));
+        try
+        {
+            Assert.True(Has(window, "#lbj1:code")); Assert.True(Has(window, ChildJoinText.CodeHint));
+            source.Current = new(JoinPhase.Failed, Code: "not_answering", Words: "QRを出している端末が応答しません。");
+            device.Refresh(); await Task.Delay(100); Avalonia.Threading.Dispatcher.UIThread.RunJobs(); Assert.True(Has(window, "QRを出している端末が応答しません。")); Assert.False(Has(window, ChildJoinText.Failed));
+        }
+        finally { window.Close(); }
+    });
+    // On a phone the parent is usually this same phone: the first action opens the code in 決裁箱, the hint covers both cases and the PC's QR sentence is gone (Tronie 11/27); a PC has no open button.
+    [Fact]
+    public Task OnAPhoneTheCodeOpensInTheParentFirst() => Ui.Run(async () =>
+    {
+        var opened = new List<string>();
+        var state = new ChildJoinState(JoinPhase.Waiting, "https://login-billing.kitepon.dev/join/dev.kitepon.approvalbox#lbq4:test", DateTimeOffset.Now.AddMinutes(5), JoinCode: "https://login-billing.kitepon.dev/join/dev.kitepon.approvalbox#lbj1:code");
+        JoinCodeView.OpenOnThisPhone = opened.Add;
+        try
+        {
+            var (window, _, _) = await OpenAsync(state);
+            try
+            {
+                var buttons = window.GetVisualDescendants().OfType<Button>().Select(button => button.Content as string).ToList();
+                Assert.True(buttons.IndexOf(ChildJoinText.CodeOpen) is >= 0 and var at && at < buttons.IndexOf(LocalFormText.CodeCopy));
+                Assert.True(Has(window, ChildJoinText.CodeHintPhone)); Assert.False(Has(window, LocalFormText.Qr));
+                Click(Find(window, ChildJoinText.CodeOpen)!);
+                Assert.Equal(["https://login-billing.kitepon.dev/join/dev.kitepon.approvalbox#lbj1:code"], opened);
+            }
+            finally { window.Close(); }
+        }
+        finally { JoinCodeView.OpenOnThisPhone = null; }
+        var (pc, _, _) = await OpenAsync(state);
+        try { Assert.Null(Find(pc, ChildJoinText.CodeOpen)); Assert.True(Has(pc, ChildJoinText.CodeHint)); }
+        finally { pc.Close(); }
+    });
+    [Fact] public void OtherAccountKeepsItsOwnSentenceAndOtherFailuresTakeTheLibrarysWords() { Assert.Equal(ChildJoinText.OtherAccount, ChildJoinText.FailedLine("other_account", "words")); Assert.Equal("words", ChildJoinText.FailedLine("unreachable_same_wifi", "words")); Assert.Equal(ChildJoinText.Failed, ChildJoinText.FailedLine("x")); }
 
     [Fact]
     public Task SigningInOffersOnlyTheWayOut() => Ui.Run(async () =>
@@ -115,7 +155,7 @@ public sealed class ApprovalsChildJoinTests
     [Fact]
     public Task JoinedKeepsTheExistingNotesForReconnectingNotEntitledAndUpdate() => Ui.Run(async () =>
     {
-        foreach (var (state, words) in new (RuntimeState, string)[] { (new(RuntimeStatus.Retrying, "x"), Approvals.DeviceReconnecting), (new(RuntimeStatus.NotEntitled), Approvals.DeviceNotEntitled), (new(RuntimeStatus.Stopped, "update_needed"), Approvals.DeviceUpdateNeeded) })
+        foreach (var (state, words) in new (ClientState, string)[] { (new(ClientStatus.Reconnecting, "x"), Approvals.DeviceReconnecting), (new(ClientStatus.NotEntitled), Approvals.DeviceNotEntitled), (new(ClientStatus.UpdateRequired), Approvals.DeviceUpdateNeeded) })
         {
             var (window, _, _) = await OpenAsync(new(JoinPhase.Joined), state);
             try { Assert.True(Has(window, words)); NeverAParent(window); } finally { window.Close(); }
@@ -127,7 +167,7 @@ public sealed class ApprovalsChildJoinTests
     {
         var workspace = new LinuxWorkspace(origin => new BellApi(origin, new ApprovalsFixture("connected")));
         await workspace.ConnectAsync("http://localhost", listen: false);
-        var window = new ApprovalsWindow(new ApprovalsHub(workspace, (IDeviceDecisions?)new Device()), workspace, (_, _) => { }, _ => { });
+        var window = new ApprovalsWindow(new ApprovalsHub(workspace, new Device()), workspace, (_, _) => { }, _ => { });
         window.Show(); for (var wait = 0; wait < 100 && !window.Settled; wait++) await Task.Delay(20);
         try { Assert.False(Has(window, ChildJoinText.Title)); } finally { window.Close(); }
     });

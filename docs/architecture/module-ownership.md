@@ -21,10 +21,11 @@ Owner 指示による本体分担の現行正本。機能を分離し、担当�
 | キロ | AI 実行制御 | AitermTransport/Client、DeliveryJob、SeatActivity、BotSessionState、AiControl、Goal、SeatTurns、IdleSessions。モデル保存後の適用と再開まで |
 | N102 | 会話・履歴 | Messenger、RoomMessenger/Registry/History、ConversationStore、画像、履歴/SSE、SelfTurns、TurnReports、通話の本体受入口 |
 | ベロータ | メンバー・予定 | BotRegistry、ProjectFiles のメンバー構造と指示、Owner 規範、アバター/設定画、Schedule 定義・実行発行、削除業務 |
-| ミカ | 利用設定・通知 | Onboarding、HarnessAuth、AuthUI、FeatureSettings、質問/秘密入力、PushNotifications、Subscriptions、Cloudflare 利用認証 |
+| ミカ | 利用設定・通知 | Onboarding、HarnessAuth、AuthUI、FeatureSettings、質問/秘密入力、PushNotifications、Subscriptions、Cloudflare利用認証、運営の通知中継（`services/notifications`、本番ホストのOS部分はエマ、Tronie裁定 2026-11-27） |
 | アドミ | Web 受付（web-gateway） | ネイティブアプリ向けの公開 HTTP 受付（`http-gateway`・版交換・更新 adapter。ブラウザ版画面は 2026-11-22 終了） |
 | ビスケット | 記憶・知識 | MemoryService/Search、記憶形式と検索索引、短期記憶の方針 |
 | シグナル | diagnostics 専任 | 診断 factory/閉 dispatcher、report/code/集約・唯一 writer、同 state restore、close-drain、管理 GET 契約（BugHub 本体はフラジャイル） |
+| ライ | 認証仲介 | 固定のコマンド1つにだけ秘密を渡す独立module子（`auth-mediation`）。方針・許可・監査・item cache・1Passwordの読取トークンの使用、Bot用MCP道具、席のscript用socket、main-server用host socket。設計: [auth-mediation](modules/auth-mediation/README.md)（2026-11-26 Owner指名・設計のみ）。仕様の出どころ・item書込・移行はサクラ、秘密の保管はミカ、mount・supervision・配布・席MCP登録はモリー、main採用はエピネル、製品試験はセンチ、本番はトロニー |
 | クラスト | 端末接続 | 端末登録、SSH/sudo 秘密参照、ホスト信頼、到達性、sudo 実行記録、C8 端末 CLI 保守、Aiterm へ渡す端末ターゲット |
 | アークレンジャー・ブラック | 相関図 | 作業中メンバーと Bot 間依頼の現在グラフ（snapshot/SSE）と各アプリ共通の動き仕様。独立 module 子として単独交換（親 facade・effect・mount はモリー、描画は各アプリ担当） |
 | フローラ | Lattice 工程表 | Lattice の取り込み（本体変更はスノーホワイト）、工程表保管、全席 MCP `lattice`、アプリ向け読取口（snapshot/SSE）と共通画面仕様。独立 module 子＋薄い HTTP/MCP handler（親 facade・effect・mount・MCP 登録・包装/配布はモリー、描画は各アプリ担当） |

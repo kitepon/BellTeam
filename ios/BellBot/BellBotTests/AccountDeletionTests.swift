@@ -49,7 +49,7 @@ final class AccountDeletionTests: XCTestCase {
         XCTAssertTrue(store.accountDeleted)
         XCTAssertNil(store.serverURL)
         XCTAssertNil(store.api.sessionToken)
-        XCTAssertEqual(store.approvals.link.state, .signedOut(note: nil))
+        XCTAssertEqual(store.approvals.link.state, .join)
         if case .setup = store.phase {} else { XCTFail("最初の画面へ戻る: \(store.phase)") }
     }
 

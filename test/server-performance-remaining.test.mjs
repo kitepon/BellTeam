@@ -59,9 +59,11 @@ test('a past delivery update does not rematerialize every unchanged history row'
   const {get}=await http(t,{bots:new Map([['bot-a',{id:'bot-a'}]]),store})
   const old=await get('/api/bots/bot-a/messages?limit=10')
   reads=0;await appendFile(path,line({schema:'bellteam.delivery-status.v1',delivery_id:'m0',delivery:'failed'}))
-  const current=await get('/api/bots/bot-a/messages?after=m0&limit=1')
-  assert.equal(current.items.length,2999);assert.equal(current.has_more,false)
-  assert.ok(reads<10,`unchanged raw rows projected: ${reads}`)
+  // history-store.md: a row is read from the file when a page returns it, so the page is what costs reads, never the 3000 unchanged rows.
+  const current=await get('/api/bots/bot-a/messages?after=m2990&limit=1')
+  assert.equal(current.items.length,9);assert.equal(current.has_more,false)
+  assert.ok(reads<20,`unchanged raw rows projected: ${reads}`)
+  assert.equal((await get('/api/bots/bot-a/messages?before=m3&limit=10')).items[0].delivery,'failed')
   assert.equal(old.items[0].delivery,'running')
  }finally{JSON.parse=original}
 })

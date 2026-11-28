@@ -1,5 +1,7 @@
 # 運営の通知中継
 
+Owner: Mika (the usage module; notifications are hers; Tronie ruling 2026-11-27, task o-bt-push-relay). The OS parts of the production host (unit, user, Caddy route, the key script) are Emma's; the code under `services/notifications` and its `src/` files are listed in the usage module's `module.json`.
+
 利用者のコンテナはAPNsの秘密鍵を持たず、利用者のサーバーが通知をこのサービスへ送る。**購読や課金の確認はしない**（a540-form、クライアントだけで課金を確かめる形、オーナー2026-11-23）。サービスは運営のAPNs・FCMの鍵を持つだけで、要求の形（端末トークン、接続先、通知の文面）が正しければ送る。旧い形のサーバーが付ける `ticket`・`signedTransaction`・`proof` は読まずに捨てる（無くてもよい）。APNsの要求は `{device,payload,id}`、FCMの要求は `{device,id,message}`。
 
 ```mermaid
@@ -19,15 +21,35 @@ flowchart LR
 
 リポジトリ直下で `npm ci` し、`node services/notifications/index.mjs` で起動する。運営のHTTPS公開先からこのNode.jsサービスへ転送する。`HOST` と `PORT` はNode.jsの待受設定に使う。
 
-`BELLTEAM_APNS_DIRECTORY` は運営が保存した `config.json` と `.p8` ファイルのあるディレクトリを指定する。形式は既存の [APNs設定](../../docs/push-notifications.md) と同じ。鍵は鍵ごとに `{keyId, file}`（`.p8`）か `{keyId, reference}`（`op://<保管庫のID>/<アイテムのID>/<フィールド>`、値は `.p8` の全文）を選べる。referenceを使う時は `op`（PATH上か `OP_CLI_PATH`）と `OP_SERVICE_ACCOUNT_TOKEN` を起動環境に置く。鍵を替える時は `config.json` を書き換えてサービスを再起動する。中継はApple・Googleの課金の鍵もkKeyも持たない。鍵と環境変数の値をリポジトリや利用者向けイメージへ含めない。
+`BELLTEAM_APNS_DIRECTORY` は運営が保存した `config.json` と `.p8` ファイルのあるディレクトリを指定する。形式は既存の [APNs設定](../../docs/push-notifications.md) と同じ。鍵は鍵ごとに `{keyId, file}`（`.p8`）だけ（2026-11-27：`reference`・1Passwordは無い。本番は起動前の手順が鍵をtmpfsのfileへ置く、下の「本番の鍵の渡り方」）。鍵を替える時は `config.json` を書き換えてサービスを再起動する。中継はApple・Googleの課金の鍵もkKeyも持たない。鍵と環境変数の値をリポジトリや利用者向けイメージへ含めない。
 
 利用者は追加機能の通知設定へこのサービスのルートURLを登録する。通知設定の変更時は `GET /v1/notifications/status` で実接続とAPNsの設定済み環境を確認する。`POST /v1/notifications/send` は `{signedTransaction,device,payload,id}` を受け取る。`device` と `payload` は `src/push-notifications.mjs` の共通実装が生成する。
 
-BellTeamは `await notifications.configure({enabled,relayUrl})` で保存済み設定を起動時と変更時に反映する。既存のAPNs設定がある個人環境は初回だけ通知ONへ移行し、relayURLが空なら直送する。画面でOFFを保存すると次回起動もOFFを守る。空の公開volumeは未設定・OFFから始まる。relayの接続確認と送信の失敗は `notifications.status().error` と既存の `SERVER_PUSH_FAILED` 診断へ残す。
+BellTeamは `await notifications.configure({enabled,relayUrl})` で保存済み設定を起動時と変更時に反映する。2026-11-27：直送は無い。relayURLが空なら何も送らない（通知ONで空の旧い保存は起動時にOFFへ直る）。画面でOFFを保存すると次回起動もOFFを守る。空の公開volumeは未設定・OFFから始まる。relayの接続確認と送信の失敗は `notifications.status().error` と既存の `SERVER_PUSH_FAILED` 診断へ残す。
 
 ## 運営の公開先
 
-本番の中継は `https://bellteam-push.kitepon.dev`（main-server の独立したサービス `bellteam-push`、`HOST=172.18.0.1`、`PORT=18920`、Cloudflare Tunnel と Caddy の先）。購読の確認はせず、旧形の証明は無視する。`GET /v1/notifications/status` は認証なしで、鍵が読めていれば200（運営の死活確認に使う）。APNsの鍵は起動時に1回だけ読んでメモリに持つ。再配置は main の `services`・`src`・パッケージ定義を `/home/kite/bellteam-push` へ置いて `npm ci --omit=dev` し、再起動を依頼する。`BELLTEAM_TICKET_CHECK_URL` はもう使わない（設定が残っていても読まない）。
+本番の中継は `https://bellteam-push.kitepon.dev`（main-server の独立したサービス `bellteam-push`、`HOST=172.18.0.1`、`PORT=18920`、Cloudflare Tunnel と Caddy の先）。購読の確認はせず、旧形の証明は無視する。`GET /v1/notifications/status` は認証なしで、鍵が読めていれば200（運営の死活確認に使う）。APNsの鍵は起動時に1回だけ読んでメモリに持つ（読み方は下の「本番の鍵の渡り方」）。再配置は main の `services`・`src`・パッケージ定義を `/home/kite/bellteam-push` へ置いて `npm ci --omit=dev` し、再起動を依頼する。`BELLTEAM_TICKET_CHECK_URL` はもう使わない（設定が残っていても読まない）。
+
+## 本番の鍵の渡り方 (key hand-over, 2026-11-27)
+
+The relay process never reaches 1Password or the mediator: the unit's pre-start step puts the key into a tmpfs file, and the relay reads that file once (`{keyId, file}` in `/etc/bellteam-push/config.json`).
+
+```mermaid
+flowchart LR
+  U["bellteam-push.service ExecStartPre=+ /usr/local/sbin/bellteam-push-key (root, Emma)"] -->|"runuser kite, cwd /home/kite/bellteam-push: auth exec printenv BELLTEAM_PUSH_APNS_KEY"| H["host.sock (main-server, unit folder = identity)"]
+  H --> M["auth-mediation module: grant for the unit, item 'printenv BELLTEAM_PUSH_APNS_KEY' in 開発工場・認証仲介"]
+  M -->|"env BELLTEAM_PUSH_APNS_KEY, only into the printenv process"| U
+  U -->|"PEM header check, write 0400"| T[("/run/bellteam-push/AuthKey_9LX3555652.p8, tmpfs")]
+  T -->|"read once at start"| R["relay: APNsProvider"]
+```
+
+| Step | Contract |
+| --- | --- |
+| Item and grant | Sakura keeps the item (title = the command words as typed after `auth exec`, one field labelled `BELLTEAM_PUSH_APNS_KEY`) and the grant (unit `/home/kite/bellteam-push`, that command). The value is never in this repository, the unit text or an env file. |
+| One read per start | One `auth exec` per service start; the module caches the item, so a restart is at most one 1Password read. `RestartSec=900` and `StartLimitBurst=3` per 2 h stay so a failing read cannot loop. |
+| Failure | A refused or failed `auth exec` (no grant, module down, bad PEM header) makes the pre-start step exit 1; the service does not start and retries after `RestartSec`. A running relay is not affected, because the key is already in memory. Self-exit: the grant or the module comes back and the next retry starts it. |
+| Exposure | The key exists only in the `printenv` process environment, the pre-start script's pipe and the tmpfs file (0400, gone on stop or reboot). |
 
 ## Android（FCM）
 

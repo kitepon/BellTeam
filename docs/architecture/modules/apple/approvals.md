@@ -1,6 +1,6 @@
 # 決裁箱（Approval Box拡張）の描画
 
-[全体図](overview.md) / [機能索引](function-index.md)。決裁の読み書きは、決裁箱アプリと同じ経路を、いつも同じ規則で選ぶ（Tronie 2026-11-24 裁定A）。`GET /v1/auth/config` が `peer_channel: true` と言わない間（本番は12-11まで false）は、決裁箱のサーバーの `/v1`（Nayuta の公開API：`/v1/decisions`・`/v1/events`。ログインのパスをBearerで付ける）。`true` と言ったら、決裁箱アプリと同時に、この端末が持つ決裁（peer-channel、[v0.2](../approval-box-extension/peer-channel-v0.2.md)・[サインインと端末の承認](../approval-box-extension/peer-channel-signin.md)）へ移る。画面と状態の持ち主はどちらの経路でも同じで、違うのは `ApprovalBoxLink` の下の部品だけ。工程表とのつながりの口は [/api/approvals/by-*](../approval-box-extension/contract/approvals-contract.md)（IDと状態だけ）。画面・導線・失敗の表示・文言は [screen-spec](../approval-box-extension/screen-spec.md) が正本で、ここではApple側の部品と状態の持ち主だけを書く。アプリが決裁箱（Approval Box）に持つサインインは、BellTeamのサインインとは別の2つ目のライブラリの接続で、BellTeamのサーバーはそのパス・アカウントID・端末の鍵を見ない。IDは通信にだけ使い、画面に出さない。
+[全体図](overview.md) / [機能索引](function-index.md)。この窓は、オーナーの決裁箱（Approval Box）の**子の端末**として、埋め込みの部品 ApprovalBoxClient 0.8.1 で決裁を読み、答える（abx-child-join-apple。契約は [child-join.md](../approval-box-extension/child-join.md)・部品の面は client-component.md 0.5 の9章）。サインイン・端末の承認・決裁の読み書き・SSE・再接続は部品が持ち、この窓は部品の状態を描くだけ。BellTeam のホストは親にならない（どの席も、ほかの端末のつなぎを始めない）。BellTeam のサーバーは、決裁の中身・子の鍵・パスを見ない（工程表とのつながりの口 [/api/approvals/by-*](../approval-box-extension/contract/approvals-contract.md) は ID と状態だけ）。画面・導線・失敗の表示・文言は [screen-spec](../approval-box-extension/screen-spec.md) が正本で、ここでは Apple 側の部品と状態の持ち主だけを書く。部品は login-billing 0.26.0 のローカルの形（LocalForm・KeyholeClient、appId dev.kitepon.approvalbox）の上で子の鍵を持ち、運営のパスは使わない。IDは通信にだけ使い、画面に出さない。
 
 ## 入口と置き場所（Owner 2026-11-16：MacとiPhoneで決裁箱が見つからない）
 
@@ -12,47 +12,48 @@
 | 工程表の詳細（指揮官の札） | 「決裁」ブロックの「決裁を開く」→ `AppStore.openApprovals(decision:)`（iPhoneは`approvalsScreenOpen`、iPad・Macは`approvalsRequest`を各コンテナが受ける） | その決裁の詳細を選んで開く（`ApprovalsModel.openRequest`） |
 | 決裁の「工程表の工程を開く」 | `AppStore.openLatticeCard(project:card:)` → `latticeOpenRequest`＋`latticeOpenCard` | 工程表をその札の詳細で開く（`LatticeHomeView`が`.card`で受ける。iPhoneは相関図タブの工程表側、Macは工程表の窓を前へ） |
 
-## 部品と流れ（a540：`/v1` で読み答える。peer-channel は決裁箱アプリと同時に切り替わる）
+## 部品と流れ（子の端末として部品が読み答える）
 
 ```mermaid
 flowchart LR
   Run["App/BellBotApp.swift RootView ApprovalsRunner：前面の間 ApprovalsModel.run → ApprovalBoxLink.start（1回だけ）。読み直す＝いま生きていなければ retryNow"] --> Model
   Entry["入口（上の表）ApprovalsEntryRow：数＝pendingCount"] --> Model
-  Model["Core/Approvals.swift ApprovalsModel（AppStore.approvals）&lt;br/&gt;gate・summary・open・done・sending・notes。summary は端末の決裁から数える（今日の回答・今日来た数・待ち・急ぎ・保留）。済みは端末の履歴で、もう読み足すものは無い"]
-  Link["Core/PeerApprovals/ApprovalBoxLink.swift（状態機械は signin.md の1つ）&lt;br/&gt;SignedOut・SigningIn・Joining・NotEntitled・NeedsApproval・Waiting・Live・Reconnecting"]
-  Link --&gt;|"state → gate / decisions → open・done"| Model
-  Link --&gt;|"2つ目の LoginBillingClient：https://approval-box.kitepon.dev/auth/v1、自分のパスの置き場（Keychain service dev.kitepon.bellbot.approval-box）、Web サインインだけ（ASWebAuthenticationSession、scheme approvalbox-websignin）、購入なし"| AB["Approval Box（Nayuta）：auth/v1・/pc/v1"]
-  Link --&gt;|"check().k（アカウント番号はここだけ。ログにも BellTeam にも出さない）"| Dev
-  Link -->|"/v1 の間（peer_channel が false）"| Srv
-  Srv["Core/PeerApprovals/ApprovalBoxServer.swift：config・list（待ち／保留は全ページ、済みは先頭50）・answer／hold／unhold（Idempotency-Key、versionつき）・attachment・events（SSE）。パスは2つ目の LoginBillingClient.authorizedRequest／passHeader、他のものには渡さない"]
-  Srv -->|"https://approval-box.kitepon.dev/v1"| AB
-  Srv -->|"添付の原本（SHA-256を照合してから）"| Hist
-  Dev["Core/PeerApprovals/PeerDevice.swift（actor）：レジストリの写し・genesis（5.1）・承認（5.3）・コネクタごとのセッション・署名つきの答えと保留"]
-  Dev --&gt;|"/pc/v1（PeerChannel Swift パッケージ、契約 0.5.9）"| AB
-  Dev --&gt;|"keys（Secure Enclave または Keychain）・レジストリ"| Store["PeerDeviceStore（Keychain service dev.kitepon.bellbot.approval-box.peer）"]
-  Dev --&gt;|"受けた決裁・添付（blob id＝SHA-256）"| Hist["PeerDecisionHistory（アカウントごとのフォルダ、ファイル保護つき）"]
-  Hist --&gt; Link
-  Model --&gt; Screen["ApprovalsScreen：待ち／保留／済み・出どころの絞り込み（外部だけ。BellTeamの出どころは、工程とのつながりを足す時に加える）・今日の回答の輪&lt;br/&gt;ApprovalCard"]
-  Screen --&gt;|"札を押す"| Detail["ApprovalDetailView：背景・添付（端末の blob を id と照合）・答えを選ぶ・指示を書いて返す・保留にする"]
-  Detail --&gt;|"answer / hold → Link → PeerDevice：署名してそのセッションで送り、コネクタの ack を待つ"| Dev
-  Dev -.->|"ack：accepted → 結果の文（届いた）/ closedElsewhere・stale・draftKept・refused → 文を出して選びは残す。自動では再送しない"| Model
-  Model --> GateView["ApprovalGateView：状態ごとの画面と出口（signin.md 3章。Approval Boxにサインイン・やめる・承認をお願いする・確かめ直す・今すぐ試す・Approval Boxからサインアウト）"]
+  Model["Core/Approvals.swift ApprovalsModel（AppStore.approvals）<br/>gate（loading・ready・reconnecting・join・notEntitled・updateRequired）・summary・open・done・sending・notes。summary は部品が持つ決裁から数える（今日の回答・今日来た数・待ち・急ぎ・保留）"]
+  Link["Core/PeerApprovals/ApprovalBoxLink.swift（ChildJoinSource を満たす）<br/>State：join・joining・live・reconnecting・notEntitled・updateRequired・adding（peer 経路で、親の決裁箱が端末の持ち込みで足すのを待つ間）。部品の @Observable（join.state・client.state・open・closed）を1回追って sync、変わるたびに追い直す"]
+  Link -->|"state → gate / decisions → open・done"| Model
+  Link -->|"ApprovalBoxClient（SwiftPM 0.8.1、9eb0755。次の版は端末の持ち込み＝device carry を載せた 0.9.x〔Red Shoes、approval-box/host-move-20261128/h14-device-carry-swift〕で、ピンだけ替える。construct に peer: PeerConfiguration（履歴の置き場所＝Application Support/ApprovalBoxPeer・端末名・platform・Keychain service dev.kitepon.bellbot.approvalbox.peer）を渡し、サーバーの peer_channel が true の時だけ部品が peer 経路（/pc/v1）を選ぶ。鍵の登録 keys/accept・keys/leave は /v1 の下。ChildJoin.make に hostAppId＝このアプリの bundle id）：requestJoin／cancelJoin／leave・take（戻りのリンク lbr1）・start／stop・retryNow・answer／hold／unhold・attachment"| Comp["埋め込みの部品 ApprovalBoxClient（ChildJoin.make：サインイン Apple／Google・子の鍵・QR・承認待ち・読み・答え・SSE・再接続）"]
+  Comp -->|"https://approval-box.kitepon.dev（auth/v1・/pc/v1・/v1）"| AB["Approval Box（Nayuta）"]
+  Comp -.->|"login-billing 0.26.0（部品の依存）"| LB["LoginBilling 0.26.0：LocalForm・KeyholeClient・子の鍵（appId dev.kitepon.approvalbox）。購入なし"]
+  Comp --> Link
+  Link -->|"joinState(of:)：部品の JoinState → ChildJoinState"| CJ["Core/PeerApprovals/ChildJoin.swift：ChildJoinState・ポート ChildJoinSource（requestJoin／cancelJoin／leave／take）・ChildJoinView・参加コードの区画 JoinCodeBlock・接続中の ChildJoinLiveBlock・ChildJoinWords"]
+  Link -->|"record(_:)：Decision → PeerDecisionRecord（変わった時だけ・添付の原本は SHA-256 を照合して端末のメモリへ）"| Rec["Core/PeerApprovals/PeerDecisionRecord.swift（画面が読む1つの形）"]
+  Rec --> Model
+  Model --> Screen["ApprovalsScreen：待ち／保留／済み・出どころの絞り込み（外部だけ。BellTeamの出どころは、工程とのつながりを足す時に加える）・今日の回答の輪<br/>ApprovalCard"]
+  Screen -->|"札を押す"| Detail["ApprovalDetailView：背景・添付（blob を id と照合）・答えを選ぶ・指示を書いて返す・保留にする"]
+  Detail -->|"answer / hold → ApprovalsModel.send → Link（ApprovalWriteOutcome）→ 部品"| Comp
+  Link -.->|"結果：accepted → 結果の文（届いた）/ closedElsewhere・stale・draftKept・refused → 文を出して選びは残す。自動では再送しない"| Model
+  Model -->|"gate = join"| CJ
+  Model -->|"gate = notEntitled / updateRequired"| GateView["ApprovalGateView：文と『確かめ直す』『今すぐ試す』（retryNow）だけ"]
 ```
 
-決裁の契約は [client-v0.5.md](../approval-box-extension/client-v0.5.md)（Delta、PR #2460）に従う：どちらの経路かは join のたびに `GET /v1/auth/config` で決め、読めなければ使っている経路のまま（無ければ `/v1`）。出どころ（BellTeam／外部／不明）は、決裁箱の `source.requester_bot_id`・`requester` を、アプリが持つメンバー表（`store.bots`）の id・名前と突き合わせて端末で決める（`ApprovalOrigin.classify`、fixtures は origin-cases.json の7例）。答えが 409 の時は、いまの決裁に置き換えて「内容が直されました。もう一度確かめてください。」を1行出し、書いた文字は残す。`/api/approvals` の一覧・答え・保留・イベントの口は、この版から呼ばない（by-decision・by-task は今まで通り）。
+**何がどこへ移ったか（#2615）**：サインイン（Apple／Google の Web サインイン・Approval Box のパス）、端末の承認（genesis・レジストリ・承認待ちのコードと QR）、`/v1` の読み書きと SSE、peer-channel の端末の核は、すべて部品の中にある。アプリから消えたもの：`ApprovalBoxServer`・`PeerDevice`・`PeerDeviceStore`・`PeerDecisionHistory`・`ApprovalBoxLiveTests`・`ApprovalBoxServerTests`、状態 SignedOut・SigningIn・NeedsApproval・Waiting、`signIn`・`signOut`・`askForApproval`・`cancelApproval`・`cancelSignIn`、`/v1` と端末の経路の切り替え（`GET /v1/auth/config` の `peer_channel`）。`ApprovalBoxLink` の `start`・`retryNow`・`answer`・`hold` は async throws ではなくなった（答えと保留は `ApprovalWriteOutcome` を返し、投げない）。
 
-`/v1` の間の状態：join は `check().k` の次に `GET /v1/auth/config` を1回聞く（届かなければ Reconnecting）。`false` なら `ApprovalBoxServer` で一覧を読み、SSE の通知ごとに読み直す（NeedsApproval・Waiting は出ない。端末の承認は peer-channel の経路だけ）。401＝サインアウト（`passEnded`）、402＝NotEntitled、ほかの失敗・SSE切断＝Reconnecting（バックオフ、上限なし）。ストリームの `data:` 行ごとに読み直すが、読みは一度に1つ、待たせるのは最大1つ（Last-Event-ID なしの接続は、そのアカウントの保存済みイベントを全部流し直す。行ごとの読みでメインスレッドが詰まりカクついた：測定で10秒のうち7.6秒。`ApprovalBoxServer.watch`）。答え・保留は1回だけ送り、自動では再送しない。結果が分からない時は同じキーのまま押し直しを待ち、2xx＝accepted、409＝stale（すでに答え済みなら closedElsewhere）、ほかの4xx＝refused、届いたか不明＝draftKept。済みの一覧は先頭50件（それより古いものはこの画面に出さない：shortcut、必要なら cursor で足す）。
+**peer 経路（ナユタ 2026-11-28）**：Approval Box が `GET /v1/auth/config` の `peer_channel: true` を返すと、部品は決裁を /v1 でなく peer 経路（/pc/v1 のシグナリング＋端末間）で読み答える。/v1 の中身の経路が閉じた後も、鍵の登録 keys/accept・keys/leave は /v1 に残る。子の端末は鍵の参加だけでは peer のレジストリに入らず、端末の持ち込み（peer-channel 0.8.0）で親の決裁箱が操作なしで足す。コードも QR も出さない（requestApproval は呼ばない）。部品が needsApproval／waiting の間は `adding`（gate adding：文「決裁箱への追加を待っています。決裁箱のアプリが開いていると、自動で追加されます。」と「確かめ直す」＝retryNow）。peer を渡さない版は /v1 のままで、/v1 の中身が閉じると 410 gone＝updateRequired になる。
 
-状態の出口（signin.md 2章）：Live の切れ方は、4401 pass_ended・/pc/v1 の 401＝サインアウト（期限とは言わない）、4410＝パス・端末の鍵・レジストリ・履歴を消してサインアウト、レジストリから外された＝NeedsApproval、中継に届かない＝Reconnecting（1,2,4…60秒の待ち、回数の上限なし。client-v0.5 7章、手動の「今すぐ試す」は待っている次の1回を直ちに実行し並列には増やさない）。契約が無い＝NotEntitled（「Approval Boxの契約が必要です。契約はApproval Boxのアプリで行います。」、価格もボタンも無し、「確かめ直す」で再確認）。サインアウトしても BellTeam のサインインは残る。決裁箱の窓を子の端末にする画面（child-join.md、行abx-child-join-apple）は`ChildJoin.swift`に描いてある（ポート`ChildJoinSource`＝requestJoin／cancelJoin／leave、状態`ChildJoinState`、画面`ChildJoinView`と接続中の`ChildJoinLiveBlock`、言葉`ChildJoinWords`）。部品（client-v0.5.0）が出るまで今の決裁箱のサインインにはつなげない（画面確認用の`PreviewChildJoin`だけ）。Approval Boxが完成したとナユタが言うまで出さない。決裁箱の一覧の最後（サインアウトの下）に、本体の`GET /api/approvals/seat-link`・`POST …/start`・`POST …/stop`だけから描く区画「AIの許可待ちを決裁箱へ送る」（`SeatLinkSection`、言葉は`SeatLinkWords`＝契約seat-approval-card.mdの表のまま）を置く：none＝文と「つなぐ」、waiting＝手順の文・QR・打ち込むコード・「HH:MMまで（JST）」・「やめる」（2秒ごとに読み直す）、linked＝緑のバッジ「つながっています」と文、removed＝灰のバッジ「つなぎが外れています」・「もう一度つなぐ」、failed／本体が答えられない（503・403・読めない）＝赤のバッジ「つなげませんでした」・「もう一度つなぐ」。本体が404を返す（経路が無い古い本体）時は区画を描かない。トークンも決裁箱への経路も持たない。端末の削除画面は作らない（SEC-086 は対象外）。
+**データの持ち主**：子の鍵と接続の記録は部品が自分の Keychain（service `dev.kitepon.loginbilling.keyholes.approvalbox`・`dev.kitepon.loginbilling.local.approvalbox`）に持ち、BellTeam のサインインの置き場とは別。アプリ側のコードは鍵・パス・レジストリを持たない。この窓の決裁（`decisions`）と添付の原本（`blobs`）は、部品の `open`・`closed` から作った端末のメモリの写しで、アプリはファイルに書かない。peer 経路の部品だけが自分の履歴を Application Support/ApprovalBoxPeer に書き、peer の鍵を Keychain service `dev.kitepon.bellbot.approvalbox.peer` に持つ（アプリのコードは読まない）。画面が読むのは `PeerDecisionRecord` 1つの形。「アカウントを削除」の1段目 `removePass` は `leave()`（この端末が親のつなぎ一覧から外れる）、2段目 `deleteLocalData` は決裁と添付の写しと peer の履歴フォルダを捨てる（[account-deletion.md](account-deletion.md)）。BellTeam のサインインは別の形で、どちらにも触れない。
 
-サインインは Apple を先に出し（Owner の Approval Box のアカウントは Apple ID）、Google は2つ目（Nayuta 2026-11-23）。戻りは scheme `approvalbox-websignin` だけ（確認済みリンクは Approval Box 自身のアプリ専用）。
+**状態**（child-join.md）：`join`＝つなぎ前（`joinState` が notJoined〔reason removed を含む〕・signingIn・waitingForParent〔QR・期限・参加コード〕・failed〔コードと、ある時は部品の文〕のどれかで、`ChildJoinView` が描く）。つないだ後は `joining`（まだ決裁を受け取っていない。部品は retryNow・引っ張る更新・待ち行列の再開のたびに `joining` へ戻るが、手元に決裁があるあいだ gate は `reconnecting` として最後の一覧を薄く出し続け、スピナーだけにはしない。カードが無い時だけ `loading`＝スピナー）・`live`・`reconnecting`（部品の再接続。待ち間隔は部品が持ち（1秒から2倍で60秒まで、ゆらぎ20%）、回数の上限は無い。「今すぐ試す」は `retryNow` で待っている次の1回を直ちに実行する）・`notEntitled`（「Approval Boxの契約が必要です。契約はApproval Boxのアプリで行います。」価格もボタンも無し、「確かめ直す」）・`updateRequired`（「この版では、決裁箱をまだ使えません。アプリを更新してください。」）。つなぎを外す（`leave`）と `join` に戻り、部品は stop する。BellTeam の host は子としてだけつながる：親の承認は決裁箱の親の端末が行い、この窓には承認の画面が無い（`ChildJoinView` の QR を親が読むか、参加コードを親へ貼る）。Approval Box が完成したとナユタが言うまで公開しない。
 
-ライブ試験（2026-11-23 04:40 JST、approval-box 9e26153 のローカル開発サーバー 127.0.0.1:8788、iOS シミュレータ。`ApprovalBoxLiveTests`、`PEER_DEV_URL` が無ければ何もしない）：ラボの承認者（dev:approve）が作った登録簿に対し、ApprovalBoxLink が NeedsApproval → 16文字のコードを出す Waiting → dev:admit で承認 → Live → コネクタ経由の依頼が届く → 先頭の選択肢で答える → コネクタ側が answered。Web ブラウザの段は試験で動かせないため、パスは開発サーバーの偽サインインからライブラリの Testing の口で取り、同じパスの置き場を ApprovalBoxLink が読む。`ApprovalBoxLive` は実機・本番・通知・TURN を含まない。
+**参加コード（login-billing 1.60、同じ電話が親の時）**：`waitingForParent` の QR の下に、ラベル「参加コード」・コードの文字（3行で省略）・「コードをコピー」（コピーは10分で消える）を出す。コードはサインインの証を含むので、打たせず、画面とクリップボードだけに置く。iPhone・iPad は先頭に「決裁箱で開く」（コードのリンクを開く）と電話向けの文、貼り付け欄「決裁箱でコピーしたリンクを、ここに貼り付けてください」＋「このリンクでつなぐ」を出し、QR の案内文は出さない（Android #2714 と同じ文）。Mac は QR の案内文を残し、開くボタンも貼り付け欄も無い。部品がコードを返さない時は、今まで通り QR の案内文だけ。戻りのリンク（lbr1）は、貼り付けたものも、このアプリで開いたものも `take` へ渡す（[login-billing.md](login-billing.md)「開いたリンク」）。貼ったリンクを受けない時は「このリンクではつなげませんでした。決裁箱でリンクをコピーし直して、貼り付けてください。」を出し、待ちは続く。`failed` は `other_account` が自分の文、部品の文（`local_network_denied`・`not_answering`・`unreachable_same_wifi`）があればそのまま、ほかは「つなげませんでした。もう一度つないでください。」。決裁箱の「開く」ボタンは戻りのリンクで BellTeam を開く（部品へ `hostAppId` を渡し、参加コードの戻り先をこのアプリにする。QR とコードの宛先は決裁箱のまま）。コピーと貼り付けでも戻せる。つながったかどうかは部品が返事の結果（login-billing 1.63 の `joined`＝親がこの端末を足したか）だけで決める。アプリはエラーコードから読み替えない（親の購入の証明が断られても、足されていればつながる）。
+
+**区画「決裁箱につなぐ」（`SeatLinkSection`）は廃止する（Owner 2026-11-27、Delta の図の改め）**：つながった後の画面に、同じ名前の2つ目の欄を置かない。本体は席の接続も QR も持たない（Owner 2026-11-28、Tronie 経由：決裁箱は単体のまま、各ホストの決裁箱が自分でつながる。approval-box-extension/decision-port.md）。本体の `/api/approvals/seat-link` 系は外した。アプリは呼ばない。アプリのコード（`SeatLinkSection.swift`・`SeatLink.swift`・その試験・配線）は削除済み（Rapi、次の版から出る）。版 204 までは残るが、その区画は出ない。
+
+出どころ（BellTeam／外部／不明）は、決裁の `source.requester_bot_id`・`requester` を、アプリが持つメンバー表（`store.bots`）の id・名前と突き合わせて端末で決める（`ApprovalOrigin.classify`、fixtures は origin-cases.json の7例）。答えが stale（409）の時は、いまの決裁に置き換えて「内容が直されました。もう一度確かめてください。」を1行出し、書いた文字は残す。`/api/approvals` の一覧・答え・保留・イベントの口は呼ばない（by-decision・by-task だけ使う）。済みの一覧の長さは部品が決める。
 
 工程表とのつながり（a490h2r、`Core/PeerApprovals/ApprovalLinks.swift` の `ApprovalLinkResolver`）：決裁の中身は端末だけにあり、BellTeam のサーバーに聞くのは ID と状態だけ。`GET /api/approvals/by-decision?id=` が {project, plan, task, state} を返せば BellTeam の決裁（出どころ bellteam、つながりあり）、404 なら外部または未接続（破線の「つながっていません」）、それ以外の失敗は何も足さない。工程の名前と前後は、アプリが読める工程表（`/api/lattice/charts/:project`、20秒の写し）の札とエッジから描く。見つかったつながりは30秒ごとに読み直し、404は30秒後にもう一度聞く（サーバーのつなぎ込みは自分の間隔で動く）。つながりの状態は3つに分ける：まだ聞いていない（BellTeamの出どころは「工程表につなげています」。外部は「工程表とはつながっていません」）、聞いて404（BellTeamの出どころは「この決裁に合う工程は、工程表に見つかっていません」、淡い色。30秒ごとの聞き直しで見つかれば線になる）、つながり（「工程表「…」が、この回答を待っています」）。聞けなかった（404以外の失敗）時は状態を変えない（`ApprovalsModel.links`に入っているか、が「聞いた」の印で、`ApprovalDecision.linkMissing`として画面へ渡る）。工程表の詳細の「決裁を開く」は `by-task`（ID と状態だけ。件名が無い時は「決裁（待ち）」）から同じ決裁の詳細を開く。
 
 答えたあとの文（`ApprovalText.answerBanner`）は、答えの応答で受け取った決裁の`delivery`（`/v1`の応答の値をそのまま`PeerDecisionRecord.delivery`に持つ。端末の経路はコネクタのackで`delivered`）から、画面を描く時に毎回作る（答えた時の決裁から作って保存しない）。`delivered`・`fetched`＝「答えました。◯◯に届きました。」（緑）、`waiting`＝「◯◯が会話に戻ると受け取ります。」（紫、SSEの`delivery`更新で`delivered`に変わる）、`unknown`だけ「確かめられませんでした…再開の文を貼ってください」（橙。再開の文は応答の`resume_phrase`）、まだ値が無い（無い・`pending`）時は「答えました。◯◯への届きを確かめています。」（灰色。`delivered`に変わると置き換わる）。契約は [screen-spec](../approval-box-extension/screen-spec.md) の Answer outcomes（Delta PR #2480）。届いた答えに貼る文を頼まない。
 
-プッシュ通知は無い（Nayuta 2026-11-23、Delta の設計 v0.1 10章）：BellTeam アプリの決裁箱の画面は、開いている間に join / wait.available で決裁を受ける。Approval Box のサーバーは BellTeam アプリの通知トークンを登録も起こしもしない（送り先の topic が Approval Box のアプリ1つに固定のため）ので、通知拡張（NSE）も共有 Keychain グループも作らない。通知は Approval Box 自身のアプリが出す。BellTeam の bundle id に push の道ができたら、普通の公開として NSE を足す。BellTeam のサーバーへ「この端末が見せた決裁」を知らせる報告（D7b）は設計から外れた（v0.4）。
+プッシュ通知は無い（Nayuta 2026-11-23）：決裁箱の画面は、開いている間に部品が受ける決裁を描く。Approval Box のサーバーは BellTeam アプリの通知トークンを登録も起こしもしない（送り先の topic が Approval Box のアプリ1つに固定のため）ので、通知拡張（NSE）も共有 Keychain グループも作らない。通知は Approval Box 自身のアプリが出す。
 
 この版に入れていないもの：実機 iPhone での確認（TestFlight のビルドと Owner の Apple ID が要る）。

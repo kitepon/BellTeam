@@ -1,7 +1,7 @@
 // execFile-compatible reader for seat commands. The privileged entry and seat
 // wrapper own identity/environment and group cancellation, not this caller.
 import { spawn } from 'node:child_process'
-import { seatCommandSpec } from './seat-command.mjs'
+import { seatCommandSpec, validateSecretEnv } from './seat-command.mjs'
 import { runtimeHome } from './runtime-home.mjs'
 
 const failure = (code, properties = {}) => Object.assign(new Error(code), { code, ...properties })
@@ -11,9 +11,11 @@ export function createSeatProcessRunner(project, { environment = 'configured' } 
   seatCommandSpec('true', [], { project, environment })
   return (command, args = [], options = {}) => {
     if (Object.hasOwn(options, 'env')) throw failure('SEAT_DYNAMIC_ENV_UNWIRED')
-    const { signal, input, maxBuffer = 16 * 1024 * 1024, acceptNonzero = false } = options
+    const { signal, input, maxBuffer = 16 * 1024 * 1024, acceptNonzero = false, secretEnv } = options
+    // O2: the only way an environment enters. Validated before a process starts; the value goes on the stdin line, never into argv or a file.
+    if (secretEnv !== undefined) validateSecretEnv(secretEnv)
     if (typeof acceptNonzero !== 'boolean') throw failure('SEAT_EXIT_MODE_INVALID')
-    const spec = seatCommandSpec(command, args, { project, environment })
+    const spec = seatCommandSpec(command, args, { project, environment, secretEnv: secretEnv !== undefined })
     if (!Number.isSafeInteger(maxBuffer) || maxBuffer < 1) throw failure('SEAT_BUFFER_INVALID')
     if (input !== undefined && typeof input !== 'string' && !Buffer.isBuffer(input)) throw failure('SEAT_INPUT_INVALID')
     if (signal?.aborted) return Promise.reject(failure('ABORT_ERR', { name: 'AbortError', effect: 'not_started' }))
@@ -49,6 +51,7 @@ export function createSeatProcessRunner(project, { environment = 'configured' } 
           ...(acceptNonzero ? { code: exitCode, signal: exitSignal } : {}) })
       })
       // Fixed-stdin consumers require EOF; no input means an empty stream.
+      if (secretEnv !== undefined) child.stdin.write(JSON.stringify(secretEnv) + '\n')
       child.stdin.end(input)
     })
   }

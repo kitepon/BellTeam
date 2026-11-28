@@ -1,5 +1,4 @@
 import { OS_LABEL, childPath, isEntryName, isTerminalPath, parentPath } from './paths.mjs'
-import { doorHook, atLeast } from './approval-door.mjs'
 import { parseExport } from './trust-copy.mjs'
 
 export const CONNECTION_CODES = ['TERMINAL_UNAVAILABLE', 'CREDENTIAL_UNAVAILABLE', 'TARGET_MISMATCH']
@@ -50,6 +49,13 @@ const REGISTRY_REASONS = new Set(['SSH_KEY_UNSET', 'BINDING_UNSET'])
 const PROVISION_CODES = new Set(['REMOTE_AITERM_UNAVAILABLE', 'REMOTE_AITERM_TOO_OLD'])
 const CODE = /^[A-Z][A-Z0-9_]{0,63}$/
 const REMOTE_ROUTE_MINIMUM = '0.70.113'
+const version = value => /^(\d+)\.(\d+)\.(\d+)/.exec(value ?? '')?.slice(1).map(Number) ?? null
+function atLeast(value, minimum) {
+  const a = version(value), b = version(minimum)
+  if (!a || !b) return false
+  for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] > b[i]
+  return true
+}
 // The container's Aiterm version seen by the open that made an `aiterm` evidence object; not part of the evidence itself.
 const containerVersions = new WeakMap()
 const parseVersion = value => /^(\d+)\.(\d+)\.(\d+)/.exec(value ?? '')?.slice(1).map(Number)
@@ -86,7 +92,7 @@ function classify(error, target) {
 // Trony ruling (2026-11-09 16:1x JST): ONE launch path. Execution passes the returned `terminal` + `cwd` to Aiterm's own
 // agent_launch; send/wait/transcript go through Aiterm like a local seat. terminals opens a remote process only for
 // reachability (open -> close) and C8 upkeep (version/update/install, login for codex/grok), never for a seat.
-export function createTerminalConnection({ registry, secrets, native, now = () => new Date(), probeDelays = { first: 30_000, max: 300_000 } } = {}) {
+export function createTerminalConnection({ registry, secrets, native, keyReader = null, now = () => new Date(), probeDelays = { first: 30_000, max: 300_000 } } = {}) {
   if (!registry?.target || typeof secrets?.withResolved !== 'function' || typeof native?.connect !== 'function') throw new TypeError('Invalid terminal connection configuration')
   const wanted = new Map() // terminalId -> probe state
   const maintenance = new Map()
@@ -164,7 +170,14 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
     return binding
   }
 
+  // keyReader (terminal-keys-via-authmed): an owned secret terminal's key is read and loaded by the 認証仲介 loader, never by this parent;
+  // availability is the reader's answer (no Mika source), the revision only a label for Aiterm.
+  const mediated = target => target.keySource === 'secret' && keyReader?.owns?.(target.terminalId) === true
+
   async function handleOf(handle, context) {
+    if (context.purpose === 'terminal.ssh' && keyReader?.owns?.(context.terminalId) === true) {
+      try { const state = await keyReader.available(context.terminalId); return { handle, revision: state?.revision, available: state?.available === true } } catch { return null }
+    }
     try { return await secrets.credential(handle, context) } catch { return null }
   }
 
@@ -172,6 +185,12 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
   // before a launch. The value exists only inside Mika's callback and goes to Aiterm's stdin.
   async function loadKey(target, binding, current, extra) {
     if (!binding.credential) return
+    if (mediated(target)) {
+      try { await keyReader.load({ terminalId: target.terminalId, memberId: null, ref: binding.ref, ...binding.credential }) } catch { throw Object.assign(new Error('x'), { code: 'CREDENTIAL_NOT_LOADED' }) }
+      if (!current()) throw failure('TERMINAL_UNAVAILABLE')
+      if (extra) extra.agent = { outcome: 'loaded' } // the loader's one run also loaded the per-terminal agent
+      return
+    }
     // expectedRevision (Mika, as Molly #813 uses it): bytes of a newer revision are never labelled with the target's revision.
     await secrets.withResolved(target.sshKeyRef, { terminalId: target.terminalId, memberId: null, purpose: 'terminal.ssh', expectedRevision: binding.credential.revision },
       async key => {
@@ -384,7 +403,7 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
     try {
       const binding = await resolveBinding(record, memberId)
       if (!current()) throw failure('TERMINAL_UNAVAILABLE')
-      let doorFields = {}, inputFields = {}
+      let inputFields = {}
       if (Object.hasOwn(CLI_NAMES, harness)) {
         // Shared only within one registry generation, so a launch never waits on a run against an older target.
         const key = `${terminalId}\0${harness}`
@@ -397,7 +416,6 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
         const result = await shared.run, { loggedIn, aiterm } = result
         if (!current()) throw failure('TERMINAL_UNAVAILABLE')
         if (loggedIn === false) throw loginRequired(harness, record.os)
-        doorFields = doorHook(aiterm?.before, containerVersions.get(aiterm))
         inputFields = await remoteInput(record, binding, aiterm, result)
         if (!current()) throw failure('TERMINAL_UNAVAILABLE')
       }
@@ -409,8 +427,6 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
         cwd: projectRoot,
         os: record.os,
         accountOwner: record.accountOwner,
-        // a532b1: the Approval Box door's post_launch field, only for a terminal whose Aiterm (and the container's) can run it; execution passes it on unchanged.
-        ...(doorFields.post_launch ? { doorHook: doorFields } : {}),
         ...inputFields
       }
     } catch (error) { if (error.code !== 'TARGET_MISMATCH' && error.code !== 'AGENT_AUTH_REQUIRED' && current()) want(terminalId); throw error }

@@ -62,7 +62,7 @@ export async function configureHarnesses(bots, home = runtimeHome(), { run = exe
 // BellTeamがどの席にも必ず付ける変数（bot-environment.mjs・runtime-home.mjs）。
 const AITERM_SEAT_ENV_VARS = [
   'BELLTEAM_HOME', 'BELLTEAM_PROJECT', 'CODEX_HOME', 'GROK_HOME',
-  'GH_CONFIG_DIR', 'GIT_CONFIG_GLOBAL', 'XDG_CONFIG_HOME', 'XDG_STATE_HOME',
+  'GH_CONFIG_DIR', 'GIT_CONFIG_GLOBAL', 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL', 'XDG_CONFIG_HOME', 'XDG_STATE_HOME',
   'npm_config_cache', 'npm_config_prefix', 'PIP_CACHE_DIR', 'THROUGHLINE_HOME',
 ]
 // 本体の環境にある時だけ席へ受け継がれる変数。

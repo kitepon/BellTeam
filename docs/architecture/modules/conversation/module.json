@@ -12,6 +12,7 @@
     "durable-messages",
     "fork-inquiry",
     "reply-reference",
+    "seatStream (cursor, ingest)",
     "call-bridge delivery (/v0/directory, /v0/deliver)"
   ],
   "uses": [

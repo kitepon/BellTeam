@@ -6,8 +6,8 @@ import XCTest
 @MainActor
 final class LocalAccountTests: XCTestCase {
     func testWordsNameTheWayOutNotTheCode() {
-        XCTAssertEqual(LocalAccount.words(LoginBillingError(code: "unreachable_same_wifi")), "スマホからこの端末に届きませんでした。2台を同じネットワーク（同じLAN）につないでから、もう一度お試しください。")
-        XCTAssertTrue(LocalAccount.words(LoginBillingError(code: "local_network_denied")).contains("ローカルネットワークを許可"))
+        XCTAssertEqual(LocalAccount.words(LoginBillingError(code: "unreachable_same_wifi")), LocalWords.ja("unreachable_same_wifi"))
+        XCTAssertTrue(LocalAccount.words(LoginBillingError(code: "local_network_denied")).contains("ローカルネットワーク"))
         XCTAssertTrue(LocalAccount.words(LoginBillingError(code: "other_account")).contains("同じアカウント"))
         XCTAssertTrue(LocalAccount.words(LoginBillingError(code: "request_expired")).contains("新しいQR"))
         XCTAssertTrue(LocalAccount.words(LoginBillingError(code: "request_invalid")).contains("最新版に更新"))
@@ -29,9 +29,10 @@ final class LocalAccountTests: XCTestCase {
 
     func testOnlyWhatIsLibraryQRReachesTheAnswer() async {
         let account = LocalAccount(productId: "p")
-        await account.open(link: URL(string: "https://example.com/join/dev.kitepon.bellbot#x")!)
-        await account.open(link: URL(string: "https://login-billing.kitepon.dev/other")!)
-        await account.open(link: URL(string: "https://login-billing.kitepon.dev/join/dev.kitepon.bellbot#bad")!)
+        let unused: (String) async throws -> Void = { _ in XCTFail("not a library link") }
+        await account.open(link: URL(string: "https://example.com/join/dev.kitepon.bellbot#x")!, child: unused)
+        await account.open(link: URL(string: "https://login-billing.kitepon.dev/other")!, child: unused)
+        await account.open(link: URL(string: "https://login-billing.kitepon.dev/join/dev.kitepon.bellbot#bad")!, child: unused)
         XCTAssertNil(account.message); XCTAssertNil(account.errorText)
     }
 
@@ -53,6 +54,25 @@ final class LocalAccountTests: XCTestCase {
     func testTheAppleServicesIdIsAnAcceptedAudience() {
         XCTAssertEqual(LocalAccount.appleServicesId, "dev.kitepon.bellbot.signin")
         XCTAssertTrue(LocalAccount(productId: "p").rules.audiences.contains("dev.kitepon.bellbot.signin"))
+    }
+
+    /// Owner 2026-11-24: one QR read, one approve prompt. The library asks on every answer; a sign-in between two answers must not ask again.
+    func testOneQRReadAsksOnceAcrossTheSignIn() async throws {
+        final class Count: @unchecked Sendable { var asked = 0, answers = 0, signIns = 0 }
+        let count = Count()
+        let result = try await LocalAccount.answerWithSignIn(
+            ask: { count.asked += 1; return true },
+            answer: { confirm in
+                count.answers += 1
+                guard await confirm() else { return .declined }
+                if count.answers == 1 { throw LoginBillingError(code: "signin_required") }
+                return .sent
+            },
+            signIn: { count.signIns += 1 })
+        XCTAssertEqual([count.asked, count.answers, count.signIns], [1, 2, 1])
+        XCTAssertEqual(String(describing: result), "sent")
+        let declined = try await LocalAccount.answerWithSignIn(ask: { count.asked += 1; return false }, answer: { confirm in await confirm() ? .sent : .declined }, signIn: { XCTFail("no sign-in after a no") })
+        XCTAssertEqual(String(describing: declined), "declined")
     }
 
     func testTheShippedGoogleClientIsTheOneInInfoPlist() {

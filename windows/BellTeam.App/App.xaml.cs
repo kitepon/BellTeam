@@ -356,7 +356,7 @@ public partial class App : Application
                 var moduleScene = approvalsScene switch { "link-waiting" => "waiting", "link-denied" => "denied", "link" => "main", "gone" or "unreadable" => approvalsScene, _ => "connected" };
                 var model = new Workspace(origin => new BellApi(origin, new ApprovalsFixture(moduleScene))); await model.ConnectAsync("http://localhost", listen: false);
                 if (model.ConnectionError is { } approvalsFailure) throw new BellApiException(approvalsFailure);
-                var demo = approvalsScene is "empty" or "join" or "join-signing" or "join-waiting" or "join-failed" or "join-other-account" or "join-removed" ? new ApprovalsFixture.Demo() : new ApprovalsFixture.Demo().Fill();
+                var demo = approvalsScene is "empty" or "join" or "join-signing" or "join-waiting" or "join-not-answering" or "join-failed" or "join-other-account" or "join-removed" ? new ApprovalsFixture.Demo() : new ApprovalsFixture.Demo().Fill();
                 var hub = new ApprovalsHub(model, device: approvalsScene == "unavailable" ? null : demo);
                 if (approvalsScene.StartsWith("join", StringComparison.Ordinal))
                 {
@@ -365,7 +365,8 @@ public partial class App : Application
                     switch (approvalsScene)
                     {
                         case "join-signing": join.SigningIn = true; break;
-                        case "join-waiting": join.Phase = ChildJoinPhase.Waiting; join.QrLink = "https://login-billing.kitepon.dev/join/dev.kitepon.approvalbox#lbq4:EXAMPLEJOINLINK0123456789"; join.ExpiresAt = DateTimeOffset.Now.AddMinutes(5); break;
+                        case "join-waiting": join.Phase = ChildJoinPhase.Waiting; join.QrLink = "https://login-billing.kitepon.dev/join/dev.kitepon.approvalbox#lbq4:EXAMPLEJOINLINK0123456789"; join.ExpiresAt = DateTimeOffset.Now.AddMinutes(5); join.Code = "https://login-billing.kitepon.dev/join/dev.kitepon.approvalbox#lbc1:EXAMPLEJOINCODE0123456789abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"; break;
+                        case "join-not-answering": join.Phase = ChildJoinPhase.Failed; join.FailedCode = "not_answering"; join.Words = "同じネットワークにはつながっていますが、QRを出している端末が応答しません。その端末のセキュリティソフトやファイアウォールが、接続を止めているかもしれません。その端末で、QRを出しているアプリの通信を許可してください（Windowsでは、つないでいるネットワークを「プライベート」にしてください）。そのあと、新しいQRを出して、もう一度読んでください。"; break;
                         case "join-failed": join.Phase = ChildJoinPhase.Failed; join.FailedCode = "parent_refused"; break;
                         case "join-other-account": join.Phase = ChildJoinPhase.Failed; join.FailedCode = "other_account"; break;
                         case "join-removed": join.Removed = true; break;
@@ -387,7 +388,7 @@ public partial class App : Application
                 if (approvalsScene == "done") { page.SetTab(ApprovalsPage.Tab.Done); page.Select("K-6"); }
                 if (approvalsScene == "filter") page.SetOrigin("external");
                 if (approvalsScene == "answer") page.Choose("o1");
-                const int approvalsWidth = 1360, approvalsHeight = 860;
+                const int approvalsWidth = 1360; const int approvalsHeight = 860;
                 var approvalsRoot = (FrameworkElement)approvals.Content;
                 approvalsRoot.Measure(new Size(approvalsWidth, approvalsHeight)); approvalsRoot.Arrange(new Rect(0, 0, approvalsWidth, approvalsHeight)); approvalsRoot.UpdateLayout();
                 WritePng(approvals, approvalsWidth, approvalsHeight, approvalsOutput);
@@ -406,9 +407,10 @@ public partial class App : Application
                 var latticeRoot = (FrameworkElement)lattice.Content;
                 async Task Until(Func<bool> done, string what) { var until = DateTime.UtcNow.AddSeconds(10); while (!done()) { if (DateTime.UtcNow > until) throw new BellApiException(what); await Task.Delay(20); } }
                 lattice.Sync();
-                if (latticeScene is "list" or "list-many" or "list-empty" or "old-server") await Until(() => lattice.ListSettled, "工程表の一覧を読めませんでした。");
+                if (latticeScene is "list" or "list-many" or "list-nudge" or "list-empty" or "old-server") await Until(() => lattice.ListSettled, "工程表の一覧を読めませんでした。");
                 // list-many (a87): 35 charts; the page is scrolled to its end so the last chart shows it is reachable.
                 if (latticeScene == "list-many") { latticeRoot.Measure(new Size(latticeWidth, latticeHeight)); latticeRoot.Arrange(new Rect(0, 0, latticeWidth, latticeHeight)); latticeRoot.UpdateLayout(); lattice.ScrollListToEnd(); }
+                else if (latticeScene == "list-nudge") { latticeRoot.Measure(new Size(latticeWidth, latticeHeight)); latticeRoot.Arrange(new Rect(0, 0, latticeWidth, latticeHeight)); latticeRoot.UpdateLayout(); }
                 else if (latticeScene.StartsWith("stops", StringComparison.Ordinal))
                 {
                     // ブロック一覧 from 一覧. stops-confirm: the first row asks; stops-refused: the first row's 外す was refused; stops-open: the first row opened its chart and 詳細.
@@ -438,6 +440,14 @@ public partial class App : Application
                     if (latticeScene is "detail" or "tree-detail") chart.OpenDetail("p1/t04", morph: false);
                     if (latticeScene == "owner") { chart.OpenDetail("p1/t11", morph: false); await Until(() => chart.Decisions.GetValueOrDefault("p1/t11") is not null, "決裁を読めませんでした。"); }
                     if (latticeScene == "connections-end") chart.ScrollWaitsToEnd();
+                    // 工程表の設定: the sheet over the chart once its first read has an answer; -on and -save-fails change the switch once (the server answers 503 after keeping it).
+                    if (latticeScene.StartsWith("reminders", StringComparison.Ordinal))
+                    {
+                        chart.OpenReminders(); var reminders = chart.Reminders!.Model;
+                        await Until(() => reminders.Ready || reminders.Status != LatticeReminderModel.Loading, "催促の設定を読めませんでした。");
+                        if (latticeScene is "reminders-on" or "reminders-save-fails") await reminders.SetAsync(true);
+                        latticeRoot.UpdateLayout();
+                    }
                     if (latticeScene == "owner-lanes") { chart.ScrollBoard(chart.Board.CardRect("p1/t09").X, chart.Board.CardRect("p1/t11").Y - 120); chart.ScrollWaitsToEnd(); }
                     if (latticeScene == "highlight") chart.Highlight("bot-flora");
                     if (latticeScene == "unknown") chart.ScrollWaitsToEnd();
@@ -467,7 +477,7 @@ public partial class App : Application
                 Shutdown(0);
                 return;
             }
-            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-approvals <main|answer|external|unknown-member|held|done|filter|empty|unavailable|link|link-connected|link-waiting|link-denied|gone|unreadable|join|join-signing|join-waiting|join-failed|join-other-account|join-removed|join-live|join-block> <PNG>、--render-lattice <list|list-many|list-back|list-empty|old-server|stops|stops-confirm|stops-refused|stops-open|stops-empty|stops-unread|stops-retry|stops-old|single|chart|authored|tree|tree-detail|history|owner|owner-lanes|detail|external|external-detail|highlight|unverified|last-verified|unknown|degraded|reconnecting|unavailable|not-found> <PNG>、--render-gallery <URL> <会話ID> <PNG>、--render-url <URL> [会話ID] <PNG>、--render-inspector <member|member-small|restart-busy|restart-success|room|sheet-small|sheet-large|sheet-unsupported|pending|pending-sheet> <URL> <会話ID> <PNG>、--render-screen <keys|approval|digits|sent|empty|offline|failed> <URL> <会話ID> <PNG>、--render-conversation <member|room|fork|secret|echo|states|stop|stop-notice|stop-member|draft|peer-sheet|stack|empty|failed> <URL> <会話ID> <PNG>、--render-secret <ssh-search|sudo-list|sudo-vault|reference|onetime|login|old> <URL> <PNG>、--render-page <settings|settings-lower|settings-<profile|ai|features|notifications|connection|display|billing|update|about|stop>|schedules|updates|updates-current|updates-narrow|updates-detail-narrow|update-sheet> <URL> <PNG>、--render-terminals <list|detail-auth-failed|detail-hostkey|detail-windows|detail-authorizing|keys|keys-pending|hostkey-sheet|editor-macos|editor-windows|editor-linux> <URL> <PNG>、--render-startup <opening|setup|guide|failure|login|account|onboarding-choose|onboarding-waiting|banner> <URL> <PNG>、--render-editor <member|settings|profile|feature|schedules|new-schedule|authentication> <URL> <ID> <PNG>、--render-editors <new-member|new-room|room|room-delete-alert|crop|member|member-delete-alert|member-delete-pending|member-delete-unconfirmed|folder-new|folder-new-windows|folder-new-missing|folder-new-typed|folder-picker|folder-picker-sub|folder-picker-created> <URL> <ID> <PNG> のいずれかです。");
+            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-approvals <main|answer|external|unknown-member|held|done|filter|empty|unavailable|link|link-connected|link-waiting|link-denied|gone|unreadable|join|join-signing|join-waiting|join-not-answering|join-failed|join-other-account|join-removed|join-live|join-block> <PNG>、--render-lattice <list|list-many|list-nudge|list-back|list-empty|old-server|stops|stops-confirm|stops-refused|stops-open|stops-empty|stops-unread|stops-retry|stops-old|reminders|reminders-on|reminders-save-fails|reminders-old|single|chart|authored|tree|tree-detail|history|owner|owner-lanes|detail|external|external-detail|highlight|unverified|last-verified|unknown|degraded|reconnecting|unavailable|not-found> <PNG>、--render-gallery <URL> <会話ID> <PNG>、--render-url <URL> [会話ID] <PNG>、--render-inspector <member|member-small|restart-busy|restart-success|room|sheet-small|sheet-large|sheet-unsupported|pending|pending-sheet> <URL> <会話ID> <PNG>、--render-screen <keys|approval|digits|sent|empty|offline|failed> <URL> <会話ID> <PNG>、--render-conversation <member|room|fork|secret|echo|states|stop|stop-notice|stop-member|draft|peer-sheet|stack|empty|failed> <URL> <会話ID> <PNG>、--render-secret <ssh-search|sudo-list|sudo-vault|reference|onetime|login|old> <URL> <PNG>、--render-page <settings|settings-lower|settings-<profile|ai|features|notifications|connection|display|billing|update|about|stop>|schedules|updates|updates-current|updates-narrow|updates-detail-narrow|update-sheet> <URL> <PNG>、--render-terminals <list|detail-auth-failed|detail-hostkey|detail-windows|detail-authorizing|keys|keys-pending|hostkey-sheet|editor-macos|editor-windows|editor-linux> <URL> <PNG>、--render-startup <opening|setup|guide|failure|login|account|onboarding-choose|onboarding-waiting|banner> <URL> <PNG>、--render-editor <member|settings|profile|feature|schedules|new-schedule|authentication> <URL> <ID> <PNG>、--render-editors <new-member|new-room|room|room-delete-alert|crop|member|member-delete-alert|member-delete-pending|member-delete-unconfirmed|folder-new|folder-new-windows|folder-new-missing|folder-new-typed|folder-picker|folder-picker-sub|folder-picker-created> <URL> <ID> <PNG> のいずれかです。");
 
             // Started by the Windows share sheet (sparse-package identity, scripts/register-windows-share-target.ps1): only the share window, no single-instance hand-over.
             if (e.Args.Length == 0 && await ShareActivation.ReadAsync() is { } shared)

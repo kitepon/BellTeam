@@ -1,5 +1,5 @@
 // Parent side of the lattice child (docs/architecture/modules/runtime/lattice-child.md).
-// Reads go at once; writes one at a time, seat writes first, background after (doc: Call queue; the child runs reads beside writes).
+// Reads go at once; writes one at a time per lane (a project, or `shared`), lanes beside each other, seat writes first, background after (doc: Call queue; the child runs reads beside writes).
 // While any chart has subscribers, one timer drives a root 'refresh'.
 const unavailable = () => Object.assign(new Error('LATTICE_UNAVAILABLE'), { code: 'LATTICE_UNAVAILABLE', status: 503 })
 // Not an error: the write was accepted and has not finished, running or queued behind others (docs/architecture/modules/runtime/lattice-child.md: Call queue).
@@ -10,41 +10,59 @@ const PASS = new Set(['LATTICE_CHART_NOT_FOUND', 'LATTICE_PROJECT_INVALID', 'LAT
 const SLICE = 50
 // Owner 2026-11-12: 「では、1分で。」 (README L13).
 export const NUDGE_MS = 60_000
-import { latticeRunReads } from './lattice-protocol.mjs'
+import { latticeRunReads, latticeWriteLane } from './lattice-protocol.mjs'
 
 const READS = new Set(['charts', 'chart', 'history', 'refresh', 'blockers'])
 const BACKGROUND = new Set(['nudge', 'deliver'])
+// Writes in flight at once; the child takes 8 root calls, reads included.
+export const MAX_WRITES = 4
 // Background writes and unblock: a write queued longer is never sent (nobody can read its answer late).
 export const QUEUE_WAIT_MS = 50_000
 // Seat writes: Claude Code aborts the MCP call at 60 s ("The operation timed out."), so the seat gets a definite answer first (a162).
 export const SEAT_ANSWER_MS = 40_000
 
-export function createLatticeFacade({ controller, retryMs = 2000, nudgeMs = NUDGE_MS, waitMs = QUEUE_WAIT_MS, answerMs = SEAT_ANSWER_MS, now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout }) {
+export function createLatticeFacade({ controller, reminders = null, retryMs = 2000, nudgeMs = NUDGE_MS, waitMs = QUEUE_WAIT_MS, answerMs = SEAT_ANSWER_MS, now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout }) {
   const subscribers = new Map()
   const queues = { seat: [], background: [] }
-  let busy = false, session = 0, timer = null
+  const busyLanes = new Set()
+  let session = 0, timer = null
 
   const fail = error => PASS.has(error?.code) ? Object.assign(new Error(error.code), { code: error.code, status: error.status ?? 400 }) : unavailable()
   const send = (method, params) => Promise.resolve().then(() => controller.request(method, params)).catch(error => { throw fail(error) })
 
-  // busy ends when the child finishes the write (the call's completion), not at the parent's IPC deadline: sent order stays child order.
+  // A lane is busy until the child finishes the write (the call's completion), not at the parent's IPC deadline: sent order stays child order.
+  // Seat writes are taken first; a background write goes when no seat write could be sent now.
   const pump = () => {
-    while (!busy) {
-      const job = queues.seat.shift() ?? queues.background.shift()
-      if (!job || job.answered) { if (job) continue; return }
-      if (!job.pending && now() - job.queuedAt > waitMs) { job.reject(unavailable()); continue }
-      busy = true; job.sent = true
-      let request
-      try { request = controller.request(job.method, job.params) } catch (error) { request = Promise.reject(error) }
-      request.then(job.resolve, error => job.reject(fail(error)))
-      Promise.resolve(request.completion ?? request).then(() => {}, () => {}).finally(() => { busy = false; pump() })
+    for (const queue of [queues.seat, queues.background]) {
+      for (let i = 0; i < queue.length && busyLanes.size < MAX_WRITES;) {
+        const job = queue[i]
+        if (job.answered) { queue.splice(i, 1); continue }
+        if (busyLanes.has(job.lane)) { i++; continue }
+        queue.splice(i, 1)
+        if (!job.pending && now() - job.queuedAt > waitMs) { job.reject(unavailable()); continue }
+        busyLanes.add(job.lane); job.sent = true
+        const finish = () => { busyLanes.delete(job.lane); pump() }
+        const sendJob = params => {
+          let request
+          try { request = controller.request(job.method, params) } catch (error) { request = Promise.reject(error) }
+          request.then(job.resolve, error => job.reject(fail(error)))
+          Promise.resolve(request.completion ?? request).then(() => {}, () => {}).finally(finish)
+        }
+        // Read at dispatch so a switch saved while the sweep was queued applies to this sweep.
+        if (job.method === 'nudge' && reminders) {
+          void reminders.enabledProjects().then(projectIds => sendJob({ projectIds }), () => {
+            job.reject(unavailable())
+            finish()
+          })
+        } else sendJob(job.params)
+      }
     }
   }
 
   // A seat run that writes nothing (Flora's classifier, shared with the child) is a read too.
   const call = (method, params) => READS.has(method) || method === 'run' && latticeRunReads(params) ? send(method, params) : new Promise((resolve, reject) => {
     const queue = queues[BACKGROUND.has(method) ? 'background' : 'seat']
-    const job = { method, params, queuedAt: now(), sent: false, answered: false, timer: null,
+    const job = { method, params, lane: latticeWriteLane(method, params), queuedAt: now(), sent: false, answered: false, timer: null,
       resolve: value => { job.answered = true; clearTimer(job.timer); resolve(value) }, reject: error => { job.answered = true; clearTimer(job.timer); reject(error) } }
     if (method === 'run') job.timer = setTimer(() => {
       if (job.answered) return
@@ -80,14 +98,27 @@ export function createLatticeFacade({ controller, retryMs = 2000, nudgeMs = NUDG
     arm(mine, next)
   }
 
-  // One nudge timer for the facade's life, re-armed after each call; unref'd so it never holds the process open.
-  const nudge = () => call('nudge', {}).catch(() => null)
+  // A null interval disables the timer while leaving nudge() callable.
+  const nudge = () => call('nudge', { projectIds: [] }).catch(() => null)
   const armNudge = () => { setTimer(() => { void nudge().then(armNudge) }, nudgeMs)?.unref?.() }
-  armNudge()
+  if (nudgeMs !== null) armNudge()
 
   return {
-    charts: () => call('charts', {}),
+    // The 催促 switch is the body's (README L25): the list carries it per chart so an app can badge the charts the sweep covers. An unreadable setting leaves the field out.
+    charts: async () => {
+      const value = await call('charts', {})
+      const enabled = reminders ? await reminders.enabledProjects().then(ids => new Set(ids), () => null) : null
+      return enabled ? { ...value, charts: value.charts.map(chart => ({ ...chart, reminders: enabled.has(chart.projectId) })) } : value
+    },
     nudge,
+    async reminderSettings(projectId, enabled) {
+      if (!reminders) throw unavailable()
+      await call('chart', { projectId })
+      try {
+        const saved = enabled === undefined ? (await reminders.enabledProjects()).includes(projectId) : await reminders.set(projectId, enabled)
+        return { schema: 'bellteam.lattice-reminders.v1', projectId, enabled: saved }
+      } catch { throw unavailable() }
+    },
     blockers: () => call('blockers', {}),
     async unblock({ projectId, stopId }) {
       const value = await call('unblock', { projectId, stopId })
@@ -133,7 +164,7 @@ const PERMANENT = /^(SENDER_NOT_FOUND|BOT_NOT_FOUND|MESSAGE_REQUIRED)\b/u
 
 // The effects the child may call, inside a root call. Rows carry exactly the agreed keys and types.
 // runAs(actor, send): the conversation actor scope for a send; deliver and the nudge timer run outside any request scope.
-// decisions: createLatticeDecisions (lattice-approval.mjs, README L18-L19); absent -> LATTICE_DECISIONS_UNAVAILABLE, the child retries next tick.
+// decisions: createLatticeDecisions (lattice-decisions.mjs over P1, README L18-L19); absent -> LATTICE_DECISIONS_UNAVAILABLE, the child retries next tick.
 export function createLatticeEffects({ bots, messenger, transport, decisions = null, runAs = (actor, send) => send() }) {
   const text = value => value == null ? '' : String(value)
   return async (method, params) => {

@@ -18,9 +18,6 @@ internal sealed class ApprovalsFixture(string scene) : HttpMessageHandler
     private string connection = scene switch { "connected" => "connected", "waiting" => "waiting", "denied" => "denied", _ => "not_connected" };
     /// <summary>How many times by-decision was asked (the tests count it).</summary>
     internal int LinkReads { get; private set; }
-    /// <summary>The seat-link (「AIの許可待ちを決裁箱へ送る」) answer of the stand-in body: GET reads it, start sets <see cref="SeatLinkOnStart"/>, stop sets none.</summary>
-    internal JsonObject SeatLink { get; set; } = new() { ["state"] = "none" };
-    internal JsonObject SeatLinkOnStart { get; set; } = new() { ["state"] = "waiting", ["code"] = "WXYZ-1234-QRST-5678", ["qrText"] = "https://approval-box.example/pair?c=WXYZ-1234-QRST-5678", ["expiresAt"] = DateTimeOffset.UtcNow.AddMinutes(5).ToString("O") };
     /// <summary>What the page sent to the connection routes (method and path), for the tests.</summary>
     internal List<(string Method, string Path)> Sent { get; } = [];
 
@@ -36,9 +33,6 @@ internal sealed class ApprovalsFixture(string scene) : HttpMessageHandler
         var response = path switch
         {
             "/api/approvals/by-decision" => ByDecision(query),
-            "/api/approvals/seat-link" => Json(SeatLink),
-            "/api/approvals/seat-link/start" => Json(SeatLink = SeatLinkOnStart),
-            "/api/approvals/seat-link/stop" => Json(SeatLink = new JsonObject { ["state"] = "none" }),
             "/api/approvals/connection" when request.Method == HttpMethod.Delete => Disconnect(),
             "/api/approvals/connection" => Json(new JsonObject { ["state"] = connection }),
             "/api/approvals/connect" when request.Method == HttpMethod.Delete => Disconnect(),
@@ -69,6 +63,8 @@ internal sealed class ApprovalsFixture(string scene) : HttpMessageHandler
         public string? QrLink { get; set; }
         public DateTimeOffset? ExpiresAt { get; set; }
         public string? FailedCode { get; set; }
+        public string? Code { get; set; }
+        public string? Words { get; set; }
         public bool Removed { get; set; }
         public bool UpdateRequired { get; set; }
         public event Action? Changed;

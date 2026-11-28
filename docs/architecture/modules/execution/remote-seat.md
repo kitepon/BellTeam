@@ -72,6 +72,19 @@ ports.ingress.seatCredential.loadTerminalKey({terminalId, memberId: botId, ref: 
   -> aiterm.credential-load.v1 {accepted: true, ref, handle, revision}
 ```
 
+- Terminal key loader (Owner ruling B 2026-11-27, no service account in the parent): for a terminal whose key is mediated, `loadTerminalKey` does not resolve the handle. It asks the 認証仲介 module to run `/app/scripts/terminal-key-load <terminalId> --ref R --handle H --revision N` as the registered operator Bot (grants by Sakura; item title = those command words, field SSH_KEY). The module runs the loader as the seat uid with SSH_KEY in the loader's own environment; the loader pipes it to `credential-load` stdin and to the terminal's ssh-agent. The parent gets only the exit code and the Aiterm DTO json; `KEY_NOT_MEDIATED` (no item) falls back to the usage path above.
+
+```mermaid
+flowchart LR
+  LTK["parent loadTerminalKey / terminals loadKey"] -->|"facade.exec {botId: operator, command: [loader, T], args}"| Mod["認証仲介 module (grant, audit)"]
+  Mod -->|"seat runner, uid 1000, SSH_KEY in loader env"| Loader["/app/scripts/terminal-key-load"]
+  Loader -->|"stdin"| CL["aiterm-remote-terminal credential-load"]
+  Loader -->|"stdin"| AG["ssh-add: per-terminal agent"]
+  Loader -->|"exit code + DTO json (no key)"| Mod
+  Mod -->|"exit_code, stdout"| LTK
+  LTK -.->|"KEY_NOT_MEDIATED"| Usage["usage withResolved (stored keys)"]
+```
+
 - Molly #813: the parent resolves the handle through Mika (`purpose: terminal.ssh`, expected revision) and pipes the raw key to `aiterm-remote-terminal credential-load --ref R --terminal-id ID --handle UUID --revision N --purpose ssh-key` on stdin as UID1000. Execution never holds the value; it never lands on disk, argv, env, logs, MCP arguments or the PTY.
 - A receipt that is not `accepted` for the same handle/revision, or any error (binding error code, `TERMINAL_KEY_LOAD_UNAVAILABLE`, `TERMINAL_KEY_LOAD_INVALID`, `CREDENTIAL_UNAVAILABLE`, Mika's stale revision), is `CREDENTIAL_UNAVAILABLE` (`not_started`); `loadKey`'s caller arms terminals' observer, and Mika's availability event (terminals `onCredentialEvent`) drains the wait.
 - Native-key terminals (`credentialRevision`, no `credential`) are unchanged: no load.
@@ -252,6 +265,10 @@ Without that refusal (Aiterm < 0.70.0, or a seat launcher that does not yet forw
 Seat launcher (Molly, runtime `cli-registration`): a remote launch runs through `run-seat-aiterm-launch.mjs`, whose fixed error projection forwards `code`, `agentLaunchError` and `launchRefusal` (re-validated by `launchRefusal()`, invalid dropped). The Claude auth row works with this execution alone; the other row needs a body carrying that launcher, and on an older body it degrades to the visible failure above.
 
 Login screen (Aiterm >= 0.70.1, Elegg): a slow auth check now proceeds, and a logged-out Claude stops at its first screen in a created session (`aiterm.agent-launch-result.v1`, `startup: {status: 'blocked', reason: 'vendor_onboarding_required'}`). A session exists on the terminal, so it is not a not-started launch: no proof, and the delivery stays today's visible failure. It does need a visible reason: `launchFailed` sets the Launch notice `{code: 'VENDOR_ONBOARDING_REQUIRED', action: loginAction(os)}` (「<OS>のclaudeにログインが必要」, below).
+
+Commit identity (SEC-111, 2026-11-26): a terminal seat gets the same noreply author/committer as a container seat (`BOT_GIT_IDENTITY`, `src/bot-environment.mjs`, Molly #2607). `RemoteSeats.prepare` adds `GIT_AUTHOR_NAME/EMAIL` and `GIT_COMMITTER_NAME/EMAIL` to the `privateEnv` names and values (the values are not secret; the name list is the existing mechanism that makes Aiterm forward them to the seat), so `git -c user.email=<the account line>` cannot win on any terminal. A body without `BOT_GIT_IDENTITY` adds none (a seat then behaves as before). It changes no classification, notice or queue state.
+
+Startup screen (Aiterm >= 0.70.116, Elegg): when `agent_launch` ends in `AGENT_STARTUP_BLOCKED`, `result._meta["aiterm/launch_error"].startup_screen_excerpt` carries the last non-empty lines of the screen the seat stopped on (Aiterm masks URLs, secrets, e-mail and the launch shell line; at most 3000 chars). `AitermClient.call` keeps it as `error.startupScreenExcerpt` (`startupScreenExcerpt`, `src/agent-launch-error.mjs`: string, control characters removed, 3000 chars); `run-seat-aiterm-launch.mjs` forwards only that validated string across its process boundary; `AitermTransport` writes it once to the container log (stderr) when the launch fails. It changes no classification, notice or queue state, and is not stored in any diagnostic row (those stay screen-free). A remote terminal shows it only when its runtime is 0.70.116.
 
 ### Remote-seat not-started proof (2026-11-10, Crust / Molly)
 

@@ -738,7 +738,9 @@ test('Aitermが新規ターンを返したらBellTeamは前の完了を待たず
   assert.deepEqual(second, { delivery: 'running' })
   assert.equal(calls.filter(([name]) => name === 'pty_send').length, 2)
   assert.deepEqual(transport.queueItems({ botId: bot.id }).map(item => item.status), ['running', 'running'])
+  assert.equal(finishes.length, 2, 'the second delivery starts its wait only after the first wait ends (one wait per seat)')
   finishes[1]({ outcome: 'done' })
+  await new Promise(resolve => setImmediate(resolve))
   finishes[2]({ outcome: 'done' })
   await transport.idle(bot.id)
 })
@@ -1477,4 +1479,57 @@ test('a478b: エンジン再起動後の読み手は、休止した機械席に�
   transport.machineStreams.start = (bot, session) => started.push(session)
   await transport.resumeMachineStreams()
   assert.deepEqual(started, ['s1'])
+})
+
+test('同じ席の待つ配送は、待ちのprocessを同時に1つだけ持つ（前の配送の待ちが終わってから次を始める）', async () => {
+  const runs = []
+  const waitProcess = (process, signal) => new Promise((resolve, reject) => {
+    const run = { process, signal, finish: () => resolve({ outcome: 'done', turn_id: process.args.at(-1) }) }
+    runs.push(run)
+    signal?.addEventListener('abort', () => reject(Object.assign(new Error('ABORT_ERR'), { code: 'ABORT_ERR' })), { once: true })
+  })
+  const transport = new AitermTransport({ client: { call: async () => ({}) }, handoffContext: noMemory, waitProcess })
+  const receipt = input => ({ session_id: 's1', wait_process: { executable: '/node', args: ['--cursor', '0', '--input', input] } })
+  const tick = () => new Promise(resolve => setImmediate(resolve))
+  const [a, b, c] = [new AbortController(), new AbortController(), new AbortController()]
+  const first = transport.waitUntilDone(receipt('A'), a.signal), second = transport.waitUntilDone(receipt('B'), b.signal), third = transport.waitUntilDone(receipt('C'), c.signal)
+  const other = transport.waitUntilDone({ ...receipt('X'), session_id: 's2' })
+  const watched = transport.waitUntilDone({ wait_process: { executable: '/node', args: ['--cursor', '0', '--launch', 'W'] } }, null, 's1')
+  await tick()
+  assert.equal(runs.length, 2, 'one process for seat s1 (its own inputs differ, and a watched turn without session_id queues too), one for seat s2')
+  b.abort()
+  await assert.rejects(second, { code: 'ABORT_ERR' })
+  assert.equal(runs.length, 2, 'a queued wait that stops never starts a process')
+  runs[0].finish()
+  assert.deepEqual(await first, { outcome: 'done', turn_id: 'A' })
+  await tick()
+  assert.equal(runs.length, 3, 'the next queued wait starts when the earlier one is done')
+  assert.equal(runs[2].process.args.at(-1), 'C')
+  runs[2].finish()
+  assert.deepEqual(await third, { outcome: 'done', turn_id: 'C' })
+  await tick()
+  assert.equal(runs[3].process.args.at(-1), 'W', 'the watched turn waits after the deliveries of its seat')
+  runs[3].finish()
+  assert.deepEqual(await watched, { outcome: 'done', turn_id: 'W' })
+  runs[1].finish()
+  assert.deepEqual(await other, { outcome: 'done', turn_id: 'X' })
+  const alone = new AbortController(), only = transport.waitUntilDone(receipt('D'), alone.signal)
+  await tick()
+  alone.abort()
+  await assert.rejects(only, { code: 'ABORT_ERR' })
+  assert.equal(runs.at(-1).signal.aborted, true, 'a running wait that stops stops its process')
+})
+
+test('行は動いているのに追う手が無い席は、ターンごとに1回、理由をstderrへ残す', async t => {
+  const lines = []
+  const write = process.stderr.write
+  process.stderr.write = chunk => { lines.push(String(chunk)); return true }
+  t.after(() => { process.stderr.write = write })
+  const transport = new AitermTransport({ client: { async call(name) { if (name === 'pty_list') return seatTurns(runningTurn('turn-x')); throw new Error(`unexpected ${name}`) } }, handoffContext: noMemory })
+  const bot = { id: 'bot-a', session: 'bot-a', harness: 'codex', project: '/bots/bot-a' }
+  await transport.watchSeatTurns([bot], { allowNew: () => false })
+  await transport.watchSeatTurns([bot], { allowNew: () => false })
+  process.stderr.write = write
+  assert.deepEqual(lines.filter(line => line.includes('seat turn not watched')).map(line => line.trim()),
+    ['BellTeam seat turn not watched: bot-a bot-a turn=turn-x reason=not_accepting codex=undefined interim_from=v1:900:b:900'])
 })

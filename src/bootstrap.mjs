@@ -21,6 +21,7 @@ export { createDiagnosticsProcess } from './diagnostics-process.mjs'
 export { createWorkGraphProcess } from './work-graph-process.mjs'
 export { createLatticeProcess } from './lattice-process.mjs'
 export { createApprovalBoxExtensionProcess } from './approval-box-parent-process.mjs'
+export { createAuthMediationProcess } from './auth-mediation-process.mjs'
 export { createTerminalsCore } from './terminals/core.mjs'
 
 const appRoot = dirname(dirname(fileURLToPath(import.meta.url)))

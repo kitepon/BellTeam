@@ -31,7 +31,7 @@ import { MachineStreamReaders } from './machine-stream-reader.mjs'
 import { writeAtomic } from './json-file.mjs'
 import { readRunningExclusions, exclusionsMeta } from './running-exclusions.mjs'
 import { retiredHarness, RETIRED_HARNESS_NOTICE } from './retired-harness.mjs'
-import { SeatViewShadow } from './seat-view-shadow.mjs'
+import { genericSeatData, SeatViewShadow } from './seat-view-shadow.mjs'
 import { isRemoteBot, seatTarget, KEY_RELOAD, remoteSeatNotStarted } from './remote-seats.mjs'
 
 export { AitermClient } from './aiterm-client.mjs'
@@ -46,6 +46,8 @@ const HARNESS = new Map([
 ])
 // 合間の言葉を取りに行く間隔。Aitermのpty_observeは画面本文を読まない軽い呼び出し。
 const INTERIM_INTERVAL_MS = 3000
+// A delivery's wait ends when the seat's own stream has said "idle, nothing pending" this long while Aiterm still reports the turn running.
+const STREAM_IDLE_SETTLE_MS = 120_000
 // remote-seat.md "Resume after the route came back": a failed resume is tried again after this, never given up.
 const RESUME_RETRY_MS = 60_000
 // pty_close {hibernate:true} answers about the seat itself (background work, no resume recipe): asking again before it works is futile.
@@ -245,10 +247,15 @@ export class AitermTransport {
     this.holdReleasePollMs = 300
     // Limit holds this engine pressed (`<session>@<limit_end.at>`): never a second Esc on one hold.
     this.pressedHolds = new Set()
-    // Continuation deliveries between their claim and the end of their job (harness-accounts.md "one continuation").
-    this.continuationClaims = new Set()
+    // Members whose last move ended unconfirmed, with their count of unconfirmed moves in a row (retryMoves).
+    this.moveFailures = new Map()
     this.accountsUnsubscribe = accounts?.watch(() => {
       this.activity.emitChange({ all: false, topics: ['accounts'], botIds: [], roomIds: [] })
+      // harness-accounts.md "Triggers": only limits or signedOut review every member; inputs, intents, claims and seat records
+      // write the registry too, and a review on each of them reran every member's recovery many times a minute (11-26 OOM).
+      const reviewed = accounts.state ? JSON.stringify([accounts.state.limits, accounts.state.signedOut]) : Symbol('unknown')
+      if (reviewed === this.reviewedRegistry) return
+      this.reviewedRegistry = reviewed
       void this.reviewAccounts()
     }) ?? null
     this.unconfirmedJobs = new Map() // job -> {botId, session, seq, retire}: accepted deliveries whose completion is unknown
@@ -487,12 +494,13 @@ export class AitermTransport {
     let launch
     // harness-accounts.md: every seat runs on the 1st root; a 2nd seat differs only in the login the CLI gets (env token).
     const account = harness === 'claude-code' && this.accounts ? await this.accounts.selection('claude', bot.model) : null
-    let remote = null, issuedLaunch = false, machineLaunched = false
+    let remote = null, issuedLaunch = false, machineLaunched = false, counted = null
     try {
       this.requireStopVersion(bot.id, version)
       admissionCheck?.()
-      // a505c (memory-budget.md): every cold launch counts for the next 30 s, so a refusal sees what is about to be used.
-      this.launchGate?.launched()
+      // a505c (memory-budget.md): every cold launch of a container seat counts for the next 30 s, so a refusal sees what is about to be used.
+      // A terminal seat runs on the terminal, not in this container; a launch that fails is taken back below (Z220 11/27: failing terminal launches filled the window).
+      counted = isRemoteBot(bot) ? null : this.launchGate?.launched() ?? null
       let launchArgs = {
         harness,
         cwd: bot.project,
@@ -571,11 +579,14 @@ export class AitermTransport {
       machineLaunched = isMachineLaunch(launchArgs) && !machineSkipped
       if (account) void this.accounts.setSeat(bot.id, account.slot, account.stamp ?? null).catch(() => {})
     } catch (error) {
+      if (counted) this.launchGate.abandon?.(counted)
       // a451 N5: a local launch Aiterm answered with a failure while usage says installed: the CLI may be gone, so usage looks again once.
       if (!remote && issuedLaunch && !launch) error = await this.recheckedCliRefusal(bot) ?? error
       // A credential issued for a launch that was never issued is revoked; a launch possibly running keeps its own.
       // Aiterm's connectivity codes keep the message queued and arm terminals' observer (remote-seat.md "Pending delivery").
       if (remote) this.remoteSeats.launchFailed(bot, error)
+      // Aiterm 0.70.116 masks it; the container log is its only home, so the next stopped start shows its screen.
+      if (error?.startupScreenExcerpt) process.stderr.write(`BellTeam Aiterm: 起動で止まった席の画面（${bot.id}）:\n${error.startupScreenExcerpt}\n`)
       // TERMINAL_UNRESPONSIVE (a443): Aiterm may still have started the seat with this credential, so it is kept.
       if (remote && (!issuedLaunch || ['not_started', 'not_issued'].includes(error?.effect)) && error?.code !== 'TERMINAL_UNRESPONSIVE') await remote.revoke()
       // 起動の準備が終わらなかった席は、Aitermの端末だけが残る（認証が切れたCLIがサインインの画面で止まった時など。2026-10-05、Codex）。
@@ -1168,15 +1179,9 @@ export class AitermTransport {
   notify(bot, message, options = {}) { return this.#notify(bot, message, options) }
 
   async #notify(bot, message, { images = [], files = [], queue = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, executionSource, recoveredExecution, membersLease, conversationDelivery, admissionCheck, summaryAuthority } = {}, report = false) {
-    const claim = await this.claimContinuation(bot, message, queue)
+    await this.claimContinuation(bot, message, queue)
     const completion = this.submit(bot, message, { summaryAuthority, images, files, info: queue, onStatus, onInterim, onAnswer, onTurnEnd, executionSource, recoveredExecution, membersLease, conversationDelivery, admissionCheck })
     completion.catch(error => process.stderr.write(`BellTeam Aiterm delivery error: ${error.stack ?? error.message}\n`))
-    if (claim) {
-      completion.then(() => {}, () => {}).finally(() => this.continuationClaims.delete(claim.deliveryId))
-      completion.accepted.catch(error => {
-        if (error?.effect === 'not_started') return this.accounts.releaseResume(bot.id, claim.at, claim.deliveryId).catch(() => {})
-      })
-    }
     if (!report) return completion.accepted
     return completion.accepted.catch(async error => {
       if (await completion.reportNotIssued) return { report: 'unavailable', reason: 'not_issued' }
@@ -1300,7 +1305,7 @@ export class AitermTransport {
         const { steered, follower } = tracking
         followed = tracking.followed
         if (followed) {
-          job.nativeCompletion = this.waitUntilDone(delivery.receipt, job.controller.signal).then(async native => {
+          job.nativeCompletion = this.waitUntilDone(delivery.receipt, job.controller.signal, delivery.session).then(async native => {
             job.nativeTerminal = true
             // a333: a stop in flight decides first; a confirmed stop must not be followed by a completion finish (checkpoint() does the same).
             await job.stopping()?.catch(() => {})
@@ -1528,7 +1533,7 @@ export class AitermTransport {
       ? this.followInterim(delivery.session, delivery.receipt, onInterim, { from: delivery.steer?.interimFrom, client: job.native?.client }) : null
     let completion
     try {
-      completion = await (nativeCompletion ?? this.waitUntilDone(delivery.receipt, job.controller.signal))
+      completion = await (nativeCompletion ?? this.waitUntilDone(delivery.receipt, job.controller.signal, delivery.session))
     } catch (error) {
       void reportExecutionFailure(this.reportError, job.bot.id, 'delivery_wait', error, {
         jobId: job.id, groupId: job.info?.groupId, stopRequested: job.stopRequested,
@@ -1583,8 +1588,19 @@ export class AitermTransport {
     })
   }
 
+  // one-running-judgment (current-work.md "One judgment"): the one place that decides "is this seat working". The Lattice nudge (turns.read),
+  // the member list, the 相関図 and the apps all read it; a schedule is never an input (a71). a485: a turn BellTeam runs or follows counts at once.
+  runningState(botId) {
+    const state = this.workState.turn(botId).state
+    if (state === 'working' || (state === 'idle' && this.workState.own(botId))) return 'working'
+    // A stop or a new session resets the observation to unknown on purpose; only a read taken after that lets the running turn override it.
+    return !this.isIdle(botId) && this.workState.readAfterReset(botId) ? 'working' : state
+  }
+
   currentWork(bot) {
-    const snapshot = this.workState.snapshot(bot.id, this.session(bot), !this.sessionChanges.has(bot.id))
+    const native = this.workState.snapshot(bot.id, this.session(bot), !this.sessionChanges.has(bot.id))
+    // The DTO's working/idle is the judgment's; the native observation only fills the time and the summary around it.
+    const snapshot = native.state !== 'working' && this.runningState(bot.id) === 'working' ? { ...native, state: 'working', observedAt: native.observedAt ?? this.now() } : native
     return this.backgroundSummary ? this.backgroundSummary.snapshot(bot.id, this.session(bot), snapshot)
       : { ...snapshot, summary: null, summaryStatus: 'missing', summaryUpdatedAt: null, source: null }
   }
@@ -1633,7 +1649,8 @@ export class AitermTransport {
     let result
     try { result = await client.call('pty_list', { include: ['turn', 'own_work'] }, { meta: sent ? { ...CALLER_META, 'aiterm/own_work_exclusions': sent } : CALLER_META })
     } catch (error) { this.workState.endRead(read, null); throw error }
-    let data = result?._meta?.['aiterm/seat_turns']
+    const aiterm = result?._meta?.['aiterm/seat_turns']
+    let data = genericSeatData(aiterm, result?.structuredContent?.sessions)
     // remote-route.md: seats launched on `remote` are not in this relayed list; one pty_list per machine adds their rows (same shape).
     if (data && Array.isArray(data.seats) && this.remoteSeats) {
       const extra = await this.remoteSeats.routes.views(sent ? { ...CALLER_META, 'aiterm/own_work_exclusions': sent } : null).catch(() => null)
@@ -1641,7 +1658,7 @@ export class AitermTransport {
       void this.remoteSeats.routes.keep()
     }
     this.workState.endRead(read, data)
-    try { this.seatViewShadow.compare(data, result) } catch { this.seatViewShadow.unavailable++ }
+    try { this.seatViewShadow.compare(aiterm, result) } catch { this.seatViewShadow.unavailable++ }
     if (this.seatMcpSeen && Array.isArray(data?.seats)) this.resumeLostRoutes(bots, data.seats)
     if (!data) return null
     if (data.schema !== 'aiterm.seat-turns.v1' || data.error || !Array.isArray(data.seats))
@@ -1759,6 +1776,14 @@ export class AitermTransport {
       // 追っているターンがもう動いていない。止められたターンでは、Aitermの待ちは返らない（完了の印だけを待つ）。
       // nullは「分からない」なので、追い続ける。
       const watchable = turn?.state === 'running' && (turn.codex !== false || this.wordWatchable(bot.id, turn))
+      // A row says running, no job or watch shows it, and none will start: the lamp stays idle. Say why once per turn, so a wrong lamp has a reason on record.
+      if (turn?.state === 'running' && !watch && this.isIdle(bot.id) && this.#unwatchedTurns.get(bot.id) !== turn.turn_id) {
+        const reason = !allowNew() ? 'not_accepting' : !watchable ? 'not_watchable' : this.activity.followedTurns.get(bot.id) === turn.turn_id ? 'already_followed' : null
+        if (reason) {
+          this.#unwatchedTurns.set(bot.id, turn.turn_id)
+          process.stderr.write(`BellTeam seat turn not watched: ${bot.id} ${session} turn=${turn.turn_id} reason=${reason} codex=${turn.codex} interim_from=${turn.interim_from ?? null}\n`)
+        }
+      }
       if (watch && turn?.state === 'running' && turn.turn_id !== watch.turnId) {
         if (allowNew() && watchable) this.watchTurn(bot, session, turn, { onInterim, groupId, lease })
         watch.end()
@@ -1822,7 +1847,7 @@ export class AitermTransport {
       let turnCompleted = false
       try {
         let failure = null
-        await Promise.race([watch.ended, wordsOnly ? watch.ended : this.waitUntilDone(turn, watch.stop.signal)
+        await Promise.race([watch.ended, wordsOnly ? watch.ended : this.waitUntilDone(turn, watch.stop.signal, session)
           .then(() => { turnCompleted = true }, error => { failure = error; turnCompleted = error.turnCompleted === true })])
         const seen = await interim?.stop()
         if (!failure || watch.stop.signal.aborted) return
@@ -1854,6 +1879,8 @@ export class AitermTransport {
     }
     return watch
   }
+
+  #unwatchedTurns = new Map() // botId -> turn_id already logged as "row says running, no watch"
 
   // 席が自分で始めたターンのうち、最後に追ったターンで合間の言葉として出した文と、追い終えた時刻。
   shownInSelfTurn(botId) {
@@ -2159,6 +2186,8 @@ export class AitermTransport {
       }
       // Aiterm accepted the words. A receipt without follow data stays accepted; only its completion is untracked.
       const receipt = result.structuredContent ?? {}
+      // The seat took the words: a later failure (the turn's wait) is a delivery failure, not the launch or send stage set above.
+      if (executionJob) executionJob.deliveryStage = null
       const untracked = receipt.mode !== 'agent_steer'
         && (receipt.mode !== 'agent_dispatch' || !Number.isInteger(receipt.event_cursor) || !receipt.wait_process)
       if (untracked) process.stderr.write(`BellTeam Aiterm: accepted send without follow data: ${bot.id}\n`)
@@ -2249,14 +2278,45 @@ export class AitermTransport {
     return { path, temporary: true, attachment: { name: plainLine(file.name, 200), mime: plainLine(file.mime, 100), size: bytes.length } }
   }
 
+  // wait-contract.md "席ごとに待ちのprocessは同時に1つ": a busy seat's queued deliveries each have their own wait (own --input / --input-ref), but
+  // their turns end in order, so a later one starts its process only when the earlier ones are done. A wait reads the seat's event log from a
+  // cursor, so starting late loses nothing; memory stays at one wait process per seat however long the queue is.
+  #seatWaits = new Map() // session_id -> tail of the seat's wait queue
+  #takeSeatWait(session, signal) {
+    if (typeof session !== 'string') return Promise.resolve(() => {})
+    const before = this.#seatWaits.get(session) ?? Promise.resolve()
+    let release
+    const mine = new Promise(resolve => { release = resolve })
+    const tail = before.then(() => mine)
+    this.#seatWaits.set(session, tail)
+    const done = () => { release(); if (this.#seatWaits.get(session) === tail) this.#seatWaits.delete(session) }
+    const aborted = () => Object.assign(new Error('ABORT_ERR'), { code: 'ABORT_ERR', name: 'AbortError' })
+    return new Promise((resolve, reject) => {
+      const onAbort = () => { done(); reject(aborted()) }
+      signal?.addEventListener('abort', onAbort, { once: true })
+      if (signal?.aborted) return onAbort()
+      before.then(() => { signal?.removeEventListener('abort', onAbort); resolve(done) })
+    })
+  }
+
   // signalは、追うのをやめた時に待ちのprocessを止める（watchTurn）。
-  async waitUntilDone(receipt, signal = null) {
+  // The caller passes the seat it knows: a dispatch receipt or a seat_turns turn may carry no session_id, and a wait without a key skips the queue (Z213 live: launch wait + queued DM wait at once).
+  async waitUntilDone(receipt, signal = null, session = receipt.session_id) {
+    const release = await this.#takeSeatWait(session, signal)
+    try { return await this.#followTurn(receipt, signal, session) } finally { release() }
+  }
+
+  async #followTurn(receipt, signal, session) {
     while (!signal?.aborted) {
       // The session goes along: a remote seat's wait is `ssh ... '<aiterm-wait command>'` (one string, or base64 on Windows), so --session is not an argument of it.
       const result = await this.waitProcess(receipt.wait_process, signal, { session: receipt.session_id })
       const recoveryFailure = recoverableTurnFailure(receipt, result)
       if (result.outcome === 'done') { this.workState.completedTurn(result); return result }
-      if (result.outcome === 'timeout' || result.outcome === 'running') continue
+      if (result.outcome === 'timeout' || result.outcome === 'running') {
+        // anis-deliveries-stuck: Aiterm waits for a Stop that never came (its hook failed) while the seat's own stream says idle. The turn is over; the answer is unknown, the delivery stays accepted.
+        if ((this.machineStreams.idleFor(session) ?? 0) >= STREAM_IDLE_SETTLE_MS) throw Object.assign(new Error('AITERM_TURN_UNSETTLED: the seat stream says idle while Aiterm still reports the turn running'), { waitOutcome: 'unsettled' })
+        continue
+      }
       // error: harnessの記録でturnがAPIエラー等で打ち切られた（Aiterm 0.31.0）。本文を残して配送失敗にする。
       // failureCategory/limitText: the seat's own limit line for the account registry (harness-accounts.md).
       const limit = { failureCategory: result.failure?.category ?? null, limitText: result.rate_limit ?? result.error ?? null }
@@ -2369,11 +2429,11 @@ export class AitermTransport {
       const account = await this.accounts.selection('claude', bot.model)
       if ((this.accounts.seatSlot(bot.id) ?? '1st') === account.slot && !await this.accounts.renewDue(bot.id, 'claude', bot.model))
         return { botId: bot.id, session: this.session(bot), slot: account.slot }
-      const running = await this.isRunning(bot)
       const session = `${bot.id}-${account.slot}-${Date.now().toString(36)}`
-      // Running: launch the new seat now (wakeNow records the name after the launch). Not running: its next delivery does.
-      if (running) await this.wakeNow(bot, { membersLease, sessionName: session, ...(admissionCheck ? { admissionCheck } : {}) })
-      else { this.sessions.set(bot.id, session); await this.updateSession(bot.id, session, { membersLease }) }
+      // The move only names the new seat; the member's next delivery launches it. Launching here put a second seat beside every
+      // idle member at a limit reset (2026-11-26 04:00 JST: 50 seats at once, the box ran out of memory).
+      this.sessions.set(bot.id, session)
+      await this.updateSession(bot.id, session, { membersLease })
       await this.accounts.setSeat(bot.id, account.slot, account.stamp ?? null).catch(() => {})
       return { botId: bot.id, session, slot: account.slot }
     })
@@ -2383,27 +2443,32 @@ export class AitermTransport {
 
   // After a registry change: seats whose effective slot differs move at their next idle boundary. A running turn is never stopped.
   // Limit-ended members get the account recovery (harness-accounts.md "limit end"), from one pty_list per review.
-  reviewAccounts() {
+  reviewAccounts(only = null) {
     // One review at a time: a second one during the list would move a member twice.
-    const run = (this.accountReview ?? Promise.resolve()).then(() => this.reviewAccountsNow())
+    const run = (this.accountReview ?? Promise.resolve()).then(() => this.reviewAccountsNow(only))
     this.accountReview = run.catch(() => {})
     return run
   }
 
-  async reviewAccountsNow() {
+  async reviewAccountsNow(only = null) {
     // An engine that is not running (starting, quiescing, handed over) leaves moves to the running one.
     if (!this.accounts || this.accountRecoveryAllowed?.() === false) return
     const ends = await this.limitEnds().catch(error => {
       process.stderr.write(`BellTeam accounts: limit end review unavailable: ${error?.code ?? error?.message ?? 'UNKNOWN'}\n`)
       return new Map()
     })
-    for (const botId of new Set([...Object.keys(this.accounts.state.seats), ...ends.keys()])) {
+    // The 1st slot's token is read through a seat process, so the effective slot is asked once per model in a review, not once per seat
+    // (a review of ~90 seats started ~90 processes in 7 s, 2026-11-26; Molly #2596, folded here).
+    const effective = new Map()
+    const effectiveSlot = model => effective.get(model) ?? effective.set(model, this.accounts.effectiveSlot('claude', model)).get(model)
+    for (const botId of only ?? new Set([...Object.keys(this.accounts.state.seats), ...ends.keys()])) {
       const bot = this.resolveBot?.(botId)
       // Every recorded seat, also one launched by an earlier engine (the session map starts empty after an exchange).
       if (!this.claudeAccountBot(bot) || this.accountMoves.has(botId)) continue
       const seats = ends.get(botId) ?? []
-      if (this.recoveryDue(botId, seats) || (this.accounts.seatSlot(botId) ?? '1st') !== await this.accounts.effectiveSlot('claude', bot.model)
+      if (this.recoveryDue(botId, seats) || (this.accounts.seatSlot(botId) ?? '1st') !== await effectiveSlot(bot.model)
         || await this.accounts.renewDue(botId, 'claude', bot.model)) this.moveAtBoundary(botId, seats)
+      else this.moveFailures.delete(botId)
     }
   }
 
@@ -2421,9 +2486,7 @@ export class AitermTransport {
   async claimContinuation(bot, message, queue) {
     const at = queue?.from === 'scheduler' && this.claudeAccountBot(bot) ? continuationKeyOf(message) : null
     if (!at || typeof queue.groupId !== 'string') return null
-    this.continuationClaims.add(queue.groupId)
-    const outcome = await this.accounts.claimResume(bot.id, at, queue.groupId).catch(error => { this.continuationClaims.delete(queue.groupId); throw error })
-    if (outcome !== 'claimed') this.continuationClaims.delete(queue.groupId)
+    const outcome = await this.accounts.claimResume(bot.id, at, queue.groupId)
     if (outcome !== 'claimed') throw Object.assign(new Error(`CONTINUATION_DUPLICATE: ${outcome}`), { code: 'CONTINUATION_SUPERSEDED', effect: 'not_started' })
     return { at, deliveryId: queue.groupId }
   }
@@ -2449,18 +2512,14 @@ export class AitermTransport {
     return this.continuationDue(botId, lastTurn(seats)?.end)
   }
 
-  // Due while the last turn is still that limit end: no claim yet, or a claim no live delivery carries any more (its input never
-  // reached the seat, or Aiterm would show a newer last_input_at). Giving such a claim back is safe: the input boundary admits
-  // one delivery per limit end, so a late redelivery of the old one is refused.
+  // Due while the last turn is still that limit end and no continuation message for it was accepted yet. Once one was (its id is
+  // the claim), none other is sent for that limit end, whatever its delivery's fate: a failed or unknown delivery stays the
+  // conversation queue's, as any message (11-25: a resend after each failed delivery sent ~340 per member).
   continuationDue(botId, end) {
     if (!end || end.continued || Date.parse(this.accounts.stoppedAt(botId) ?? '') >= Date.parse(end.at)
       || Date.parse(this.accounts.inputAt(botId) ?? '') > Date.parse(end.at)) return false
     const resumed = this.accounts.resumed(botId)
-    return !(resumed?.at === end.at && resumed.deliveryId && this.continuationLive(resumed.deliveryId))
-  }
-
-  continuationLive(deliveryId) {
-    return this.continuationClaims.has(deliveryId) || [...this.activity.jobs].some(job => job.info?.groupId === deliveryId)
+    return !(resumed?.at === end.at && resumed.deliveryId)
   }
 
   moveAtBoundary(botId, seats = []) {
@@ -2480,18 +2539,24 @@ export class AitermTransport {
         await Promise.all(this.activity.of(botId).map(turn => (turn.nativeCompletion ?? turn.completion)?.catch(() => {})))
         await this.activity.configurationChanges.get(botId)?.catch(() => {})
       }
-    })().catch(error => {
+    })().then(() => { this.moveFailures.delete(botId) }, error => {
       process.stderr.write(`BellTeam accounts: seat move unconfirmed: ${botId} ${error?.code ?? 'UNKNOWN'}\n`)
-      this.retryMoves()
+      this.retryMoves(botId)
     }).finally(() => this.accountMoves.delete(botId))
     this.accountMoves.set(botId, pending)
   }
 
-  // harness-accounts.md "Idle-boundary moves": an unconfirmed move is looked at again in a minute, one shared timer for all members.
-  // The review moves only a seat whose recorded slot differs, so it ends by itself once the moves succeed.
-  retryMoves() {
-    if (this.moveRetryTimer || this.accountRecoveryAllowed?.() === false) return
-    this.moveRetryTimer = setTimeout(() => { this.moveRetryTimer = null; void this.reviewAccounts().catch(() => {}) }, this.moveRetryMs)
+  // harness-accounts.md "Idle-boundary moves": only the members whose move ended unconfirmed are looked at again, on one shared
+  // timer that waits 1, 2, 4 ... 32 minutes as that member's moves keep failing. A move that ends without error clears the member.
+  retryMoves(botId) {
+    if (this.accountRecoveryAllowed?.() === false) return
+    const failures = (this.moveFailures.get(botId) ?? 0) + 1
+    this.moveFailures.set(botId, failures)
+    if (this.moveRetryTimer) return
+    this.moveRetryTimer = setTimeout(() => {
+      this.moveRetryTimer = null
+      void this.reviewAccounts([...this.moveFailures.keys()]).catch(() => {})
+    }, this.moveRetryMs * 2 ** Math.min(failures - 1, 5))
     this.moveRetryTimer.unref?.()
   }
 
@@ -2521,9 +2586,6 @@ export class AitermTransport {
     // Each effect is fenced right before it: a handed-over (quiescing) engine stops, and the intent left behind never
     // suppresses the successor's send (only a claim at the input boundary does).
     if (!allowed()) return
-    const resumed = this.accounts.resumed(bot.id)
-    if (resumed?.at === end.at && resumed.deliveryId) await this.accounts.releaseResume(bot.id, end.at, resumed.deliveryId)
-    if (!allowed()) return
     await this.accounts.intendResume(bot.id, end.at)
     this.accountRecoveries.add(bot.id)
     try {
@@ -2532,7 +2594,11 @@ export class AitermTransport {
       if (move) await this.switchAccount(bot)
       // A stop during the move ended that work: no send (the input boundary refuses a keyed delivery after it too).
       if (!allowed() || !this.continuationDue(bot.id, end)) return
-      await this.continuation?.resume(bot, { slot, limitEnd: end.at, deliveryId: this.continuation.states.get(bot.id)?.deliveryId ?? null })
+      // The message names the member's original request, never an earlier continuation (CapacityContinuation keeps it as origin).
+      const state = this.continuation?.states.get(bot.id)
+      const sent = await this.continuation?.resume(bot, { slot, limitEnd: end.at, deliveryId: state?.origin ?? state?.deliveryId ?? null })
+      // The accepted message is the one continuation for this limit end from now on; its own delivery claims the same id.
+      if (sent?.delivery_id) await this.accounts.claimResume(bot.id, end.at, sent.delivery_id)
     } finally { this.accountRecoveries.delete(bot.id) }
   }
 

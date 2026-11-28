@@ -385,3 +385,75 @@ AI CLIの導入画面（a451、#1942）をMacの実装に合わせた0.6.2（#19
 - 導入時にBellTeamは動いていなかった（閉じたものは無い）。導入後、オーナーのセッション1（インタラクティブ）で起動した（pid 70940）。
 - スモーク（`--smoke-test` 本番）: 成功。ok=true、authenticated、bots=144、rooms=9、SSE接続あり。
 - 確認できていない（実機とオーナーの操作が要る）: 設定 → 利用と課金 → サインアウトで出る最初の画面（アイコン・名前・サインイン）と、サインイン後のQR承認の流れ、決裁箱の子参加（部品の完成待ち。abx-child-join）。
+
+## Windows 0.9.1 の導入（abx-child-join：Approval Box部品 0.5.2 と login-billing 0.23.1、2026-11-24 23:0x JST、アニス）
+
+- 導入元: main `f257b840`（#2583）。`scripts/install-windows.ps1 -NoLaunch -SkipShareTarget -GoogleDesktopOAuthRef op://…`。導入したexeの版は `0.9.1+f257b840176be1b0912e3fb29b755507a9e710eb`。導入したDLLは Kitepon.ApprovalBox.Client 0.5.2（`a4dea1af`）、Kitepon.LoginBilling.Desktop 0.23.1（`5384d105`）。`BellTeam.dll`にGoogle Desktopクライアントの秘密が35文字（値は表示していない）。試験導入のみで、公開はしていない。
+- スモーク（`--smoke-test` 本番）: 成功。ok=true、bots=144、rooms=9、SSE接続あり。
+- 子の参加をアプリ自身で1回通した（ハーネスなし）: 決裁箱の窓 →「Googleでサインイン」→ 共有のGoogleテストアカウント → 「決裁箱の承認を待っています」（鍵あり）→ 親（インディビリアのt12a）が22:59:25にリンクを開き22:59:27に許可 → 窓が通常の決裁箱（「ライブ」）に変わった。以前の0.5.0＋0.22.4は `add_missing` で終わっていた。0.23.1がWindowsの昇格していないユーザーでCNGの鍵を作れるようにした。
+- ファイアウォール: インストーラーは受信規則を作らない（`scripts/install-windows.ps1`にその処理は無い）。foxには手で足した規則も無い（BellTeamの受信規則・プログラム条件は0件。ネットワークはPrivate）。この状態で親の返事は届いた。なぜ届いたかはまだ分かっていない（待ち受けの規則が見つからない）。
+- 確認できていない: Public/別セグメントでの参加、実機のスマホでのQR往復（Google）。
+
+## Windows 0.9.2 の導入（工程表の設定：1分ごとの催促のスイッチ、2026-11-26 08:3x JST、アニス）
+
+- 導入元: main `ba515505`（#2600）。`scripts/install-windows.ps1 -NoLaunch -SkipShareTarget -GoogleDesktopOAuthRef op://…`（foxの対話ユーザーfox\kite_で実行）。導入したexeの版は `0.9.2+ba515505df55714f5655a7ee67cb3ac86861795a`。Approval Boxクライアント0.5.3・`LoginBilling.Desktop` 0.24.0（#2587）も同じ版に入る。試験導入のみで、公開はしていない。
+- スモーク（`--smoke-test` 本番）: 成功。ok=true、bots=144、rooms=9、SSE接続あり。
+- 画面の確認: 実際のWPF窓を模擬サーバー上で動かすテスト（Lattice関連48件、新規5件）と、`--render-lattice reminders|reminders-on|reminders-save-fails|reminders-old` の描画（歯車・オフ/オン・保存失敗の行・旧サーバーの行）。
+- 確認できていない: 本番サーバーへの実際の読み書き。本番の工程表設定は書いておらず、読みもしていない（オーナー設定を動かさないため）。
+
+## Windows 0.9.3 の導入（login-billing 0.24.1 のa540実機セッション向けビルド、2026-11-26 14:1x JST、アニス）
+
+- 導入元: main `8003708b`（#2616。ピンは #2613）。`scripts/install-windows.ps1 -NoLaunch -SkipShareTarget -GoogleDesktopOAuthRef op://…`（foxの対話ユーザーfox\kite_で実行）。導入したexeの版は `0.9.3+8003708b07d9901608aed8791ebc6fc8f88080ea`。導入したDLLは Kitepon.ApprovalBox.Client 0.5.4（`1E161842E2B0`）、Kitepon.LoginBilling.Desktop 0.24.1（`1E5DFA4FF135`）。`BellTeam.dll`にGoogle Desktopクライアントの秘密が35文字（値は表示していない）。試験導入のみで、公開はしていない。
+- スモーク（`--smoke-test` 本番）: 成功。ok=true、bots=144、rooms=9、SSE接続あり。
+- 確認できていない: 0.24.1での実サインイン（a540の実機セッションで行う）。
+
+## Windows 0.9.4 の導入（a540のリリース候補、2026-11-27 09:5x JST、アニス）
+
+- 導入元: main `adc1e7d7`（#2686。0.9.4の版上げは #2683）。`scripts/install-windows.ps1 -NoLaunch -SkipShareTarget -GoogleDesktopOAuthRef op://…`（foxの対話ユーザーfox\kite_で実行）。導入したexeの版は `0.9.4+adc1e7d715bee97c6cf3f6074aa233aedf532d9a`。導入したDLLは Kitepon.ApprovalBox.Client 0.5.4（`1E161842E2B0`）、Kitepon.LoginBilling.Desktop 0.24.1（`1E5DFA4FF135`）。`BellTeam.dll`にGoogle Desktopクライアントの秘密が35文字（値は表示していない）。試験導入のみで、公開はしていない（公開はトロニーの判断）。
+- 0.9.3からの差: Coreの接続画面の言葉と`TypedSecret`（#2648）、新しい接続画面「決裁箱につなぐ」（コードと確認コード、#2650）、子のjoinのGoogleサインインがテスト用ブラウザーの差し込み口を使う（#2682）、`ApprovalsHub.ReadLinks`が破棄後に何もしない（#2686。0.9.4を最初に入れた時に`--render-approvals`が終了時に0xE0434352で落ちた原因）。
+- スモーク（`--smoke-test` 本番）: 成功。ok=true、bots=144、rooms=9、SSE接続あり。
+- 画面の確認: `--render-approvals main|link|link-seat-waiting` を6回ずつ（18回）実行して終了コードはすべて0（直す前は `main` などで落ちることがあった）。`--render-conversation member` 本番（アニス）も終了コード0。新しい接続画面（QR・コード・確認コード・2つのつなぎ方・期限）は `docs/windows-seat-link-waiting.png` と同じ描画。
+- a540の実機相当の確認（シミュレーター／エミュレーター）: [docs/a540-sim-windows-20261127/README.md](a540-sim-windows-20261127/README.md)（0.9.3の記録。Googleサインイン、QRのAndroidエミュレーターでの承認、決裁箱の子のjoinの通過、ファイアウォール確認はfoxのESETで出ないこと）。
+- Windowsは子の端末で承認する側ではないため、a540の仕様「承認後に承認した端末が結果を1行出す」は当てはまらない。
+- 確認できていない: 0.9.4での実サインインの再実行（0.9.3で通した経路と同じコード）、WindowsのPublic/別セグメント、実機iPhoneからの承認。
+
+## Windows 0.9.4 の入れ直し：Desktop OAuthクライアントを認証仲介から受ける（o-bt-desktop-oauth-win、2026-11-27 14:2x JST、アニス）
+
+- 導入元: main `5a58eabe`（#2699）。ホストの保管庫は使わず、main-serverの `auth exec /home/kite/BellTeam/scripts/windows-install-with-oauth.sh`（項目と許可はサクラ、実行はエピネルがコンテナから1回）が、sshでfoxの `scripts/install-windows.ps1 -NoLaunch -SkipShareTarget -GoogleDesktopOAuthStdin` へクライアントJSONを標準入力で渡した。終了コード0（11秒）、出力に秘密は無い。
+- 確認（fox）: 導入したexeの版は `0.9.4+5a58eabebfa38d14b3df028b16d0c2b9e4d43682`。`BellTeam.dll` のアセンブリのメタデータ `GoogleDesktopSecret` が35文字（値は表示していない）。`Kitepon.LoginBilling.Desktop.dll` は0.24.1。BellTeamは動いていない。
+- 確認できていない: このビルドでの実サインイン（秘密も経路も0.9.4と同じ）。
+
+## Windows 0.9.7 を入れた：催促バッジをApple版の見た目に、部品を0.6.2／0.25.2に（abx-win-097、2026-11-27 16:2x JST、アニス）
+
+- 導入元: main `096ca1a6`（#2721・#2722）。エピネルが `auth exec scripts/windows-install-with-oauth.sh` で16:22に入れた。
+- 確認（fox）: exeの版は `0.9.7+096ca1a60e78634feaa45a66aad135bb8dc519f0`。`BellTeam.dll` の `GoogleDesktopSecret` は35文字（値は表示していない）。入れた `Kitepon.ApprovalBox.Client.dll` に新しい文「同じネットワーク（同じLAN）につながっていません」があり、「同じWi-Fi」は無い。BellTeamは動いていない。
+- 変更: 工程表の一覧の催促バッジを、鈴の付いた紫のカプセルにして「接続」の左へ（ラピのApple版の基準、トロニー承認。#2721）。部品は ApprovalBox.Client 0.6.2・LoginBilling.Desktop 0.25.2（nupkgのsha256はリリースの値と一致。ローカルネットワークの原因の文から「Wi-Fi」が消えた。オーナー2026-11-24。#2722）。
+- スモーク（`--smoke-test` 本番）: 成功。ok=true、認証済み、SSE接続あり。`--render-lattice list-nudge`・`--render-approvals join-not-answering` は終了コード0。
+- 確認できていない: 本物の親のスマホでの通し、ローカルネットワークの原因の文を画面に出した状態（文は部品に入っていることだけ確認）。
+
+## Windows 0.9.8 の導入（Approval Box部品 0.7.0 と login-billing 0.26.0＝参加の結果、2026-11-27 18:3x JST、アニス）
+
+部品 0.7.0（client-dotnet-v0.7.0）とライブラリ 0.26.0（v0.26.0）の固定（PR #2735、main `c2e1bb0c`）を、エピネルがfoxへ導入した（`auth exec windows-install-with-oauth.sh`、終了コード0、-NoLaunch）。参加できたか（`joined`）はライブラリの結果で、部品の中で読まれる。Windowsは参加の道で自前の読み替えを持っていなかったので、コードの変更は無い。
+
+- 確認（fox）: 導入したexeの版は `0.9.8+c2e1bb0c49bf5621be8ed3a0e4e79a44de3d8d65`。`Kitepon.ApprovalBox.Client.dll` は0.7.0、`Kitepon.LoginBilling.Desktop.dll` は0.26.0。`BellTeam.dll` の `GoogleDesktopSecret` が35文字（値は表示していない）。BellTeamは動いていない。
+- 確認（本番の読み取り）: `--smoke-test http://192.168.1.2:18891/` は成功（`ok: true`、認証済み、SSE接続あり）。
+- 確認できていない: 本物の親のスマホでの通し。
+
+## Windows 0.9.9 の導入（廃止した「決裁箱につなぐ」の区画を外した版、2026-11-27 23:1x JST、アニス）
+
+Deltaの図の改め（seat-link-qr-in-chat）で廃止した区画（QR・コード・期限・やめる）を決裁箱の窓から外した版（PR #2766、main `dd942401`）を、エピネルがfoxへ導入した（`auth exec windows-install-with-oauth.sh`、終了コード0、-NoLaunch）。Coreの`SeatLink.cs`はネオンが別PRで消す。
+
+- 確認（fox）: 導入したexeの版は `0.9.9+dd9424013f0dc0fac24a16a745c26571d858eef6`。`BellTeam.dll` の `GoogleDesktopSecret` が35文字（値は表示していない）。BellTeamは動いていない。
+- 確認（本番の読み取り）: `--smoke-test http://192.168.1.2:18891/` は成功（認証済み、SSE接続あり）。
+- 確認（画面）: `--render-approvals join-block`・`link-connected` は終了コード0。工程表との連携のパネルに「決裁箱につながっています」と「つなぎを外す」があり、廃止した区画は出ていない。
+- 確認できていない: 本物の親のスマホでの通し。
+
+## Windows 0.9.9 の公開（GitHubの公開版 windows-app、2026-11-28 00:1x JST、アニス）
+
+トロニーの裁定（2026-11-28）：Linuxの`linux-app`と同じ形で、公開版`windows-app`に置く。鍵は認証仲介だけから受け、未署名のまま。PR #2774（package-windows-app.ps1・publish-windows-app.ps1・公開版の導入・docs/windows-app.md）、main `bfb74845`から、エピネルが`auth exec windows-install-with-oauth.sh -- --package`でfoxにx64とarm64の配布物を作り（終了コード0）、アニスが`publish-windows-app.ps1`で上げた。
+
+- 公開: https://github.com/kitepon/BellTeam/releases/tag/windows-app（題名「BellTeam Windows app 0.9.9」、タグは`bfb74845`、Latestではない）。
+- 確認: 配布物のSHA256SUMSが3つのファイルと合う。x64・arm64のzipの`BellTeam.dll`の`GoogleDesktopSecret`はどちらも35文字（値は表示していない）。x64は`datachannel.dll`入り。
+- 確認（利用者の道）: 公開のURLから`install-windows.ps1`を取って実行し（-NoLaunch）、終了コード0。導入したexeの版は`0.9.9+bfb748451236ce8cdc68427c6e556be256d82d26`、登録の表示は0.9.9、`--smoke-test`は成功（認証済み、SSE接続あり）。
+- 公開の途中で見つけた欠陥: `publish-windows-app.ps1`の`"$taskSha:windows/..."`が変数`$taskSha:windows`と読まれてcsprojの版を読めず、`gh`の前で止まった（何も公開されていない）。波括弧で直した（PR は別）。
+- 確認できていない: arm64の導入と起動、SmartScreenの警告の実際の出方（未署名）、本物の親のスマホでの通し。

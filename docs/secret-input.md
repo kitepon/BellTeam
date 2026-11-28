@@ -49,10 +49,10 @@ MCPのform elicitationで秘密を返す実装ではない。MCPでは依頼と�
 
 iPhoneの `SecretInputUITests` は `scripts/secret-input-smoke.mjs` が起動するローカルHTTPSサーバーにダミーの値を送る。新規の専用シミュレーターへ試験用証明書を追加し、`TEST_RUNNER_BELLTEAM_SECRET_SMOKE=1` を付けて実行する。終了後はそのシミュレーターを削除する。本番のユーザー設定や秘密の値は試験に使わない。
 
-## 1Passwordと秘密ハンドル
+## 秘密ハンドル（1Passwordの取り込みは2026-11-27に外した）
 
-すべての秘密入力カードは保存値に加え、`op://<vault id>/<item id>/<field>`を受け付ける。接続済みなら1Passwordを先に表示し、保存値を予備として選べる。参照は専用カードだけに入力し、MCP引数や通常チャットに書かない。1Passwordの参照から読んだ値は秘密入力の管理窓口で解決し、利用するプログラムへ直接渡す。1Password用の値ファイルは作らず、登録通知と履歴にも参照・値を含めない。
+2026-11-27：BellTeamは1Passwordを読まない（トロニー裁定、Owner「サービスアカウントや直の1Password読取を置かない」）。秘密入力カードは保存値だけを受け、`op://`参照の提出は `SECRET_VALUE_INVALID` で断る。カードの入力方法は常に保存値（`inputOptions` は `{preferred:'stored', onePasswordAvailable:false}`）。旧版が残した1Password参照の記録は読み込みで落とさず、そのハンドルは使えない扱い（`SECRET_SOURCE_UNAVAILABLE`）で、秘密を入れ直すと戻る。値は秘密入力の管理窓口で解決し、利用するプログラムへ直接渡す。登録通知と履歴に値を含めない。
 
-本体側のopは`/usr/local/bin/op`をPATHから使う。サービスアカウントのトークンは、利用者が設定画面の「1Password連携」へ1回貼り、各op呼び出しの環境変数にだけ渡す。画面へは表示し返さない。SSH鍵カードは、読める保管庫のSSH Key項目を名前で一覧し、選んだ項目の`op://<保管庫>/<項目>/private key?ssh-format=openssh`を登録する。鍵は作らない。1Passwordを使わない場合は、秘密鍵を貼る欄が残る。
+設定画面の「1Password連携」と、SSH鍵カードの1Password一覧は無い。秘密鍵は貼る欄に入れる。
 
 端末は秘密の保存場所や1Password参照を受け取らず、端末と用途に結び付いたハンドルを使う。管理側で認可した利用者の文脈を付け、`usageAssembly.credentials.withResolved(handle,{terminalId,memberId,purpose},consume)`で値を渡す。値を表示・ログ・Git・PTY命令へ出さない。保存値の既存パスは互換として保ち、移動しない。詳細の正本は[secret credentials](architecture/modules/usage/secret-credentials.md)。

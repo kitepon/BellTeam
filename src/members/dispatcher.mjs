@@ -12,6 +12,8 @@ import { normalizeMembersError } from './errors.mjs'
 import { validateMembersRequest, validateMembersCallback, validateMembersControl, validateMembersContext,
   validateMembersResult, validateMembersEffect, validateMembersEffectResult, validateMembersProjection } from './protocol.mjs'
 
+// summary: existence/authorization callers need the identity, not up to four 3,000,000-character image strings.
+const withoutImageBodies = ({ avatar, avatarLarge, avatarSource, avatarLargeSource, ...rest }) => ({ ...rest, hasAvatar: Boolean(avatar), hasAvatarLarge: Boolean(avatarLarge) })
 const failure = code => Object.assign(new Error(code), { code, outcome: 'not_accepted', status: 503 })
 const withoutImages = profile => {
   const { avatar, avatarLarge, avatarSource, avatarLargeSource, ...rest } = profile
@@ -159,7 +161,7 @@ export function createMembersDispatcher({ root, effect, projection, diagnostic =
         await bots.refresh()
         const bot = bots.get(params.botId) ?? (params.includeDeleting ? (await bots.listForClient()).find(bot => bot.id === params.botId) : undefined)
         if (!bot) throw Object.assign(new Error('BOT_NOT_FOUND'), { code: 'BOT_NOT_FOUND', status: 404 })
-        return { bot }
+        return { bot: params.summary ? withoutImageBodies(bot) : bot }
       }
       case 'profile.preview': return { bot: await bots.previewUpdate(params.botId, params.changes) }
       case 'profile.remove': return bots.remove(params.botId)

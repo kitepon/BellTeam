@@ -12,6 +12,10 @@ const instructions = { work: instruction, request: requestInstruction }
 
 // Native harness adapters stay explicit: an unsupported tool-free mode never falls back.
 // harnessCli (a451, cli-not-installed.md N7): usage's window or a function returning it; a CLI that is not ready is no summary yet, not a failure.
+// --ignore-user-config drops the disabled stubs of ~/.codex/config.toml (harness-config.mjs UNUSABLE_CODEX_MCPS), so the account plugins' MCPs start again on every summary run
+// (xcodebuildmcp via npx respawned every few seconds, 11-27). Same names, set per run.
+const UNUSABLE_ACCOUNT_MCPS = ['xcodebuildmcp', 'openai-api-key-local-confirmation']
+
 export function createBackgroundSummaryRunner({ project, models, harnessCli = null, runner = createSeatProcessRunner(project, { environment: 'base' }), captureRuntime = captureSelectedRuntime }) {
   if (typeof models?.forHarness !== 'function') fail('BACKGROUND_SUMMARY_MODELS_REQUIRED')
   return async (selection, prompt, { signal, purpose = 'work' } = {}) => {
@@ -31,7 +35,8 @@ export function createBackgroundSummaryRunner({ project, models, harnessCli = nu
       : ['exec', '--json', '--ephemeral', '--skip-git-repo-check', '--ignore-user-config', '--ignore-rules',
         '--sandbox', 'read-only', '-C', project, '-m', selection.model,
         ...(selection.reasoningEffort === '' ? [] : ['-c', `model_reasoning_effort="${selection.reasoningEffort}"`]),
-        '-c', 'project_doc_max_bytes=0', instructions[purpose]]
+        '-c', 'project_doc_max_bytes=0', ...UNUSABLE_ACCOUNT_MCPS.flatMap(name => ['-c', `mcp_servers.${name}.command="true"`, '-c', `mcp_servers.${name}.enabled=false`]),
+        instructions[purpose]]
     // Z-b2 C5: each run is its own launch of the selected CLI closure (runtime-capture.md).
     // A builtin component keeps the previous resolution through the base PATH.
     const component = (await captureRuntime()).components[selection.harness === 'claude' ? 'runtime-claude-code' : 'runtime-codex']

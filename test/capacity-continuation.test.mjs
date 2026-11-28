@@ -19,6 +19,12 @@ const observation = receipt => ({ schema: 'aiterm.agent-wait-result.v1', outcome
     ...(receipt.input_id ? { input_id: receipt.input_id } : {}),
   } } })
 
+// The continuation is delivered after the recovery settles (the messenger's queue): wait for the n-th pty_send.
+async function sent(f, n) {
+  for (let i = 0; i < 200 && f.calls.filter(x => x.name === 'pty_send').length < n; i++) await new Promise(resolve => setTimeout(resolve, 5))
+  assert.equal(f.calls.filter(x => x.name === 'pty_send').length, n)
+}
+
 async function fixture(t, { failures = 1, onAuth = () => {}, changeFailure = x => x, closeUnknown = false, accounts = null } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'capacity-continuation-')); t.after(() => rm(root, { recursive: true, force: true }))
   const bot = { id: 'bot-synthetic', name: 'Synthetic', session: 'bot-synthetic', project: root,
@@ -27,7 +33,9 @@ async function fixture(t, { failures = 1, onAuth = () => {}, changeFailure = x =
   bots.refresh = async () => {}
   bots.previewUpdate = async (id, changes) => ({ ...bots.get(id), ...changes })
   bots.update = async (id, changes) => { const value = { ...bots.get(id), ...changes }; bots.set(id, value); return value }
+  // Limit ends after the real clock: the engine records each accepted input at real time, and a limit end before it is not due.
   let sends = 0, enabled = true, last = null
+  const epoch = Date.now() + 3_600_000
   const client = { launchOptions: async () => ({}), async call(name, args, options = {}) {
     options.admissionCheck?.(); calls.push({ name, args, login: options.claudeLogin ?? null })
     if (name === 'pty_send') {
@@ -44,9 +52,9 @@ async function fixture(t, { failures = 1, onAuth = () => {}, changeFailure = x =
     if (name === 'pty_observe') return { structuredContent: { words: [], event_cursor: sends } }
     // Aiterm 0.70.26 limit end (harness-accounts.md): the seat of the last send, cut by a limit when that send's wait failed.
     if (name === 'pty_list') return { structuredContent: { sessions: last ? [{ session_id: last.session, harness: 'claude-code',
-      last_input_at: new Date(Date.UTC(2026, 10, 12, 0, 0, last.n)).toISOString(),
+      last_input_at: new Date(epoch + last.n * 1000).toISOString(),
       limit_end: last.n <= failures && bots.get(bot.id).harness === 'claude'
-        ? { at: new Date(Date.UTC(2026, 10, 12, 0, 0, last.n, 500)).toISOString(), reset_at: null, continued: false, hold: null } : null }] : [] } }
+        ? { at: new Date(epoch + last.n * 1000 + 500).toISOString(), reset_at: null, continued: false, hold: null } : null }] : [] } }
     throw Error(`unexpected ${name}`)
   } }
   const transport = new AitermTransport({ client, handoffContext: async () => '', accounts, resolveBot: id => bots.get(id),
@@ -133,16 +141,18 @@ test('a limit on the 1st account starts a new seat on the 2nd (old seat left) be
   t.after(() => accounts.close())
   await accounts.prepare('claude', '2nd')
   await writeFile(join(home, '.bellteam-accounts/claude/2nd/oauth-token'), 'sk-ant-oat01-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
-  const f = await fixture(t, { accounts }); await f.start(); await f.settle()
-  const launches = f.calls.filter(x => x.name === 'agent_launch')
-  // The fixture's seat is already running on the default (1st) root; only the new seat launches, under a new name.
-  assert.deepEqual(launches.map(x => [x.login, x.args.configuration_root]), [['2nd', undefined]], 'same root, only the login differs')
-  assert.match(launches[0].args.session_name, /^bot-synthetic-2nd-[0-9a-z]+$/u)
+  const f = await fixture(t, { accounts })
+  // Only the fixture's first seat runs; the move names the new seat and the continuation's delivery launches it.
+  f.transport.isRunning = async bot => f.bots.get(bot.id).session === 'bot-synthetic'
+  await f.start(); await f.settle(); await sent(f, 2)
+  // The move only names the new seat (no launch beside the idle old one); the continuation's delivery goes to the new name,
+  // where Aiterm launches it (the fixture's pty_send answers for any name).
+  assert.equal(f.calls.some(x => x.name === 'agent_launch'), false, 'no seat launched by the move')
   assert.equal(f.calls.some(x => x.name === 'pty_close'), false, 'the old seat is left as it is')
-  assert.equal(f.bots.get(f.bot.id).session, launches[0].args.session_name)
+  assert.match(f.bots.get(f.bot.id).session, /^bot-synthetic-2nd-[0-9a-z]+$/u)
   assert.equal(f.bots.get(f.bot.id).harness, 'claude', 'same harness and model: only the account changed')
   const sends = f.calls.filter(x => x.name === 'pty_send')
-  assert.equal(sends.length, 2)
+  assert.equal(sends[1].args.session_id, f.bots.get(f.bot.id).session)
   assert.match(sends[1].args.text, /2ndアカウント/)
   assert.doesNotMatch(sends[1].args.text, /ORIGINAL_PRIVATE_BODY/)
   assert.equal(accounts.seatSlot(f.bot.id), '2nd')
@@ -161,11 +171,11 @@ test('an account limit without the terminal-failure proof still resumes on the 2
   const f = await fixture(t, { accounts, changeFailure: x => ({ ...x, outcome: 'rate_limited',
     rate_limit: "You're out of usage credits. Run /usage-credits to keep using Fable 5.1 or /model to switch models.",
     failure: { ...x.failure, terminal: false } }) })
-  await f.start(); await f.settle()
-  const launches = f.calls.filter(x => x.name === 'agent_launch')
-  assert.deepEqual(launches.map(x => [x.login, x.args.configuration_root]), [['2nd', undefined]], 'same root, only the login differs')
+  f.transport.isRunning = async bot => f.bots.get(bot.id).session === 'bot-synthetic'
+  await f.start(); await f.settle(); await sent(f, 2)
+  assert.equal(f.calls.some(x => x.name === 'agent_launch'), false, 'no seat launched by the move')
   const sends = f.calls.filter(x => x.name === 'pty_send')
-  assert.equal(sends.length, 2)
+  assert.equal(sends[1].args.session_id, f.bots.get(f.bot.id).session)
   assert.match(sends[1].args.text, /2ndアカウント/)
   assert.equal(f.bots.get(f.bot.id).harness, 'claude')
   assert.equal(accounts.seatSlot(f.bot.id), '2nd')

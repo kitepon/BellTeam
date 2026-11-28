@@ -12,10 +12,16 @@ public static class AccountStore
 {
     public const string ServerClientId = "316260984663-ktbg3e8931u0jv94c2fhccrig8ppau78.apps.googleusercontent.com";
     private static LbLocalForm? local;
+    // Google Play's reviewer (Tronie 2026-11-28; Sakura's shared test account) uses the app with no purchase: its hash (lowercase hex SHA-256 of "google:<subject>", read once from LocalSignIn.Account) is listed in the store build only; debug builds list none.
+#if DEBUG
+    private static readonly string[] ReviewFreeAccounts = [];
+#else
+    private static readonly string[] ReviewFreeAccounts = ["7067e9e338648705b50c71464aee2f21884049bddf96b308d6101982abe55d7a"];
+#endif
     internal static string? Product(string key) { using var product = JsonDocument.Parse(EmbeddedAsset.Text("product.json")); return product.RootElement.TryGetProperty(key, out var value) ? value.GetString() : null; }
     public static LbLocalForm? Local => local ??= !LocalFormIds.AndroidReady ? null : new LbLocalForm(MainActivity.Current, ServerClientId,
-        new LocalConfig([.. LocalFormIds.GoogleClientIds, LocalFormIds.AppleBundleId, LocalFormIds.AppleServicesId], Apple: new LocalAppleRules([LocalFormIds.AppleBundleId], [LocalFormIds.ProductId]),
-            Play: new LocalPlayRules(LocalFormIds.PlayPackage, [LocalFormIds.ProductId], LocalFormIds.PlayPublicKey), AppleWeb: new LocalAppleWeb(LocalFormIds.AppleServicesId, LocalFormIds.AppleReturnUrl), AppId: LocalFormIds.AppleBundleId),
+        new LocalConfig([.. LocalFormIds.GoogleClientIds, LocalFormIds.AppleBundleId, LocalFormIds.AppleServicesId], Apple: new LocalAppleRules([LocalFormIds.AppleBundleId], [LocalFormIds.ProductId], LocalFormIds.AppleAcceptsSandbox),
+            Play: new LocalPlayRules(LocalFormIds.PlayPackage, [LocalFormIds.ProductId], LocalFormIds.PlayPublicKey), FreeAccounts: ReviewFreeAccounts, AppleWeb: new LocalAppleWeb(LocalFormIds.AppleServicesId, LocalFormIds.AppleReturnUrl), AppId: LocalFormIds.AppleBundleId),
         log: AppleReturnLine);
     // One line per Apple return (the library builds it: time, fields, Apple's error code; never a token, code or subject) goes to the app's own log file in its private files folder, and nowhere else.
     internal static string AppleReturnLogPath => Path.Combine(global::Android.App.Application.Context.FilesDir!.AbsolutePath, "apple-return.log");
@@ -26,20 +32,15 @@ public static class AccountStore
     public static void NoteForeground() => Foreground?.Invoke();
 }
 
-// a515n (login-billing 0.18.0, contract 1.24): Approval Box's own instance, "foreign": its own base origin, its own storage (storageName: folder and Keystore alias apart from BellTeam's), web sign-in only,
-// never a native sheet, a purchase or a receipt. The application context (what the library keeps anyway): the device part is made in Application.OnCreate, before any activity exists. The two instances share nothing; signing out of one leaves the other. product.json: approvalBoxAuthUrl, approvalBoxWebReturn (the address Approval Box's operator lists:
-// exactly approvalbox-websignin://return, Nayuta 2026-11-22: the server compares only the scheme, one fixed string for every BellTeam app; never the https /app/websignin link, which is for Approval Box's own apps). serverClientId is empty: the native Google route is never used here.
+// Approval Box's origin (child-join.md; the form of the child join is AndroidChildJoinForm): product.json's address. A debug build's file files/approval-box-device may hold an auth URL: a lab run against approval-box's local dev server
+// (http://127.0.0.1:8788/auth/v1 through adb reverse); no file or an empty one = product.json's address. A release build ignores the file's content: it is only the switch.
 public static class ApprovalBoxAccount
 {
-    public const string StorageName = "approvalbox";
-    private static LoginBilling? billing;
-    // A debug build's file files/approval-box-device may hold an auth URL: a lab run against approval-box's local dev server (http://127.0.0.1:8788/auth/v1 through adb reverse). Not a switch any more (the client always runs); no file or an empty one = product.json's address.
 #if DEBUG
     internal static string? LabUrl => File.Exists(Switch) && File.ReadAllText(Switch).Trim() is { Length: > 0 } lab ? lab : null;
 #else
-    internal static string? LabUrl => null;   // a release build ignores the file's content: it is only the switch
+    internal static string? LabUrl => null;
 #endif
     internal static string? AuthUrl => LabUrl ?? AccountStore.Product("approvalBoxAuthUrl");
     internal static string Switch => Path.Combine(global::Android.App.Application.Context.FilesDir!.AbsolutePath, "approval-box-device");
-    public static LoginBilling? Billing => billing ??= AuthUrl is { } url ? new LoginBilling(global::Android.App.Application.Context, "", url, AccountStore.Product("approvalBoxWebReturn"), StorageName) : null;
 }

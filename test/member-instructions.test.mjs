@@ -20,3 +20,7 @@ test('pure global rendering preserves Owner, user rules, common rules order', ()
   const rules = 'fixture rule', common = '# common\n'
   assert.equal(renderGlobalInstructions(owner, rules, common), `${ownerInstructions(owner)}\n\n${userRulesInstructions(rules)}\n\n${common}`)
 })
+
+test('a 統括 seat renders no coordinator-only section (the common rule roles.coordinator links the index)', () => {
+  assert.ok(!renderBotInstructions({ id: 'bot-a', name: 'N', position: '統括', role: '役割' }).includes('assign-owner'))
+})

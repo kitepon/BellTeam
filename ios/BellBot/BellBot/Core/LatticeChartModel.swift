@@ -1,5 +1,9 @@
 import SwiftUI
 
+private func latticeRetryDelay(_ attempt: Int) -> Duration {
+    .seconds(min(30, pow(2, Double(attempt))) * Double.random(in: 0.8...1.2))
+}
+
 /// 工程表の一覧。開いている間、10秒ごとに読み直す（screen-spec.md「Data handling」4）。
 @MainActor
 final class LatticeChartsModel: ObservableObject {
@@ -114,9 +118,9 @@ final class LatticeChartModel: ObservableObject {
             if Task.isCancelled { return }
             if connection == .live { attempt = 0 }
             connection = .reconnecting
-            let wait = min(30, pow(2, Double(attempt))) * Double.random(in: 0.8...1.2)
+            let wait = latticeRetryDelay(attempt)
             attempt += 1
-            try? await Task.sleep(for: .seconds(wait))
+            try? await Task.sleep(for: wait)
         }
     }
 
@@ -230,7 +234,7 @@ final class LatticeStopsModel: ObservableObject {
         var attempt = 0
         while !Task.isCancelled, !(await read(api: api)) {
             phase = .retry
-            try? await Task.sleep(for: .seconds(min(30, pow(2, Double(attempt))) * Double.random(in: 0.8...1.2)))
+            try? await Task.sleep(for: latticeRetryDelay(attempt))
             attempt += 1
         }
     }
@@ -279,5 +283,112 @@ final class LatticeStopsModel: ObservableObject {
             notes[stop.stopId] = outcome.note
         }
         reread()
+    }
+}
+
+@MainActor
+final class LatticeRemindersModel: ObservableObject {
+    enum Phase: Equatable {
+        case loading, ready, saving, retry(String), unsupported, notFound, signIn, refused(String)
+    }
+
+    struct Request: Equatable {
+        private let id = UUID()
+        var enabled: Bool? = nil
+    }
+
+    private struct Setting: Decodable {
+        let schema: String
+        let projectId: String
+        let enabled: Bool
+    }
+
+    @Published private(set) var phase: Phase = .loading
+    @Published private(set) var enabled: Bool?
+    @Published private(set) var saveFailed = false
+    @Published private(set) var request = Request()
+    private var rereadAfterSave = false
+    private let projectId: String
+
+    init(projectId: String) { self.projectId = projectId }
+
+    private var path: String { "/api/lattice/charts/\(projectId)/reminders" }
+
+    func reread() {
+        if phase == .saving {
+            rereadAfterSave = true
+            return
+        }
+        rereadAfterSave = false
+        phase = .loading
+        request = Request()
+    }
+
+    func setEnabled(_ value: Bool) {
+        guard phase == .ready, value != enabled else { return }
+        saveFailed = false
+        phase = .saving
+        request = Request(enabled: value)
+    }
+
+    func run(_ request: Request, api: BellAPI, requireLogin: (Error) -> Void) async {
+        guard request == self.request, !Task.isCancelled else { return }
+        if let desired = request.enabled {
+            do {
+                let result: Setting = try await api.put(path, body: ["enabled": desired])
+                try confirm(result, for: request)
+                if !rereadAfterSave { return }
+            } catch {
+                guard request == self.request, !Task.isCancelled else { return }
+                saveFailed = true
+                if BellAPIError.isAuthenticationError(error) {
+                    phase = .signIn
+                    requireLogin(error)
+                    return
+                }
+            }
+            rereadAfterSave = false
+            phase = .loading
+        }
+
+        var attempt = 0
+        while request == self.request, !Task.isCancelled {
+            do {
+                let result: Setting = try await api.get(path)
+                try confirm(result, for: request)
+                return
+            } catch {
+                guard request == self.request, !Task.isCancelled else { return }
+                switch error {
+                case BellAPIError.httpStatus(404, "NOT_FOUND", _):
+                    phase = .unsupported
+                    return
+                case BellAPIError.httpStatus(404, "LATTICE_CHART_NOT_FOUND", _):
+                    phase = .notFound
+                    return
+                case let error where BellAPIError.isAuthenticationError(error):
+                    phase = .signIn
+                    requireLogin(error)
+                    return
+                case BellAPIError.httpStatus(403, _, _):
+                    phase = .refused(error.localizedDescription)
+                    return
+                default:
+                    phase = .retry(error.localizedDescription)
+                }
+                try? await Task.sleep(for: latticeRetryDelay(attempt))
+                attempt += 1
+            }
+        }
+    }
+
+    private func confirm(_ result: Setting, for request: Request) throws {
+        try Task.checkCancellation()
+        guard request == self.request else { throw CancellationError() }
+        guard result.schema == "bellteam.lattice-reminders.v1", result.projectId == projectId else {
+            throw BellAPIError.invalidResponse
+        }
+        enabled = result.enabled
+        phase = .ready
     }
 }

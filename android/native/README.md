@@ -1,6 +1,6 @@
-# Native part of BellTeam.PeerChannel on Android
+# Native part of the Approval Box client (Kitepon.ApprovalBox.Client) on Android
 
-`libdatachannel.so` is libdatachannel v0.24.6 (commit 6b1e2e620f1e37f0eafeee702eaea0043cb305fd, the same engine and submodule commits as `linux/native/README.md`), built for `arm64-v8a` and `x86_64` and packed into the APK by `BellTeam.Android.csproj` (`AndroidNativeLibrary`). `windows/BellTeam.PeerChannel/Native.cs` calls it through P/Invoke (library name `datachannel`, which Android resolves to `libdatachannel.so` in the app's native library directory). The SHA-256 of each stripped file is beside it in `prebuilt/<abi>/`.
+`libdatachannel.so` is libdatachannel v0.24.6 (commit 6b1e2e620f1e37f0eafeee702eaea0043cb305fd, the same engine and submodule commits as `linux/native/README.md`), built for `arm64-v8a` and `x86_64` and packed into the APK by `BellTeam.Android.csproj` (`AndroidNativeLibrary`). `Kitepon.ApprovalBox.Client` (`PeerChannel/Native.cs`, library name `datachannel`) calls it through P/Invoke (library name `datachannel`, which Android resolves to `libdatachannel.so` in the app's native library directory). The SHA-256 of each stripped file is beside it in `prebuilt/<abi>/`.
 
 ## Recipe (the Linux seat, Neon)
 - NDK 28.2.13676358 (`android.toolchain.cmake`, `-DANDROID_ABI=<abi> -DANDROID_PLATFORM=android-26`), cmake 3.31.6 + ninja. Android 26 is the app's minimum API.

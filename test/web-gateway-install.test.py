@@ -200,6 +200,18 @@ class IsolatedWriterTest(unittest.TestCase):
         target = self.private / 'web-gateway/releases' / self.expected['archiveSha256']
         self.assertTrue((target / 'installation.json').is_file()); self.preserved()
 
+    def test_every_allowed_component_has_its_verifier_script(self):
+        # Regression 11-27: auth-mediation was allowed but its verifier was missing from a dict (KeyError, no named failure).
+        self.verifier.stop()  # the real verify, not the fixture
+        for component in ('web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics', 'execution', 'conversation', 'work-graph', 'lattice', 'approval-box-extension', 'auth-mediation'):
+            seen = []
+            class Stop(Exception): pass
+            def popen(argv, **kw): seen.append(argv[1]); raise Stop()
+            with patch.object(writer.subprocess, 'Popen', popen):
+                with self.assertRaises(Stop): writer.verify(Path('a'), Path('b'), 'x', component)
+            self.assertEqual(seen[0], '/app/scripts/verify-' + component + '.py')
+            self.assertTrue((SCRIPT.parent / ('verify-' + component + '.py')).is_file(), component)
+
     def test_fixed_cli_rejects_paths_and_nonroot_before_private_writes(self):
         result = subprocess.run([sys.executable, str(SCRIPT), '../x', 'a' * 40, 'b' * 40], capture_output=True)
         self.assertEqual(result.returncode, 1); self.assertEqual(result.stdout, b'')

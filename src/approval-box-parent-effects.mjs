@@ -5,7 +5,11 @@ const fail = (code, status) => Object.assign(new Error(code), { code, status })
 const unavailable = () => fail('APPROVAL_BOX_EXTENSION_SESSION_UNAVAILABLE', 503)
 const text = value => value == null ? '' : String(value)
 
-export function createApprovalBoxExtensionEffects({ lattice, bots, credentials = null, scope = APPROVAL_BOX_SESSION_SCOPE, daemon = null }) {
+// Refusals that repeat whatever happens later (Bot deleted, bad text): the child records them instead of retrying forever (as lattice-facade.mjs does).
+const PERMANENT = /^(SENDER_NOT_FOUND|BOT_NOT_FOUND|MESSAGE_REQUIRED)\b/u
+
+// messenger + runAs: the public send path, the same one the sendmessage tool and Lattice's notices use (README section 13, F8). No messenger: the child retries on the next tick.
+export function createApprovalBoxExtensionEffects({ lattice, bots, credentials = null, scope = APPROVAL_BOX_SESSION_SCOPE, messenger = null, runAs = (actor, send) => send() }) {
   return async (method, params) => {
     switch (method) {
       // A refused Owner-task write is told apart so the child skips that decision; every other failure ends the tick (the child's retry).
@@ -15,6 +19,17 @@ export function createApprovalBoxExtensionEffects({ lattice, bots, credentials =
       // The facade returns the full snapshot and {schema, at, charts}; the child's protocol takes only the narrowed shapes (the validator refuses extra keys).
       case 'lattice.chart': { const { cards, edges } = await lattice.chart(params.projectId); return { cards, edges } }
       case 'lattice.charts': return (await lattice.charts()).charts.map(chart => ({ projectId: chart.projectId, name: chart.name ?? null, createdBy: chart.createdBy ?? null, coordinator: chart.coordinator === true }))
+      case 'seat.message': {
+        if (!messenger) throw unavailable()
+        try {
+          const value = await runAs({ kind: 'scheduler' }, () => messenger.sendmessage({ from: 'scheduler', target: params.target, message: params.message }))
+          return { delivery: text(value?.delivery) || 'delivered', deliveryId: value?.delivery_id ?? null }
+        } catch (error) {
+          const code = PERMANENT.exec(error?.message ?? '')?.[1]
+          if (code) return { delivery: 'refused', deliveryId: null, code }
+          throw error
+        }
+      }
       case 'members.list': return (await bots.listForClient()).map(item => ({ id: text(item.id), name: text(item.name) }))
       case 'session.get': {
         if (!credentials) throw unavailable()
@@ -33,23 +48,6 @@ export function createApprovalBoxExtensionEffects({ lattice, bots, credentials =
         if (typeof credentials?.erase !== 'function') throw unavailable()
         await credentials.erase(scope)
         return { ok: true }
-      // a490g: the hosted daemon (a490h) holds what BellTeam's seats and the body filed; read only. Not paired / not running = nothing to read, never an error that stops the tick.
-      case 'daemon.decisions.list': {
-        if (!daemon?.route) return []
-        const listed = await daemon.route('GET', '/decisions').catch(() => null)
-        return (Array.isArray(listed?.items) ? listed.items : []).map(item => ({ id: text(item.decision_id ?? item.id) })).filter(item => /^K-[A-Z0-9]{4,16}$/u.test(item.id)).slice(0, 500)
-      }
-      case 'daemon.decisions.read': {
-        if (!daemon?.route) return null
-        const rec = await daemon.route('GET', `/decisions/${encodeURIComponent(params.id)}`).catch(error => { if (error?.status === 404 || error?.status === 503) return null; throw error })
-        if (!rec) return null
-        const answer = rec.answer && typeof rec.answer === 'object' ? { optionId: rec.answer.option_id ?? null, text: rec.answer.text ?? null, answeredAt: rec.answer.answered_at ?? null } : null
-        return { id: text(rec.decision_id ?? rec.id), title: text(rec.title), status: text(rec.status), version: rec.version, urgency: text(rec.urgency), sessionLabel: text(rec.session_label),
-          context: text(rec.context).slice(0, 20000), // for the view only (a490k); the child never stores it and the link engine ignores it
-          requester: rec.requester == null ? null : text(rec.requester), cancelReason: rec.cancel_reason == null ? null : text(rec.cancel_reason), createdAt: text(rec.created_at), updatedAt: text(rec.updated_at),
-          options: (rec.options ?? []).map(option => ({ id: text(option.id), label: text(option.label) })), answer,
-          ...(rec.recommendation ? { recommendation: text(rec.recommendation) } : {}), ...(rec.deadline ? { deadline: text(rec.deadline) } : {}) }
-      }
       default: throw fail('APPROVAL_BOX_EXTENSION_EFFECT_INVALID', 400)
     }
   }

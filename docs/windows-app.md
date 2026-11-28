@@ -64,7 +64,7 @@ pwsh -NoProfile -File scripts/install-windows.ps1 -ServerUrl 'http://サーバ�
 
 導入の最後に、他のアプリの「共有」にBellTeamを出す登録（疎パッケージ）も行う。必要なのはWindows SDK（`winget install Microsoft.WindowsSDK.10.0.26100`）で、無ければ警告だけ出して登録しない（導入は成功）。登録のために、このPCで自己署名の証明書（CN=BellTeam）を信頼する管理者の確認が一回出る。署名の鍵は署名の直後に消し、アンインストールで信頼も外す。共有先が要らない時は`-SkipShareTarget`を付ける。登録だけをやり直す時は`pwsh -NoProfile -File scripts/register-windows-share-target.ps1`（外すのは`-Unregister`）。
 
-入れ直す時はBellTeamを閉じ、同じコマンドを実行する。設定はアプリ本体とは別の場所に保持する。アプリは現時点では未署名。ソースからビルドする導入方法であり、一般向けinstallerの配布はこの段階に含めない。
+入れ直す時はBellTeamを閉じ、同じコマンドを実行する。設定はアプリ本体とは別の場所に保持する。アプリは現時点では未署名（コード署名は別の後の課題。トロニー裁定 2026-11-28）。
 
 削除はWindowsのアプリ一覧、または次の入口から行う。
 
@@ -73,6 +73,28 @@ pwsh -NoProfile -File scripts/install-windows.ps1 -Uninstall
 ```
 
 削除後もこのPCの接続先・窓・通知の設定とログイン情報は残す。完全に設定を消す場合は、アプリ終了後に`%LOCALAPPDATA%\BellTeam`を利用者が削除する。
+
+### 公開版から導入する（トロニー裁定 2026-11-28：Linuxの`linux-app`と同じ形）
+
+利用者はソースを持たずに入れられる。PowerShell 7（`winget install Microsoft.PowerShell`）で、公開版`windows-app`のinstallerを取って実行する。
+
+```powershell
+Invoke-WebRequest https://github.com/kitepon/BellTeam/releases/download/windows-app/install-windows.ps1 -OutFile $env:TEMP\install-bellteam.ps1
+pwsh -NoProfile -File $env:TEMP\install-bellteam.ps1
+```
+
+installerは、横にソースが無い時（公開版から取った時）に自分で公開版の導入になる（ソースの中で`-FromRelease`を付けても同じ）。このPCのCPUに合う`BellTeam-win-<x64|arm64>.zip`（.NET同梱）と`SHA256SUMS`を取り、zipのSHA-256が合うことを確かめてから`%LOCALAPPDATA%\Programs\BellTeam`へ置き、スタートメニューと「インストールされているアプリ」へ登録する。取れない・SHA-256が合わない時は何も入れず理由を出して終わり、もう一度実行すれば取り直す。公開版の導入には他のアプリの「共有」先の登録は含まない（その登録はこのソースとWindows SDKが要る）。削除は、アプリ一覧、または同じinstallerに`-Uninstall`を付ける。取得先は環境変数`BELLTEAM_WINDOWS_RELEASE`で変えられる（試験用）。
+
+## 公開
+
+公開版は、GitHubの公開版`windows-app`（タグも同名で、公開した版のcommitへ動かす。Latestにはしない：Latestはサーバーの更新カタログ）。担当はアニス。GitHub Actionsでは作らない：ビルドにはGoogleのデスクトップ用クライアントの秘密が入り、その秘密は認証仲介（`auth exec`）からしか受け取らないため（トロニー裁定）。
+
+1. fox（Windows）のクローンを公開するmainのcommitへ合わせる（`git switch --detach <sha>`）。
+2. main-serverで`auth exec /home/kite/BellTeam/scripts/windows-install-with-oauth.sh --package <foxのフォルダ>`を1回実行する（インストールと同じ入口。`scripts/package-windows-app.ps1`がfoxでx64とarm64の自己完結ビルドを作り、2つのzip・`SHA256SUMS`・`install-windows.ps1`を出力先へ置く。秘密は標準入力から入り、ログにもgitにも出ない）。
+3. foxで`pwsh -NoProfile -File scripts/publish-windows-app.ps1 -Dist <フォルダ> -Commit <sha>`を実行する（commitがorigin/mainの祖先であることを確かめ、タグを動かし、4つのファイルをghで置き換える。題名は「BellTeam Windows app <版>」）。
+4. 公開版のinstallerを取って実行し、導入されたexeの版が公開した版であることを確かめる。
+
+版は手で上げる：利用者に見える変更を公開する時は、同じPRで`BellTeam.App.csproj`の`Version`を上げる。
 
 ## 開発と確認
 

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { isDeepStrictEqual } from 'node:util'
 import { deliveryExecutionRef } from './execution-bridge.mjs'
+import { readMemberSummary } from './members-facade.mjs'
 const invalid = () => { throw Object.assign(new Error('CONVERSATION_EXECUTION_INVALID'), { code: 'CONVERSATION_EXECUTION_INVALID', status: 503, effect: 'not_started' }) }
 
 // The parent channel owns registration, callback ACKs and background begin/end.
@@ -34,7 +35,7 @@ export function createConversationExecutionEffects({ getServices, getController,
       services.aiControl.assertEnabled()
     }
     const member = async (id, membersContext = context.operationContext) => {
-      if (typeof services.bots.readMember === 'function') await services.bots.readMember(id, membersContext)
+      if (typeof services.bots.readMember === 'function') await readMemberSummary(services.bots, id, membersContext)
       else await services.bots.refresh(membersContext)
       check()
       const bot = services.bots.get(id)

@@ -2,75 +2,28 @@
 
 Owner 2026-11-24: a seat stopped on a tool-approval prompt should send a card to him, and his answer approves that one prompt once or denies it. He added: only when the Owner has Approval Box connected; otherwise the same prompt is answered inside BellTeam.
 
-Scope of this page: the card (how BellTeam files, reads and closes it through the connection that runs today). Kiro builds the seat side (watcher, state, the answer back to Aiterm); the in-app answer already exists (`GET/POST /api/bots/:id/screen/approval`, [screen-input.md](../execution/screen-input.md)). The held client package switch is not needed: the body files through its own connector connection (paired once by the Owner's QR scan); the apps only read the card.
+Scope of this page: the card (how BellTeam files, reads and closes it). Kiro builds the seat side (watcher, state, the answer back to Aiterm); the in-app answer already exists (`GET/POST /api/bots/:id/screen/approval`, [screen-input.md](../execution/screen-input.md)). The apps only read the card.
 
-## Connection (third version, 2026-11-24: the Owner's own flow, no token pasted)
+## Connection (fifth version, 2026-11-28: no connection of BellTeam's own)
 
-History, so nobody builds the wrong one: #2510 said "hosted daemon only" (it cannot pair while PC_OFFER is off, and a decision filed through it never appears in `/v1`); #2531/#2532 said "connector token path with a token the Owner creates and pastes" (the Owner rejected it: 「その仕組みは却下。決裁箱で子を追加するのと同じやり方じゃダメなんですか？」). This page replaces both.
+History, so nobody builds the wrong one: #2510 said "hosted daemon only"; #2531/#2532 said "connector token path with a token the Owner creates and pastes" (rejected); #2538 said "a second pairing by `pair --json --v1`"; the 2026-11-26 drawing said "the module's one hosted connector and one pairing, one QR". **All four are gone.** Ruling (Owner through Tronie, 2026-11-28): Approval Box stays standalone and BellTeam's body keeps no connector, no pairing and no QR. The body files a seat's tool-approval card as a plain Approval Box client: the host's own public Approval Box client (`approval-box mcp` stdio: `request_decision` / `get_decision` / `cancel_decision`) that the host already has set up for its seats. That backend is Kiro's (execution); the interface stays the one port of the 決裁箱拡張 module ([decision-port.md](decision-port.md), P1).
 
-The body pairs ONCE as a connector of the Owner's Approval Box account, the same way the Owner adds another device: BellTeam shows a QR code, he reads it in the Approval Box app (接続 → 「AIをつなぐ」 → 「QRコードを読む」) and approves. Nayuta released it (switch b, `approval-box@0.2.0-pc.4`, npm dist-tag `next`, source `kitepon/approval-box` main 79b60fa, PR #125): `approval-box pair --json --v1 [--server URL] [--name NAME]` prints `approval-box.pair.v1` lines. `{state:"waiting", pairing_id, code, qr_text: "https://approval-box.kitepon.dev/pair?c=…", expires_at}` (no `typed_secret`: the `code` is the typed code), then on approval `{state:"claimed", connection_id, path:"v1"}` and exit 0 (there is no `bound` line in this mode: `claimed` means linked), or `{state:"failed", code:"rejected"|"expired", message}` and exit 1. `approval-box pair status --json` answers `paired:true, path:"v1"` once linked. The Approval Box app's 「QRコードを読む」 (0.2.2) takes the `/pair?c=` URL, so no app change is needed. PC_OFFER stays off and `a490p-pair-on-sitting` (the peer-channel pairing at the PC_OFFER sitting) is unchanged; this is a second, earlier pairing of the same body.
+Kiro calls `approvals.decisions.file(decision, 'seat-approval')`, `read(id)` and `cancel(id, reason)`; no token, no secret card, no pairing, no path to Approval Box of BellTeam's own.
 
-After `claimed` the pairing leaves a connection token in the pairing home (`<daemon HOME>/config.json`, 0600, the body's own uid). Seat cards use it directly on `/connector/v1`:
+- No set-up Approval Box client on the host (or it answers 401): `file` answers `UNAVAILABLE` and nothing is filed; the prompt stays answerable inside BellTeam, and the next tick tries again.
+- `file` is idempotent per `session_label` and returns `{decisionId, existing}`; `read` marks an answered card fetched; errors are `UNAVAILABLE` / `REFUSED` / `GONE` with the 5 s bound (the P1 contract).
 
-- `createApprovalDecisions` gets one new input, `tokenSource: async () => string | null`. When given, `call()` uses it instead of `handle()`/`withResolved`; null means `SEAT_APPROVAL_DECISIONS_UNAVAILABLE`. The token is read at call time, never copied into the secret store, a card, a log or the route answers.
-- The seat-approval instance: `createApprovalDecisions({ tokenSource: readPairedToken, daemon: null, code: 'SEAT_APPROVAL_DECISIONS', ... })` (the scope and `request_secret` pair in `application-services.mjs`, `seat-approvals` / `seat-approvals-approval-box`, go away: no secret card exists for this).
-- The Lattice effects and running exclusions keep their own connections and paths unchanged. This path does not use the daemon: the body reads the token and files itself. Nayuta advises running the body's daemon non-hosted (a `--hosted` daemon answers `not_paired` for a `v1` connection); that is Molly's call about the daemon slot she shares with a490p, and nothing on this page depends on it. If she keeps `--hosted`, it idles `not_paired` while PC_OFFER is off, which is harmless.
-- If the Owner removes the connection in Approval Box, the next call is 401: the link state becomes `removed` and the view below offers 「もう一度つなぐ」. Nothing is filed meanwhile; the prompt stays answerable inside BellTeam.
-- At the PC_OFFER sitting the peer-channel pairing may replace this token (the same `config.json`). Whether the new connection's token still works on `/connector/v1` is Nayuta's to state in a490p; until then nothing here depends on it.
+Dedupe: the watcher's own record (botId, digest, firstSeen, decisionId) is the primary key, so a card is read and cancelled by id; P1 `file` adopts an earlier card with the same `session_label`, so a lost answer never files twice.
 
-Dedupe: `file()` finds an earlier card by listing `GET /decisions` (the connector's 24 h window) and matching `session_label` exactly. The watcher's own record (botId, digest, firstSeen, decisionId) is the primary key, so a card is read and cancelled by id and a long list never causes a second filing for a known prompt.
+The first pairing view 「決裁箱につなぐ」 and its routes `/api/approvals/seat-link` are removed with the pairing (nothing draws or calls them; the clients' block was retired on 2026-11-27). The Owner's step for a host's Approval Box is Nayuta's own setup of that product.
 
-## The pairing view (the same on every client)
-
-One view, **「AIの許可待ちを決裁箱へ送る」**, in the one place every client already has for the 決裁箱 connection: directly under 「決裁箱につながっています」 / つなぎを外す (Apple: the end of the 決裁箱 list; Web: the 決裁箱 dialog toolbar; Windows/Linux/Android: the same 設定 block). It is a view of the Owner's session only. Each client draws the QR from `qrText` with the component it already uses for the device pairing (Gate `waiting`); no client talks to the daemon or to Approval Box for this.
-
-| State (route `state`) | Shown (Japanese, plain) | Action |
-| --- | --- | --- |
-| `none` | 「AIが許可を待って止まった時、決裁箱のアプリに届きます。つなぐのは1回だけです。」 | 「つなぐ」 |
-| `waiting` | the QR code and the typed code (`code`); 「決裁箱のアプリで、接続 → 「AIをつなぐ」 → 「QRコードを読む」を開き、このQRコードを読んで、許可してください。」 and the expiry time (JST) | 「やめる」 |
-| `linked` | 「つながっています。AIが許可待ちで止まると、決裁箱に届きます。」 | none |
-| `removed` | 「決裁箱でつなぎが外されています。もう一度つないでください。」 | 「もう一度つなぐ」 |
-| `failed` (reason `rejected`) | 「決裁箱のアプリで「心当たりがない」が押されました。」 | 「もう一度つなぐ」 |
-| `failed` (reason `expired`) | 「許可の待ち時間が過ぎました。もう一度つないでください。」 | 「もう一度つなぐ」 |
-| `failed` (other) / `unavailable` | 「いまはつなげません。少し待って、もう一度押してください。」 | 「もう一度つなぐ」 |
-
-Never red or amber except `failed`; `none` and `linked` are neutral.
-
-```mermaid
-stateDiagram-v2
-  [*] --> none
-  none --> waiting: POST start (pair --json run started, waiting line read within 20 s)
-  waiting --> waiting: POST start again (same waiting line returned)
-  waiting --> linked: claimed (exit 0) + token readable
-  waiting --> failed: rejected | expired | run ended | no waiting line in 20 s
-  waiting --> none: POST stop (run killed)
-  failed --> waiting: POST start
-  linked --> removed: a call answers 401
-  removed --> waiting: POST start
-  none --> linked: pair status --json says paired:true path v1 (adopted at start)
-```
-
-Every state leaves by the Owner's tap, the run ending, or a bounded wait (the run is capped at the code's `expires_at`, 5 minutes; the 20 s bound is the same as `approval_box_pair`'s). None waits for an operator.
-
-## Routes and owners
-
-Body routes in the approval-box-extension module (same-origin Owner session like `/api/approvals`):
-
-| Route | Answer |
-| --- | --- |
-| `GET /api/approvals/seat-link` | `{state, code?, qrText?, expiresAt?, reason?}` (`code` is the typed code) (state and reason as in the table) |
-| `POST /api/approvals/seat-link/start` | starts or returns the running pairing; same shape |
-| `POST /api/approvals/seat-link/stop` | kills the run; same shape |
-
-The module owns these three calls and nothing else; it keeps no pairing data. The pair run, the pairing home, `readPairedToken` and the 401 detection belong to Molly's `approval-box-daemon.mjs` (the body already runs `approval_box_pair`'s `pair --json` there; the MCP tools `approval_box_pair*` stay for a490p and are not used by clients).
+## Who builds what
 
 | Who | Builds |
 | --- | --- |
-| Nayuta | `approval-box pair --json` `/v1` mode (lines, `qr_text`, config written on `claimed`), the release/pin; states in a490p whether the later peer-channel token works on `/connector/v1` |
-| Molly | the pair-run wrapper (start/status/stop, 20 s waiting-line bound, adopt an existing token), `readPairedToken`, the 401 → `removed` detection, the three routes, the `tokenSource` input of `createApprovalDecisions`, removal of the seat-approvals secret pair |
-| Kiro | the seat watcher on the new instance (no paired-daemon gate; no card while the link is not `linked`); the in-app entry stays the fallback |
-| Rapi, Anis, Neon | the pairing view per table, from the three routes (after Molly's routes exist; Admi's Web has no 決裁箱 view yet) |
-| Delta | this page, screen-spec words; the link-state check in the client rows |
+| Delta | this page, the P1 interface (`approvals.decisions`) and the removal of the pairing, the daemon and the QR tool |
+| Kiro | the seat watcher: files, reads and cancels through P1 (`origin: seat-approval`); the backend of P1 (the host's public Approval Box client); no card while P1 answers `UNAVAILABLE`; the in-app entry stays the fallback |
+| Nayuta | the Approval Box product and each host's own connector setup |
 
 ## Card shape
 
@@ -90,7 +43,7 @@ The module owns these three calls and nothing else; it keeps no pairing data. Th
 stateDiagram-v2
   [*] --> Watching: seat is up
   Watching --> Filed: approval_required seen, file() returned an id (record: botId, digest, firstSeen, decisionId)
-  Watching --> InAppOnly: approval_required seen, link not linked or file() failed
+  Watching --> InAppOnly: approval_required seen, P1 answers UNAVAILABLE or file() failed
   InAppOnly --> Watching: prompt gone
   Filed --> Applying: read() = answered with approve_once or deny
   Applying --> Done: POST screen/approval {decision, digest} = 200
@@ -114,8 +67,8 @@ stateDiagram-v2
 flowchart LR
   Seat["seat (Aiterm blocked: tool approval)"] --> Watch["body watcher (Kiro)"]
   Watch -->|"GET screen/approval: digest, choices"| Aiterm["Aiterm claude_approval / agent_approval"]
-  Watch -->|"file(): title, masked context, options, session_label"| Door["createApprovalDecisions (tokenSource = the Owner-approved pairing)"]
-  Door --> Server["Approval Box server"] --> Phone["Owner's Approval Box / BellTeam 決裁箱"]
+  Watch -->|"file(): title, masked context, options, session_label"| Door["P1 decision port: the host's public Approval Box client (Kiro's backend)"]
+  Door --> Server["Approval Box (the host's own connector)"] --> Phone["Owner's Approval Box / BellTeam 決裁箱"]
   Phone -->|"answer approve_once / deny"| Server --> Door
   Watch -->|"read() every tick; fetched"| Door
   Watch -->|"respond {decision, digest}"| Aiterm
