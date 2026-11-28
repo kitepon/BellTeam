@@ -898,4 +898,9 @@ internal static class AppStrings
     public static string WorkGraphView_UpdateStatus_3 => Get("WorkGraphView_UpdateStatus_3");
     public static string WorkGraphView_UpdateStatus_4 => Get("WorkGraphView_UpdateStatus_4");
     public static string WorkGraphWindow_OpenAsync_1(object? a0) => string.Format(CultureInfo.CurrentCulture, Get("WorkGraphWindow_OpenAsync_1"), a0);
+    public static string StartupViews_ServerCodeView_1 => Get("StartupViews_ServerCodeView_1");
+    public static string StartupViews_ServerCodeView_2 => Get("StartupViews_ServerCodeView_2");
+    public static string StartupViews_ServerCodeView_3 => Get("StartupViews_ServerCodeView_3");
+    public static string StartupViews_ServerCodeView_4 => Get("StartupViews_ServerCodeView_4");
+    public static string StartupViews_ServerCodeView_5 => Get("StartupViews_ServerCodeView_5");
 }

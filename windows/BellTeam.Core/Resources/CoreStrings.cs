@@ -1049,4 +1049,9 @@ internal static class CoreStrings
     public static string Workspace_StopLabel_1 => Get("Workspace_StopLabel_1");
     public static string Workspace_Title_1 => Get("Workspace_Title_1");
     public static string Workspace_connectionStatus_1 => Get("Workspace_connectionStatus_1");
+    public static string HomeLoginText_NoResult_1 => Get("HomeLoginText_NoResult_1");
+    public static string HomeLoginText_CodeInvalid_1 => Get("HomeLoginText_CodeInvalid_1");
+    public static string HomeLoginText_InputInvalid_1 => Get("HomeLoginText_InputInvalid_1");
+    public static string HomeLoginText_RateLimited_1 => Get("HomeLoginText_RateLimited_1");
+    public static string HomeLoginText_Refused_1(object? a0) => string.Format(CultureInfo.CurrentCulture, Get("HomeLoginText_Refused_1"), a0);
 }

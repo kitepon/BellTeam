@@ -901,4 +901,9 @@
   <data name="WorkGraphView_UpdateStatus_3" xml:space="preserve"><value>相関図の応答を読めませんでした。再接続しています…</value><comment> | sites: WorkGraphView.cs:129 UpdateStatus: statement | ja chars: 25</comment></data>
   <data name="WorkGraphView_UpdateStatus_4" xml:space="preserve"><value>一部の情報を取得できていません</value><comment> | sites: WorkGraphView.cs:130 UpdateStatus: statement | ja chars: 15</comment></data>
   <data name="WorkGraphWindow_OpenAsync_1" xml:space="preserve"><value>メインの窓を開けませんでした: {0}</value><comment>{0} = error.Message;  | sites: WorkGraphWindow.cs:96 OpenAsync: openError = ...;  | ja chars: 19</comment></data>
+  <data name="StartupViews_ServerCodeView_1" xml:space="preserve"><value>サーバーに入る</value><comment> | sites: StartupViews.cs ServerCodeView title | ja chars: 7</comment></data>
+  <data name="StartupViews_ServerCodeView_2" xml:space="preserve"><value>サーバーのコードで入る</value><comment> | sites: StartupViews.cs ServerCodeView headline | ja chars: 11</comment></data>
+  <data name="StartupViews_ServerCodeView_3" xml:space="preserve"><value>コード（4-4-5文字）</value><comment> | sites: StartupViews.cs ServerCodeView field | ja chars: 12</comment></data>
+  <data name="StartupViews_ServerCodeView_4" xml:space="preserve"><value>コードで入る</value><comment> | sites: StartupViews.cs ServerCodeView button | ja chars: 6</comment></data>
+  <data name="StartupViews_ServerCodeView_5" xml:space="preserve"><value>接続先を変更</value><comment> | sites: StartupViews.cs ServerCodeView change server | ja chars: 6</comment></data>
 </root>

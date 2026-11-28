@@ -1079,4 +1079,9 @@ AI
   <data name="Workspace_StopLabel_1" xml:space="preserve"><value>停止中…</value><comment> | sites: Workspace.cs:812 StopLabel: - | ja chars: 4</comment></data>
   <data name="Workspace_Title_1" xml:space="preserve"><value>チームと、同じデスクで。</value><comment> | sites: Workspace.cs:178 Title: - | ja chars: 12</comment></data>
   <data name="Workspace_connectionStatus_1" xml:space="preserve"><value>接続先を設定してください。</value><comment> | sites: Workspace.cs:74 connectionStatus: - ; Workspace.cs:82 AnswerSeatApprovalAsync: new BellApiException() ; Workspace.cs:117 Management: new BellApiException() ; Workspace.cs:118 Planning: new BellApiException() (+10 more) | ja chars: 13</comment></data>
+  <data name="HomeLoginText_NoResult_1" xml:space="preserve"><value>ログインの結果を受け取れませんでした。新しいコードで、もう一度お試しください。</value><comment> | sites: HomeLogin.cs NoResult | ja chars: 39</comment></data>
+  <data name="HomeLoginText_CodeInvalid_1" xml:space="preserve"><value>コードが違うか、すでに使われています。</value><comment> | sites: HomeLogin.cs CodeInvalid | ja chars: 19</comment></data>
+  <data name="HomeLoginText_InputInvalid_1" xml:space="preserve"><value>ログインの内容を確認できませんでした。</value><comment> | sites: HomeLogin.cs Of | ja chars: 19</comment></data>
+  <data name="HomeLoginText_RateLimited_1" xml:space="preserve"><value>しばらく待ってから、もう一度お試しください。</value><comment> | sites: HomeLogin.cs Of | ja chars: 22</comment></data>
+  <data name="HomeLoginText_Refused_1" xml:space="preserve"><value>BellTeamがログインを受け付けませんでした（{0}）。</value><comment> | sites: HomeLogin.cs Of | ja chars: 30</comment></data>
 </root>

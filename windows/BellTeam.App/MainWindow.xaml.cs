@@ -17,6 +17,8 @@ public partial class MainWindow : Window, IInspectorHost
     private int connectGeneration;
     private bool connecting;
     private bool signingOut;
+    // The server's session token (app-sessions.md section 4); null keeps none (tests).
+    private readonly ISessionTokenStore? tokens;
     private string? lastAddress;
     // Failed startup connections since the last success; the next automatic try waits ReconnectBackoff for this number. A manual try does not reset it.
     private int startupAttempt;
@@ -30,8 +32,9 @@ public partial class MainWindow : Window, IInspectorHost
     private bool loadingOlder;
     private bool unreadNew; // a message arrived while the reader was away from the bottom
     public Task PageReady { get; private set; } = Task.CompletedTask;
-    public MainWindow(Workspace model, bool persistPlacement = true, DesktopAccess? access = null, DesktopNotifications? notifications = null, SettingsStore? settings = null, ApprovalBoxDevice? approvalBox = null)
+    public MainWindow(Workspace model, bool persistPlacement = true, DesktopAccess? access = null, DesktopNotifications? notifications = null, SettingsStore? settings = null, ApprovalBoxDevice? approvalBox = null, ISessionTokenStore? tokens = null)
     {
+        this.tokens = tokens;
         this.model = model; settingsStore = settings ?? new SettingsStore(SettingsStore.UserDirectory);
         this.access = access;        this.notifications = notifications;
         SetResourceReference(StyleProperty, typeof(Window));
@@ -505,7 +508,7 @@ public partial class MainWindow : Window, IInspectorHost
     private async Task SignOutAsync()
     {
         ShowConversation(); signingOut = true;
-        try { model.SignOut(); } finally { signingOut = false; }
+        try { await EndHomeSessionAsync(); model.SignOut(); } finally { signingOut = false; }
         try { if (notifications is not null) await notifications.SetEnabledAsync(false, persist: false); if (access is not null) await access.SignOutAsync(); }
         catch (Exception error) { model.ReportActionError(error.Message); }
     }
@@ -532,7 +535,7 @@ public partial class MainWindow : Window, IInspectorHost
                 (AppStrings.MainWindow_xaml_DeleteAccountAsync_2, () => notifications?.SetEnabledAsync(false, persist: false) ?? Task.CompletedTask),
                 (AppStrings.MainWindow_xaml_DeleteAccountAsync_3, () => access?.SignOutAsync() ?? Task.CompletedTask),
                 (AppStrings.MainWindow_xaml_DeleteAccountAsync_4, () => { AccountStore.Local.SignOutLocal(); return Task.CompletedTask; }),
-                (AppStrings.MainWindow_xaml_DeleteAccountAsync_5, () => { settingsStore.Save(settingsStore.Load() with { ServerUrl = null }); return Task.CompletedTask; }),
+                (AppStrings.MainWindow_xaml_DeleteAccountAsync_5, () => { settingsStore.Save(settingsStore.Load() with { ServerUrl = null }); (tokens as DpapiSessionTokenStore)?.DeleteAll(); return Task.CompletedTask; }),
             ];
             foreach (var (what, run) in steps)
             {
@@ -543,6 +546,33 @@ public partial class MainWindow : Window, IInspectorHost
         }
         finally { signingOut = false; }
         ShowResult(AccountDeletionText.ResultTitle, AccountDeletionText.ResultBody(AccountDeletionText.Cancel));
+    }
+    // Sign-out of a home server: the app ends its own session (DELETE /api/home/sessions/{id}, the row the server marks current) and forgets the token. A refusal is shown; the token is forgotten either way.
+    private async Task EndHomeSessionAsync()
+    {
+        if (!model.SessionLoginRequired || !model.Connected) return;
+        try
+        {
+            var own = (await model.Planning.HomeSessionsAsync(model.ConnectionToken)).FirstOrDefault(session => session.Current);
+            if (own is not null) await model.Planning.EndHomeSessionAsync(own.Id, model.ConnectionToken);
+        }
+        catch (Exception error) when (error is not OperationCanceledException) { model.ReportActionError(error.Message); }
+        finally { ForgetToken(); }
+    }
+    private void ForgetToken() { if (tokens is not null && Uri.TryCreate(model.Server, UriKind.Absolute, out var origin)) tokens.Clear(ServerOrigin.Parse(origin.AbsoluteUri)); }
+    // The code screen: the console code goes to the server once; the token it returns is kept and the connection is made again with it. A refusal comes back as the sentence to show.
+    private async Task<string?> SubmitCodeAsync(string code)
+    {
+        var origin = ServerOrigin.Parse(model.Server);
+        try
+        {
+            using var api = new BellApi(origin, cookies: access?.Cookies);
+            var answer = await new HomeLoginApi(api).ConsoleAsync(code);
+            tokens?.Save(origin, answer.Token!);
+        }
+        catch (Exception error) when (error is not OperationCanceledException) { return HomeLoginText.Of(error); }
+        await ConnectAsync(model.Server, openLogin: false);
+        return null;
     }
     private async Task ChangeServerAsync(string address)
     {
@@ -577,7 +607,7 @@ public partial class MainWindow : Window, IInspectorHost
             StartupPhase.Failure => new StartupFailureView(message, Uri.TryCreate(lastAddress ?? model.Server, UriKind.Absolute, out var server) ? server.Host : null, () => ConnectAsync(lastAddress ?? model.Server, true, true), OpenConnectionSettings, () => (ConfirmServerChange ?? AskServerChange)()),
             StartupPhase.Account => new AccountGateView(AccountStore.Local, ConnectFromAccount),
             StartupPhase.Setup => new ServerSetupView(ConnectToAddress, ShowServerGuide, model.Server),
-                        StartupPhase.SignIn => new LoginView(OpenLoginSheet),
+                        StartupPhase.SignIn => model.SessionLoginRequired ? new ServerCodeView(SubmitCodeAsync, OpenConnectionSettings) : new LoginView(OpenLoginSheet),
             _ => new OnboardingView(new SetupApi(model.Management.Api), setup!, CompleteOnboardingAsync, OpenConnectionSettings, model.ConnectionToken)
         };
         StartupHost.Visibility = phase == StartupPhase.Ready ? Visibility.Collapsed : Visibility.Visible;
@@ -586,7 +616,8 @@ public partial class MainWindow : Window, IInspectorHost
     public void ShowServerGuide() { CloseUpdateSheet(); OpenSheet(AppStrings.MainWindow_xaml_ShowServerGuide_1, new ServerGuideView()); }
     private void RouteToLogin() { if (model.NeedsLogin && !connecting && startup != StartupPhase.SignIn) ShowSignIn(!signingOut && model.AuthMode == "cloudflare"); }
     // Mac LoginView opens its login sheet by itself when the server just asked for a login (not after an explicit logout).
-    private void ShowSignIn(bool openLogin) { ShowStartup(StartupPhase.SignIn); if (openLogin) OpenLoginSheet(); }
+    // A home server that asks for a login again has refused the token this app holds (a definite 401): the token goes, so the next start asks for a code instead of replaying it.
+    private void ShowSignIn(bool openLogin) { if (model.SessionLoginRequired) ForgetToken(); ShowStartup(StartupPhase.SignIn); if (openLogin) OpenLoginSheet(); }
     private void OpenLoginSheet()
     {
         if (access is null) return;
