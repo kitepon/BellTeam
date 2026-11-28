@@ -7,7 +7,9 @@ import { join } from 'node:path'
 import { createAuthCore } from '../src/auth-mediation/core.mjs'
 import { createItemCache } from '../src/auth-mediation/items.mjs'
 import { emptyPolicy } from '../src/auth-mediation/policy.mjs'
-import { planRun, startRun, stopRuns } from '../src/auth-mediation/run.mjs'
+import { spawn } from 'node:child_process'
+import { readFile, readdir } from 'node:fs/promises'
+import { planRun, startRun, stopAllRuns, stopRuns, sweepStaleRuns } from '../src/auth-mediation/run.mjs'
 import { validateAuthMediationRequest } from '../src/auth-mediation-protocol.mjs'
 
 // The relay's side of a run: a socket the module child joins; frames come back as [tag, bytes].
@@ -81,4 +83,26 @@ test('run through the core: needs the grant "run <name>", reads the item, hands 
   assert.equal((await ask('other')).outcome, 'denied'); assert.equal(calls.length, 1)
   await new Promise(r => setImmediate(r)); assert.ok(!JSON.stringify(lines).includes('AGE-SECRET')); assert.deepEqual(lines.map(l => l.outcome), ['granted', 'run-ended', 'denied'].sort((a, b) => lines.findIndex(l => l.outcome === a) - lines.findIndex(l => l.outcome === b)))
   assert.equal(lines.find(l => l.outcome === 'run-ended').bytes_in, 5)
+})
+
+const alive = pid => { try { process.kill(pid, 0); return true } catch { return false } }
+const until = async (check, ms = 5000) => { const t = Date.now(); while (Date.now() - t < ms) { if (await check()) return true; await new Promise(r => setTimeout(r, 50)) } return false }
+
+test('run: the child\'s own end stops every run and removes its folder', async () => {
+  const side = await relaySide(() => {}), root = join(side.dir, 'runs')
+  await startRun(planRun({ run_argv: JSON.stringify(['/bin/sh', '-c', 'sleep 120']), run_env_SECRETX: 'secret-value-xyz', run_max_seconds: '0' }), { item: 'run end', stream: side.path, root })
+  assert.equal((await readdir(root)).length, 1)
+  await stopAllRuns(); assert.deepEqual(await readdir(root), []); side.server.close()
+})
+
+test('run: a child killed hard leaves its command and secret file behind; the next child sweeps both at start', async () => {
+  const side = await relaySide(() => {}), root = join(side.dir, 'runs')
+  const script = `import { planRun, startRun } from ${JSON.stringify(new URL('../src/auth-mediation/run.mjs', import.meta.url).href)}
+    await startRun(planRun({ run_argv: JSON.stringify(['/bin/sh', '-c', 'sleep 120']), run_env_SECRETX: 'secret-value-xyz', run_max_seconds: '0' }), { item: 'run x', stream: process.argv[1], root: process.argv[2] }); console.log('up'); setInterval(() => {}, 1000)`
+  const child = spawn(process.execPath, ['--input-type=module', '-e', script, side.path, root]); await new Promise(resolve => child.stdout.once('data', resolve))
+  const [folder] = await readdir(root), pids = JSON.parse(await readFile(join(root, folder, 'pids.json'), 'utf8')), command = pids.procs.find(p => p.group).pid
+  child.kill('SIGKILL'); await until(() => child.exitCode !== null || child.signalCode !== null)
+  assert.ok(alive(command)) // the orphan the hard kill leaves
+  assert.equal(await sweepStaleRuns(root), 1)
+  assert.ok(await until(() => !alive(command))); assert.deepEqual(await readdir(root), []); side.server.close()
 })
