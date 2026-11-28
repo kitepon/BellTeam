@@ -21,6 +21,19 @@ test('stream scrubber: a secret split across chunks (raw or base64) is replaced,
   assert.equal(out, 'abc [redacted] def tail')
 })
 
+test('stream scrubber: only a tail that could still become a secret is held back; a plain event passes at once; a cut stream flushes what it held', async () => {
+  const sc = makeScrubber(['secret-token-123'])
+  assert.equal(sc.push(Buffer.from('data: hi\n\n')).toString(), 'data: hi\n\n') // nothing held: the event is not delayed to the end of the stream
+  assert.equal(sc.push(Buffer.from('x secret-tok')).toString(), 'x ') // a possible start of the secret is held
+  assert.equal(sc.push(Buffer.from('en-123!')).toString(), '[redacted]!')
+  assert.equal(sc.push(Buffer.from('ab secr')).toString(), 'ab '); assert.equal(sc.end().toString(), 'secr')
+  const sent = []; const socket = { write: b => { sent.push(b); return true }, end() {}, on() {}, once() {} }
+  const body = (async function* () { yield new TextEncoder().encode('data: first\n\nsec'); throw new Error('cut') })()
+  await pipeHttpStream({ status: 200, headers: {}, response: { body }, secrets: ['secret-token-123'] }, { stream: 'x', controller: new AbortController(), connect: () => { const s = Object.assign(new (class extends EventTarget {})(), socket); s.on = (e, f) => { if (e === 'x') f() }; s.once = (e, f) => { if (e === 'connect') queueMicrotask(f) }; return s } })
+  assert.equal(Buffer.concat(framesOf(Buffer.concat(sent)).filter(f => f[0] === 1).map(f => f[1])).toString(), 'data: first\n\nsec')
+  assert.equal(framesOf(Buffer.concat(sent)).at(-1)[1].toString(), '2')
+})
+
 test('http stream through the core: same grant and credential, the response is piped as frames (status+headers first, body chunks scrubbed, end code last); no grant, no stream', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'hs-')), sockPath = join(dir, 'x.sock'); let bytes = Buffer.alloc(0), done; const closed = new Promise(r => { done = r })
   const server = createServer({ allowHalfOpen: true }, s => { s.on('data', d => { bytes = Buffer.concat([bytes, d]) }); s.on('end', () => s.end()); s.on('close', done) }); await new Promise(r => server.listen(sockPath, r))
