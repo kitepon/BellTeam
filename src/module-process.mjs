@@ -79,6 +79,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
           await restoreAfterRestart(target.channel, target.generation)
           mark('resume')
           await resume(target, ticket)
+          initialized = true
         } catch (error) { if (!target.probeFailed) await stopUnadmitted(target); throw error }
         report('completed')
       }
@@ -341,6 +342,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
         handoff = undefined
       }
       try { await prepare(versionId, expected) } catch (error) {
+        exchanging = false
         if (!closed) { try { await resume(old, ticket) } catch { state('unavailable') } }
         throw error
       }
@@ -379,11 +381,12 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
           currentVersionId = oldVersion; previousVersionId = oldPrevious
           stage = 'resume'
           await resume(restored, ticket)
+          initialized = true
         } catch (rollback) { rollbackStage = stage; rollbackError = rollback; errors.push(rollback); state(closed ? 'closed' : 'unavailable') }
         const result = new AggregateError(errors, errors.length === 1 ? `${prefix}_REPLACE_ROLLED_BACK` : `${prefix}_REPLACE_AND_ROLLBACK_FAILED`)
         result.moduleDiagnostic = moduleExchangeDiagnostic(component, failedStage, error, rollbackStage, rollbackError)
         throw result
-      } finally { if (phase !== 'running') { exchanging = false; state(closed ? 'closed' : 'unavailable') } }
+      } finally { exchanging = false; if (phase !== 'running') state(closed ? 'closed' : 'unavailable') }
     }
     return exclusive(() => exchangeMutex ? exchangeMutex.runExclusive(perform) : perform())
   }

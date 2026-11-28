@@ -562,7 +562,7 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
             state.operations.push(entry); await save()
           }
           await admit(entry)
-          const accepted = await publicJobs(entry)
+          const accepted = await publicJobs(entry).catch(() => publicOperation(entry))
           active = work(entry).finally(() => { active = null; release(); try { notify({ operationCompleted: true }) } catch {} })
           return accepted
         } catch (error) { release(); throw error }

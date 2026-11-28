@@ -29,6 +29,7 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
       if (closed || available) return
       try {
         const retained = instance, saved = recoveryState
+        await captureRollback(saved)
         if (retained?.ready && !retained.retiring && (!saved || retained.factory === saved.factory)) {
           if (saved) {
             await adopt(saved.selection)
@@ -40,8 +41,9 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
         }
         if (retained) await dispose(retained)
         if (closed) return
-        const factory = saved?.factory ?? await load(currentVersionId)
+        const factory = saved?.factory ?? await load(saved ? saved.selection.currentVersionId : currentVersionId)
         if (closed) return
+        if (saved) saved.factory = factory
         instance = make(factory, saved?.handoff)
         await initialize(instance)
         if (closed) return
@@ -104,6 +106,18 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
     const [result] = handover ? [await stopping] : await within(Promise.all([stopping, waitActive()]), 60_000, 'BUSY')
     if (result?.quiesced !== true || (!handover && performance.now() - started > 60_000)) throw fail('QUIESCE_FAILED')
     target.quiesced = true
+  }
+  const captureRollback = async saved => {
+    const source = saved?.rollbackSource
+    if (!source || saved.rollbackCaptured) return
+    // A timeout leaves the actual quiesce in flight. A retry waits for it before asking again.
+    if (!source.quiesced)
+      await within(source.quiescing ?? quiesce(source, { handover: true }), 10_000, 'HANDOVER_TIMEOUT')
+    if (!source.quiesced) throw fail('QUIESCE_FAILED')
+    const handoff = source.engine.exportState({ handover: true })
+    if (!handoff) throw fail('HANDOVER_FAILED')
+    saved.handoff = handoff
+    saved.rollbackCaptured = true
   }
   const resume = async target => {
     const resumed = await within((async () => {
@@ -182,19 +196,25 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
       const nextFactory = await load(versionId, { expectedRelease: expected })
       if (closed) throw fail('CLOSED')
       if (currentVersionId === versionId) return snapshot()
+      const pendingRollback = instance && recoveryState?.rollbackSource === instance ? recoveryState : null
+      await captureRollback(pendingRollback)
       const old = instance, oldSelection = { currentVersionId, previousVersionId }
+      const restoreFactory = pendingRollback ? pendingRollback.factory : old?.factory
       readable = old
       state('quiescing')
       let handoff = null
       try {
-        await within(quiesce(old, { handover: true }), 70_000, 'HANDOVER_TIMEOUT')
-        handoff = old.engine.exportState({ handover: true })
+        if (pendingRollback) handoff = pendingRollback.handoff
+        else {
+          await within(quiesce(old, { handover: true }), 70_000, 'HANDOVER_TIMEOUT')
+          handoff = old.engine.exportState({ handover: true })
+        }
       } catch {
         // The old module cannot veto its replacement (Owner 2026-11-08): retire it unreleased and start the new one cold.
         handoff = null
       }
       // From this point the retired instance is never resumed.
-      recoveryState = { factory: old?.factory ?? nextFactory, handoff, selection: oldSelection }
+      recoveryState = { factory: restoreFactory, handoff, selection: oldSelection }
       if (!handoff) {
         readable = null
         if (old) { old.retiring = true; void retireUnreleased(old) }
@@ -217,7 +237,7 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
           state('running', true)
           return snapshot()
         } catch (error) {
-          if (['READY_TIMEOUT', 'READY_PROBE_FAILED'].includes(error?.code)) {
+          if (!saving && ['READY_TIMEOUT', 'READY_PROBE_FAILED'].includes(error?.code)) {
             recoveryState = { factory: nextFactory, handoff, selection: { currentVersionId: versionId, previousVersionId: oldSelection.currentVersionId } }
             candidate.retiring = true
             state('unavailable'); recovery.lost(error)
@@ -226,9 +246,17 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
           }
           const errors = [error]
           try {
+            if (saving && candidate?.initialized) {
+              candidate.retiring = true
+              recoveryState.rollbackSource = candidate
+              await captureRollback(recoveryState)
+            }
             await dispose(candidate)
             if (closed) throw fail('CLOSED')
-            const restored = make(old.factory, handoff); instance = restored
+            const factory = restoreFactory ?? await load(oldSelection.currentVersionId)
+            if (closed) throw fail('CLOSED')
+            recoveryState.factory = factory
+            const restored = make(factory, recoveryState.handoff); instance = restored
             await initialize(restored)
             await adopt(oldSelection)
             currentVersionId = oldSelection.currentVersionId; previousVersionId = oldSelection.previousVersionId
